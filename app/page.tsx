@@ -164,7 +164,7 @@ export default function HomePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         pdfBase64,
-        correoDestino: "dannielehud@gmail.com",
+        correoDestino: "bfmpedidos@gmail.com", //cambiar por correo de la ferreteria
       }),
     });
 
