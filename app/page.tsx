@@ -91,139 +91,142 @@ export default function HomePage() {
 
   // Función para enviar el pedido por WhatsApp
   const enviarPedido = async () => {
-  try {
-    setEnviando(true);
-    setMensajeExito("");
+    try {
+      setEnviando(true);
+      setMensajeExito("");
 
-    const jsPDFModule = await import("jspdf");
-    const autoTableModule = await import("jspdf-autotable");
-    const { jsPDF } = jsPDFModule;
+      const jsPDFModule = await import("jspdf");
+      const autoTableModule = await import("jspdf-autotable");
+      const { jsPDF } = jsPDFModule;
 
-    // PDF que se envía por correo (docEnvio)
-    const docEnvio = new jsPDF();
+      // PDF que se envía por correo (docEnvio)
+      const docEnvio = new jsPDF();
 
-    docEnvio.setFontSize(10);
-    docEnvio.text("NUEVO PEDIDO DESDE LA APP", 14, 20);
-    docEnvio.setFontSize(10);
-    docEnvio.text(`CLIENTE: ${cliente}`, 14, 30);
-    docEnvio.text(`FERRETERÍA: ${ferreteria}`, 14, 37);
+      docEnvio.setFontSize(10);
+      docEnvio.text("NUEVO PEDIDO DESDE LA APP", 14, 20);
+      docEnvio.setFontSize(10);
+      docEnvio.text(`CLIENTE: ${cliente}`, 14, 30);
+      docEnvio.text(`FERRETERÍA: ${ferreteria}`, 14, 37);
 
-    if (enviarDomicilio) {
-      docEnvio.text("TIPO DE ENTREGA: A DOMICILIO", 14, 44);
-      docEnvio.text(`DIRECCIÓN: ${direccion}`, 14, 51);
-    } else {
-      docEnvio.text("TIPO DE ENTREGA: RECOGER EN TIENDA", 14, 44);
-    }
+      if (enviarDomicilio) {
+        docEnvio.text("TIPO DE ENTREGA: A DOMICILIO", 14, 44);
+        docEnvio.text(`DIRECCIÓN: ${direccion}`, 14, 51);
+      } else {
+        docEnvio.text("TIPO DE ENTREGA: RECOGER EN TIENDA", 14, 44);
+      }
 
-    const productosTabla = carrito.map((p) => [
-      "",
-      p.CODIGO,
-      "",
-      p.cantidad,
-      "",
-      p.TITULO,
-      `$${p.P_MAYOREO.toFixed(2)}`,
-      `$${p.subtotal.toFixed(2)}`,
-      "",
-    ]);
-
-    autoTableModule.default(docEnvio, {
-      head: [
-        [
-          " S ",
-          "Código",
-          " PP ",
-          "Cantidad",
-          " R ",
-          "Producto",
-          "Precio",
-          "Subtotal",
-          "  PA  ",
-        ],
-      ],
-      body: productosTabla,
-      startY: 60,
-      styles: { fontSize: 7, lineColor: [200, 200, 200], lineWidth: 0.2 },
-      headStyles: { fontStyle: "bold" },
-      theme: "plain",
-    });
-
-    const finalYEnvio = (docEnvio as any).lastAutoTable?.finalY || 70;
-    const total = carrito.reduce(
-      (sum, p) => sum + (p.subtotal ?? (p.cantidad ?? 0) * (p.P_MAYOREO ?? 0)),
-      0
-    );
-
-    docEnvio.setFontSize(7);
-    docEnvio.text(`Total: $${total.toFixed(2)}`, 14, finalYEnvio + 10);
-
-    const pdfBase64 = docEnvio.output("datauristring");
-
-    await fetch("/api/enviar-pedido", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pdfBase64,
-        correoDestino: "bfmpedidos@gmail.com", //cambiar por correo de la ferreteria
-      }),
-    });
-
-    // PDF que se descarga para el cliente (docCliente)
-    const docCliente = new jsPDF();
-
-    docCliente.setFontSize(7);
-    docCliente.text("COMPROBANTE DE COMPRA", 14, 20);
-    docCliente.setFontSize(7);
-    docCliente.text(`CLIENTE: ${cliente}`, 14, 30);
-    docCliente.text(`FERRETERÍA: ${ferreteria}`, 14, 37);
-
-    if (enviarDomicilio) {
-      docCliente.text("ENTREGA: A DOMICILIO", 14, 44);
-      docCliente.text(`DIRECCIÓN: ${direccion}`, 14, 51);
-    } else {
-      docCliente.text("ENTREGA: RECOGER EN TIENDA", 14, 44);
-    }
-
-    autoTableModule.default(docCliente, {
-      head: [["Producto", "Cantidad", "Precio", "Subtotal"]],
-      body: carrito.map((p) => [
-        p.TITULO,
+      const productosTabla = carrito.map((p) => [
+        "",
+        p.CODIGO,
+        "",
         p.cantidad,
+        "",
+        p.TITULO,
         `$${p.P_MAYOREO.toFixed(2)}`,
         `$${p.subtotal.toFixed(2)}`,
-      ]),
-      startY: 60,
-      styles: { fontSize: 7 },
-      headStyles: {
-    fillColor: [255, 140, 0], 
-    textColor: [255, 255, 255], 
-    fontStyle: "bold",
-  },
-      theme: "grid",
-    });
+        "",
+      ]);
 
-    const finalYCliente = (docCliente as any).lastAutoTable?.finalY || 70;
-    docCliente.setFontSize(7);
-    docCliente.text(`TOTAL: $${total.toFixed(2)}`, 14, finalYCliente + 10);
-     docCliente.text(
-      "COSTO DE USO DE LA APLICACIÓN: $50.00 (CUBIERTO POR BODEGA FERRETERA DE MONTERREY)",
-      14,
-      finalYEnvio + 18
-    );
+      autoTableModule.default(docEnvio, {
+        head: [
+          [
+            " S ",
+            "Código",
+            " PP ",
+            "Cantidad",
+            " R ",
+            "Producto",
+            "Precio",
+            "Subtotal",
+            "  PA  ",
+          ],
+        ],
+        body: productosTabla,
+        startY: 60,
+        styles: { fontSize: 7, lineColor: [200, 200, 200], lineWidth: 0.2 },
+        headStyles: { fontStyle: "bold" },
+        theme: "plain",
+      });
 
-    const nombreArchivo = `Pedido_${cliente.replace(/\s+/g, "_")}.pdf`;
-    docCliente.save(nombreArchivo);
+      const finalYEnvio = (docEnvio as any).lastAutoTable?.finalY || 70;
+      const total = carrito.reduce(
+        (sum, p) =>
+          sum + (p.subtotal ?? (p.cantidad ?? 0) * (p.P_MAYOREO ?? 0)),
+        0
+      );
 
-    setMensajeExito("✅ Su pedido ha sido enviado con éxito.");
-    setMostrarModalPedido(false);
-  } catch (error) {
-    console.error("Error al enviar pedido:", error);
-    setMensajeExito("❌ Ocurrió un error al enviar el pedido. Intente nuevamente.");
-  } finally {
-    setEnviando(false);
-  }
-};
+      docEnvio.setFontSize(7);
+      docEnvio.text(`Total: $${total.toFixed(2)}`, 14, finalYEnvio + 10);
 
+      const pdfBase64 = docEnvio.output("datauristring");
+
+      await fetch("/api/enviar-pedido", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pdfBase64,
+          correoDestino: "bfmpedidos@gmail.com", //correo de la ferreteria
+        }),
+      });
+
+      // PDF que se descarga para el cliente (docCliente)
+      const docCliente = new jsPDF();
+
+      docCliente.setFontSize(7);
+      docCliente.text("COMPROBANTE DE COMPRA", 14, 20);
+      docCliente.setFontSize(7);
+      docCliente.text(`CLIENTE: ${cliente}`, 14, 30);
+      docCliente.text(`FERRETERÍA: ${ferreteria}`, 14, 37);
+
+      if (enviarDomicilio) {
+        docCliente.text("ENTREGA: A DOMICILIO", 14, 44);
+        docCliente.text(`DIRECCIÓN: ${direccion}`, 14, 51);
+      } else {
+        docCliente.text("ENTREGA: RECOGER EN TIENDA", 14, 44);
+      }
+
+      autoTableModule.default(docCliente, {
+        head: [["Producto", "Cantidad", "Precio", "Subtotal"]],
+        body: carrito.map((p) => [
+          p.TITULO,
+          p.cantidad,
+          `$${p.P_MAYOREO.toFixed(2)}`,
+          `$${p.subtotal.toFixed(2)}`,
+        ]),
+        startY: 60,
+        styles: { fontSize: 7 },
+        headStyles: {
+          fillColor: [255, 140, 0],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+        },
+        theme: "grid",
+      });
+
+      const finalYCliente = (docCliente as any).lastAutoTable?.finalY || 70;
+      docCliente.setFontSize(7);
+      docCliente.text(`TOTAL: $${total.toFixed(2)}`, 14, finalYCliente + 10);
+      docCliente.text(
+        "COSTO DE USO DE LA APLICACIÓN: $50.00 (CUBIERTO POR BODEGA FERRETERA DE MONTERREY)",
+        14,
+        finalYEnvio + 18
+      );
+
+      const nombreArchivo = `Pedido_${cliente.replace(/\s+/g, "_")}.pdf`;
+      docCliente.save(nombreArchivo);
+
+      setMensajeExito("✅ Su pedido ha sido enviado con éxito.");
+      setMostrarModalPedido(false);
+      setCarrito([]); // Deja el carrito vacío
+    } catch (error) {
+      console.error("Error al enviar pedido:", error);
+      setMensajeExito(
+        "❌ Ocurrió un error al enviar el pedido. Intente nuevamente."
+      );
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   const apoyos = [
     {
@@ -246,137 +249,176 @@ export default function HomePage() {
 
   // Vista de detalle de producto
 
-  const VistaProducto = ({
-    producto,
-    onBack,
-  }: {
-    producto: any;
-    onBack: () => void;
-  }) => {
-    const [cantidad, setCantidad] = useState(1);
+ const VistaProducto = ({ producto, onBack }: any) => {
+  const [cantidad, setCantidad] = useState("1");
 
-    // Agregar o actualizar producto en el carrito
-    const agregarAlCarrito = () => {
-      setCarrito((prev) => {
-        const existe = prev.find((p) => p.id === producto.id);
-        if (existe) {
-          // si ya está, actualiza cantidad y subtotal
-          return prev.map((p) =>
-            p.id === producto.id
-              ? {
-                  ...p,
-                  cantidad: p.cantidad + cantidad,
-                  subtotal: (p.cantidad + cantidad) * p.P_MAYOREO,
-                }
-              : p
-          );
-        } else {
-          // si no está, agrega nuevo
-          return [
-            ...prev,
-            {
-              ...producto,
-              cantidad,
-              subtotal: cantidad * producto.P_MAYOREO,
-            },
-          ];
-        }
-      });
+  // --- MANEJO DE INPUT ---
+  const handleChange = (e: any) => {
+    const value = e.target.value;
 
-      onBack(); 
-    };
+    if (value === "") {
+      setCantidad("");
+      return;
+    }
 
-    const handleAdd = () => setCantidad((c) => c + 1);
-    const handleSubtract = () => setCantidad((c) => Math.max(1, c - 1));
+    const num = parseInt(value, 10);
+    if (!isNaN(num) && num >= 1) {
+      setCantidad(num.toString());
+    }
+  };
 
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={producto.id}
-          className="!bg-white min-h-screen p-4 fixed inset-0 z-50 text-zinc-900"
-          initial={{ opacity: 0, x: 80 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 80 }}
-          transition={{ duration: 0.35, ease: "easeInOut" }}
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          onDragEnd={(event, info) => {
-            if (info.offset.x > 100) {
-              onBack();
-            }
-          }}
+  const handleBlur = () => {
+    if (cantidad === "" || parseInt(cantidad) < 1) {
+      setCantidad("1");
+    }
+  };
+
+  // --- BOTONES ---
+  const handleAdd = () =>
+    setCantidad((c) =>
+      c === "" ? "1" : (parseInt(c) + 1).toString()
+    );
+
+  const handleSubtract = () =>
+    setCantidad((c) => {
+      if (c === "" || parseInt(c) <= 1) return "1";
+      return (parseInt(c) - 1).toString();
+    });
+
+  // --- AGREGAR AL CARRITO ---
+  const agregarAlCarrito = () => {
+    const cant = parseInt(cantidad) || 1;
+
+    setCarrito((prev: any[]) => {
+      const existe = prev.find((p) => p.id === producto.id);
+      if (existe) {
+        return prev.map((p) =>
+          p.id === producto.id
+            ? {
+                ...p,
+                cantidad: p.cantidad + cant,
+                subtotal: (p.cantidad + cant) * p.P_MAYOREO,
+              }
+            : p
+        );
+      } else {
+        return [
+          ...prev,
+          {
+            ...producto,
+            cantidad: cant,
+            subtotal: cant * producto.P_MAYOREO,
+          },
+        ];
+      }
+    });
+
+    onBack();
+  };
+
+  const cantidadNum = parseInt(cantidad) || 1;
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={producto.id}
+        className="!bg-white min-h-screen p-4 fixed inset-0 z-50 text-zinc-900"
+        initial={{ opacity: 0, x: 80 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 80 }}
+        transition={{ duration: 0.35, ease: "easeInOut" }}
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        onDragEnd={(event, info) => {
+          if (info.offset.x > 100) onBack();
+        }}
+      >
+        {/* Botón regresar */}
+        <button
+          onClick={onBack}
+          className="absolute top-9 left-7 bg-white/80 hover:bg-white text-zinc-800 rounded-full p-3 shadow transition"
         >
-          {/* Botón regresar */}
+          ←
+        </button>
+
+        {/* Imagen */}
+        <div className="flex justify-center mb-3">
+          <div className="relative w-60 h-60">
+            <Image
+              src={producto.IMAGEN || "/placeholder.jpg"}
+              alt={producto.TITULO}
+              fill
+              className="object-contain"
+            />
+          </div>
+        </div>
+
+        {/* Detalles */}
+        <h2 className="text-center text-[20px] font-bold text-zinc-900 leading-snug px-2">
+          {producto.TITULO}
+        </h2>
+
+        <div className="mt-4 text-sm text-zinc-700 px-2">
+          <div className="flex justify-between py-2">
+            <span className="font-medium">Código</span>
+            <span>{producto.CODIGO}</span>
+          </div>
+          <div className="flex justify-between py-2">
+            <span className="font-medium">Precio</span>
+            <span>${producto.P_MAYOREO?.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between py-2">
+            <span className="font-medium">Subtotal</span>
+            <span>${(cantidadNum * producto.P_MAYOREO).toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Controles */}
+        <div className="mt-5 px-4">
+          <div className="flex justify-between items-center gap-3">
+
+            {/* Botón restar */}
+            <button
+              onClick={handleSubtract}
+              className="w-12 h-12 border text-black border-zinc-400 rounded-xl text-2xl"
+            >
+              −
+            </button>
+
+            {/* Input editable */}
+            <input
+              type="number"
+              min="1"
+              value={cantidad}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              className="w-20 text-center border border-zinc-400 rounded-xl text-lg font-semibold text-black py-2"
+            />
+
+            {/* Botón sumar */}
+            <button
+              onClick={handleAdd}
+              className="w-12 h-12 bg-orange-500 text-white rounded-xl text-2xl"
+            >
+              +
+            </button>
+
+          </div>
+
+          {/* Botón agregar */}
           <button
-            onClick={onBack}
-            className="absolute top-9 left-7 bg-white/80 hover:bg-white text-zinc-800 rounded-full p-3 shadow transition"
+            onClick={agregarAlCarrito}
+            className="w-full mt-5 bg-orange-500 text-white py-3 rounded-xl font-bold shadow hover:bg-orange-600 transition"
           >
-            ←
+            Agregar al carrito
           </button>
 
-          {/* Imagen */}
-          <div className="flex justify-center mb-3">
-            <div className="relative w-60 h-60">
-              <Image
-                src={producto.IMAGEN || "/placeholder.jpg"}
-                alt={producto.TITULO}
-                fill
-                className="object-contain"
-              />
-            </div>
-          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
 
-          {/* Detalles */}
-          <h2 className="text-center text-[20px] font-bold text-zinc-900 leading-snug px-2">
-            {producto.TITULO}
-          </h2>
-
-          <div className="mt-4 text-sm text-zinc-700 px-2">
-            <div className="flex justify-between py-2">
-              <span className="font-medium">Código</span>
-              <span>{producto.CODIGO}</span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span className="font-medium">Precio</span>
-              <span>${producto.P_MAYOREO?.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span className="font-medium">Subtotal</span>
-              <span>${(cantidad * producto.P_MAYOREO).toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Controles */}
-          <div className="mt-5 px-4">
-            <div className="flex justify-between items-center">
-              <button
-                onClick={handleSubtract}
-                className="w-12 h-12 border text-black border-zinc-400 rounded-xl text-2xl"
-              >
-                −
-              </button>
-
-              <span className="text-m text-black font-bold">{cantidad}</span>
-
-              <button
-                onClick={handleAdd}
-                className="w-12 h-12 bg-orange-500 text-white rounded-xl text-2xl"
-              >
-                +
-              </button>
-            </div>
-
-            <button
-              onClick={agregarAlCarrito}
-              className="w-full mt-5 bg-orange-500 text-white py-3 rounded-xl font-bold shadow hover:bg-orange-600 transition"
-            >
-              Agregar al carrito
-            </button>
-          </div>
-        </motion.div>
-      </AnimatePresence>
-    );
-  };
 
   // Mostrar vista de producto si hay uno seleccionado
   if (productoSeleccionado) {
@@ -842,7 +884,7 @@ export default function HomePage() {
 
                           {/* Botones cantidad */}
                           <div className="flex items-center gap-2">
-                             {/*
+                            {/*
                             <button
                               onClick={() =>
                                 setCarrito((prev) =>
@@ -887,7 +929,7 @@ export default function HomePage() {
                               +
                             </button>
  */}
-                           =
+                            =
                             <button
                               onClick={() =>
                                 setCarrito((prev) =>
@@ -908,8 +950,6 @@ export default function HomePage() {
                             >
                               x
                             </button>
-                            
-
                           </div>
                         </div>
                       ))}
@@ -974,13 +1014,18 @@ export default function HomePage() {
                   >
                     {/* Imagen en grande */}
                     <div className="relative w-full h-[500px] rounded-xl overflow-hidden">
+                        <div className="min-w-full min-h-full active:scale-110 transition">
                       <Image
                         src={selectedApoyo.imagen}
                         alt={selectedApoyo.titulo}
                         fill
                         className="object-contain bg-white"
                       />
+                       </div>
                     </div>
+
+
+
 
                     {/* Botón volver */}
                     <button
@@ -1230,8 +1275,10 @@ export default function HomePage() {
       <nav
         className="
           fixed bottom-0 left-0 z-50
-          flex w-full items-center justify-around
-          border-t border-zinc-200 bg-white p-3 text-zinc-700 shadow-md
+    flex w-full items-center justify-around
+    border-t border-zinc-200 bg-white 
+    p-3 pb-12 pt-5  
+    text-zinc-700 shadow-md
         "
       >
         <button
