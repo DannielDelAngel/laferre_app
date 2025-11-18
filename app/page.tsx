@@ -42,6 +42,70 @@ export default function HomePage() {
   const [enviando, setEnviando] = useState(false);
   const [mensajeExito, setMensajeExito] = useState("");
 
+  // componete zoom imagenes 
+const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
+  const [scale, setScale] = useState(1);
+  const [isZoomed, setIsZoomed] = useState(false);
+
+  // Zoom con scroll (desktop)
+  const handleWheel = (e: any) => {
+    e.preventDefault();
+    if (!isZoomed) return; // Solo cuando ya está acercado
+    const newScale = Math.min(Math.max(scale + e.deltaY * -0.001, 1), 3);
+    setScale(newScale);
+  };
+
+  // Doble click/tap para zoom rápido
+  const handleDoubleClick = () => {
+    if (isZoomed) {
+      setScale(1);
+      setIsZoomed(false);
+    } else {
+      setScale(2);
+      setIsZoomed(true);
+    }
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 bg-black/90 z-[999] flex items-center justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      onClick={() => !isZoomed && setSelectedApoyo(null)} // Cerrar si no está cerca
+    >
+      <motion.div
+        className="relative w-full h-full flex items-center justify-center overflow-hidden touch-none"
+        onWheel={handleWheel}
+        onDoubleClick={handleDoubleClick}
+        drag={isZoomed ? "x" : false}
+        dragConstraints={{ left: -200, right: 200 }}
+        style={{ scale }}
+      >
+        <Image
+          src={selectedApoyo?.imagen}
+          alt={selectedApoyo?.titulo}
+          fill
+          className="object-contain select-none"
+          draggable={false}
+        />
+      </motion.div>
+
+      <button
+        onClick={() => {
+          setSelectedApoyo(null);
+          setScale(1);
+        }}
+        className="absolute top-4 left-4 bg-white/20 backdrop-blur text-white text-sm px-4 py-2 rounded-full"
+      >
+        ← Cerrar
+      </button>
+    </motion.div>
+  );
+};
+  // fin del componente zomm img
+
   {
     /* categorias extracion */
   }
@@ -610,7 +674,7 @@ export default function HomePage() {
                           placeholder="Buscar"
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          className="w-full rounded-full border border-zinc-300 text-zinc-700 py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          className="w-full rounded-full border border-zinc-300 px-10 py-2 pr-10 text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-[16px] md:text-sm"
                         />
                         <Search className="absolute left-3 top-2.5 text-zinc-500 w-5 h-5 " />
                       </div>
@@ -996,46 +1060,10 @@ export default function HomePage() {
             >
               <div className="mt-4">
                 {/* Estado para ver detalle */}
-                {selectedApoyo ? (
-                  <motion.div
-                    key="detalle-apoyo"
-                    className="relative"
-                    initial={{ opacity: 0, x: 40 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -40 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                    drag="x"
-                    dragConstraints={{ left: 0, right: 0 }}
-                    onDragEnd={(event, info) => {
-                      if (info.offset.x > 100) {
-                        setSelectedApoyo(null);
-                      }
-                    }}
-                  >
-                    {/* Imagen en grande */}
-                    <div className="relative w-full h-[500px] rounded-xl overflow-hidden">
-                        <div className="min-w-full min-h-full active:scale-110 transition">
-                      <Image
-                        src={selectedApoyo.imagen}
-                        alt={selectedApoyo.titulo}
-                        fill
-                        className="object-contain bg-white"
-                      />
-                       </div>
-                    </div>
+{selectedApoyo ? (
+  <ApoyoViewer selectedApoyo={selectedApoyo} setSelectedApoyo={setSelectedApoyo} />
+) : (
 
-
-
-
-                    {/* Botón volver */}
-                    <button
-                      onClick={() => setSelectedApoyo(null)}
-                      className="absolute top-4 left-4 bg-black/60 text-white text-sm px-3 py-1 rounded-full"
-                    >
-                      ← Volver
-                    </button>
-                  </motion.div>
-                ) : (
                   <motion.div
                     key="lista-apoyo"
                     initial={{ opacity: 0, y: 15 }}
