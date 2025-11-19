@@ -42,6 +42,9 @@ export default function HomePage() {
   const [enviando, setEnviando] = useState(false);
   const [mensajeExito, setMensajeExito] = useState("");
 
+  const [numeroCuenta, setNumeroCuenta] = useState("");
+const [errorCuenta, setErrorCuenta] = useState(""); //error si no existe
+
   // componete zoom imagenes 
 const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
   const [scale, setScale] = useState(1);
@@ -153,11 +156,27 @@ const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
 
   const [selectedApoyo, setSelectedApoyo] = useState<Apoyo | null>(null);
 
+
+  
   // Función para enviar el pedido por WhatsApp
   const enviarPedido = async () => {
     try {
       setEnviando(true);
       setMensajeExito("");
+    setErrorCuenta("");
+
+    // Verificar si el número de cuenta existe
+    const { data: cuentaData, error: cuentaError } = await supabase
+      .from("cuentas")
+      .select("id")
+      .eq("numero_cuenta", numeroCuenta)
+      .single();
+
+    if (cuentaError || !cuentaData) {
+      setErrorCuenta("❌ El número de cuenta no existe.");
+      setEnviando(false);
+      return; // No envía el pedido
+    }
 
       const jsPDFModule = await import("jspdf");
       const autoTableModule = await import("jspdf-autotable");
@@ -1140,6 +1159,25 @@ const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
                   className="w-full border border-zinc-300 rounded-lg p-2 mt-1 mb-3 text-sm text-zinc-700"
                 />
 
+                <label className="block text-sm font-medium text-zinc-700">
+  Número de cuenta <span className="text-zinc-400">Requerido</span>
+</label>
+<input
+  type="text"
+  value={numeroCuenta}
+  onChange={(e) => {
+    setNumeroCuenta(e.target.value);
+    setErrorCuenta(""); // Limpia error al escribir
+  }}
+  className={`w-full border rounded-lg p-2 mt-1 mb-3 text-sm text-zinc-700 
+    ${errorCuenta ? "border-red-500" : "border-zinc-300"}`}
+/>
+
+{errorCuenta && (
+  <p className="text-red-500 text-xs mb-2">{errorCuenta}</p>
+)}
+
+
                 {/* Enviar a domicilio */}
                 <div className="flex items-center justify-between mt-2 mb-3">
                   <label className="text-sm font-medium text-zinc-700">
@@ -1194,10 +1232,11 @@ const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
                       enviando ||
                       !cliente ||
                       !ferreteria ||
+                      !numeroCuenta || 
                       (enviarDomicilio && !direccion)
                     }
                     className={`flex-1 py-2 rounded-lg font-semibold text-white transition ${
-                      !cliente || !ferreteria || (enviarDomicilio && !direccion)
+                      !cliente || !ferreteria || !numeroCuenta || (enviarDomicilio && !direccion)
                         ? "bg-orange-300"
                         : "bg-orange-500 hover:bg-orange-600"
                     }`}
