@@ -43,70 +43,70 @@ export default function HomePage() {
   const [mensajeExito, setMensajeExito] = useState("");
 
   const [numeroCuenta, setNumeroCuenta] = useState("");
-const [errorCuenta, setErrorCuenta] = useState(""); //error si no existe
+  const [errorCuenta, setErrorCuenta] = useState(""); //error si no existe
 
-  // componete zoom imagenes 
-const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
-  const [scale, setScale] = useState(1);
-  const [isZoomed, setIsZoomed] = useState(false);
+  // componete zoom imagenes
+  const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
+    const [scale, setScale] = useState(1);
+    const [isZoomed, setIsZoomed] = useState(false);
 
-  // Zoom con scroll (desktop)
-  const handleWheel = (e: any) => {
-    e.preventDefault();
-    if (!isZoomed) return; // Solo cuando ya está acercado
-    const newScale = Math.min(Math.max(scale + e.deltaY * -0.001, 1), 3);
-    setScale(newScale);
-  };
+    // Zoom con scroll (desktop)
+    const handleWheel = (e: any) => {
+      e.preventDefault();
+      if (!isZoomed) return; // Solo cuando ya está acercado
+      const newScale = Math.min(Math.max(scale + e.deltaY * -0.001, 1), 3);
+      setScale(newScale);
+    };
 
-  // Doble click/tap para zoom rápido
-  const handleDoubleClick = () => {
-    if (isZoomed) {
-      setScale(1);
-      setIsZoomed(false);
-    } else {
-      setScale(2);
-      setIsZoomed(true);
-    }
-  };
+    // Doble click/tap para zoom rápido
+    const handleDoubleClick = () => {
+      if (isZoomed) {
+        setScale(1);
+        setIsZoomed(false);
+      } else {
+        setScale(2);
+        setIsZoomed(true);
+      }
+    };
 
-  return (
-    <motion.div
-      className="fixed inset-0 bg-black/90 z-[999] flex items-center justify-center"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.3 }}
-      onClick={() => !isZoomed && setSelectedApoyo(null)} // Cerrar si no está cerca
-    >
+    return (
       <motion.div
-        className="relative w-full h-full flex items-center justify-center overflow-hidden touch-none"
-        onWheel={handleWheel}
-        onDoubleClick={handleDoubleClick}
-        drag={isZoomed ? "x" : false}
-        dragConstraints={{ left: -200, right: 200 }}
-        style={{ scale }}
+        className="fixed inset-0 bg-black/90 z-[999] flex items-center justify-center"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.3 }}
+        onClick={() => !isZoomed && setSelectedApoyo(null)} // Cerrar si no está cerca
       >
-        <Image
-          src={selectedApoyo?.imagen}
-          alt={selectedApoyo?.titulo}
-          fill
-          className="object-contain select-none"
-          draggable={false}
-        />
-      </motion.div>
+        <motion.div
+          className="relative w-full h-full flex items-center justify-center overflow-hidden touch-none"
+          onWheel={handleWheel}
+          onDoubleClick={handleDoubleClick}
+          drag={isZoomed ? "x" : false}
+          dragConstraints={{ left: -200, right: 200 }}
+          style={{ scale }}
+        >
+          <Image
+            src={selectedApoyo?.imagen}
+            alt={selectedApoyo?.titulo}
+            fill
+            className="object-contain select-none"
+            draggable={false}
+          />
+        </motion.div>
 
-      <button
-        onClick={() => {
-          setSelectedApoyo(null);
-          setScale(1);
-        }}
-        className="absolute top-4 left-4 bg-white/20 backdrop-blur text-white text-sm px-4 py-2 rounded-full"
-      >
-        ← Cerrar
-      </button>
-    </motion.div>
-  );
-};
+        <button
+          onClick={() => {
+            setSelectedApoyo(null);
+            setScale(1);
+          }}
+          className="absolute top-4 left-4 bg-white/20 backdrop-blur text-white text-sm px-4 py-2 rounded-full"
+        >
+          ← Cerrar
+        </button>
+      </motion.div>
+    );
+  };
   // fin del componente zomm img
 
   {
@@ -156,27 +156,25 @@ const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
 
   const [selectedApoyo, setSelectedApoyo] = useState<Apoyo | null>(null);
 
-
-  
   // Función para enviar el pedido por WhatsApp
   const enviarPedido = async () => {
     try {
       setEnviando(true);
       setMensajeExito("");
-    setErrorCuenta("");
+      setErrorCuenta("");
 
-    // Verificar si el número de cuenta existe
-    const { data: cuentaData, error: cuentaError } = await supabase
-      .from("cuentas")
-      .select("id")
-      .eq("numero_cuenta", numeroCuenta)
-      .single();
+      // Verificar si el número de cuenta existe
+      const { data: cuentaData, error: cuentaError } = await supabase
+        .from("cuentas")
+        .select("id")
+        .eq("numero_cuenta", numeroCuenta)
+        .single();
 
-    if (cuentaError || !cuentaData) {
-      setErrorCuenta("❌ El número de cuenta no existe.");
-      setEnviando(false);
-      return; // No envía el pedido
-    }
+      if (cuentaError || !cuentaData) {
+        setErrorCuenta("error en el numero de cuenta.");
+        setEnviando(false);
+        return; // No envía el pedido
+      }
 
       const jsPDFModule = await import("jspdf");
       const autoTableModule = await import("jspdf-autotable");
@@ -298,7 +296,7 @@ const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
       const nombreArchivo = `Pedido_${cliente.replace(/\s+/g, "_")}.pdf`;
       docCliente.save(nombreArchivo);
 
-      setMensajeExito("✅ Su pedido ha sido enviado con éxito.");
+      setMensajeExito("Su pedido ha sido enviado con éxito.");
       setMostrarModalPedido(false);
       setCarrito([]); // Deja el carrito vacío
     } catch (error) {
@@ -332,176 +330,176 @@ const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
 
   // Vista de detalle de producto
 
- const VistaProducto = ({ producto, onBack }: any) => {
-  const [cantidad, setCantidad] = useState("1");
+  const VistaProducto = ({ producto, onBack }: any) => {
+    const [cantidad, setCantidad] = useState("1");
 
-  // --- MANEJO DE INPUT ---
-  const handleChange = (e: any) => {
-    const value = e.target.value;
+    // --- MANEJO DE INPUT ---
+    const handleChange = (e: any) => {
+      const value = e.target.value;
 
-    if (value === "") {
-      setCantidad("");
-      return;
-    }
-
-    const num = parseInt(value, 10);
-    if (!isNaN(num) && num >= 1) {
-      setCantidad(num.toString());
-    }
-  };
-
-  const handleBlur = () => {
-    if (cantidad === "" || parseInt(cantidad) < 1) {
-      setCantidad("1");
-    }
-  };
-
-  // --- BOTONES ---
-  const handleAdd = () =>
-    setCantidad((c) =>
-      c === "" ? "1" : (parseInt(c) + 1).toString()
-    );
-
-  const handleSubtract = () =>
-    setCantidad((c) => {
-      if (c === "" || parseInt(c) <= 1) return "1";
-      return (parseInt(c) - 1).toString();
-    });
-
-  // --- AGREGAR AL CARRITO ---
-  const agregarAlCarrito = () => {
-    const cant = parseInt(cantidad) || 1;
-
-    setCarrito((prev: any[]) => {
-      const existe = prev.find((p) => p.id === producto.id);
-      if (existe) {
-        return prev.map((p) =>
-          p.id === producto.id
-            ? {
-                ...p,
-                cantidad: p.cantidad + cant,
-                subtotal: (p.cantidad + cant) * p.P_MAYOREO,
-              }
-            : p
-        );
-      } else {
-        return [
-          ...prev,
-          {
-            ...producto,
-            cantidad: cant,
-            subtotal: cant * producto.P_MAYOREO,
-          },
-        ];
+      if (value === "") {
+        setCantidad("");
+        return;
       }
-    });
 
-    onBack();
-  };
+      const num = parseInt(value, 10);
+      if (!isNaN(num) && num >= 1) {
+        setCantidad(num.toString());
+      }
+    };
 
-  const cantidadNum = parseInt(cantidad) || 1;
+    const handleBlur = () => {
+      if (cantidad === "" || parseInt(cantidad) < 1) {
+        setCantidad("1");
+      }
+    };
 
-  return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={producto.id}
-        className="!bg-white min-h-screen p-4 fixed inset-0 z-50 text-zinc-900"
-        initial={{ opacity: 0, x: 80 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: 80 }}
-        transition={{ duration: 0.35, ease: "easeInOut" }}
-        drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
-        onDragEnd={(event, info) => {
-          if (info.offset.x > 100) onBack();
-        }}
-      >
-        {/* Botón regresar */}
-        <button
-          onClick={onBack}
-          className="absolute top-9 left-7 bg-white/80 hover:bg-white text-zinc-800 rounded-full p-3 shadow transition"
+    // --- BOTONES ---
+    const handleAdd = () =>
+      setCantidad((c) => (c === "" ? "1" : (parseInt(c) + 1).toString()));
+
+    const handleSubtract = () =>
+      setCantidad((c) => {
+        if (c === "" || parseInt(c) <= 1) return "1";
+        return (parseInt(c) - 1).toString();
+      });
+
+    // --- AGREGAR AL CARRITO ---
+    const agregarAlCarrito = () => {
+      const cant = parseInt(cantidad) || 1;
+
+      setCarrito((prev: any[]) => {
+        const existe = prev.find((p) => p.id === producto.id);
+        if (existe) {
+          return prev.map((p) =>
+            p.id === producto.id
+              ? {
+                  ...p,
+                  cantidad: p.cantidad + cant,
+                  subtotal: (p.cantidad + cant) * p.P_MAYOREO,
+                }
+              : p
+          );
+        } else {
+          return [
+            ...prev,
+            {
+              ...producto,
+              cantidad: cant,
+              subtotal: cant * producto.P_MAYOREO,
+            },
+          ];
+        }
+      });
+
+      onBack();
+    };
+
+    const cantidadNum = parseInt(cantidad) || 1;
+
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={producto.id}
+          className="min-h-screen fixed inset-0 z-50 text-zinc-900"
+          style={{ backgroundColor: "#fff" }}
         >
-          ←
-        </button>
-
-        {/* Imagen */}
-        <div className="flex justify-center mb-3">
-          <div className="relative w-60 h-60">
-            <Image
-              src={producto.IMAGEN || "/placeholder.jpg"}
-              alt={producto.TITULO}
-              fill
-              className="object-contain"
-            />
-          </div>
-        </div>
-
-        {/* Detalles */}
-        <h2 className="text-center text-[20px] font-bold text-zinc-900 leading-snug px-2">
-          {producto.TITULO}
-        </h2>
-
-        <div className="mt-4 text-sm text-zinc-700 px-2">
-          <div className="flex justify-between py-2">
-            <span className="font-medium">Código</span>
-            <span>{producto.CODIGO}</span>
-          </div>
-          <div className="flex justify-between py-2">
-            <span className="font-medium">Precio</span>
-            <span>${producto.P_MAYOREO?.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between py-2">
-            <span className="font-medium">Subtotal</span>
-            <span>${(cantidadNum * producto.P_MAYOREO).toFixed(2)}</span>
-          </div>
-        </div>
-
-        {/* Controles */}
-        <div className="mt-5 px-4">
-          <div className="flex justify-between items-center gap-3">
-
-            {/* Botón restar */}
-            <button
-              onClick={handleSubtract}
-              className="w-12 h-12 border text-black border-zinc-400 rounded-xl text-2xl"
-            >
-              −
-            </button>
-
-            {/* Input editable */}
-            <input
-              type="number"
-              min="1"
-              value={cantidad}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              className="w-20 text-center border border-zinc-400 rounded-xl text-lg font-semibold text-black py-2"
-            />
-
-            {/* Botón sumar */}
-            <button
-              onClick={handleAdd}
-              className="w-12 h-12 bg-orange-500 text-white rounded-xl text-2xl"
-            >
-              +
-            </button>
-
-          </div>
-
-          {/* Botón agregar */}
-          <button
-            onClick={agregarAlCarrito}
-            className="w-full mt-5 bg-orange-500 text-white py-3 rounded-xl font-bold shadow hover:bg-orange-600 transition"
+          <div className="absolute inset-0 bg-white" />
+          <motion.div
+            initial={{ x: 120 }}
+            animate={{ x: 0 }}
+            exit={{ x: 120 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            onDragEnd={(event, info) => {
+              if (info.offset.x > 100) onBack();
+            }}
+            className="relative w-full h-full overflow-hidden"
           >
-            Agregar al carrito
-          </button>
+            {/* Botón regresar */}
+            <button
+              onClick={onBack}
+              className="absolute top-9 left-7 bg-white/80 hover:bg-white text-zinc-800 rounded-full p-3 shadow transition"
+            >
+              ←
+            </button>
 
-        </div>
-      </motion.div>
-    </AnimatePresence>
-  );
-};
+            {/* Imagen */}
+            <div className="flex justify-center mb-3">
+              <div className="relative w-60 h-60">
+                <Image
+                  src={producto.IMAGEN || "/placeholder.jpg"}
+                  alt={producto.TITULO}
+                  fill
+                  className="object-contain"
+                />
+              </div>
+            </div>
 
+            {/* Detalles */}
+            <h2 className="text-center text-[20px] font-bold text-zinc-900 leading-snug px-2">
+              {producto.TITULO}
+            </h2>
+
+            <div className="mt-4 text-sm text-zinc-700 px-2">
+              <div className="flex justify-between py-2">
+                <span className="font-medium">Código</span>
+                <span>{producto.CODIGO}</span>
+              </div>
+              <div className="flex justify-between py-2">
+                <span className="font-medium">Precio</span>
+                <span>${producto.P_MAYOREO?.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between py-2">
+                <span className="font-medium">Subtotal</span>
+                <span>${(cantidadNum * producto.P_MAYOREO).toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Controles */}
+            <div className="mt-5 px-4">
+              <div className="flex justify-between items-center gap-3">
+                {/* Botón restar */}
+                <button
+                  onClick={handleSubtract}
+                  className="w-12 h-12 border text-black border-zinc-400 rounded-xl text-2xl"
+                >
+                  −
+                </button>
+
+                {/* Input editable */}
+                <input
+                  type="number"
+                  min="1"
+                  value={cantidad}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  className="w-20 text-center border border-zinc-400 rounded-xl text-lg font-semibold text-black py-2"
+                />
+
+                {/* Botón sumar */}
+                <button
+                  onClick={handleAdd}
+                  className="w-12 h-12 bg-orange-500 text-white rounded-xl text-2xl"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Botón agregar */}
+              <button
+                onClick={agregarAlCarrito}
+                className="w-full mt-5 bg-orange-500 text-white py-3 rounded-xl font-bold shadow hover:bg-orange-600 transition"
+              >
+                Agregar al carrito
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  };
 
   // Mostrar vista de producto si hay uno seleccionado
   if (productoSeleccionado) {
@@ -1012,7 +1010,7 @@ const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
                               +
                             </button>
  */}
-                            
+
                             <button
                               onClick={() =>
                                 setCarrito((prev) =>
@@ -1079,10 +1077,12 @@ const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
             >
               <div className="mt-4">
                 {/* Estado para ver detalle */}
-{selectedApoyo ? (
-  <ApoyoViewer selectedApoyo={selectedApoyo} setSelectedApoyo={setSelectedApoyo} />
-) : (
-
+                {selectedApoyo ? (
+                  <ApoyoViewer
+                    selectedApoyo={selectedApoyo}
+                    setSelectedApoyo={setSelectedApoyo}
+                  />
+                ) : (
                   <motion.div
                     key="lista-apoyo"
                     initial={{ opacity: 0, y: 15 }}
@@ -1160,23 +1160,23 @@ const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
                 />
 
                 <label className="block text-sm font-medium text-zinc-700">
-  Número de cuenta <span className="text-zinc-400">Requerido</span>
-</label>
-<input
-  type="text"
-  value={numeroCuenta}
-  onChange={(e) => {
-    setNumeroCuenta(e.target.value);
-    setErrorCuenta(""); // Limpia error al escribir
-  }}
-  className={`w-full border rounded-lg p-2 mt-1 mb-3 text-sm text-zinc-700 
+                  Número de cuenta{" "}
+                  <span className="text-zinc-400">Requerido</span>
+                </label>
+                <input
+                  type="text"
+                  value={numeroCuenta}
+                  onChange={(e) => {
+                    setNumeroCuenta(e.target.value);
+                    setErrorCuenta(""); // Limpia error al escribir
+                  }}
+                  className={`w-full border rounded-lg p-2 mt-1 mb-3 text-sm text-zinc-700 
     ${errorCuenta ? "border-red-500" : "border-zinc-300"}`}
-/>
+                />
 
-{errorCuenta && (
-  <p className="text-red-500 text-xs mb-2">{errorCuenta}</p>
-)}
-
+                {errorCuenta && (
+                  <p className="text-red-500 text-xs mb-2">{errorCuenta}</p>
+                )}
 
                 {/* Enviar a domicilio */}
                 <div className="flex items-center justify-between mt-2 mb-3">
@@ -1232,11 +1232,14 @@ const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
                       enviando ||
                       !cliente ||
                       !ferreteria ||
-                      !numeroCuenta || 
+                      !numeroCuenta ||
                       (enviarDomicilio && !direccion)
                     }
                     className={`flex-1 py-2 rounded-lg font-semibold text-white transition ${
-                      !cliente || !ferreteria || !numeroCuenta || (enviarDomicilio && !direccion)
+                      !cliente ||
+                      !ferreteria ||
+                      !numeroCuenta ||
+                      (enviarDomicilio && !direccion)
                         ? "bg-orange-300"
                         : "bg-orange-500 hover:bg-orange-600"
                     }`}
