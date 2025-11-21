@@ -1410,7 +1410,10 @@ export default function HomePage() {
         </button>
 
         <button
-          onClick={() => setActiveTab("buscar")}
+           onClick={() => {
+    window.scrollTo({ top: 0, behavior: "instant" }); 
+    setActiveTab("buscar");
+  }}
           className={`flex flex-col items-center text-xs ${
             activeTab === "buscar" ? "text-orange-500" : "hover:text-orange-500"
           }`}
@@ -1432,7 +1435,10 @@ export default function HomePage() {
         </button>
 
         <button
-          onClick={() => setActiveTab("apoyo")}
+           onClick={() => {
+    window.scrollTo({ top: 0, behavior: "instant" }); 
+    setActiveTab("apoyo");
+  }}
           className={`flex flex-col items-center text-xs ${
             activeTab === "apoyo" ? "text-orange-500" : "hover:text-orange-500"
           }`}
@@ -1442,7 +1448,10 @@ export default function HomePage() {
         </button>
 
         <button
-          onClick={() => setActiveTab("ubicacion")}
+          onClick={() => {
+    window.scrollTo({ top: 0, behavior: "instant" }); // 👈 Resetea el scroll al inicio
+    setActiveTab("ubicacion");
+  }}
           className={`flex flex-col items-center text-xs ${
             activeTab === "ubicacion"
               ? "text-orange-500"
