@@ -63,7 +63,7 @@ export default function HomePage() {
   const [direccion, setDireccion] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [mensajeExito, setMensajeExito] = useState("");
-const [isLoadingArticulos, setIsLoadingArticulos] = useState(false);
+
   const [numeroCuenta, setNumeroCuenta] = useState("");
   const [errorCuenta, setErrorCuenta] = useState(""); //error si no existe
 
@@ -606,30 +606,28 @@ const [isLoadingArticulos, setIsLoadingArticulos] = useState(false);
                     <div
                       key={cat.id_categoria}
                       onClick={async () => {
-  // Guarda scroll
-  localStorage.setItem("scrollPos", window.scrollY.toString());
+                        // Guarda posición antes de cambiar
+                        localStorage.setItem(
+                          "scrollPos",
+                          window.scrollY.toString()
+                        );
 
-  if (window.scrollY > 100) {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }
+                        if (window.scrollY > 100) {
+                          window.scrollTo({ top: 0, behavior: "instant" });
+                        }
 
-  setIsLoadingArticulos(true); // 👈 activar spinner
-  setCategoriaSeleccionada(cat);
+                        setCategoriaSeleccionada(cat);
 
-  const { data, error } = await supabase
-    .from("productos")
-    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO")
-    .eq("CATEGORIA_ID", cat.id_categoria);
+                        const { data, error } = await supabase
+                          .from("productos")
+                          .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO")
+                          .eq("CATEGORIA_ID", cat.id_categoria);
 
-  setArticulos(error ? [] : data);
-
-  setTimeout(() => setIsLoadingArticulos(false), 300); // 👈 pequeño delay para transición
-
-  requestAnimationFrame(() =>
-    window.scrollTo({ top: 0, behavior: "instant" })
-  );
-}}
-
+                        setArticulos(error ? [] : data);
+                        requestAnimationFrame(() => {
+                          window.scrollTo({ top: 0, behavior: "instant" });
+                        });
+                      }}
                       className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
                     >
                       <div className="relative w-full h-40">
@@ -734,11 +732,6 @@ const [isLoadingArticulos, setIsLoadingArticulos] = useState(false);
                       </div>
 
                       {/* Lista de productos */}
-                      {isLoadingArticulos ? (
-  <div className="flex justify-center py-10">
-    <div className="animate-spin h-10 w-10 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-  </div>
-) : (
                       <div className="space-y-2">
                         {articulos
                           .filter(
@@ -796,7 +789,6 @@ const [isLoadingArticulos, setIsLoadingArticulos] = useState(false);
                           </p>
                         )}
                       </div>
-                      )}
                     </motion.div>
                   </motion.div>
                 </AnimatePresence>
