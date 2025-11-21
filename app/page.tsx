@@ -18,6 +18,28 @@ import { AnimatePresence, motion } from "framer-motion";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 
+const SkeletonImage = ({ src, alt, className }: any) => {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <div className="relative w-full h-full">
+      {!loaded && (
+        <div className="absolute inset-0 bg-zinc-200 animate-pulse rounded-xl" />
+      )}
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        className={`${className} transition-opacity duration-300 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+        onLoadingComplete={() => setLoaded(true)}
+      />
+    </div>
+  );
+};
+
+
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState("categorias");
   const [searchTerm, setSearchTerm] = useState("");
@@ -41,7 +63,7 @@ export default function HomePage() {
   const [direccion, setDireccion] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [mensajeExito, setMensajeExito] = useState("");
-
+const [isLoadingArticulos, setIsLoadingArticulos] = useState(false);
   const [numeroCuenta, setNumeroCuenta] = useState("");
   const [errorCuenta, setErrorCuenta] = useState(""); //error si no existe
 
@@ -86,6 +108,8 @@ export default function HomePage() {
           dragConstraints={{ left: -200, right: 200 }}
           style={{ scale }}
         >
+
+          
           <Image
             src={selectedApoyo?.imagen}
             alt={selectedApoyo?.titulo}
@@ -428,12 +452,12 @@ export default function HomePage() {
             {/* Imagen */}
             <div className="flex justify-center mb-3">
               <div className="relative w-60 h-60">
-                <Image
-                  src={producto.IMAGEN || "/placeholder.jpg"}
-                  alt={producto.TITULO}
-                  fill
-                  className="object-contain"
-                />
+                <SkeletonImage
+  src={producto.IMAGEN || "/placeholder.jpg"}
+  alt={producto.TITULO}
+  className="object-contain"
+/>
+
               </div>
             </div>
 
@@ -506,7 +530,19 @@ export default function HomePage() {
     return (
       <VistaProducto
         producto={productoSeleccionado}
-        onBack={() => setProductoSeleccionado(null)}
+        onBack={() => {
+          setProductoSeleccionado(null);
+
+          const savedScroll = localStorage.getItem("scrollProducto");
+          if (savedScroll) {
+            setTimeout(() => {
+              window.scrollTo({
+                top: parseInt(savedScroll),
+                behavior: "instant",
+              });
+            }, 50);
+          }
+        }}
       />
     );
   }
@@ -570,39 +606,38 @@ export default function HomePage() {
                     <div
                       key={cat.id_categoria}
                       onClick={async () => {
-                        //Guarda la posición actual antes de abrir la categoría
-                        const scrollY = window.scrollY;
-                        localStorage.setItem("scrollPos", scrollY.toString());
+  // Guarda scroll
+  localStorage.setItem("scrollPos", window.scrollY.toString());
 
-                        setCategoriaSeleccionada(cat);
-                        //optencion de datos
-                        const { data, error } = await supabase
-                          .from("productos")
-                          .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO")
-                          .eq("CATEGORIA_ID", cat.id_categoria);
+  if (window.scrollY > 100) {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
 
-                        if (error) {
-                          console.error(
-                            "Error al cargar productos:",
-                            error.message
-                          );
-                          setArticulos([]);
-                        } else {
-                          setArticulos(data || []);
-                        }
+  setIsLoadingArticulos(true); // 👈 activar spinner
+  setCategoriaSeleccionada(cat);
 
-                        //Lleva al inicio de la vista de productos
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
+  const { data, error } = await supabase
+    .from("productos")
+    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO")
+    .eq("CATEGORIA_ID", cat.id_categoria);
+
+  setArticulos(error ? [] : data);
+
+  setTimeout(() => setIsLoadingArticulos(false), 300); // 👈 pequeño delay para transición
+
+  requestAnimationFrame(() =>
+    window.scrollTo({ top: 0, behavior: "instant" })
+  );
+}}
+
                       className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
                     >
                       <div className="relative w-full h-40">
-                        <Image
-                          src={cat.img || "/placeholder.jpg"}
-                          alt={cat.nombre_categoria}
-                          fill
-                          className="object-cover"
-                        />
+                        <SkeletonImage
+  src={cat.img || "/placeholder.jpg"}
+  alt={cat.nombre_categoria}
+  className="object-cover"
+/>
                       </div>
                       <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
                         {cat.nombre_categoria}
@@ -649,12 +684,14 @@ export default function HomePage() {
                     >
                       {/* Imagen y título de categoría */}
                       <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
-                        <Image
-                          src={categoriaSeleccionada.img || "/placeholder.jpg"}
-                          alt={categoriaSeleccionada.nombre_categoria}
-                          fill
-                          className="object-contain bg-white"
-                        />
+
+                        <SkeletonImage
+  src={categoriaSeleccionada.img || "/placeholder.jpg"}
+  alt={categoriaSeleccionada.nombre_categoria}
+  className="object-contain"
+/>
+
+                       
                         {/* Botón volver */}
                         <motion.button
                           whileTap={{ scale: 0.9 }}
@@ -697,6 +734,11 @@ export default function HomePage() {
                       </div>
 
                       {/* Lista de productos */}
+                      {isLoadingArticulos ? (
+  <div className="flex justify-center py-10">
+    <div className="animate-spin h-10 w-10 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+  </div>
+) : (
                       <div className="space-y-2">
                         {articulos
                           .filter(
@@ -719,17 +761,27 @@ export default function HomePage() {
                                 show: { opacity: 1, y: 0 },
                               }}
                               transition={{ duration: 0.3 }}
-                              onClick={() => setProductoSeleccionado(art)}
+                              onClick={() => {
+                                // Guarda posición del scroll
+                                const scrollY = window.scrollY;
+                                localStorage.setItem(
+                                  "scrollProducto",
+                                  scrollY.toString()
+                                );
+
+                                setProductoSeleccionado(art);
+                              }}
                               className="flex items-center justify-between bg-white rounded-xl border border-zinc-200 shadow-sm hover:shadow-md transition p-2 cursor-pointer"
                             >
                               <div className="flex items-center space-x-3">
                                 <div className="relative w-14 h-14 rounded-md overflow-hidden bg-white">
-                                  <Image
-                                    src={art.IMAGEN || "/placeholder.jpg"}
-                                    alt={art.TITULO}
-                                    fill
-                                    className="object-contain"
-                                  />
+                                  <SkeletonImage
+  src={art.IMAGEN || "/placeholder.jpg"}
+  alt={art.TITULO}
+  className="object-contain"
+/>
+
+
                                 </div>
                                 <div className="text-sm font-medium text-zinc-700 leading-tight max-w-[200px]">
                                   {art.TITULO}
@@ -744,6 +796,7 @@ export default function HomePage() {
                           </p>
                         )}
                       </div>
+                      )}
                     </motion.div>
                   </motion.div>
                 </AnimatePresence>
@@ -942,6 +995,7 @@ export default function HomePage() {
                             onClick={() => setProductoSeleccionado(item)} // abre vista producto
                           >
                             <div className="relative w-14 h-14 bg-zinc-100 rounded-md overflow-hidden">
+                              
                               <Image
                                 src={item.IMAGEN || "/placeholder.jpg"}
                                 alt={item.TITULO}
