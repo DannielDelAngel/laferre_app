@@ -25,7 +25,6 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { createPortal } from "react-dom";
 
-
 const SkeletonImage = ({ src, alt, className }: any) => {
   const [loaded, setLoaded] = useState(false);
 
@@ -93,27 +92,26 @@ export default function HomePage() {
   const [itemsPedido, setItemsPedido] = useState([]);
   const [cargandoItems, setCargandoItems] = useState(false);
 
- const BackBtn = ({ onBack }: any) => {
-  if (typeof document === "undefined") return null;
+  const BackBtn = ({ onBack }: any) => {
+    if (typeof document === "undefined") return null;
 
-  const btn = (
-    <motion.button
-      initial={{ opacity: 0, y: -8, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -8, scale: 0.96 }}
-      transition={{ duration: 0.18, ease: "easeOut" }}
-      whileTap={{ scale: 0.93 }}
-      onClick={onBack}
-      className="fixed top-5 left-4 z-[9999] bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow-lg transition text-2xl"
-      aria-label="Volver"
-    >
-      ←
-    </motion.button>
-  );
+    const btn = (
+      <motion.button
+        initial={{ opacity: 0, y: -8, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -8, scale: 0.96 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
+        whileTap={{ scale: 0.93 }}
+        onClick={onBack}
+        className="fixed top-5 left-4 z-[9999] bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow-lg transition text-2xl"
+        aria-label="Volver"
+      >
+        ←
+      </motion.button>
+    );
 
-  return createPortal(btn, document.body);
-};
-
+    return createPortal(btn, document.body);
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem("cuenta_user");
@@ -287,7 +285,7 @@ export default function HomePage() {
 
   const [selectedApoyo, setSelectedApoyo] = useState<Apoyo | null>(null);
 
-  // Función para enviar el pedido por WhatsApp
+  // Función para enviar el pedido
   const enviarPedido = async () => {
     try {
       setEnviando(true);
@@ -366,11 +364,11 @@ export default function HomePage() {
       docEnvio.text("NUEVO PEDIDO DESDE LA APP", 14, 20);
       docEnvio.setFontSize(10);
       docEnvio.text(`CLIENTE: ${cliente}`, 14, 30);
-      docEnvio.text(`FERRETERÍA: ${ferreteria}`, 14, 37);
+      docEnvio.text(`FERRETERÍA: ${cuenta?.ferreteria}`, 14, 37);
 
       if (enviarDomicilio) {
         docEnvio.text("TIPO DE ENTREGA: A DOMICILIO", 14, 44);
-        docEnvio.text(`DIRECCIÓN: ${direccion}`, 14, 51);
+        docEnvio.text(`DIRECCIÓN: ${cuenta?.direccion}`, 14, 51);
       } else {
         docEnvio.text("TIPO DE ENTREGA: RECOGER EN TIENDA", 14, 44);
       }
@@ -431,11 +429,11 @@ export default function HomePage() {
       docCliente.text("COMPROBANTE DE COMPRA", 14, 20);
       docCliente.setFontSize(7);
       docCliente.text(`CLIENTE: ${cliente}`, 14, 30);
-      docCliente.text(`FERRETERÍA: ${ferreteria}`, 14, 37);
+      docCliente.text(`FERRETERÍA: ${cuenta?.ferreteria}`, 14, 37);
 
       if (enviarDomicilio) {
         docCliente.text("ENTREGA: A DOMICILIO", 14, 44);
-        docCliente.text(`DIRECCIÓN: ${direccion}`, 14, 51);
+        docCliente.text(`DIRECCIÓN: ${cuenta?.direccion}`, 14, 51);
       } else {
         docCliente.text("ENTREGA: RECOGER EN TIENDA", 14, 44);
       }
@@ -1018,11 +1016,11 @@ export default function HomePage() {
           >
             {/* Botón regresar */}
             <button
-    onClick={onBack}
-    className="absolute top-9 left-7 bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow transition text-xl"
-  >
-    ←
-  </button>
+              onClick={onBack}
+              className="absolute top-9 left-7 bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow transition text-xl"
+            >
+              ←
+            </button>
 
             {/* Imagen */}
             <div className="flex justify-center mb-3">
@@ -1306,9 +1304,8 @@ export default function HomePage() {
                           }}
                         >
                           {/* Imagen y título de categoría */}
-                          
+
                           <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
-                            
                             <SkeletonImage
                               src={
                                 categoriaSeleccionada.img || "/placeholder.jpg"
@@ -1318,25 +1315,26 @@ export default function HomePage() {
                             />
                           </div>
 
-                            {/* Botón volver */}
-                           <AnimatePresence>
-  {categoriaSeleccionada && (
-    <BackBtn
-      onBack={() => {
-        setCategoriaSeleccionada(null);
-        const savedScroll = localStorage.getItem("scrollPos");
-        if (savedScroll) {
-          setTimeout(() => {
-            window.scrollTo({
-              top: parseInt(savedScroll),
-              behavior: "instant",
-            });
-          }, 50);
-        }
-      }}
-    />
-  )}
-</AnimatePresence>
+                          {/* Botón volver */}
+                          <AnimatePresence>
+                            {categoriaSeleccionada && (
+                              <BackBtn
+                                onBack={() => {
+                                  setCategoriaSeleccionada(null);
+                                  const savedScroll =
+                                    localStorage.getItem("scrollPos");
+                                  if (savedScroll) {
+                                    setTimeout(() => {
+                                      window.scrollTo({
+                                        top: parseInt(savedScroll),
+                                        behavior: "instant",
+                                      });
+                                    }, 50);
+                                  }
+                                }}
+                              />
+                            )}
+                          </AnimatePresence>
 
                           {/* Título*/}
                           <div className="flex items-center justify-between mb-3">
@@ -1771,7 +1769,7 @@ export default function HomePage() {
                       {/* Avatar */}
                       <div className="w-28 h-28 rounded-full bg-orange-10 overflow-hidden flex items-center justify-center shadow">
                         <Image
-                          src="https://bodegaferreterademty.com.mx/user_icon_2.jpg"
+                          src="/user-icon-2.jpg"
                           alt="Avatar"
                           width={100}
                           height={100}
@@ -1966,6 +1964,18 @@ export default function HomePage() {
                       Informacion de pedido
                     </h2>
 
+                    {/* Información de la cuenta (solo lectura) */}
+                    <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
+                      <p className="text-xs text-zinc-500 mb-1">Ferretería</p>
+                      <p className="text-sm font-semibold text-zinc-700 mb-2">
+                        {cuenta?.ferreteria || "Sin ferretería registrada"}
+                      </p>
+                      <p className="text-xs text-zinc-500 mb-1">Cuenta</p>
+                      <p className="text-sm font-semibold text-zinc-700">
+                        {cuenta?.numero_cuenta}
+                      </p>
+                    </div>
+
                     {/* Nombre del cliente */}
                     <label className="block text-sm font-medium text-zinc-700">
                       Nombre del Cliente{" "}
@@ -1977,37 +1987,6 @@ export default function HomePage() {
                       onChange={(e) => setCliente(e.target.value)}
                       className="w-full border border-zinc-300 rounded-lg p-2 mt-1 mb-3 text-sm text-zinc-700"
                     />
-
-                    {/* Nombre de la ferretería */}
-                    <label className="block text-sm font-medium text-zinc-700">
-                      Nombre de la Ferretería{" "}
-                      <span className="text-zinc-400">Requerido</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={ferreteria}
-                      onChange={(e) => setFerreteria(e.target.value)}
-                      className="w-full border border-zinc-300 rounded-lg p-2 mt-1 mb-3 text-sm text-zinc-700"
-                    />
-
-                    <label className="block text-sm font-medium text-zinc-700">
-                      Número de cuenta{" "}
-                      <span className="text-zinc-400">Requerido</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={numeroCuenta}
-                      onChange={(e) => {
-                        setNumeroCuenta(e.target.value);
-                        setErrorCuenta(""); // Limpia error al escribir
-                      }}
-                      className={`w-full border rounded-lg p-2 mt-1 mb-3 text-sm text-zinc-700 
-                      ${errorCuenta ? "border-red-500" : "border-zinc-300"}`}
-                    />
-
-                    {errorCuenta && (
-                      <p className="text-red-500 text-xs mb-2">{errorCuenta}</p>
-                    )}
 
                     {/* Enviar a domicilio */}
                     <div className="flex items-center justify-between mt-2 mb-3">
@@ -2025,16 +2004,23 @@ export default function HomePage() {
                     {/* Si se activa el toggle */}
                     {enviarDomicilio ? (
                       <>
-                        <label className="block text-sm font-medium text-zinc-700">
-                          Ingresar el domicilio de entrega{" "}
-                          <span className="text-zinc-400">Requerido</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={direccion}
-                          onChange={(e) => setDireccion(e.target.value)}
-                          className="w-full border border-zinc-300 rounded-lg p-2 mt-1 mb-3 text-sm text-zinc-700"
-                        />
+                        {cuenta?.direccion ? (
+                          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3">
+                            <p className="text-xs text-zinc-600 mb-1">
+                              Dirección guardada:
+                            </p>
+                            <p className="text-sm text-zinc-700">
+                              {cuenta.direccion}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                            <p className="text-xs text-red-600">
+                              ⚠️ No hay dirección guardada. Por favor agrega una
+                              dirección en tu perfil.
+                            </p>
+                          </div>
+                        )}
 
                         <p className="text-orange-600 text-[13px] font-semibold mt-1">
                           TIEMPO DE ENTREGA 1 A 3 DÍAS HÁBILES (EL PEDIDO PUEDE
@@ -2062,15 +2048,10 @@ export default function HomePage() {
                         disabled={
                           enviando ||
                           !cliente ||
-                          !ferreteria ||
-                          !numeroCuenta ||
-                          (enviarDomicilio && !direccion)
+                          (enviarDomicilio && !cuenta?.direccion)
                         }
                         className={`flex-1 py-2 rounded-lg font-semibold text-white transition ${
-                          !cliente ||
-                          !ferreteria ||
-                          !numeroCuenta ||
-                          (enviarDomicilio && !direccion)
+                          !cliente || (enviarDomicilio && !cuenta?.direccion)
                             ? "bg-orange-300"
                             : "bg-orange-500 hover:bg-orange-600"
                         }`}
