@@ -23,6 +23,8 @@ import react from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import { createPortal } from "react-dom";
+
 
 const SkeletonImage = ({ src, alt, className }: any) => {
   const [loaded, setLoaded] = useState(false);
@@ -91,14 +93,27 @@ export default function HomePage() {
   const [itemsPedido, setItemsPedido] = useState([]);
   const [cargandoItems, setCargandoItems] = useState(false);
 
-  const BackBtn = ({ onBack }: any) => (
-    <button
+ const BackBtn = ({ onBack }: any) => {
+  if (typeof document === "undefined") return null;
+
+  const btn = (
+    <motion.button
+      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
+      whileTap={{ scale: 0.93 }}
       onClick={onBack}
-      className="absolute top-9 left-7 bg-white/80 hover:bg-white text-zinc-800 rounded-full p-3 shadow transition"
+      className="fixed top-5 left-4 z-[9999] bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow-lg transition text-2xl"
+      aria-label="Volver"
     >
       ←
-    </button>
+    </motion.button>
   );
+
+  return createPortal(btn, document.body);
+};
+
 
   useEffect(() => {
     const saved = localStorage.getItem("cuenta_user");
@@ -1003,11 +1018,11 @@ export default function HomePage() {
           >
             {/* Botón regresar */}
             <button
-              onClick={onBack}
-              className="absolute top-9 left-7 bg-white/80 hover:bg-white text-zinc-800 rounded-full p-3 shadow transition"
-            >
-              ←
-            </button>
+    onClick={onBack}
+    className="absolute top-9 left-7 bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow transition text-xl"
+  >
+    ←
+  </button>
 
             {/* Imagen */}
             <div className="flex justify-center mb-3">
@@ -1291,7 +1306,9 @@ export default function HomePage() {
                           }}
                         >
                           {/* Imagen y título de categoría */}
+                          
                           <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
+                            
                             <SkeletonImage
                               src={
                                 categoriaSeleccionada.img || "/placeholder.jpg"
@@ -1299,28 +1316,27 @@ export default function HomePage() {
                               alt={categoriaSeleccionada.nombre_categoria}
                               className="object-contain"
                             />
+                          </div>
 
                             {/* Botón volver */}
-                            <motion.button
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => {
-                                setCategoriaSeleccionada(null);
-                                const savedScroll =
-                                  localStorage.getItem("scrollPos");
-                                if (savedScroll) {
-                                  setTimeout(() => {
-                                    window.scrollTo({
-                                      top: parseInt(savedScroll),
-                                      behavior: "instant",
-                                    });
-                                  }, 50);
-                                }
-                              }}
-                              className="absolute top-3 left-3 bg-white/80 hover:bg-white text-zinc-800 rounded-full p-2 shadow transition"
-                            >
-                              ←
-                            </motion.button>
-                          </div>
+                           <AnimatePresence>
+  {categoriaSeleccionada && (
+    <BackBtn
+      onBack={() => {
+        setCategoriaSeleccionada(null);
+        const savedScroll = localStorage.getItem("scrollPos");
+        if (savedScroll) {
+          setTimeout(() => {
+            window.scrollTo({
+              top: parseInt(savedScroll),
+              behavior: "instant",
+            });
+          }, 50);
+        }
+      }}
+    />
+  )}
+</AnimatePresence>
 
                           {/* Título*/}
                           <div className="flex items-center justify-between mb-3">
@@ -1755,7 +1771,7 @@ export default function HomePage() {
                       {/* Avatar */}
                       <div className="w-28 h-28 rounded-full bg-orange-10 overflow-hidden flex items-center justify-center shadow">
                         <Image
-                          src="/user_icon_2.jpg"
+                          src="https://bodegaferreterademty.com.mx/user_icon_2.jpg"
                           alt="Avatar"
                           width={100}
                           height={100}
@@ -2224,7 +2240,7 @@ export default function HomePage() {
 
             <button
               onClick={() => {
-                window.scrollTo({ top: 0, behavior: "instant" }); // 👈 Resetea el scroll al inicio
+                window.scrollTo({ top: 0, behavior: "instant" }); // Resetea el scroll al inicio
                 setActiveTab("ubicacion");
               }}
               className={`flex flex-col items-center text-xs ${
