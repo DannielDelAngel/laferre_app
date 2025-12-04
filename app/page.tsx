@@ -286,195 +286,331 @@ export default function HomePage() {
   const [selectedApoyo, setSelectedApoyo] = useState<Apoyo | null>(null);
 
   // Función para enviar el pedido
+
   const enviarPedido = async () => {
     try {
       setEnviando(true);
       setMensajeExito("");
       setErrorCuenta("");
 
-      // Verificar si el número de cuenta existe
-      const { data: cuentaData, error: cuentaError } = await supabase
-        .from("cuentas")
-        .select("id")
-        .eq("numero_cuenta", numeroCuenta)
-        .single();
-
-      if (cuentaError || !cuentaData) {
-        setErrorCuenta("error en el numero de cuenta.");
-        setEnviando(false);
-        return; // No envía el pedido
-      }
-
-      // Crear pedido en Supabase
       if (!cuenta) {
         setMensajeExito("Error: cuenta no cargada. Intente nuevamente.");
         setEnviando(false);
         return;
       }
 
-      // Calcular el total antes de usar
+      // Calcular el total
       const total = carrito.reduce(
         (sum, p) =>
           sum + (p.subtotal ?? (p.cantidad ?? 0) * (p.P_MAYOREO ?? 0)),
         0
       );
 
-      const { data: pedidoInsertado, error: errorPedido } = await supabase
-        .from("pedidos")
-        .insert([
-          {
-            cuenta_id: cuenta.id, // ID real desde Supabase
-            total: total,
-          },
-        ])
-        .select()
-        .single();
+// Guardar pedido en Supabase
+const { data: pedidoInsertado, error: errorPedido } = await supabase
+  .from("pedidos")
+  .insert([
+    {
+      cuenta_id: cuenta.id,
+      total: total,
+    },
+  ])
+  .select()
+  .single();
 
-      if (errorPedido) {
-        console.error("Error registrando pedido:", errorPedido);
-      } else {
-        const pedidoId = pedidoInsertado.id;
+if (errorPedido) {
+  console.error("Error registrando pedido:", errorPedido);
+} else {
+  const pedidoId = pedidoInsertado.id;
 
-        // Guardar productos del pedido
-        const items = carrito.map((p) => ({
-          pedido_id: pedidoId,
-          producto_id: p.id,
-          titulo: p.TITULO,
-          cantidad: p.cantidad,
-          precio: p.P_MAYOREO,
-        }));
+  const items = carrito.map((p) => ({
+    pedido_id: pedidoId,
+    producto_id: p.id,
+    titulo: p.TITULO,
+    cantidad: p.cantidad,
+    precio: p.P_MAYOREO,
+  }));
 
-        const { error: errorItems } = await supabase
-          .from("pedido_items")
-          .insert(items);
+  const { error: errorItems } = await supabase
+    .from("pedido_items")
+    .insert(items);
 
-        if (errorItems) {
-          console.error("Error guardando items:", errorItems);
-        }
-      }
+  if (errorItems) {
+    console.error("Error guardando items:", errorItems);
+  }
+}
 
-      const jsPDFModule = await import("jspdf");
-      const autoTableModule = await import("jspdf-autotable");
-      const { jsPDF } = jsPDFModule;
+const jsPDFModule = await import("jspdf");
+const autoTableModule = await import("jspdf-autotable");
+const { jsPDF } = jsPDFModule;
 
-      // PDF que se envía por correo (docEnvio)
+const pedidoId = pedidoInsertado.id;
+
+
+      const numeroCotizacion = pedidoId;
+      const fecha = new Date().toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      const hora = new Date().toLocaleTimeString("es-MX");
+
+      // Cargar logo como base64
+      const getImageBase64 = async (url: string): Promise<string> => {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      };
+
+      const logoBase64 = await getImageBase64("/logo-pdf.png");
+
+      // PDF PARA ENVÍO (docEnvio)
       const docEnvio = new jsPDF();
 
-      docEnvio.setFontSize(10);
-      docEnvio.text("NUEVO PEDIDO DESDE LA APP", 14, 20);
-      docEnvio.setFontSize(10);
-      docEnvio.text(`CLIENTE: ${cliente}`, 14, 30);
-      docEnvio.text(`FERRETERÍA: ${cuenta?.ferreteria}`, 14, 37);
+           // Logo en la esquina superior izquierda
+      docEnvio.addImage(logoBase64, "JPEG", 14, 14, 50, 15);
 
-      if (enviarDomicilio) {
-        docEnvio.text("TIPO DE ENTREGA: A DOMICILIO", 14, 44);
-        docEnvio.text(`DIRECCIÓN: ${cuenta?.direccion}`, 14, 51);
-      } else {
-        docEnvio.text("TIPO DE ENTREGA: RECOGER EN TIENDA", 14, 44);
-      }
+      // Información empresa
+      docEnvio.setFontSize(7);
+      docEnvio.setFont("helvetica", "bold");
+      docEnvio.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+      docEnvio.setFont("helvetica", "normal");
+      docEnvio.text("GUGS701012E14", 70, 14);
+      docEnvio.text("Av. del maestro # 24 -", 70, 18);
+      docEnvio.text("Col. Praxedis Balboa C.P. 87430", 70, 22);
+      docEnvio.text("H. Matamoros, Tamaulipas, MÉXICO", 70, 26);
+      docEnvio.text("Tel 8682724481 gmail.", 70, 30);
+      docEnvio.text("bodegaferreterademty@hotmail.com", 70, 34);
+      
+      // Cotización y Fecha (lado derecho)
+      docEnvio.setFontSize(9);
+      docEnvio.setFont("helvetica", "bold");
+      docEnvio.text("Cotización", 165, 10);
+      docEnvio.setFontSize(10);
+      docEnvio.text(numeroCotizacion.toString(), 170, 16);
 
+      docEnvio.setFontSize(9);
+      docEnvio.text("Fecha", 172, 24);
+      docEnvio.setFontSize(8);
+      docEnvio.setFont("helvetica", "normal");
+      docEnvio.text(fecha, 167, 30);
+
+      docEnvio.setFontSize(8);
+      docEnvio.setFont("helvetica", "bold");
+      docEnvio.text("Moneda: MXN", 165, 38);
+
+      // Línea separadora
+      docEnvio.setLineWidth(0.3);
+      docEnvio.line(14, 42, 196, 42);
+
+      // Sección RECEPTOR
+      docEnvio.setFontSize(7);
+      docEnvio.setFont("helvetica", "bold");
+      docEnvio.text("RECEPTOR", 14, 48);
+
+      docEnvio.setFont("helvetica", "normal");
+      docEnvio.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
+      docEnvio.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
+      docEnvio.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
+      docEnvio.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
+      docEnvio.text(`Ciudad: Heroica Matamoros, Matamoros, Tamaulipas, México`, 14, 64);
+
+      // Tabla de productos
       const productosTabla = carrito.map((p) => [
-        "",
-        p.CODIGO,
-        "",
+        p.CODIGO || "",
         p.cantidad,
-        "",
         p.TITULO,
-        `$${p.P_MAYOREO.toFixed(2)}`,
-        `$${p.subtotal.toFixed(2)}`,
-        "",
+        `$ ${p.P_MAYOREO.toFixed(2)}`,
+        `$ ${p.subtotal.toFixed(2)}`,
       ]);
 
       autoTableModule.default(docEnvio, {
         head: [
-          [
-            " S ",
-            "Código",
-            " PP ",
-            "Cantidad",
-            " R ",
-            "Producto",
-            "Precio",
-            "Subtotal",
-            "  PA  ",
-          ],
+          ["IMG/CLAVE", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"],
         ],
         body: productosTabla,
-        startY: 60,
-        styles: { fontSize: 7, lineColor: [200, 200, 200], lineWidth: 0.2 },
-        headStyles: { fontStyle: "bold" },
-        theme: "plain",
+        startY: 69,
+        styles: {
+          fontSize: 7,
+          cellPadding: 1.5,
+          lineColor: [180, 180, 180],
+          lineWidth: 0.1,
+          textColor: [0, 0, 0],
+        },
+        headStyles: {
+          fillColor: [230, 230, 230],
+          textColor: [0, 0, 0],
+          fontStyle: "bold",
+          halign: "center",
+          fontSize: 7,
+        },
+        columnStyles: {
+          0: { cellWidth: 28, halign: "left" }, // IMG/CLAVE
+          1: { cellWidth: 15, halign: "center" }, // CANT
+          2: { cellWidth: 82, halign: "left" }, // DESCRIPCIÓN
+          3: { cellWidth: 22, halign: "right" }, // P. UNIT.
+          4: { cellWidth: 22, halign: "right" }, // IMPORTE
+        },
+        theme: "grid",
+        margin: { left: 14, right: 14 },
       });
 
-      const finalYEnvio = (docEnvio as any).lastAutoTable?.finalY || 70;
+      const finalYEnvio = (docEnvio as any).lastAutoTable?.finalY || 100;
 
+      // Nota de tipo de entrega
       docEnvio.setFontSize(7);
-      docEnvio.text(`Total: $${total.toFixed(2)}`, 14, finalYEnvio + 10);
+      docEnvio.setFont("helvetica", "normal");
+      if (enviarDomicilio) {
+        docEnvio.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYEnvio + 8);
+      } else {
+        docEnvio.text(
+          "TIPO DE ENTREGA: RECOGER EN TIENDA",
+          14,
+          finalYEnvio + 8
+        );
+      }
 
+      // Pie de página con fecha/hora y número de página
+      const pageCount2 = (docEnvio as any).getNumberOfPages();
+      for (let i = 1; i <= pageCount2; i++) {
+        docEnvio.setPage(i);
+        const pageHeight = docEnvio.internal.pageSize.height;
+        docEnvio.setFontSize(7);
+        docEnvio.text(`Página ${i} de ${pageCount2}`, 14, pageHeight - 8);
+        docEnvio.text(`${fecha} ${hora}`, 160, pageHeight - 8);
+      }
+
+      // Enviar PDF por correo
       const pdfBase64 = docEnvio.output("datauristring");
-
       await fetch("/api/enviar-pedido", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pdfBase64,
-          correoDestino: "bfmpedidos@gmail.com", //correo de la ferreteria
+          correoDestino: "bfmpedidos@gmail.com",
         }),
       });
 
-      // PDF que se descarga para el cliente (docCliente)
+      // PDF PARA CLIENTE (docCliente)
       const docCliente = new jsPDF();
 
-      docCliente.setFontSize(7);
-      docCliente.text("COMPROBANTE DE COMPRA", 14, 20);
-      docCliente.setFontSize(7);
-      docCliente.text(`CLIENTE: ${cliente}`, 14, 30);
-      docCliente.text(`FERRETERÍA: ${cuenta?.ferreteria}`, 14, 37);
+      // Logo en la esquina superior izquierda
+      docCliente.addImage(logoBase64, "JPEG", 14, 14, 50, 15);
 
-      if (enviarDomicilio) {
-        docCliente.text("ENTREGA: A DOMICILIO", 14, 44);
-        docCliente.text(`DIRECCIÓN: ${cuenta?.direccion}`, 14, 51);
-      } else {
-        docCliente.text("ENTREGA: RECOGER EN TIENDA", 14, 44);
-      }
+      // Información empresa
+      docCliente.setFontSize(7);
+      docCliente.setFont("helvetica", "bold");
+      docCliente.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+      docCliente.setFont("helvetica", "normal");
+      docCliente.text("GUGS701012E14", 70, 14);
+      docCliente.text("Av. del maestro # 24 -", 70, 18);
+      docCliente.text("Col. Praxedis Balboa C.P. 87430", 70, 22);
+      docCliente.text("H. Matamoros, Tamaulipas, MÉXICO", 70, 26);
+      docCliente.text("Tel 8682724481 gmail.", 70, 30);
+      docCliente.text("bodegaferreterademty@hotmail.com", 70, 34);
 
+      // Cotización y fecha
+      docCliente.setFontSize(9);
+      docCliente.setFont("helvetica", "bold");
+      docCliente.text("Cotización", 165, 10);
+      docCliente.setFontSize(10);
+      docCliente.text(numeroCotizacion.toString(), 170, 16);
+      docCliente.setFontSize(9);
+      docCliente.text("Fecha", 172, 24);
+      docCliente.setFontSize(8);
+      docCliente.setFont("helvetica", "normal");
+      docCliente.text(fecha, 167, 30);
+      docCliente.setFontSize(8);
+      docCliente.setFont("helvetica", "bold");
+      docCliente.text("Moneda: MXN", 165, 38);
+
+      // Línea separadora
+      docCliente.setLineWidth(0.3);
+      docCliente.line(14, 42, 196, 42);
+
+      // Receptor
+      docCliente.setFontSize(7);
+      docCliente.setFont("helvetica", "bold");
+      docCliente.text("RECEPTOR", 14, 48);
+      docCliente.setFont("helvetica", "normal");
+      docCliente.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
+      docCliente.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
+      docCliente.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
+      docCliente.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
+      docCliente.text(`Ciudad: Heroica Matamoros, Matamoros, Tamaulipas, México`, 14, 64);
+
+      // Tabla
       autoTableModule.default(docCliente, {
-        head: [["Producto", "Cantidad", "Precio", "Subtotal"]],
-        body: carrito.map((p) => [
-          p.TITULO,
-          p.cantidad,
-          `$${p.P_MAYOREO.toFixed(2)}`,
-          `$${p.subtotal.toFixed(2)}`,
-        ]),
-        startY: 60,
-        styles: { fontSize: 7 },
+        head: [
+          ["IMG/CLAVE", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"],
+        ],
+        body: productosTabla,
+        startY: 69,
+        styles: {
+          fontSize: 7,
+          cellPadding: 1.5,
+          lineColor: [180, 180, 180],
+          lineWidth: 0.1,
+          textColor: [0, 0, 0],
+        },
         headStyles: {
-          fillColor: [255, 140, 0],
-          textColor: [255, 255, 255],
+          fillColor: [230, 230, 230],
+          textColor: [0, 0, 0],
           fontStyle: "bold",
+          halign: "center",
+          fontSize: 7,
+        },
+        columnStyles: {
+          0: { cellWidth: 28, halign: "left" }, // IMG/CLAVE
+          1: { cellWidth: 15, halign: "center" }, // CANT
+          2: { cellWidth: 95, halign: "left" }, // DESCRIPCIÓN
+          3: { cellWidth: 22, halign: "right" }, // P. UNIT.
+          4: { cellWidth: 22, halign: "right" }, // IMPORTE
         },
         theme: "grid",
+        margin: { left: 14, right: 14 },
       });
 
-      const finalYCliente = (docCliente as any).lastAutoTable?.finalY || 70;
+      const finalYCliente = (docCliente as any).lastAutoTable?.finalY || 100;
+
+      // Tipo de entrega
       docCliente.setFontSize(7);
-      docCliente.text(`TOTAL: $${total.toFixed(2)}`, 14, finalYCliente + 10);
-      docCliente.text(
-        "COSTO DE USO DE LA APLICACIÓN: $50.00 (CUBIERTO POR BODEGA FERRETERA DE MONTERREY)",
-        14,
-        finalYEnvio + 18
-      );
+      docCliente.setFont("helvetica", "normal");
+      if (enviarDomicilio) {
+        docCliente.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYCliente + 8);
+      } else {
+        docCliente.text(
+          "TIPO DE ENTREGA: RECOGER EN TIENDA",
+          14,
+          finalYCliente + 8
+        );
+      }
+
+      // Pie de página
+      const pageCount = (docCliente as any).getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        docCliente.setPage(i);
+        const pageHeight = docCliente.internal.pageSize.height;
+        docCliente.setFontSize(7);
+        docCliente.text(`Página ${i} de ${pageCount}`, 14, pageHeight - 8);
+        docCliente.text(`${fecha} ${hora}`, 160, pageHeight - 8);
+      }
 
       const nombreArchivo = `Pedido_${cliente.replace(/\s+/g, "_")}.pdf`;
       docCliente.save(nombreArchivo);
 
       setMensajeExito("Su pedido ha sido enviado con éxito.");
       setMostrarModalPedido(false);
-      setCarrito([]); // Deja el carrito vacío
+      setCarrito([]);
     } catch (error) {
       console.error("Error al enviar pedido:", error);
       setMensajeExito(
-        " Ocurrió un error al enviar el pedido. Intente nuevamente."
+        "Ocurrió un error al enviar el pedido. Intente nuevamente."
       );
     } finally {
       setEnviando(false);
@@ -1141,33 +1277,35 @@ export default function HomePage() {
     <>
       {/* LOGIN ANTES DE ENTRAR A LA APP */}
       {!cuentaActiva ? (
-        <div className="min-h-screen bg-white flex flex-col justify-center items-center p-6 text-center">
-          <h1 className="text-2xl font-bold text-zinc-800 mb-4">
-            Ingresar a catálogo
-          </h1>
+        <div className="min-h-screen bg-gradient-to-tr from-slate-50 to-gray-50 flex flex-col justify-center shadow items-center p-6 text-center">
+          <div className="w-full max-w-md bg-white rounded-xl shadow p-9">
+            <h1 className="text-2xl font-bold text-zinc-800 mb-4">
+              Ingresar a catálogo
+            </h1>
 
-          <p className="text-zinc-600 mb-6">
-            Introduce tu número de cuenta para continuar
-          </p>
+            <p className="text-zinc-600 mb-6">
+              Introduce tu número de cuenta para continuar
+            </p>
 
-          <input
-            type="text"
-            placeholder="Número de cuenta"
-            value={numCuentaInput}
-            onChange={(e) => setNumCuentaInput(e.target.value)}
-            className="border border-zinc-300 text-zinc-600 rounded-lg px-4 py-3 w-full max-w-xs text-center text-lg"
-          />
+            <input
+              type="text"
+              placeholder="Número de cuenta"
+              value={numCuentaInput}
+              onChange={(e) => setNumCuentaInput(e.target.value)}
+              className="border border-zinc-300 text-zinc-600 rounded-lg px-4 py-3 w-full max-w-xs text-center text-lg"
+            />
 
-          {errorLogin && (
-            <p className="text-red-500 text-sm mt-2">{errorLogin}</p>
-          )}
+            {errorLogin && (
+              <p className="text-red-500 text-sm mt-2">{errorLogin}</p>
+            )}
 
-          <button
-            onClick={validarCuenta}
-            className="mt-5 bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-orange-600 transition"
-          >
-            Entrar
-          </button>
+            <button
+              onClick={validarCuenta}
+              className="mt-5 bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-orange-600 transition"
+            >
+              Entrar
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex min-h-screen flex-col bg-white font-sans">
