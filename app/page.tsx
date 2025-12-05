@@ -312,9 +312,9 @@ const enviarPedido = async () => {
     );
 
     // Calcular subtotal (sin IVA), IVA y total
-    const subtotalSinIVA = total / 1.08; // Quitar el 8% de IVA
-    const iva = total - subtotalSinIVA; // Calcular el IVA (8%)
-    const totalConIVA = total; // El total ya incluye IVA
+    const subtotalSinIVA = total / 1.08; 
+    const iva = total - subtotalSinIVA; 
+    const totalConIVA = total; 
 
     // Guardar pedido en Supabase
     const { data: pedidoInsertado, error: errorPedido } = await supabase
