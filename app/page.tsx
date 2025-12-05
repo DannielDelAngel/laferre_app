@@ -113,13 +113,15 @@ const [mostrarExito, setMostrarExito] = useState(false);
 
     return createPortal(btn, document.body);
   };
-
+{/* 
   useEffect(() => {
     const saved = localStorage.getItem("cuenta_user");
     if (saved) {
       setCuenta(JSON.parse(saved));
     }
   }, []);
+  
+  */}
 
   // componete zoom imagenes
   const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
@@ -186,6 +188,7 @@ const [mostrarExito, setMostrarExito] = useState(false);
   // fin del componente zomm img
 
   // verifica si hay una cuenta logeada al cargar la pagina
+  {/* 
   useEffect(() => {
     const init = async () => {
       const saved = localStorage.getItem("cuentaActiva");
@@ -211,7 +214,8 @@ const [mostrarExito, setMostrarExito] = useState(false);
     };
 
     init();
-  }, []);
+  }, []);   
+   */}
 
   // funcion para validar la cuenta ingresada
   const validarCuenta = async () => {
@@ -306,6 +310,11 @@ const enviarPedido = async () => {
         sum + (p.subtotal ?? (p.cantidad ?? 0) * (p.P_MAYOREO ?? 0)),
       0
     );
+
+    // Calcular subtotal (sin IVA), IVA y total
+    const subtotalSinIVA = total / 1.08; // Quitar el 8% de IVA
+    const iva = total - subtotalSinIVA; // Calcular el IVA (8%)
+    const totalConIVA = total; // El total ya incluye IVA
 
     // Guardar pedido en Supabase
     const { data: pedidoInsertado, error: errorPedido } = await supabase
@@ -438,7 +447,7 @@ const enviarPedido = async () => {
         fontSize: 7,
       },
       columnStyles: {
-        0: { cellWidth: 28, halign: "left" },
+        0: { cellWidth: 28, halign: "center" },
         1: { cellWidth: 15, halign: "center" },
         2: { cellWidth: 82, halign: "left" },
         3: { cellWidth: 22, halign: "right" },
@@ -462,6 +471,20 @@ const enviarPedido = async () => {
     } else {
       docEnvio.text("TIPO DE ENTREGA: RECOGER EN TIENDA", 14, finalYEnvio + 8);
     }
+
+    // AGREGAR TOTALES EN LA ÚLTIMA PÁGINA (PDF de Envío)
+    const yTotales = finalYEnvio + 18;
+    docEnvio.setFontSize(8);
+    docEnvio.setFont("helvetica", "bold");
+    docEnvio.text("Subtotal:", 145, yTotales);
+    docEnvio.text(`$ ${subtotalSinIVA.toFixed(2)}`, 175, yTotales, { align: "right" });
+    docEnvio.text("IVA (8%):", 145, yTotales + 5);
+    docEnvio.text(`$ ${iva.toFixed(2)}`, 175, yTotales + 5, { align: "right" });
+    docEnvio.setLineWidth(0.5);
+    docEnvio.line(145, yTotales + 8, 196, yTotales + 8);
+    docEnvio.setFontSize(9);
+    docEnvio.text("TOTAL:", 145, yTotales + 13);
+    docEnvio.text(`$ ${totalConIVA.toFixed(2)}`, 175, yTotales + 13, { align: "right" });
 
     // Pie de página con fecha/hora y número de página
     const pageCount2 = (docEnvio as any).getNumberOfPages();
@@ -507,7 +530,7 @@ const enviarPedido = async () => {
         fontSize: 7,
       },
       columnStyles: {
-        0: { cellWidth: 28, halign: "left" },
+        0: { cellWidth: 28, halign: "center" },
         1: { cellWidth: 15, halign: "center" },
         2: { cellWidth: 95, halign: "left" },
         3: { cellWidth: 22, halign: "right" },
@@ -535,6 +558,20 @@ const enviarPedido = async () => {
         finalYCliente + 8
       );
     }
+
+    // AGREGAR TOTALES EN LA ÚLTIMA PÁGINA (PDF de Cliente)
+    const yTotalesCliente = finalYCliente + 18;
+    docCliente.setFontSize(8);
+    docCliente.setFont("helvetica", "bold");
+    docCliente.text("Subtotal:", 145, yTotalesCliente);
+    docCliente.text(`$ ${subtotalSinIVA.toFixed(2)}`, 175, yTotalesCliente, { align: "right" });
+    docCliente.text("IVA (8%):", 145, yTotalesCliente + 5);
+    docCliente.text(`$ ${iva.toFixed(2)}`, 175, yTotalesCliente + 5, { align: "right" });
+    docCliente.setLineWidth(0.5);
+    docCliente.line(145, yTotalesCliente + 8, 196, yTotalesCliente + 8);
+    docCliente.setFontSize(9);
+    docCliente.text("TOTAL:", 145, yTotalesCliente + 13);
+    docCliente.text(`$ ${totalConIVA.toFixed(2)}`, 175, yTotalesCliente + 13, { align: "right" });
 
     // Pie de página
     const pageCount = (docCliente as any).getNumberOfPages();
