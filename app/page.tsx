@@ -16,6 +16,9 @@ import {
   FileQuestionMark,
   LogOut,
   Settings,
+  EyeOff,
+  Eye,
+  EyeClosed,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
@@ -95,6 +98,7 @@ export default function HomePage() {
   const [actualizacionReciente, setActualizacionReciente] = useState(false);
 
   const esAdmin = cuenta?.numero_cuenta === "Admin01";
+   const [mostrar, setMostrar] = useState(false);
 
   const BackBtn = ({ onBack }: any) => {
     if (typeof document === "undefined") return null;
@@ -774,7 +778,7 @@ const BadgeEstado = ({ estado }: any) => {
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
   const [cargandoPDF, setCargandoPDF] = useState(false);
   const [cuentaPedido, setCuentaPedido] = useState<any>(null);
-  const [actualizacionReciente, setActualizacionReciente] = useState(false); // 🔴 AGREGADO
+  const [actualizacionReciente, setActualizacionReciente] = useState(false); 
 
   useEffect(() => {
     const fetchPedidos = async () => {
@@ -1606,13 +1610,48 @@ const BadgeEstado = ({ estado }: any) => {
               Introduce tu número de cuenta para continuar
             </p>
 
-            <input
-              type="text"
-              placeholder="Número de cuenta"
-              value={numCuentaInput}
-              onChange={(e) => setNumCuentaInput(e.target.value)}
-              className="border border-zinc-300 text-zinc-600 rounded-lg px-4 py-3 w-full max-w-xs text-center text-lg"
-            />
+           
+<div className="relative w-full max-w-xs">
+  <input
+    type={mostrar ? "text" : "password"}
+    placeholder="Número de cuenta"
+    value={numCuentaInput}
+    onChange={(e) => setNumCuentaInput(e.target.value)}
+    className="border border-zinc-300 text-zinc-600 rounded-lg px-4 py-3 w-full text-center text-lg"
+  />
+
+  <button
+    type="button"
+    onClick={() => setMostrar(!mostrar)}
+    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600"
+  >
+    <AnimatePresence mode="wait" initial={false}>
+      {mostrar ? (
+        <motion.div
+          key="off"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          transition={{ duration: 0.15 }}
+        >
+          <Eye size={22} />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="on"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          transition={{ duration: 0.15 }}
+        >
+          <EyeOff size={22} />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </button>
+</div>
+
+
 
             {errorLogin && (
               <p className="text-red-500 text-sm mt-2">{errorLogin}</p>
