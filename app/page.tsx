@@ -59,7 +59,7 @@ export default function HomePage() {
   const [errorLogin, setErrorLogin] = useState("");
   const [vistaPerfil, setVistaPerfil] = useState("menu"); // menu | apoyo | settings | address | pedidos
   const [cuenta, setCuenta] = useState<Cuenta | null>(null); // datos completos de supabase
-const [mostrarExito, setMostrarExito] = useState(false);
+  const [mostrarExito, setMostrarExito] = useState(false);
 
   const [activeTab, setActiveTab] = useState("categorias");
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,6 +93,8 @@ const [mostrarExito, setMostrarExito] = useState(false);
   const [itemsPedido, setItemsPedido] = useState([]);
   const [cargandoItems, setCargandoItems] = useState(false);
 
+  const esAdmin = cuenta?.numero_cuenta === "Admin01";
+
   const BackBtn = ({ onBack }: any) => {
     if (typeof document === "undefined") return null;
 
@@ -113,7 +115,8 @@ const [mostrarExito, setMostrarExito] = useState(false);
 
     return createPortal(btn, document.body);
   };
-{/* 
+  {
+    /* 
   useEffect(() => {
     const saved = localStorage.getItem("cuenta_user");
     if (saved) {
@@ -121,7 +124,8 @@ const [mostrarExito, setMostrarExito] = useState(false);
     }
   }, []);
   
-  */}
+  */
+  }
 
   // componete zoom imagenes
   const ApoyoViewer = ({ selectedApoyo, setSelectedApoyo }: any) => {
@@ -188,7 +192,8 @@ const [mostrarExito, setMostrarExito] = useState(false);
   // fin del componente zomm img
 
   // verifica si hay una cuenta logeada al cargar la pagina
-  {/* 
+  {
+    /* 
   useEffect(() => {
     const init = async () => {
       const saved = localStorage.getItem("cuentaActiva");
@@ -215,7 +220,8 @@ const [mostrarExito, setMostrarExito] = useState(false);
 
     init();
   }, []);   
-   */}
+   */
+  }
 
   // funcion para validar la cuenta ingresada
   const validarCuenta = async () => {
@@ -269,8 +275,15 @@ const [mostrarExito, setMostrarExito] = useState(false);
     const fetchProductos = async () => {
       const { data, error } = await supabase
         .from("productos")
-        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO");
+        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible");
 
+      // Normalizar visible
+      const productosNormalizados = (data || []).map((producto) => ({
+        ...producto,
+        visible: producto.visible ?? true,
+      }));
+
+      setProductos(productosNormalizados);
       if (error) {
         console.error("Error cargando productos:", error.message);
       } else {
@@ -292,352 +305,372 @@ const [mostrarExito, setMostrarExito] = useState(false);
 
   // Función para enviar el pedido
 
-const enviarPedido = async () => {
-  try {
-    setEnviando(true);
-    setMensajeExito("");
-    setErrorCuenta("");
+  const enviarPedido = async () => {
+    try {
+      setEnviando(true);
+      setMensajeExito("");
+      setErrorCuenta("");
 
-    if (!cuenta) {
-      setMensajeExito("Error: cuenta no cargada. Intente nuevamente.");
-      setEnviando(false);
-      return;
-    }
+      if (!cuenta) {
+        setMensajeExito("Error: cuenta no cargada. Intente nuevamente.");
+        setEnviando(false);
+        return;
+      }
 
-    // Calcular el total
-    const total = carrito.reduce(
-      (sum, p) =>
-        sum + (p.subtotal ?? (p.cantidad ?? 0) * (p.P_MAYOREO ?? 0)),
-      0
-    );
-
-    // Calcular subtotal (sin IVA), IVA y total
-    const subtotalSinIVA = total / 1.08; 
-    const iva = total - subtotalSinIVA; 
-    const totalConIVA = total; 
-
-    // Guardar pedido en Supabase
-    const { data: pedidoInsertado, error: errorPedido } = await supabase
-      .from("pedidos")
-      .insert([
-        {
-          cuenta_id: cuenta.id,
-          total: total,
-        },
-      ])
-      .select()
-      .single();
-
-    if (errorPedido) {
-      console.error("Error registrando pedido:", errorPedido);
-    } else {
-      console.log("Pedido registrado:", pedidoInsertado);
-    }
-
-    const jsPDFModule = await import("jspdf");
-    const autoTableModule = await import("jspdf-autotable");
-    const { jsPDF } = jsPDFModule;
-
-    const pedidoId = pedidoInsertado.id;
-    const numeroCotizacion = pedidoId;
-    const fecha = new Date().toLocaleDateString("es-MX", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-    const hora = new Date().toLocaleTimeString("es-MX");
-
-    // Cargar logo como base64
-    const getImageBase64 = async (url: string): Promise<string> => {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    };
-
-    const logoBase64 = await getImageBase64("/logo-pdf.png");
-
-    // Función para dibujar el encabezado (se usará en cada página)
-    const dibujarEncabezado = (doc: any) => {
-      // Logo en la esquina superior izquierda
-      doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
-
-      // Información empresa
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "bold");
-      doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
-      doc.setFont("helvetica", "normal");
-      doc.text("GUGS701012E14", 70, 14);
-      doc.text("Av. del maestro # 24 -", 70, 18);
-      doc.text("Col. Praxedis Balboa C.P. 87430", 70, 22);
-      doc.text("H. Matamoros, Tamaulipas, MÉXICO", 70, 26);
-      doc.text("Tel 8682724481 gmail.", 70, 30);
-      doc.text("bodegaferreterademty@hotmail.com", 70, 34);
-
-      // Cotización y Fecha (lado derecho)
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "bold");
-      doc.text("Cotización", 165, 10);
-      doc.setFontSize(10);
-      doc.text(numeroCotizacion.toString(), 170, 16);
-
-      doc.setFontSize(9);
-      doc.text("Fecha", 172, 24);
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
-      doc.text(fecha, 167, 30);
-
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "bold");
-      doc.text("Moneda: MXN", 165, 38);
-
-      // Línea separadora
-      doc.setLineWidth(0.3);
-      doc.line(14, 42, 196, 42);
-
-      // Sección RECEPTOR
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "bold");
-      doc.text("RECEPTOR", 14, 48);
-
-      doc.setFont("helvetica", "normal");
-      doc.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
-      doc.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
-      doc.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
-      doc.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
-      doc.text(
-        `Ciudad: Heroica Matamoros, Matamoros, Tamaulipas, México`,
-        14,
-        64
+      // Calcular el total
+      const total = carrito.reduce(
+        (sum, p) =>
+          sum + (p.subtotal ?? (p.cantidad ?? 0) * (p.P_MAYOREO ?? 0)),
+        0
       );
-    };
 
-    // PDF PARA ENVÍO (docEnvio)
-    const docEnvio = new jsPDF();
+      // Calcular subtotal (sin IVA), IVA y total
+      const subtotalSinIVA = total / 1.08;
+      const iva = total - subtotalSinIVA;
+      const totalConIVA = total;
 
-    // Tabla de productos
-    const productosTabla = carrito.map((p) => [
-      p.CODIGO || "",
-      p.cantidad,
-      p.TITULO,
-      `$ ${p.P_MAYOREO.toFixed(2)}`,
-      `$ ${p.subtotal.toFixed(2)}`,
-    ]);
+      // Guardar pedido en Supabase
+      const { data: pedidoInsertado, error: errorPedido } = await supabase
+        .from("pedidos")
+        .insert([
+          {
+            cuenta_id: cuenta.id,
+            total: total,
+          },
+        ])
+        .select()
+        .single();
 
-    autoTableModule.default(docEnvio, {
-      head: [["IMG/CLAVE", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
-      body: productosTabla,
-      startY: 69,
-      styles: {
-        fontSize: 7,
-        cellPadding: 1.5,
-        lineColor: [180, 180, 180],
-        lineWidth: 0.1,
-        textColor: [0, 0, 0],
-      },
-      headStyles: {
-        fillColor: [230, 230, 230],
-        textColor: [0, 0, 0],
-        fontStyle: "bold",
-        halign: "center",
-        fontSize: 7,
-      },
-      columnStyles: {
-        0: { cellWidth: 28, halign: "center" },
-        1: { cellWidth: 15, halign: "center" },
-        2: { cellWidth: 82, halign: "left" },
-        3: { cellWidth: 22, halign: "right" },
-        4: { cellWidth: 22, halign: "right" },
-      },
-      theme: "grid",
-      margin: { left: 14, right: 14, top: 69 },
-      // Hook para dibujar el encabezado en cada nueva página
-      didDrawPage: (data: any) => {
-        dibujarEncabezado(docEnvio);
-      },
-    });
+      if (errorPedido) {
+        console.error("Error registrando pedido:", errorPedido);
+      } else {
+        console.log("Pedido registrado:", pedidoInsertado);
+      }
 
-    const finalYEnvio = (docEnvio as any).lastAutoTable?.finalY || 100;
+      const jsPDFModule = await import("jspdf");
+      const autoTableModule = await import("jspdf-autotable");
+      const { jsPDF } = jsPDFModule;
 
-    // Nota de tipo de entrega (solo en la última página)
-    docEnvio.setFontSize(7);
-    docEnvio.setFont("helvetica", "normal");
-    if (enviarDomicilio) {
-      docEnvio.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYEnvio + 8);
-    } else {
-      docEnvio.text("TIPO DE ENTREGA: RECOGER EN TIENDA", 14, finalYEnvio + 8);
-    }
+      const pedidoId = pedidoInsertado.id;
+      const numeroCotizacion = pedidoId;
+      const fecha = new Date().toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      const hora = new Date().toLocaleTimeString("es-MX");
 
-    // AGREGAR TOTALES EN LA ÚLTIMA PÁGINA (PDF de Envío)
-    const yTotales = finalYEnvio + 18;
-    docEnvio.setFontSize(8);
-    docEnvio.setFont("helvetica", "bold");
+      // Cargar logo como base64
+      const getImageBase64 = async (url: string): Promise<string> => {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      };
+
+      const logoBase64 = await getImageBase64("/logo-pdf.png");
+
+      // Función para dibujar el encabezado (se usará en cada página)
+      const dibujarEncabezado = (doc: any) => {
+        // Logo en la esquina superior izquierda
+        doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
+
+        // Información empresa
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+        doc.setFont("helvetica", "normal");
+        doc.text("GUGS701012E14", 70, 14);
+        doc.text("Av. del maestro # 24 -", 70, 18);
+        doc.text("Col. Praxedis Balboa C.P. 87430", 70, 22);
+        doc.text("H. Matamoros, Tamaulipas, MÉXICO", 70, 26);
+        doc.text("Tel 8682724481 gmail.", 70, 30);
+        doc.text("bodegaferreterademty@hotmail.com", 70, 34);
+
+        // Cotización y Fecha (lado derecho)
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Cotización", 165, 10);
+        doc.setFontSize(10);
+        doc.text(numeroCotizacion.toString(), 170, 16);
+
+        doc.setFontSize(9);
+        doc.text("Fecha", 172, 24);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(fecha, 167, 30);
+
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("Moneda: MXN", 165, 38);
+
+        // Línea separadora
+        doc.setLineWidth(0.3);
+        doc.line(14, 42, 196, 42);
+
+        // Sección RECEPTOR
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        doc.text("RECEPTOR", 14, 48);
+
+        doc.setFont("helvetica", "normal");
+        doc.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
+        doc.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
+        doc.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
+        doc.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
+        doc.text(
+          `Ciudad: Heroica Matamoros, Matamoros, Tamaulipas, México`,
+          14,
+          64
+        );
+      };
+
+      // PDF PARA ENVÍO (docEnvio)
+      const docEnvio = new jsPDF();
+
+      // Tabla de productos
+      const productosTabla = carrito.map((p) => [
+        p.CODIGO || "",
+        p.cantidad,
+        p.TITULO,
+        `$ ${p.P_MAYOREO.toFixed(2)}`,
+        `$ ${p.subtotal.toFixed(2)}`,
+      ]);
+
+      autoTableModule.default(docEnvio, {
+        head: [["IMG/CLAVE", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+        body: productosTabla,
+        startY: 69,
+        styles: {
+          fontSize: 7,
+          cellPadding: 1.5,
+          lineColor: [180, 180, 180],
+          lineWidth: 0.1,
+          textColor: [0, 0, 0],
+        },
+        headStyles: {
+          fillColor: [230, 230, 230],
+          textColor: [0, 0, 0],
+          fontStyle: "bold",
+          halign: "center",
+          fontSize: 7,
+        },
+        columnStyles: {
+          0: { cellWidth: 28, halign: "center" },
+          1: { cellWidth: 15, halign: "center" },
+          2: { cellWidth: 82, halign: "left" },
+          3: { cellWidth: 22, halign: "right" },
+          4: { cellWidth: 22, halign: "right" },
+        },
+        theme: "grid",
+        margin: { left: 14, right: 14, top: 69 },
+        // Hook para dibujar el encabezado en cada nueva página
+        didDrawPage: (data: any) => {
+          dibujarEncabezado(docEnvio);
+        },
+      });
+
+      const finalYEnvio = (docEnvio as any).lastAutoTable?.finalY || 100;
+
+      // Nota de tipo de entrega (solo en la última página)
+      docEnvio.setFontSize(7);
+      docEnvio.setFont("helvetica", "normal");
+      if (enviarDomicilio) {
+        docEnvio.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYEnvio + 8);
+      } else {
+        docEnvio.text(
+          "TIPO DE ENTREGA: RECOGER EN TIENDA",
+          14,
+          finalYEnvio + 8
+        );
+      }
+
+      // AGREGAR TOTALES EN LA ÚLTIMA PÁGINA (PDF de Envío)
+      const yTotales = finalYEnvio + 18;
+      docEnvio.setFontSize(8);
+      docEnvio.setFont("helvetica", "bold");
+      {
+        /* 
     docEnvio.text("Subtotal:", 145, yTotales);
     docEnvio.text(`$ ${subtotalSinIVA.toFixed(2)}`, 175, yTotales, { align: "right" });
     docEnvio.text("IVA (8%):", 145, yTotales + 5);
     docEnvio.text(`$ ${iva.toFixed(2)}`, 175, yTotales + 5, { align: "right" });
-    docEnvio.setLineWidth(0.5);
-    docEnvio.line(145, yTotales + 8, 196, yTotales + 8);
-    docEnvio.setFontSize(9);
-    docEnvio.text("TOTAL:", 145, yTotales + 13);
-    docEnvio.text(`$ ${totalConIVA.toFixed(2)}`, 175, yTotales + 13, { align: "right" });
-
-    // Pie de página con fecha/hora y número de página
-    const pageCount2 = (docEnvio as any).getNumberOfPages();
-    for (let i = 1; i <= pageCount2; i++) {
-      docEnvio.setPage(i);
-      const pageHeight = docEnvio.internal.pageSize.height;
-      docEnvio.setFontSize(7);
-      docEnvio.text(`Página ${i} de ${pageCount2}`, 14, pageHeight - 8);
-      docEnvio.text(`${fecha} ${hora}`, 160, pageHeight - 8);
-    }
-
-    // Enviar PDF por correo
-    const pdfBase64 = docEnvio.output("datauristring");
-    await fetch("/api/enviar-pedido", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pdfBase64,
-        correoDestino: "bfmpedidos@gmail.com",
-      }),
-    });
-
-    // PDF PARA CLIENTE (docCliente)
-    const docCliente = new jsPDF();
-
-    // Tabla
-    autoTableModule.default(docCliente, {
-      head: [["IMG/CLAVE", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
-      body: productosTabla,
-      startY: 69,
-      styles: {
-        fontSize: 7,
-        cellPadding: 1.5,
-        lineColor: [180, 180, 180],
-        lineWidth: 0.1,
-        textColor: [0, 0, 0],
-      },
-      headStyles: {
-        fillColor: [230, 230, 230],
-        textColor: [0, 0, 0],
-        fontStyle: "bold",
-        halign: "center",
-        fontSize: 7,
-      },
-      columnStyles: {
-        0: { cellWidth: 28, halign: "center" },
-        1: { cellWidth: 15, halign: "center" },
-        2: { cellWidth: 95, halign: "left" },
-        3: { cellWidth: 22, halign: "right" },
-        4: { cellWidth: 22, halign: "right" },
-      },
-      theme: "grid",
-      margin: { left: 14, right: 14, top: 69 },
-      // Hook para dibujar el encabezado en cada nueva página
-      didDrawPage: (data: any) => {
-        dibujarEncabezado(docCliente);
-      },
-    });
-
-    const finalYCliente = (docCliente as any).lastAutoTable?.finalY || 100;
-
-    // Tipo de entrega (solo en la última página)
-    docCliente.setFontSize(7);
-    docCliente.setFont("helvetica", "normal");
-    if (enviarDomicilio) {
-      docCliente.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYCliente + 8);
-    } else {
-      docCliente.text(
-        "TIPO DE ENTREGA: RECOGER EN TIENDA",
-        14,
-        finalYCliente + 8
-      );
-    }
-
-    // AGREGAR TOTALES EN LA ÚLTIMA PÁGINA (PDF de Cliente)
-    const yTotalesCliente = finalYCliente + 18;
-    docCliente.setFontSize(8);
-    docCliente.setFont("helvetica", "bold");
-    docCliente.text("Subtotal:", 145, yTotalesCliente);
-    docCliente.text(`$ ${subtotalSinIVA.toFixed(2)}`, 175, yTotalesCliente, { align: "right" });
-    docCliente.text("IVA (8%):", 145, yTotalesCliente + 5);
-    docCliente.text(`$ ${iva.toFixed(2)}`, 175, yTotalesCliente + 5, { align: "right" });
-    docCliente.setLineWidth(0.5);
-    docCliente.line(145, yTotalesCliente + 8, 196, yTotalesCliente + 8);
-    docCliente.setFontSize(9);
-    docCliente.text("TOTAL:", 145, yTotalesCliente + 13);
-    docCliente.text(`$ ${totalConIVA.toFixed(2)}`, 175, yTotalesCliente + 13, { align: "right" });
-
-    // Pie de página
-    const pageCount = (docCliente as any).getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      docCliente.setPage(i);
-      const pageHeight = docCliente.internal.pageSize.height;
-      docCliente.setFontSize(7);
-      docCliente.text(`Página ${i} de ${pageCount}`, 14, pageHeight - 8);
-      docCliente.text(`${fecha} ${hora}`, 160, pageHeight - 8);
-    }
-
-    // Guardar PDF en Supabase Storage
-    const pdfBlob = docCliente.output("blob");
-    const nombreArchivoPDF = `pedido_${pedidoId}_${Date.now()}.pdf`;
-    
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("pedidos-pdf")
-      .upload(nombreArchivoPDF, pdfBlob, {
-        contentType: "application/pdf",
-        cacheControl: "3600",
-        upsert: true
+    */
+      }
+      docEnvio.setLineWidth(0.5);
+      docEnvio.line(145, yTotales + 8, 196, yTotales + 8);
+      docEnvio.setFontSize(9);
+      docEnvio.text("TOTAL NETO:", 145, yTotales + 13);
+      docEnvio.text(`$ ${totalConIVA.toFixed(2)}`, 180, yTotales + 13, {
+        align: "right",
       });
 
-    if (uploadError) {
-      console.error("Error subiendo PDF a Supabase:", uploadError);
-    } else {
-      console.log("PDF subido correctamente:", uploadData);
-      
-      // Obtener URL pública del PDF
-      const { data: { publicUrl } } = supabase.storage
-        .from("pedidos-pdf")
-        .getPublicUrl(nombreArchivoPDF);
-
-      console.log("URL pública del PDF:", publicUrl);
-
-      // Actualizar el pedido con la URL del PDF
-      const { error: updateError } = await supabase
-        .from("pedidos")
-        .update({ pdf_url: publicUrl })
-        .eq("id", pedidoId);
-
-      if (updateError) {
-        console.error("Error actualizando URL del PDF:", updateError);
+      // Pie de página con fecha/hora y número de página
+      const pageCount2 = (docEnvio as any).getNumberOfPages();
+      for (let i = 1; i <= pageCount2; i++) {
+        docEnvio.setPage(i);
+        const pageHeight = docEnvio.internal.pageSize.height;
+        docEnvio.setFontSize(7);
+        docEnvio.text(`Página ${i} de ${pageCount2}`, 14, pageHeight - 8);
+        docEnvio.text(`${fecha} ${hora}`, 160, pageHeight - 8);
       }
-    }
 
-    // Descargar PDF localmente para el cliente
-   {/*  
+      // Enviar PDF por correo
+      const pdfBase64 = docEnvio.output("datauristring");
+      await fetch("/api/enviar-pedido", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pdfBase64,
+          correoDestino: "bfmpedidos@gmail.com",
+        }),
+      });
+
+      // PDF PARA CLIENTE (docCliente)
+      const docCliente = new jsPDF();
+
+      // Tabla
+      autoTableModule.default(docCliente, {
+        head: [["IMG/CLAVE", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+        body: productosTabla,
+        startY: 69,
+        styles: {
+          fontSize: 7,
+          cellPadding: 1.5,
+          lineColor: [180, 180, 180],
+          lineWidth: 0.1,
+          textColor: [0, 0, 0],
+        },
+        headStyles: {
+          fillColor: [230, 230, 230],
+          textColor: [0, 0, 0],
+          fontStyle: "bold",
+          halign: "center",
+          fontSize: 7,
+        },
+        columnStyles: {
+          0: { cellWidth: 28, halign: "center" },
+          1: { cellWidth: 15, halign: "center" },
+          2: { cellWidth: 95, halign: "left" },
+          3: { cellWidth: 22, halign: "right" },
+          4: { cellWidth: 22, halign: "right" },
+        },
+        theme: "grid",
+        margin: { left: 14, right: 14, top: 69 },
+        // Hook para dibujar el encabezado en cada nueva página
+        didDrawPage: (data: any) => {
+          dibujarEncabezado(docCliente);
+        },
+      });
+
+      const finalYCliente = (docCliente as any).lastAutoTable?.finalY || 100;
+
+      // Tipo de entrega (solo en la última página)
+      docCliente.setFontSize(7);
+      docCliente.setFont("helvetica", "normal");
+      if (enviarDomicilio) {
+        docCliente.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYCliente + 8);
+      } else {
+        docCliente.text(
+          "TIPO DE ENTREGA: RECOGER EN TIENDA",
+          14,
+          finalYCliente + 8
+        );
+      }
+
+      // AGREGAR TOTALES EN LA ÚLTIMA PÁGINA (PDF de Cliente)
+      const yTotalesCliente = finalYCliente + 18;
+      docCliente.setFontSize(8);
+      docCliente.setFont("helvetica", "bold");
+      {
+        /* 
+    docCliente.text("Subtotal:", 145, yTotales);
+    docCliente.text(`$ ${subtotalSinIVA.toFixed(2)}`, 175, yTotales, { align: "right" });
+    docCliente.text("IVA (8%):", 145, yTotales + 5);
+    docCliente.text(`$ ${iva.toFixed(2)}`, 175, yTotales + 5, { align: "right" });
+    */
+      }
+      docCliente.setLineWidth(0.5);
+      docCliente.line(145, yTotalesCliente + 8, 196, yTotalesCliente + 8);
+      docCliente.setFontSize(9);
+      docCliente.text("TOTAL NETO:", 145, yTotalesCliente + 13);
+      docCliente.text(
+        `$ ${totalConIVA.toFixed(2)}`,
+        180,
+        yTotalesCliente + 13,
+        { align: "right" }
+      );
+
+      // Pie de página
+      const pageCount = (docCliente as any).getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        docCliente.setPage(i);
+        const pageHeight = docCliente.internal.pageSize.height;
+        docCliente.setFontSize(7);
+        docCliente.text(`Página ${i} de ${pageCount}`, 14, pageHeight - 8);
+        docCliente.text(`${fecha} ${hora}`, 160, pageHeight - 8);
+      }
+
+      // Guardar PDF en Supabase Storage
+      const pdfBlob = docCliente.output("blob");
+      const nombreArchivoPDF = `pedido_${pedidoId}_${Date.now()}.pdf`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("pedidos-pdf")
+        .upload(nombreArchivoPDF, pdfBlob, {
+          contentType: "application/pdf",
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error("Error subiendo PDF a Supabase:", uploadError);
+      } else {
+        console.log("PDF subido correctamente:", uploadData);
+
+        // Obtener URL pública del PDF
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("pedidos-pdf").getPublicUrl(nombreArchivoPDF);
+
+        console.log("URL pública del PDF:", publicUrl);
+
+        // Actualizar el pedido con la URL del PDF
+        const { error: updateError } = await supabase
+          .from("pedidos")
+          .update({ pdf_url: publicUrl })
+          .eq("id", pedidoId);
+
+        if (updateError) {
+          console.error("Error actualizando URL del PDF:", updateError);
+        }
+      }
+
+      // Descargar PDF localmente para el cliente
+      {
+        /*  
     const nombreArchivo = `Pedido_${cliente.replace(/\s+/g, "_")}.pdf`;
     docCliente.save(nombreArchivo);
-     */}
+     */
+      }
 
-    setMensajeExito("Su pedido ha sido enviado con éxito.");
-    setMostrarModalPedido(false);
-    setCarrito([]);
-    setMostrarExito(true);
-
-  } catch (error) {
-    console.error("Error al enviar pedido:", error);
-    setMensajeExito(
-      "Ocurrió un error al enviar el pedido. Intente nuevamente."
-    );
-  } finally {
-    setEnviando(false);
-  }
-};
+      setMensajeExito("Su pedido ha sido enviado con éxito.");
+      setMostrarModalPedido(false);
+      setCarrito([]);
+      setMostrarExito(true);
+    } catch (error) {
+      console.error("Error al enviar pedido:", error);
+      setMensajeExito(
+        "Ocurrió un error al enviar el pedido. Intente nuevamente."
+      );
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   const apoyos = [
     {
@@ -657,216 +690,172 @@ const enviarPedido = async () => {
       imagen: "/apoyo_solventes.jpg",
     },
   ];
- 
-  const HistorialPedidos = ({ cuenta, setVistaPerfil }: any) => {
-    const [pedidos, setPedidos] = useState<any[]>([]);
-    const [cargando, setCargando] = useState(true);
-    const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
-    const [cargandoPDF, setCargandoPDF] = useState(false);
-    const [cuentaPedido, setCuentaPedido] = useState<any>(null);
 
-    const esAdmin = cuenta?.numero_cuenta === "Admin01";
+  const SelectorEstado = ({ estadoActual, pedidoId, onEstadoChange }: any) => {
+  const estados = [
+    { valor: 'revision', label: 'En Revisión', color: 'bg-yellow-100 text-yellow-800' },
+    { valor: 'recibido', label: 'Recibido', color: 'bg-blue-100 text-blue-800' },
+    { valor: 'surtiendo', label: 'Surtiendo', color: 'bg-purple-100 text-purple-800' },
+    { valor: 'encajado', label: 'Encajado', color: 'bg-indigo-100 text-indigo-800' },
+    { valor: 'en_camino', label: 'En Camino', color: 'bg-orange-100 text-orange-800' },
+    { valor: 'completado', label: 'Completado', color: 'bg-green-100 text-green-800' }
+  ];
 
-    useEffect(() => {
-      const fetchPedidos = async () => {
-        if (!cuenta?.id && !esAdmin) return;
+  const [cambiando, setCambiando] = useState(false);
 
-        let query = supabase
-          .from("pedidos")
-          .select(
-            `
-            id, 
-            total, 
-            created_at,
-            cuenta_id,
-            pdf_url,
-            cuentas (
-              numero_cuenta,
-              cliente,
-              ferreteria,
-              numero_tel
-            )
-          `
-          )
-          .order("created_at", { ascending: false });
+  const cambiarEstado = async (nuevoEstado: string) => {
+    setCambiando(true);
+    try {
+      const { error } = await supabase
+        .from('pedidos')
+        .update({ estado: nuevoEstado })
+        .eq('id', pedidoId);
 
-        // Si NO es admin, filtrar solo sus pedidos
-        if (!esAdmin) {
-          query = query.eq("cuenta_id", cuenta.id);
-        }
-
-        const { data, error } = await query;
-
-        if (!error && data) {
-          setPedidos(data);
-        }
-        setCargando(false);
-      };
-
-      fetchPedidos();
-    }, [cuenta, esAdmin]);
-
-    const verDetallePedido = (pedido: any) => {
-      setPedidoSeleccionado(pedido);
-      setCuentaPedido(pedido.cuentas || cuenta);
-    };
-
-    const descargarPDF = async () => {
-      if (!pedidoSeleccionado?.pdf_url) return;
+      if (error) throw error;
       
-      setCargandoPDF(true);
-      try {
-        const response = await fetch(pedidoSeleccionado.pdf_url);
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Pedido_${pedidoSeleccionado.id}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } catch (error) {
-        console.error('Error descargando PDF:', error);
-        alert('Error al descargar el PDF');
-      } finally {
-        setCargandoPDF(false);
+      onEstadoChange(nuevoEstado);
+    } catch (error) {
+      console.error('Error actualizando estado:', error);
+      alert('Error al actualizar el estado');
+    } finally {
+      setCambiando(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4">
+      <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+        Estado del Pedido
+      </label>
+      <select
+        value={estadoActual || 'revision'}
+        onChange={(e) => cambiarEstado(e.target.value)}
+        disabled={cambiando}
+        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-zinc-100"
+      >
+        {estados.map((estado) => (
+          <option key={estado.valor} value={estado.valor}>
+            {estado.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
+
+const BadgeEstado = ({ estado }: any) => {
+  const estados: any = {
+    revision: { label: 'En Revisión', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+    recibido: { label: 'Recibido', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+    surtiendo: { label: 'Surtiendo', color: 'bg-purple-100 text-purple-800 border-purple-200' },
+    encajado: { label: 'Encajado', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+    en_camino: { label: 'En Camino', color: 'bg-orange-100 text-orange-800 border-orange-200' },
+    completado: { label: 'Completado', color: 'bg-green-100 text-green-800 border-green-200' }
+  };
+
+  const estadoInfo = estados[estado || 'revision'];
+
+  return (
+    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${estadoInfo.color}`}>
+      {estadoInfo.label}
+    </span>
+  );
+};
+
+
+  const HistorialPedidos = ({ cuenta, setVistaPerfil }: any) => {
+  const [pedidos, setPedidos] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
+  const [cargandoPDF, setCargandoPDF] = useState(false);
+  const [cuentaPedido, setCuentaPedido] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchPedidos = async () => {
+      if (!cuenta?.id && !esAdmin) return;
+
+      let query = supabase
+        .from("pedidos")
+        .select(
+          `
+          id, 
+          total, 
+          created_at,
+          cuenta_id,
+          pdf_url,
+          estado,
+          cuentas (
+            numero_cuenta,
+            cliente,
+            ferreteria,
+            numero_tel
+          )
+        `
+        )
+        .order("created_at", { ascending: false });
+
+      // Si NO es admin, filtrar solo sus pedidos
+      if (!esAdmin) {
+        query = query.eq("cuenta_id", cuenta.id);
       }
+
+      const { data, error } = await query;
+
+      if (!error && data) {
+        setPedidos(data);
+      }
+      setCargando(false);
     };
 
-    // Si hay un pedido seleccionado, mostrar detalle
-    if (pedidoSeleccionado) {
-      return (
-        <motion.div
-          key="detalle-pedido"
-          className="min-h-screen"
-          initial={{ opacity: 0, x: 40 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -40 }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          onDragEnd={(event, info) => {
-            if (info.offset.x > 100) {
-              setPedidoSeleccionado(null);
-            }
-          }}
-        >
-          <BackBtn onBack={() => setPedidoSeleccionado(null)} />
+    fetchPedidos();
+  }, [cuenta, esAdmin]);
 
-          <h2 className="text-xl font-bold text-zinc-900 mb-2">
-            Detalle del Pedido
-          </h2>
+  const verDetallePedido = (pedido: any) => {
+    setPedidoSeleccionado(pedido);
+    setCuentaPedido(pedido.cuentas || cuenta);
+  };
 
-          {/* Info del pedido */}
-          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-zinc-600">Pedido #</span>
-              <span className="font-semibold text-zinc-900">
-                {pedidoSeleccionado.id}
-              </span>
-            </div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-zinc-600">Fecha</span>
-              <span className="font-semibold text-zinc-900">
-                {new Date(pedidoSeleccionado.created_at).toLocaleDateString(
-                  "es-MX",
-                  {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  }
-                )}
-              </span>
-            </div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-zinc-600">Cliente</span>
-              <span className="font-semibold text-zinc-900">
-                {cuentaPedido?.cliente || "N/A"}
-              </span>
-            </div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-zinc-600">Ferretería</span>
-              <span className="font-semibold text-zinc-900">
-                {cuentaPedido?.ferreteria || "N/A"}
-              </span>
-            </div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-zinc-600">Cuenta</span>
-              <span className="font-semibold text-zinc-900">
-                {cuentaPedido?.numero_cuenta}
-              </span>
-            </div>
-            {cuentaPedido?.numero_tel && (
-              <div className="flex justify-between mb-2">
-                <span className="text-sm text-zinc-600">Teléfono</span>
-                <span className="font-semibold text-zinc-900">
-                  {cuentaPedido.numero_tel}
-                </span>
-              </div>
-            )}
-            <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
-              <span className="font-bold text-zinc-900">Total</span>
-              <span className="font-bold text-orange-500 text-lg">
-                ${pedidoSeleccionado.total.toFixed(2)}
-              </span>
-            </div>
-          </div>
-
-          {/* Visualizador de PDF */}
-          <h3 className="text-lg font-semibold text-zinc-900 mb-3">
-            Documento del Pedido
-          </h3>
-
-          {pedidoSeleccionado.pdf_url ? (
-            <div className="space-y-3">
-              {/* Vista previa del PDF */}
-              <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm">
-                <iframe
-                  src={pedidoSeleccionado.pdf_url}
-                  className="w-full h-[500px]"
-                  title="Vista previa del pedido"
-                />
-              </div>
-
-              {/* Botón de descarga */}
-              <button
-                onClick={descargarPDF}
-                disabled={cargandoPDF}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold shadow-sm transition flex items-center justify-center gap-2 disabled:bg-orange-300"
-              >
-                {cargandoPDF ? (
-                  <>
-                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                    Descargando...
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                    </svg>
-                    Descargar PDF
-                  </>
-                )}
-              </button>
-            </div>
-          ) : (
-            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 text-center">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mx-auto text-zinc-400 mb-2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-              </svg>
-              <p className="text-zinc-500 text-sm">PDF no disponible para este pedido</p>
-            </div>
-          )}
-        </motion.div>
-      );
+  const actualizarEstadoLocal = (nuevoEstado: string) => {
+    setPedidoSeleccionado((prev: any) => ({
+      ...prev,
+      estado: nuevoEstado
+    }));
     
-    }
+    setPedidos((prev) =>
+      prev.map((p) =>
+        p.id === pedidoSeleccionado.id ? { ...p, estado: nuevoEstado } : p
+      )
+    );
+  };
 
-    // Vista principal del historial
+  const descargarPDF = async () => {
+    if (!pedidoSeleccionado?.pdf_url) return;
+    
+    setCargandoPDF(true);
+    try {
+      const response = await fetch(pedidoSeleccionado.pdf_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Pedido_${pedidoSeleccionado.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error descargando PDF:', error);
+      alert('Error al descargar el PDF');
+    } finally {
+      setCargandoPDF(false);
+    }
+  };
+
+  // Si hay un pedido seleccionado, mostrar detalle
+  if (pedidoSeleccionado) {
     return (
       <motion.div
-        key={vistaPerfil}
+        key="detalle-pedido"
         className="min-h-screen"
         initial={{ opacity: 0, x: 40 }}
         animate={{ opacity: 1, x: 0 }}
@@ -876,58 +865,261 @@ const enviarPedido = async () => {
         dragConstraints={{ left: 0, right: 0 }}
         onDragEnd={(event, info) => {
           if (info.offset.x > 100) {
-            setVistaPerfil("menu");
+            setPedidoSeleccionado(null);
           }
         }}
       >
-        <BackBtn onBack={() => setVistaPerfil("menu")} />
+        <BackBtn onBack={() => setPedidoSeleccionado(null)} />
 
-        <h2 className="text-xl font-bold text-zinc-900 mb-4">
-          {esAdmin ? "Todos los Pedidos" : "Historial de Pedidos"}
+        <h2 className="text-xl font-bold text-zinc-900 mb-2">
+          Detalle del Pedido
         </h2>
 
-        {cargando ? (
-          <p className="text-center text-zinc-500">Cargando...</p>
-        ) : pedidos.length === 0 ? (
-          <p className="text-center text-zinc-500 mt-8">
-            No hay pedidos registrados
-          </p>
-        ) : (
+        {/* Selector de estado (solo admin) */}
+        {esAdmin && (
+          <SelectorEstado
+            estadoActual={pedidoSeleccionado.estado}
+            pedidoId={pedidoSeleccionado.id}
+            onEstadoChange={actualizarEstadoLocal}
+          />
+        )}
+
+        {/* Badge de estado (para usuarios normales) */}
+        {!esAdmin && (
+          <div className="mb-4">
+            <BadgeEstado estado={pedidoSeleccionado.estado} />
+          </div>
+        )}
+
+        {/* Info del pedido */}
+        <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+          <div className="flex justify-between mb-2">
+            <span className="text-sm text-zinc-600">Pedido #</span>
+            <span className="font-semibold text-zinc-900">
+              {pedidoSeleccionado.id}
+            </span>
+          </div>
+          <div className="flex justify-between mb-2">
+            <span className="text-sm text-zinc-600">Fecha</span>
+            <span className="font-semibold text-zinc-900">
+              {new Date(pedidoSeleccionado.created_at).toLocaleDateString(
+                "es-MX",
+                {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                }
+              )}
+            </span>
+          </div>
+          <div className="flex justify-between mb-2">
+            <span className="text-sm text-zinc-600">Cliente</span>
+            <span className="font-semibold text-zinc-900">
+              {cuentaPedido?.cliente || "N/A"}
+            </span>
+          </div>
+          <div className="flex justify-between mb-2">
+            <span className="text-sm text-zinc-600">Ferretería</span>
+            <span className="font-semibold text-zinc-900">
+              {cuentaPedido?.ferreteria || "N/A"}
+            </span>
+          </div>
+          <div className="flex justify-between mb-2">
+            <span className="text-sm text-zinc-600">Cuenta</span>
+            <span className="font-semibold text-zinc-900">
+              {cuentaPedido?.numero_cuenta}
+            </span>
+          </div>
+          {cuentaPedido?.numero_tel && (
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Teléfono</span>
+              <span className="font-semibold text-zinc-900">
+                {cuentaPedido.numero_tel}
+              </span>
+            </div>
+          )}
+          <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
+            <span className="font-bold text-zinc-900">Total</span>
+            <span className="font-bold text-orange-500 text-lg">
+              ${pedidoSeleccionado.total.toFixed(2)}
+            </span>
+          </div>
+        </div>
+
+        {/* Visualizador de PDF */}
+        <h3 className="text-lg font-semibold text-zinc-900 mb-3">
+          Documento del Pedido
+        </h3>
+
+        {pedidoSeleccionado.pdf_url ? (
           <div className="space-y-3">
-            {pedidos.map((pedido) => (
-              <div
-                key={pedido.id}
-                onClick={() => verDetallePedido(pedido)}
-                className="border border-zinc-200 rounded-xl p-4 bg-white shadow-sm cursor-pointer hover:bg-zinc-50 transition"
-              >
-                <div className="flex justify-between items-center">
-                  <div className="flex-1">
-                    <p className="font-semibold text-zinc-900">
-                      Pedido #{pedido.id}
-                    </p>
-                    {esAdmin && pedido.cuentas && (
-                      <p className="text-xs text-zinc-600 mt-1">
-                        {pedido.cuentas.cliente || "Sin nombre"} -{" "}
-                        {pedido.cuentas.numero_cuenta}
-                      </p>
-                    )}
-                    <p className="text-sm text-zinc-500 mt-1">
-                      {new Date(pedido.created_at).toLocaleDateString("es-MX")}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-orange-500">
-                      ${pedido.total.toFixed(2)}
-                    </p>
-                    <span className="text-zinc-400">{">"}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+            {/* Vista previa del PDF */}
+            <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm">
+              <iframe
+                src={pedidoSeleccionado.pdf_url}
+                className="w-full h-[500px]"
+                title="Vista previa del pedido"
+              />
+            </div>
+
+            {/* Botón de descarga */}
+            <button
+              onClick={descargarPDF}
+              disabled={cargandoPDF}
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold shadow-sm transition flex items-center justify-center gap-2 disabled:bg-orange-300"
+            >
+              {cargandoPDF ? (
+                <>
+                  <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                  Descargando...
+                </>
+              ) : (
+                <>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="w-5 h-5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+                    />
+                  </svg>
+                  Descargar PDF
+                </>
+              )}
+            </button>
+          </div>
+        ) : (
+          <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 text-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="w-12 h-12 mx-auto text-zinc-400 mb-2"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+              />
+            </svg>
+            <p className="text-zinc-500 text-sm">
+              PDF no disponible para este pedido
+            </p>
           </div>
         )}
       </motion.div>
     );
+  }
+
+  // Vista principal del historial
+  return (
+    <motion.div
+      key={vistaPerfil}
+      className="min-h-screen"
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -40 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      onDragEnd={(event, info) => {
+        if (info.offset.x > 100) {
+          setVistaPerfil("menu");
+        }
+      }}
+    >
+      <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+      <h2 className="text-xl font-bold text-zinc-900 mb-4">
+        {esAdmin ? "Todos los Pedidos" : "Tus Pedidos"}
+      </h2>
+
+      {cargando ? (
+        <p className="text-center text-zinc-500">Cargando...</p>
+      ) : pedidos.length === 0 ? (
+        <p className="text-center text-zinc-500 mt-8">
+          No hay pedidos registrados
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {pedidos.map((pedido) => (
+            <div
+              key={pedido.id}
+              onClick={() => verDetallePedido(pedido)}
+              className="border border-zinc-200 rounded-xl p-4 bg-white shadow-sm cursor-pointer hover:bg-zinc-50 transition"
+            >
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex-1">
+                  <p className="font-semibold text-zinc-900">
+                    Pedido #{pedido.id}
+                  </p>
+                  {esAdmin && pedido.cuentas && (
+                    <p className="text-xs text-zinc-600 mt-1">
+                      {pedido.cuentas.cliente || "Sin nombre"} -{" "}
+                      {pedido.cuentas.numero_cuenta}
+                    </p>
+                  )}
+                  <p className="text-sm text-zinc-500 mt-1">
+                    {new Date(pedido.created_at).toLocaleDateString("es-MX")}
+                  </p>
+                </div>
+                <div className="flex flex-col items-center gap-6">
+                  <BadgeEstado className="" estado={pedido.estado} />
+                  <span className="text-zinc-400 text-sm">Ver detalles →</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
+  interface ToggleVisibilidadParams {
+    productoId: number;
+    visibleActual: boolean;
+  }
+
+  interface Producto {
+    id: number;
+    visible: boolean;
+    [key: string]: any;
+  }
+
+  const toggleVisibilidad = async (
+    productoId: ToggleVisibilidadParams["productoId"],
+    visibleActual: ToggleVisibilidadParams["visibleActual"]
+  ): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from("productos")
+        .update({ visible: !visibleActual })
+        .eq("id", productoId);
+
+      if (error) throw error;
+
+      // Actualizar el estado local para reflejar el cambio inmediatamente
+      setArticulos((prevArticulos: Producto[]) =>
+        prevArticulos.map((art: Producto) =>
+          art.id === productoId ? { ...art, visible: !visibleActual } : art
+        )
+      );
+
+      // Opcional: Mostrar mensaje de éxito
+      console.log("Visibilidad actualizada correctamente");
+    } catch (error) {
+      console.error("Error al actualizar visibilidad:", error);
+      // Opcional: Mostrar mensaje de error al usuario
+    }
   };
 
   // formulario de direccion de envio
@@ -1429,10 +1621,20 @@ const enviarPedido = async () => {
 
                             const { data, error } = await supabase
                               .from("productos")
-                              .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO")
+                              .select(
+                                "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible"
+                              )
                               .eq("CATEGORIA_ID", cat.id_categoria);
 
-                            setArticulos(error ? [] : data);
+                            // Normalizar el campo visible
+                            const productosNormalizados = (data || []).map(
+                              (producto) => ({
+                                ...producto,
+                                visible: producto.visible ?? true,
+                              })
+                            );
+
+                            setArticulos(error ? [] : productosNormalizados);
                             requestAnimationFrame(() => {
                               window.scrollTo({ top: 0, behavior: "instant" });
                             });
@@ -1545,8 +1747,12 @@ const enviarPedido = async () => {
                           {/* Lista de productos */}
                           <div className="space-y-2">
                             {articulos
-                              .filter(
-                                (a) =>
+                              .filter((a) => {
+                                // Filtrar por visibilidad (solo admin ve productos ocultos)
+                                if (!esAdmin && !a.visible) return false;
+
+                                // Filtrar por búsqueda
+                                return (
                                   (a.TITULO &&
                                     a.TITULO.toLowerCase().includes(
                                       searchTerm.toLowerCase()
@@ -1555,8 +1761,8 @@ const enviarPedido = async () => {
                                     a.CODIGO.toLowerCase().includes(
                                       searchTerm.toLowerCase()
                                     ))
-                              )
-
+                                );
+                              })
                               .map((art) => (
                                 <motion.div
                                   key={art.id}
@@ -1577,7 +1783,7 @@ const enviarPedido = async () => {
                                   }}
                                   className="flex items-center justify-between bg-white rounded-xl border border-zinc-200 shadow-sm hover:shadow-md transition p-2 cursor-pointer"
                                 >
-                                  <div className="flex items-center space-x-3">
+                                  <div className="flex items-center space-x-3 flex-1">
                                     <div className="relative w-14 h-14 rounded-md overflow-hidden bg-white">
                                       <SkeletonImage
                                         src={art.IMAGEN || "/placeholder.jpg"}
@@ -1592,6 +1798,32 @@ const enviarPedido = async () => {
                                       </p>
                                     </div>
                                   </div>
+
+                                  {/* Switch de visibilidad - Solo visible para Admin */}
+                                  {esAdmin && (
+                                    <div
+                                      className="flex items-center gap-2 ml-2"
+                                      onClick={(e) => e.stopPropagation()} // Prevenir que abra el detalle
+                                    >
+                                      <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={art.visible}
+                                          onChange={() =>
+                                            toggleVisibilidad(
+                                              art.id,
+                                              art.visible
+                                            )
+                                          }
+                                          className="sr-only peer"
+                                        />
+                                        <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                      </label>
+                                      <span className="text-xs text-zinc-500">
+                                        {art.visible ? "Visible" : "Oculto"}
+                                      </span>
+                                    </div>
+                                  )}
                                 </motion.div>
                               ))}
 
@@ -1635,7 +1867,9 @@ const enviarPedido = async () => {
 
                           const { data, error } = await supabase
                             .from("productos")
-                            .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO")
+                            .select(
+                              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible"
+                            )
                             .or(
                               `TITULO.ilike.%${value}%,CODIGO.ilike.%${value}%`
                             )
@@ -1647,7 +1881,14 @@ const enviarPedido = async () => {
                               error.message
                             );
                           } else {
-                            setProductos(data || []);
+                            // Normalizar visible
+                            const productosNormalizados = (data || []).map(
+                              (producto) => ({
+                                ...producto,
+                                visible: producto.visible ?? true,
+                              })
+                            );
+                            setProductos(productosNormalizados);
                           }
                         }}
                         className="w-full rounded-full border border-zinc-300 px-4 py-2 pr-14 text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -1708,19 +1949,28 @@ const enviarPedido = async () => {
                                 const { data, error } = await supabase
                                   .from("productos")
                                   .select(
-                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO"
+                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible"
                                   )
                                   .or(
                                     `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%`
                                   )
                                   .limit(50);
 
-                                if (error)
+                                if (error) {
                                   console.error(
                                     "Error buscando por código:",
                                     error.message
                                   );
-                                else setProductos(data || []);
+                                } else {
+                                  // Normalizar visible
+                                  const productosNormalizados = (
+                                    data || []
+                                  ).map((producto) => ({
+                                    ...producto,
+                                    visible: producto.visible ?? true,
+                                  }));
+                                  setProductos(productosNormalizados);
+                                }
                               }
                             } else if (err) {
                               console.error("Error leyendo código:", err);
@@ -1738,34 +1988,36 @@ const enviarPedido = async () => {
 
                     {/* Resultados */}
                     <div className="mt-4 space-y-3">
-                      {productos.map((prod) => (
-                        <div
-                          key={prod.id}
-                          onClick={() => setProductoSeleccionado(prod)}
-                          className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 cursor-pointer"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100">
-                              <Image
-                                src={
-                                  prod.IMAGEN ||
-                                  "https://via.placeholder.com/150?text=Sin+imagen"
-                                }
-                                alt={prod.TITULO || "Imagen de producto"}
-                                fill
-                                className="object-contain"
-                              />
+                      {productos
+                        .filter((prod) => esAdmin || (prod.visible ?? true))
+                        .map((prod) => (
+                          <div
+                            key={prod.id}
+                            onClick={() => setProductoSeleccionado(prod)}
+                            className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100">
+                                <Image
+                                  src={
+                                    prod.IMAGEN ||
+                                    "https://via.placeholder.com/150?text=Sin+imagen"
+                                  }
+                                  alt={prod.TITULO || "Imagen de producto"}
+                                  fill
+                                  className="object-contain"
+                                />
+                              </div>
+                              <div>
+                                <p className="font-semibold">{prod.TITULO}</p>
+                                <p className="text-xs text-zinc-500">
+                                  Código: {prod.CODIGO}
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-semibold">{prod.TITULO}</p>
-                              <p className="text-xs text-zinc-500">
-                                Código: {prod.CODIGO}
-                              </p>
-                            </div>
+                            <span className="text-zinc-400">{">"}</span>
                           </div>
-                          <span className="text-zinc-400">{">"}</span>
-                        </div>
-                      ))}
+                        ))}
 
                       {searchTerm && productos.length === 0 && (
                         <p className="text-center text-zinc-500 py-10">
@@ -1984,7 +2236,7 @@ const enviarPedido = async () => {
                         {/* Historial de pedidos */}
                         <MenuItem
                           icon={<History size={20} />}
-                          label="Historial de pedidos"
+                          label="Mis pedidos"
                           onClick={() => setVistaPerfil("pedidos")}
                         />
 
@@ -2136,50 +2388,49 @@ const enviarPedido = async () => {
               )}
 
               {/* Modal de Pedido Exitoso */}
-{mostrarExito && (
-  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[999]">
-    <div
-      className="bg-white rounded-2xl w-[85%] max-w-sm p-6 shadow-2xl text-center animate-[pop_0.3s_ease-out]"
-    >
-      {/* Icono de éxito */}
-      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
-        <svg
-          className="w-10 h-10 text-green-600"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          viewBox="0 0 24 24"
-        >
-          <path d="M5 13l4 4L19 7" />
-        </svg>
-      </div>
+              {mostrarExito && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[999]">
+                  <div className="bg-white rounded-2xl w-[85%] max-w-sm p-6 shadow-2xl text-center animate-[pop_0.3s_ease-out]">
+                    {/* Icono de éxito */}
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+                      <svg
+                        className="w-10 h-10 text-green-600"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
 
-      <h2 className="text-xl font-bold text-zinc-800">¡Pedido enviado!</h2>
-      <p className="text-sm text-zinc-600 mt-1">
-        Para mas detalles ve tu historial de pedidos.
-      </p>
+                    <h2 className="text-xl font-bold text-zinc-800">
+                      ¡Pedido enviado!
+                    </h2>
+                    <p className="text-sm text-zinc-600 mt-1">
+                      Para mas detalles ve a Mis de pedidos.
+                    </p>
 
-      {/* Botón */}
-      <button
-        onClick={() => setMostrarExito(false)}
-        className="mt-5 bg-green-600 text-white px-5 py-2 rounded-xl w-full font-medium hover:bg-green-700 active:scale-[0.97] transition-all"
-      >
-        Aceptar
-      </button>
-    </div>
+                    {/* Botón */}
+                    <button
+                      onClick={() => setMostrarExito(false)}
+                      className="mt-5 bg-green-600 text-white px-5 py-2 rounded-xl w-full font-medium hover:bg-green-700 active:scale-[0.97] transition-all"
+                    >
+                      Aceptar
+                    </button>
+                  </div>
 
-    {/* Animación tipo pop */}
-    <style>
-      {`
+                  {/* Animación tipo pop */}
+                  <style>
+                    {`
         @keyframes pop {
           0% { transform: scale(0.7); opacity: 0; }
           100% { transform: scale(1); opacity: 1; }
         }
       `}
-    </style>
-  </div>
-)}
-
+                  </style>
+                </div>
+              )}
 
               {/* Modal de pedido */}
               {mostrarModalPedido && (
