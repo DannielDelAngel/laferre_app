@@ -92,6 +92,7 @@ export default function HomePage() {
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState(null);
   const [itemsPedido, setItemsPedido] = useState([]);
   const [cargandoItems, setCargandoItems] = useState(false);
+  const [actualizacionReciente, setActualizacionReciente] = useState(false);
 
   const esAdmin = cuenta?.numero_cuenta === "Admin01";
 
@@ -714,11 +715,15 @@ export default function HomePage() {
       if (error) throw error;
       
       onEstadoChange(nuevoEstado);
+      setActualizacionReciente(true);
+setTimeout(() => setActualizacionReciente(false), 2000);
+
     } catch (error) {
       console.error('Error actualizando estado:', error);
       alert('Error al actualizar el estado');
     } finally {
       setCambiando(false);
+      
     }
   };
 
@@ -731,7 +736,7 @@ export default function HomePage() {
         value={estadoActual || 'revision'}
         onChange={(e) => cambiarEstado(e.target.value)}
         disabled={cambiando}
-        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-zinc-100"
+        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm font-medium text-black focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-zinc-100"
       >
         {estados.map((estado) => (
           <option key={estado.valor} value={estado.valor}>
@@ -763,12 +768,13 @@ const BadgeEstado = ({ estado }: any) => {
 };
 
 
-  const HistorialPedidos = ({ cuenta, setVistaPerfil }: any) => {
+ const HistorialPedidos = ({ cuenta, setVistaPerfil }: any) => {
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
   const [cargandoPDF, setCargandoPDF] = useState(false);
   const [cuentaPedido, setCuentaPedido] = useState<any>(null);
+  const [actualizacionReciente, setActualizacionReciente] = useState(false); // 🔴 AGREGADO
 
   useEffect(() => {
     const fetchPedidos = async () => {
@@ -794,7 +800,6 @@ const BadgeEstado = ({ estado }: any) => {
         )
         .order("created_at", { ascending: false });
 
-      // Si NO es admin, filtrar solo sus pedidos
       if (!esAdmin) {
         query = query.eq("cuenta_id", cuenta.id);
       }
@@ -808,7 +813,94 @@ const BadgeEstado = ({ estado }: any) => {
     };
 
     fetchPedidos();
-  }, [cuenta, esAdmin]);
+    const channel = supabase
+      .channel('pedidos-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pedidos',
+          ...(esAdmin ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` })
+        },
+        async (payload) => {
+          console.log('Cambio detectado:', payload);
+
+          if (payload.eventType === 'UPDATE') {
+            const { data: pedidoActualizado } = await supabase
+              .from('pedidos')
+              .select(`
+                id, 
+                total, 
+                created_at,
+                cuenta_id,
+                pdf_url,
+                estado,
+                cuentas (
+                  numero_cuenta,
+                  cliente,
+                  ferreteria,
+                  numero_tel
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single();
+
+            if (pedidoActualizado) {
+              setPedidos((prev) =>
+                prev.map((p) =>
+                  p.id === pedidoActualizado.id ? pedidoActualizado : p
+                )
+              );
+
+              if (pedidoSeleccionado?.id === pedidoActualizado.id) {
+                setPedidoSeleccionado(pedidoActualizado);
+                setCuentaPedido(pedidoActualizado.cuentas || cuenta);
+              }
+
+              setActualizacionReciente(true);
+              setTimeout(() => setActualizacionReciente(false), 2000);
+            }
+          } else if (payload.eventType === 'INSERT') {
+            const { data: nuevoPedido } = await supabase
+              .from('pedidos')
+              .select(`
+                id, 
+                total, 
+                created_at,
+                cuenta_id,
+                pdf_url,
+                estado,
+                cuentas (
+                  numero_cuenta,
+                  cliente,
+                  ferreteria,
+                  numero_tel
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single();
+
+            if (nuevoPedido) {
+              setPedidos((prev) => [nuevoPedido, ...prev]);
+              setActualizacionReciente(true);
+              setTimeout(() => setActualizacionReciente(false), 2000);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            setPedidos((prev) => prev.filter((p) => p.id !== payload.old.id));
+            
+            if (pedidoSeleccionado?.id === payload.old.id) {
+              setPedidoSeleccionado(null);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [cuenta, esAdmin, pedidoSeleccionado?.id]);
 
   const verDetallePedido = (pedido: any) => {
     setPedidoSeleccionado(pedido);
@@ -816,16 +908,7 @@ const BadgeEstado = ({ estado }: any) => {
   };
 
   const actualizarEstadoLocal = (nuevoEstado: string) => {
-    setPedidoSeleccionado((prev: any) => ({
-      ...prev,
-      estado: nuevoEstado
-    }));
-    
-    setPedidos((prev) =>
-      prev.map((p) =>
-        p.id === pedidoSeleccionado.id ? { ...p, estado: nuevoEstado } : p
-      )
-    );
+    // Ya no es necesario porque Realtime lo maneja
   };
 
   const descargarPDF = async () => {
@@ -851,7 +934,6 @@ const BadgeEstado = ({ estado }: any) => {
     }
   };
 
-  // Si hay un pedido seleccionado, mostrar detalle
   if (pedidoSeleccionado) {
     return (
       <motion.div
@@ -869,13 +951,13 @@ const BadgeEstado = ({ estado }: any) => {
           }
         }}
       >
+
         <BackBtn onBack={() => setPedidoSeleccionado(null)} />
 
         <h2 className="text-xl font-bold text-zinc-900 mb-2">
           Detalle del Pedido
         </h2>
 
-        {/* Selector de estado (solo admin) */}
         {esAdmin && (
           <SelectorEstado
             estadoActual={pedidoSeleccionado.estado}
@@ -884,14 +966,12 @@ const BadgeEstado = ({ estado }: any) => {
           />
         )}
 
-        {/* Badge de estado (para usuarios normales) */}
         {!esAdmin && (
           <div className="mb-4">
             <BadgeEstado estado={pedidoSeleccionado.estado} />
           </div>
         )}
 
-        {/* Info del pedido */}
         <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
           <div className="flex justify-between mb-2">
             <span className="text-sm text-zinc-600">Pedido #</span>
@@ -946,14 +1026,12 @@ const BadgeEstado = ({ estado }: any) => {
           </div>
         </div>
 
-        {/* Visualizador de PDF */}
         <h3 className="text-lg font-semibold text-zinc-900 mb-3">
           Documento del Pedido
         </h3>
 
         {pedidoSeleccionado.pdf_url ? (
           <div className="space-y-3">
-            {/* Vista previa del PDF */}
             <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm">
               <iframe
                 src={pedidoSeleccionado.pdf_url}
@@ -962,7 +1040,6 @@ const BadgeEstado = ({ estado }: any) => {
               />
             </div>
 
-            {/* Botón de descarga */}
             <button
               onClick={descargarPDF}
               disabled={cargandoPDF}
@@ -1019,7 +1096,6 @@ const BadgeEstado = ({ estado }: any) => {
     );
   }
 
-  // Vista principal del historial
   return (
     <motion.div
       key={vistaPerfil}
@@ -1036,6 +1112,7 @@ const BadgeEstado = ({ estado }: any) => {
         }
       }}
     >
+
       <BackBtn onBack={() => setVistaPerfil("menu")} />
 
       <h2 className="text-xl font-bold text-zinc-900 mb-4">
@@ -1063,18 +1140,19 @@ const BadgeEstado = ({ estado }: any) => {
                   </p>
                   {esAdmin && pedido.cuentas && (
                     <p className="text-xs text-zinc-600 mt-1">
-                      {pedido.cuentas.cliente || "Sin nombre"} -{" "}
-                      {pedido.cuentas.numero_cuenta}
+                      {pedido.cuentas.cliente || "Sin nombre"} - {pedido.cuentas.numero_cuenta}
                     </p>
                   )}
                   <p className="text-sm text-zinc-500 mt-1">
                     {new Date(pedido.created_at).toLocaleDateString("es-MX")}
                   </p>
                 </div>
-                <div className="flex flex-col items-center gap-6">
-                  <BadgeEstado className="" estado={pedido.estado} />
-                  <span className="text-zinc-400 text-sm">Ver detalles →</span>
+                <div className="flex flex-col items-end gap-2">
+                  <BadgeEstado estado={pedido.estado} />
                 </div>
+              </div>
+              <div className="flex justify-end">
+                <span className="text-zinc-400 text-sm">Ver detalles →</span>
               </div>
             </div>
           ))}
