@@ -100,9 +100,8 @@ export default function HomePage() {
   const [mostrar, setMostrar] = useState(false);
 
   const [subTab, setSubTab] = useState("categorias"); // categorias | marcas
-const [marcas, setMarcas] = useState<any[]>([]);
-const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
-
+  const [marcas, setMarcas] = useState<any[]>([]);
+  const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
 
   const BackBtn = ({ onBack }: any) => {
     if (typeof document === "undefined") return null;
@@ -125,15 +124,12 @@ const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
     return createPortal(btn, document.body);
   };
   {
- 
-  useEffect(() => {
-    const saved = localStorage.getItem("cuenta_user");
-    if (saved) {
-      setCuenta(JSON.parse(saved));
-    }
-  }, []);
-  
- 
+    useEffect(() => {
+      const saved = localStorage.getItem("cuenta_user");
+      if (saved) {
+        setCuenta(JSON.parse(saved));
+      }
+    }, []);
   }
 
   // componete zoom imagenes
@@ -201,7 +197,7 @@ const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
   // fin del componente zomm img
 
   // verifica si hay una cuenta logeada al cargar la pagina
-  
+
   useEffect(() => {
     const init = async () => {
       const saved = localStorage.getItem("cuentaActiva");
@@ -227,8 +223,7 @@ const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
     };
 
     init();
-  }, []);   
-  
+  }, []);
 
   // funcion para validar la cuenta ingresada
   const validarCuenta = async () => {
@@ -279,29 +274,29 @@ const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
 
   // marcas extracion
   useEffect(() => {
-  const fetchMarcas = async () => {
-    const { data, error } = await supabase
-      .from("marcas")
-      .select("id, nombre_marca, img")
-      .order("nombre_marca", { ascending: true });
+    const fetchMarcas = async () => {
+      const { data, error } = await supabase
+        .from("marcas")
+        .select("id, nombre_marca, img")
+        .order("nombre_marca", { ascending: true });
 
-    if (error) {
-      console.error("Error cargando marcas:", error.message);
-    } else {
-      console.log("Marcas cargadas:", data);
-      setMarcas(data || []);
-    }
-  };
+      if (error) {
+        console.error("Error cargando marcas:", error.message);
+      } else {
+        console.log("Marcas cargadas:", data);
+        setMarcas(data || []);
+      }
+    };
 
-  fetchMarcas();
-}, []);
+    fetchMarcas();
+  }, []);
 
   // Cargar todos los productos al entrar a la pestaña de "buscar"
   useEffect(() => {
     const fetchProductos = async () => {
       const { data, error } = await supabase
         .from("productos")
-        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id")
+        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id");
 
       // Normalizar visible
       const productosNormalizados = (data || []).map((producto) => ({
@@ -488,7 +483,6 @@ const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
         transition={{ duration: 0.3, ease: "easeInOut" }}
       >
         <div className="px-6 py-6">
-        
           <BackBtn onBack={() => setVistaPerfil("menu")} />
 
           <h2 className="text-xl font-bold text-zinc-900 mb-4">
@@ -1754,8 +1748,16 @@ const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
 
   const VistaProducto = ({ producto, onBack }: any) => {
     const [cantidad, setCantidad] = useState("1");
+    const [modoEdicion, setModoEdicion] = useState(false);
+    const [titulo, setTitulo] = useState(producto.TITULO || "");
+    const [descripcion, setDescripcion] = useState(producto.DESCRIPCION || "");
+    const [categoriaId, setCategoriaId] = useState(producto.CATEGORIA_ID || "");
+    const [marcaId, setMarcaId] = useState(producto.marca_id || "");
+    const [imagenFile, setImagenFile] = useState<File | null>(null);
+    const [imagenPreview, setImagenPreview] = useState(producto.IMAGEN || "");
+    const [guardando, setGuardando] = useState(false);
+    const [mensaje, setMensaje] = useState("");
 
-    // --- MANEJO DE INPUT ---
     const handleChange = (e: any) => {
       const value = e.target.value;
 
@@ -1776,7 +1778,6 @@ const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
       }
     };
 
-    // --- BOTONES ---
     const handleAdd = () =>
       setCantidad((c) => (c === "" ? "1" : (parseInt(c) + 1).toString()));
 
@@ -1786,7 +1787,6 @@ const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
         return (parseInt(c) - 1).toString();
       });
 
-    // --- AGREGAR AL CARRITO ---
     const agregarAlCarrito = () => {
       const cant = parseInt(cantidad) || 1;
 
@@ -1817,6 +1817,105 @@ const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
       onBack();
     };
 
+    const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        if (!file.type.startsWith("image/")) {
+          setMensaje("Por favor selecciona un archivo de imagen válido");
+          return;
+        }
+
+        // Validar tamaño (máximo 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          setMensaje("La imagen no debe superar los 5MB");
+          return;
+        }
+
+        setImagenFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImagenPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    // guardar cambios
+    const guardarCambios = async () => {
+      if (!esAdmin) return;
+
+      setGuardando(true);
+      setMensaje("");
+
+      try {
+        let urlImagen = producto.IMAGEN;
+
+        // Si hay nueva imagen, subirla primero
+        if (imagenFile) {
+          const timestamp = Date.now();
+          const extension = imagenFile.name.split(".").pop();
+          const nombreArchivo = `producto_${producto.id}_${timestamp}.${extension}`;
+          const { data: uploadData, error: uploadError } =
+            await supabase.storage
+              .from("imagenes_productos")
+              .upload(nombreArchivo, imagenFile, {
+                cacheControl: "3600",
+                upsert: true,
+              });
+
+          if (uploadError) {
+            console.error("Error subiendo imagen:", uploadError);
+            setMensaje("Error al subir la imagen");
+            setGuardando(false);
+            return;
+          }
+
+          const {
+            data: { publicUrl },
+          } = supabase.storage
+            .from("imagenes_productos")
+            .getPublicUrl(nombreArchivo);
+
+          urlImagen = publicUrl;
+        }
+
+        const { error: updateError } = await supabase
+          .from("productos")
+          .update({
+            TITULO: titulo,
+            DESCRIPCION: descripcion,
+            CATEGORIA_ID: parseInt(categoriaId),
+            marca_id: marcaId ? parseInt(marcaId) : null,
+            IMAGEN: urlImagen,
+          })
+          .eq("id", producto.id);
+
+        if (updateError) {
+          console.error("Error actualizando producto:", updateError);
+          setMensaje("Error al guardar los cambios");
+        } else {
+          setMensaje("Producto actualizado correctamente");
+          setModoEdicion(false);
+
+          producto.TITULO = titulo;
+          producto.DESCRIPCION = descripcion;
+          producto.CATEGORIA_ID = parseInt(categoriaId);
+          producto.marca_id = marcaId ? parseInt(marcaId) : null;
+          producto.IMAGEN = urlImagen;
+          setImagenFile(null);
+
+          setTimeout(() => {
+            setMensaje("");
+          }, 3000);
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        setMensaje("Ocurrió un error inesperado");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
     const cantidadNum = parseInt(cantidad) || 1;
 
     return (
@@ -1835,93 +1934,294 @@ const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
             drag="x"
             dragConstraints={{ left: 0, right: 0 }}
             onDragEnd={(event, info) => {
-              if (info.offset.x > 100) onBack();
+              if (info.offset.x > 100 && !modoEdicion) onBack();
             }}
-            className="relative w-full h-full overflow-hidden"
+            className="relative w-full h-full overflow-y-auto"
           >
             {/* Botón regresar */}
             <button
               onClick={onBack}
-              className="absolute top-9 left-7 bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow transition text-xl"
+              className="absolute top-9 left-7 bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow transition text-xl z-10"
             >
               ←
             </button>
 
-            {/* Imagen */}
-            <div className="flex justify-center mb-3">
-              <div className="relative w-60 h-60">
-                <SkeletonImage
-                  src={producto.IMAGEN || "/placeholder.jpg"}
-                  alt={producto.TITULO}
-                  className="object-contain"
-                />
-              </div>
-            </div>
-
-            {/* Detalles */}
-            <h2 className="text-center text-[20px] font-bold text-zinc-900 leading-snug px-2">
-              {producto.TITULO}
-            </h2>
-
-            <div className="mt-4 text-sm text-zinc-700 px-2">
-              <div className="flex justify-between py-2">
-                <span className="font-medium">Código</span>
-                <span>{producto.CODIGO}</span>
-              </div>
-
-              <div className="flex justify-between py-2">
-  <span className="font-medium">Marca</span>
-  <span className="text-blue-600 font-semibold">{getNombreMarca(producto.marca_id)}</span>
-</div>
-
-              <div className="flex justify-between py-2">
-                <span className="font-medium">Precio</span>
-                <span>${producto.P_MAYOREO?.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between py-2">
-                <span className="font-medium">Subtotal</span>
-                <span>${(cantidadNum * producto.P_MAYOREO).toFixed(2)}</span>
-              </div>
-            </div>
-
-            {/* Controles */}
-            <div className="mt-5 px-4">
-              <div className="flex justify-between items-center gap-3">
-                {/* Botón restar */}
-                <button
-                  onClick={handleSubtract}
-                  className="w-12 h-12 border text-black border-zinc-400 rounded-xl text-2xl"
-                >
-                  −
-                </button>
-
-                {/* Input editable */}
-                <input
-                  type="number"
-                  min="1"
-                  value={cantidad}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  className="w-20 text-center border border-zinc-400 rounded-xl text-lg font-semibold text-black py-2"
-                />
-
-                {/* Botón sumar */}
-                <button
-                  onClick={handleAdd}
-                  className="w-12 h-12 bg-orange-500 text-white rounded-xl text-2xl"
-                >
-                  +
-                </button>
-              </div>
-
-              {/* Botón agregar */}
+            {/* Botón editar */}
+            {esAdmin && !modoEdicion && (
               <button
-                onClick={agregarAlCarrito}
-                className="w-full mt-5 bg-orange-500 text-white py-3 rounded-xl font-bold shadow hover:bg-orange-600 transition"
+                onClick={() => setModoEdicion(true)}
+                className="absolute top-9 right-7 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-3 shadow transition z-10"
               >
-                Agregar al carrito
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-5 h-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+                  />
+                </svg>
               </button>
-            </div>
+            )}
+
+            {/* MODO EDICIÓN (ADMIN) */}
+            {modoEdicion && esAdmin ? (
+              <div className="px-6 py-20">
+                <h2 className="text-xl font-bold text-zinc-900 mb-6">
+                  Editar Producto
+                </h2>
+
+                {/* Imagen */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Imagen
+                  </label>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-zinc-300">
+                      <Image
+                        src={imagenPreview || "/placeholder.jpg"}
+                        alt="Preview"
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImagenChange}
+                      className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                    />
+                  </div>
+                </div>
+
+                {/* Título */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Título
+                  </label>
+                  <input
+                    type="text"
+                    value={titulo}
+                    onChange={(e) => setTitulo(e.target.value)}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                  />
+                </div>
+
+                {/* Descripción */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Descripción
+                  </label>
+                  <textarea
+                    value={descripcion}
+                    onChange={(e) => setDescripcion(e.target.value)}
+                    rows={3}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                  />
+                </div>
+
+                {/* Código */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Código (no editable)
+                  </label>
+                  <input
+                    type="text"
+                    value={producto.CODIGO}
+                    disabled
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
+                  />
+                </div>
+
+                {/* Precio */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Precio (no editable)
+                  </label>
+                  <input
+                    type="text"
+                    value={`$${producto.P_MAYOREO?.toFixed(2)}`}
+                    disabled
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
+                  />
+                </div>
+
+                {/* Categoría */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Categoría
+                  </label>
+                  <select
+                    value={categoriaId}
+                    onChange={(e) => setCategoriaId(e.target.value)}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                  >
+                    <option value="">Seleccionar categoría</option>
+                    {categorias.map((cat) => (
+                      <option key={cat.id_categoria} value={cat.id_categoria}>
+                        {cat.nombre_categoria}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Marca */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Marca
+                  </label>
+                  <select
+                    value={marcaId}
+                    onChange={(e) => setMarcaId(e.target.value)}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                  >
+                    <option value="">Sin marca</option>
+                    {marcas.map((marca) => (
+                      <option key={marca.id} value={marca.id}>
+                        {marca.nombre_marca}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Mensaje */}
+                {mensaje && (
+                  <div
+                    className={`mb-4 p-3 rounded-lg text-sm ${
+                      mensaje.includes("Error")
+                        ? "bg-red-50 text-red-700 border border-red-200"
+                        : "bg-green-50 text-green-700 border border-green-200"
+                    }`}
+                  >
+                    {mensaje}
+                  </div>
+                )}
+
+                {/* Botones */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setModoEdicion(false);
+                      setTitulo(producto.TITULO || "");
+                      setDescripcion(producto.DESCRIPCION || "");
+                      setCategoriaId(producto.CATEGORIA_ID || "");
+                      setMarcaId(producto.marca_id || "");
+                      setImagenFile(null);
+                      setImagenPreview(producto.IMAGEN || "");
+                      setMensaje("");
+                    }}
+                    disabled={guardando}
+                    className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={guardarCambios}
+                    disabled={guardando || !titulo}
+                    className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {guardando ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                        Guardando...
+                      </span>
+                    ) : (
+                      "Guardar Cambios"
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // MODO VISTA NORMAL
+              <>
+                {/* Imagen */}
+                <div className="flex justify-center mb-3 pt-20">
+                  <div className="relative w-60 h-60">
+                    <SkeletonImage
+                      src={producto.IMAGEN || "/placeholder.jpg"}
+                      alt={producto.TITULO}
+                      className="object-contain"
+                    />
+                  </div>
+                </div>
+
+                {/* Detalles */}
+                <h2 className="text-center text-[20px] font-bold text-zinc-900 leading-snug px-2">
+                  {producto.TITULO}
+                </h2>
+
+                <div className="mt-4 text-sm text-zinc-700 px-2">
+                  <div className="flex justify-between py-2">
+                    <span className="font-medium">Código</span>
+                    <span>{producto.CODIGO}</span>
+                  </div>
+
+                  <div className="flex justify-between py-2">
+                    <span className="font-medium">Marca</span>
+                    <span className="text-blue-600 font-semibold">
+                      {getNombreMarca(producto.marca_id)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between py-2">
+                    <span className="font-medium">Precio</span>
+                    <span>${producto.P_MAYOREO?.toFixed(2)}</span>
+                  </div>
+
+                  {!esAdmin && (
+                    <div className="flex justify-between py-2">
+                      <span className="font-medium">Subtotal</span>
+                      <span>
+                        ${(cantidadNum * producto.P_MAYOREO).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-5 px-4">
+                  <div className="flex justify-between items-center gap-3">
+                    {/* Botón restar */}
+                    <button
+                      onClick={handleSubtract}
+                      className="w-12 h-12 border text-black border-zinc-400 rounded-xl text-2xl"
+                    >
+                      −
+                    </button>
+
+                    {/* Input editable */}
+                    <input
+                      type="number"
+                      min="1"
+                      value={cantidad}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      className="w-20 text-center border border-zinc-400 rounded-xl text-lg font-semibold text-black py-2"
+                    />
+
+                    {/* Botón sumar */}
+                    <button
+                      onClick={handleAdd}
+                      className="w-12 h-12 bg-orange-500 text-white rounded-xl text-2xl"
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  {/* Botón agregar */}
+                  <button
+                    onClick={agregarAlCarrito}
+                    className="w-full mt-5 bg-orange-500 text-white py-3 rounded-xl font-bold shadow hover:bg-orange-600 transition"
+                  >
+                    Agregar al carrito
+                  </button>
+                </div>
+              </>
+            )}
           </motion.div>
         </motion.div>
       </AnimatePresence>
@@ -1929,10 +2229,10 @@ const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
   };
 
   const getNombreMarca = (marcaId: number) => {
-  if (!marcaId) return "Sin marca";
-  const marca = marcas.find((m) => m.id === marcaId);
-  return marca ? marca.nombre_marca : "Sin marca";
-};
+    if (!marcaId) return "Sin marca";
+    const marca = marcas.find((m) => m.id === marcaId);
+    return marca ? marca.nombre_marca : "Sin marca";
+  };
 
   // Mostrar vista de producto si hay uno seleccionado
   if (productoSeleccionado) {
@@ -2073,322 +2373,359 @@ const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
           <main className="flex-1 px-4 pb-32 overflow-hidden">
             <AnimatePresence mode="wait">
               {/* Categorías */}
-{activeTab === "categorias" && (
-  <motion.div
-    key="categorias"
-    initial={{ opacity: 0, x: -40 }}
-    animate={{ opacity: 1, x: 0 }}
-    exit={{ opacity: 0, x: 40 }}
-    transition={{ duration: 0.3, ease: "easeInOut" }}
-  >
-    {/* Si no hay categoría ni marca seleccionada, mostrar pestañas */}
-    {!categoriaSeleccionada && !marcaSeleccionada ? (
-      <motion.div
-        key="menu-categorias-marcas"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -30 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-        className="px-3 mt-4"
-      >
-        {/* Pestañas */}
-        <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
-          <button
-            onClick={() => setSubTab("categorias")}
-            className={`flex-1 py-3 rounded-lg font-semibold transition ${
-              subTab === "categorias"
-                ? "bg-orange-500 text-white"
-                : "text-zinc-600 hover:bg-zinc-100"
-            }`}
-          >
-            CATEGORÍAS
-          </button>
-          <button
-            onClick={() => setSubTab("marcas")}
-            className={`flex-1 py-3 rounded-lg font-semibold transition ${
-              subTab === "marcas"
-                ? "bg-orange-500 text-white"
-                : "text-zinc-600 hover:bg-zinc-100"
-            }`}
-          >
-            MARCAS
-          </button>
-        </div>
-
-        {/* Grid de Categorías */}
-        {subTab === "categorias" && (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-            {categorias.map((cat) => (
-              <div
-                key={cat.id_categoria}
-                onClick={async () => {
-                  localStorage.setItem("scrollPos", window.scrollY.toString());
-                  if (window.scrollY > 100) {
-                    window.scrollTo({ top: 0, behavior: "instant" });
-                  }
-                  setCategoriaSeleccionada(cat);
-
-                  const { data, error } = await supabase
-                    .from("productos")
-                    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id")
-                    .eq("CATEGORIA_ID", cat.id_categoria);
-
-                  const productosNormalizados = (data || []).map((producto) => ({
-                    ...producto,
-                    visible: producto.visible ?? true,
-                  }));
-
-                  setArticulos(error ? [] : productosNormalizados);
-                  requestAnimationFrame(() => {
-                    window.scrollTo({ top: 0, behavior: "instant" });
-                  });
-                }}
-                className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-              >
-                <div className="relative w-full h-40">
-                  <SkeletonImage
-                    src={cat.img || "/placeholder.jpg"}
-                    alt={cat.nombre_categoria}
-                    className="object-cover"
-                  />
-                </div>
-                <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
-                  {cat.nombre_categoria}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Grid de Marcas */}
-        {subTab === "marcas" && (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-            {marcas.map((marca) => (
-              <div
-                key={marca.id}
-                onClick={async () => {
-                  localStorage.setItem("scrollPos", window.scrollY.toString());
-                  if (window.scrollY > 100) {
-                    window.scrollTo({ top: 0, behavior: "instant" });
-                  }
-                  setMarcaSeleccionada(marca);
-
-                  const { data, error } = await supabase
-                    .from("productos")
-                    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id")
-                    .eq("marca_id", marca.id);
-
-                  const productosNormalizados = (data || []).map((producto) => ({
-                    ...producto,
-                    visible: producto.visible ?? true,
-                  }));
-
-                  setArticulos(error ? [] : productosNormalizados);
-                  requestAnimationFrame(() => {
-                    window.scrollTo({ top: 0, behavior: "instant" });
-                  });
-                }}
-                className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-              >
-                <div className="relative w-full h-40">
-                  <SkeletonImage
-                    src={marca.img || "/placeholder.jpg"}
-                    alt={marca.nombre_marca}
-                    className="object-cover"
-                  />
-                </div>
-                <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
-                  {marca.nombre_marca}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </motion.div>
-    ) : (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={categoriaSeleccionada?.id_categoria || marcaSeleccionada?.id}
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -40 }}
-          transition={{ duration: 0.4, ease: "easeInOut" }}
-          className="px-4 pb-20"
-        >
-          <motion.div
-            key="vista-productos"
-            className="px-4 pb-20"
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -40 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            onDragEnd={(event, info) => {
-              if (info.offset.x > 100) {
-                setCategoriaSeleccionada(null);
-                setMarcaSeleccionada(null);
-                const savedScroll = localStorage.getItem("scrollPos");
-                if (savedScroll) {
-                  setTimeout(() => {
-                    window.scrollTo({
-                      top: parseInt(savedScroll),
-                      behavior: "instant",
-                    });
-                  }, 50);
-                }
-              }
-            }}
-          >
-            <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
-              <SkeletonImage
-                src={
-                  (categoriaSeleccionada?.img || marcaSeleccionada?.img) ||
-                  "/placeholder.jpg"
-                }
-                alt={
-                  categoriaSeleccionada?.nombre_categoria ||
-                  marcaSeleccionada?.nombre_marca
-                }
-                className="object-contain"
-              />
-            </div>
-
-            <AnimatePresence>
-              {(categoriaSeleccionada || marcaSeleccionada) && (
-                <BackBtn
-                  onBack={() => {
-                    setCategoriaSeleccionada(null);
-                    setMarcaSeleccionada(null);
-                    const savedScroll = localStorage.getItem("scrollPos");
-                    if (savedScroll) {
-                      setTimeout(() => {
-                        window.scrollTo({
-                          top: parseInt(savedScroll),
-                          behavior: "instant",
-                        });
-                      }, 50);
-                    }
-                  }}
-                />
-              )}
-            </AnimatePresence>
-
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xl font-bold text-zinc-800">
-                {categoriaSeleccionada?.nombre_categoria ||
-                  marcaSeleccionada?.nombre_marca}
-              </h2>
-            </div>
-
-            <div className="relative mb-4">
-              <input
-                type="text"
-                placeholder="Buscar"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-full border border-zinc-300 px-10 py-2 pr-10 text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-[16px] md:text-sm"
-              />
-              <Search className="absolute left-3 top-2.5 text-zinc-500 w-5 h-5 " />
-            </div>
-
-            <div className="space-y-2">
-              {articulos
-                .filter((a) => {
-                  if (!esAdmin && !a.visible) return false;
-                  return (
-                    (a.TITULO &&
-                      a.TITULO.toLowerCase().includes(
-                        searchTerm.toLowerCase()
-                      )) ||
-                    (a.CODIGO &&
-                      a.CODIGO.toLowerCase().includes(
-                        searchTerm.toLowerCase()
-                      ))
-                  );
-                })
-                .map((art) => (
-                  <motion.div
-                    key={art.id}
-                    variants={{
-                      hidden: { opacity: 0, y: 10 },
-                      show: { opacity: 1, y: 0 },
-                    }}
-                    transition={{ duration: 0.3 }}
-                    onClick={() => {
-                      const scrollY = window.scrollY;
-                      localStorage.setItem(
-                        "scrollProducto",
-                        scrollY.toString()
-                      );
-                      setProductoSeleccionado(art);
-                    }}
-                    className="flex items-center justify-between bg-white rounded-xl border border-zinc-200 shadow-sm hover:shadow-md transition p-2 cursor-pointer"
-                  >
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="relative w-14 h-14 rounded-md overflow-hidden bg-white">
-                        <SkeletonImage
-                          src={art.IMAGEN || "/placeholder.jpg"}
-                          alt={art.TITULO}
-                          className="object-contain"
-                        />
+              {activeTab === "categorias" && (
+                <motion.div
+                  key="categorias"
+                  initial={{ opacity: 0, x: -40 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 40 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                >
+                  {/* Si no hay categoría ni marca seleccionada, mostrar pestañas */}
+                  {!categoriaSeleccionada && !marcaSeleccionada ? (
+                    <motion.div
+                      key="menu-categorias-marcas"
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -30 }}
+                      transition={{ duration: 0.4, ease: "easeOut" }}
+                      className="px-3 mt-4"
+                    >
+                      {/* Pestañas */}
+                      <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
+                        <button
+                          onClick={() => setSubTab("categorias")}
+                          className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                            subTab === "categorias"
+                              ? "bg-orange-500 text-white"
+                              : "text-zinc-600 hover:bg-zinc-100"
+                          }`}
+                        >
+                          CATEGORÍAS
+                        </button>
+                        <button
+                          onClick={() => setSubTab("marcas")}
+                          className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                            subTab === "marcas"
+                              ? "bg-orange-500 text-white"
+                              : "text-zinc-600 hover:bg-zinc-100"
+                          }`}
+                        >
+                          MARCAS
+                        </button>
                       </div>
-                      <div className="text-sm font-medium text-zinc-700 leading-tight max-w-[200px]">
-                        <p className="text-xs text-blue-600 font-medium">
-                          {getNombreMarca(art.marca_id)}
-                        </p>
-                        {art.TITULO}
-                        <p className="text-xs text-zinc-500">
-                          Código: {art.CODIGO}
-                        </p>
-                        
-                      </div>
-                    </div>
 
-                    {!esAdmin && (
-                      <p className="text-xs text-zinc-500 mr-3 ml-2">
-                        $ {art.P_MAYOREO?.toFixed(2)}
-                      </p>
-                    )}
+                      {/* Grid de Categorías */}
+                      {subTab === "categorias" && (
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                          {categorias.map((cat) => (
+                            <div
+                              key={cat.id_categoria}
+                              onClick={async () => {
+                                localStorage.setItem(
+                                  "scrollPos",
+                                  window.scrollY.toString()
+                                );
+                                if (window.scrollY > 100) {
+                                  window.scrollTo({
+                                    top: 0,
+                                    behavior: "instant",
+                                  });
+                                }
+                                setCategoriaSeleccionada(cat);
 
-                    {esAdmin && (
-                      <div
-                        className="flex items-center gap-2 ml-2"
-                        onClick={(e) => e.stopPropagation()}
+                                const { data, error } = await supabase
+                                  .from("productos")
+                                  .select(
+                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id"
+                                  )
+                                  .eq("CATEGORIA_ID", cat.id_categoria);
+
+                                const productosNormalizados = (data || []).map(
+                                  (producto) => ({
+                                    ...producto,
+                                    visible: producto.visible ?? true,
+                                  })
+                                );
+
+                                setArticulos(
+                                  error ? [] : productosNormalizados
+                                );
+                                requestAnimationFrame(() => {
+                                  window.scrollTo({
+                                    top: 0,
+                                    behavior: "instant",
+                                  });
+                                });
+                              }}
+                              className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+                            >
+                              <div className="relative w-full h-40">
+                                <SkeletonImage
+                                  src={cat.img || "/placeholder.jpg"}
+                                  alt={cat.nombre_categoria}
+                                  className="object-cover"
+                                />
+                              </div>
+                              <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+                                {cat.nombre_categoria}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Grid de Marcas */}
+                      {subTab === "marcas" && (
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                          {marcas.map((marca) => (
+                            <div
+                              key={marca.id}
+                              onClick={async () => {
+                                localStorage.setItem(
+                                  "scrollPos",
+                                  window.scrollY.toString()
+                                );
+                                if (window.scrollY > 100) {
+                                  window.scrollTo({
+                                    top: 0,
+                                    behavior: "instant",
+                                  });
+                                }
+                                setMarcaSeleccionada(marca);
+
+                                const { data, error } = await supabase
+                                  .from("productos")
+                                  .select(
+                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id"
+                                  )
+                                  .eq("marca_id", marca.id);
+
+                                const productosNormalizados = (data || []).map(
+                                  (producto) => ({
+                                    ...producto,
+                                    visible: producto.visible ?? true,
+                                  })
+                                );
+
+                                setArticulos(
+                                  error ? [] : productosNormalizados
+                                );
+                                requestAnimationFrame(() => {
+                                  window.scrollTo({
+                                    top: 0,
+                                    behavior: "instant",
+                                  });
+                                });
+                              }}
+                              className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+                            >
+                              <div className="relative w-full h-40">
+                                <SkeletonImage
+                                  src={marca.img || "/placeholder.jpg"}
+                                  alt={marca.nombre_marca}
+                                  className="object-cover"
+                                />
+                              </div>
+                              <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+                                {marca.nombre_marca}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </motion.div>
+                  ) : (
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={
+                          categoriaSeleccionada?.id_categoria ||
+                          marcaSeleccionada?.id
+                        }
+                        initial={{ opacity: 0, y: 40 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -40 }}
+                        transition={{ duration: 0.4, ease: "easeInOut" }}
+                        className="px-4 pb-20"
                       >
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={art.visible}
-                            onChange={() =>
-                              toggleVisibilidad(art.id, art.visible)
+                        <motion.div
+                          key="vista-productos"
+                          className="px-4 pb-20"
+                          initial={{ opacity: 0, x: 40 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -40 }}
+                          transition={{ duration: 0.3, ease: "easeInOut" }}
+                          drag="x"
+                          dragConstraints={{ left: 0, right: 0 }}
+                          onDragEnd={(event, info) => {
+                            if (info.offset.x > 100) {
+                              setCategoriaSeleccionada(null);
+                              setMarcaSeleccionada(null);
+                              const savedScroll =
+                                localStorage.getItem("scrollPos");
+                              if (savedScroll) {
+                                setTimeout(() => {
+                                  window.scrollTo({
+                                    top: parseInt(savedScroll),
+                                    behavior: "instant",
+                                  });
+                                }, 50);
+                              }
                             }
-                            className="sr-only peer"
-                          />
-                          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        </label>
-                        <span className="text-xs text-zinc-500">
-                          {art.visible ? "Visible" : "Oculto"}
-                        </span>
-                      </div>
-                    )}
-                  </motion.div>
-                ))}
+                          }}
+                        >
+                          <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
+                            <SkeletonImage
+                              src={
+                                categoriaSeleccionada?.img ||
+                                marcaSeleccionada?.img ||
+                                "/placeholder.jpg"
+                              }
+                              alt={
+                                categoriaSeleccionada?.nombre_categoria ||
+                                marcaSeleccionada?.nombre_marca
+                              }
+                              className="object-contain"
+                            />
+                          </div>
 
-              {articulos.length === 0 && (
-                <p className="text-center text-zinc-500 py-10">
-                  No hay productos en esta {categoriaSeleccionada ? "categoría" : "marca"}.
-                </p>
+                          <AnimatePresence>
+                            {(categoriaSeleccionada || marcaSeleccionada) && (
+                              <BackBtn
+                                onBack={() => {
+                                  setCategoriaSeleccionada(null);
+                                  setMarcaSeleccionada(null);
+                                  const savedScroll =
+                                    localStorage.getItem("scrollPos");
+                                  if (savedScroll) {
+                                    setTimeout(() => {
+                                      window.scrollTo({
+                                        top: parseInt(savedScroll),
+                                        behavior: "instant",
+                                      });
+                                    }, 50);
+                                  }
+                                }}
+                              />
+                            )}
+                          </AnimatePresence>
+
+                          <div className="flex items-center justify-between mb-3">
+                            <h2 className="text-xl font-bold text-zinc-800">
+                              {categoriaSeleccionada?.nombre_categoria ||
+                                marcaSeleccionada?.nombre_marca}
+                            </h2>
+                          </div>
+
+                          <div className="relative mb-4">
+                            <input
+                              type="text"
+                              placeholder="Buscar"
+                              value={searchTerm}
+                              onChange={(e) => setSearchTerm(e.target.value)}
+                              className="w-full rounded-full border border-zinc-300 px-10 py-2 pr-10 text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-[16px] md:text-sm"
+                            />
+                            <Search className="absolute left-3 top-2.5 text-zinc-500 w-5 h-5 " />
+                          </div>
+
+                          <div className="space-y-2">
+                            {articulos
+                              .filter((a) => {
+                                if (!esAdmin && !a.visible) return false;
+                                return (
+                                  (a.TITULO &&
+                                    a.TITULO.toLowerCase().includes(
+                                      searchTerm.toLowerCase()
+                                    )) ||
+                                  (a.CODIGO &&
+                                    a.CODIGO.toLowerCase().includes(
+                                      searchTerm.toLowerCase()
+                                    ))
+                                );
+                              })
+                              .map((art) => (
+                                <motion.div
+                                  key={art.id}
+                                  variants={{
+                                    hidden: { opacity: 0, y: 10 },
+                                    show: { opacity: 1, y: 0 },
+                                  }}
+                                  transition={{ duration: 0.3 }}
+                                  onClick={() => {
+                                    const scrollY = window.scrollY;
+                                    localStorage.setItem(
+                                      "scrollProducto",
+                                      scrollY.toString()
+                                    );
+                                    setProductoSeleccionado(art);
+                                  }}
+                                  className="flex items-center justify-between bg-white rounded-xl border border-zinc-200 shadow-sm hover:shadow-md transition p-2 cursor-pointer"
+                                >
+                                  <div className="flex items-center space-x-3 flex-1">
+                                    <div className="relative w-14 h-14 rounded-md overflow-hidden bg-white">
+                                      <SkeletonImage
+                                        src={art.IMAGEN || "/placeholder.jpg"}
+                                        alt={art.TITULO}
+                                        className="object-contain"
+                                      />
+                                    </div>
+                                    <div className="text-sm font-medium text-zinc-700 leading-tight max-w-[200px]">
+                                      <p className="text-xs text-blue-600 font-medium">
+                                        {getNombreMarca(art.marca_id)}
+                                      </p>
+                                      {art.TITULO}
+                                      <p className="text-xs text-zinc-500">
+                                        Código: {art.CODIGO}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {!esAdmin && (
+                                    <p className="text-xs text-zinc-500 mr-3 ml-2">
+                                      $ {art.P_MAYOREO?.toFixed(2)}
+                                    </p>
+                                  )}
+
+                                  {esAdmin && (
+                                    <div
+                                      className="flex items-center gap-2 ml-2"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={art.visible}
+                                          onChange={() =>
+                                            toggleVisibilidad(
+                                              art.id,
+                                              art.visible
+                                            )
+                                          }
+                                          className="sr-only peer"
+                                        />
+                                        <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                      </label>
+                                      <span className="text-xs text-zinc-500">
+                                        {art.visible ? "Visible" : "Oculto"}
+                                      </span>
+                                    </div>
+                                  )}
+                                </motion.div>
+                              ))}
+
+                            {articulos.length === 0 && (
+                              <p className="text-center text-zinc-500 py-10">
+                                No hay productos en esta{" "}
+                                {categoriaSeleccionada ? "categoría" : "marca"}.
+                              </p>
+                            )}
+                          </div>
+                        </motion.div>
+                      </motion.div>
+                    </AnimatePresence>
+                  )}
+                </motion.div>
               )}
-            </div>
-          </motion.div>
-        </motion.div>
-      </AnimatePresence>
-    )}
-  </motion.div>
-)}
-
-
 
               {/* Buscar */}
               {activeTab === "buscar" && (
