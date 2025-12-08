@@ -18,11 +18,10 @@ import {
   Settings,
   EyeOff,
   Eye,
-  EyeClosed,
+  DatabaseBackup,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
-import react from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
@@ -98,7 +97,12 @@ export default function HomePage() {
   const [actualizacionReciente, setActualizacionReciente] = useState(false);
 
   const esAdmin = cuenta?.numero_cuenta === "Admin01";
-   const [mostrar, setMostrar] = useState(false);
+  const [mostrar, setMostrar] = useState(false);
+
+  const [subTab, setSubTab] = useState("categorias"); // categorias | marcas
+const [marcas, setMarcas] = useState<any[]>([]);
+const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
+
 
   const BackBtn = ({ onBack }: any) => {
     if (typeof document === "undefined") return null;
@@ -121,7 +125,7 @@ export default function HomePage() {
     return createPortal(btn, document.body);
   };
   {
-    /* 
+ 
   useEffect(() => {
     const saved = localStorage.getItem("cuenta_user");
     if (saved) {
@@ -129,7 +133,7 @@ export default function HomePage() {
     }
   }, []);
   
-  */
+ 
   }
 
   // componete zoom imagenes
@@ -197,8 +201,7 @@ export default function HomePage() {
   // fin del componente zomm img
 
   // verifica si hay una cuenta logeada al cargar la pagina
-  {
-    /* 
+  
   useEffect(() => {
     const init = async () => {
       const saved = localStorage.getItem("cuentaActiva");
@@ -225,8 +228,7 @@ export default function HomePage() {
 
     init();
   }, []);   
-   */
-  }
+  
 
   // funcion para validar la cuenta ingresada
   const validarCuenta = async () => {
@@ -275,12 +277,31 @@ export default function HomePage() {
     fetchCategorias();
   }, []);
 
+  // marcas extracion
+  useEffect(() => {
+  const fetchMarcas = async () => {
+    const { data, error } = await supabase
+      .from("marcas")
+      .select("id, nombre_marca, img")
+      .order("nombre_marca", { ascending: true });
+
+    if (error) {
+      console.error("Error cargando marcas:", error.message);
+    } else {
+      console.log("Marcas cargadas:", data);
+      setMarcas(data || []);
+    }
+  };
+
+  fetchMarcas();
+}, []);
+
   // Cargar todos los productos al entrar a la pestaña de "buscar"
   useEffect(() => {
     const fetchProductos = async () => {
       const { data, error } = await supabase
         .from("productos")
-        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible");
+        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id")
 
       // Normalizar visible
       const productosNormalizados = (data || []).map((producto) => ({
@@ -307,6 +328,307 @@ export default function HomePage() {
   }
 
   const [selectedApoyo, setSelectedApoyo] = useState<Apoyo | null>(null);
+
+  // Componente para actualizar la base de datos desde CSV
+  const ActualizarBDView = ({ setVistaPerfil }: any) => {
+    const [archivo, setArchivo] = useState<File | null>(null);
+    const [procesando, setProcesando] = useState(false);
+    const [progreso, setProgreso] = useState(0);
+    const [resultado, setResultado] = useState<any>(null);
+    const [error, setError] = useState("");
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        // Validar que sea CSV
+        if (!file.name.endsWith(".csv")) {
+          setError("Por favor selecciona un archivo CSV válido");
+          return;
+        }
+        setArchivo(file);
+        setError("");
+        setResultado(null);
+      }
+    };
+
+    const procesarCSV = async () => {
+      if (!archivo) {
+        setError("Selecciona un archivo CSV primero");
+        return;
+      }
+
+      setProcesando(true);
+      setProgreso(0);
+      setError("");
+      setResultado(null);
+
+      try {
+        // Leer el archivo CSV
+        const texto = await archivo.text();
+
+        // Parsear CSV usando Papaparse
+        const Papa = await import("papaparse");
+        const parseResult = Papa.parse(texto, {
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: true,
+          transformHeader: (header: string) => header.trim().toUpperCase(),
+        });
+
+        if (parseResult.errors.length > 0) {
+          setError(`Errores en el CSV: ${parseResult.errors[0].message}`);
+          setProcesando(false);
+          return;
+        }
+
+        const datos = parseResult.data as any[];
+
+        // Validar que tenga las columnas necesarias
+        if (datos.length === 0) {
+          setError("El archivo CSV está vacío");
+          setProcesando(false);
+          return;
+        }
+
+        const primeraFila: any = datos[0];
+        if (!primeraFila.CODIGO && !primeraFila.codigo) {
+          setError("El CSV debe tener una columna 'CODIGO' o 'codigo'");
+          setProcesando(false);
+          return;
+        }
+
+        if (
+          !primeraFila.P_MAYOREO &&
+          !primeraFila.p_mayoreo &&
+          !primeraFila.PRECIO
+        ) {
+          setError(
+            "El CSV debe tener una columna 'P_MAYOREO' o 'p_mayoreo' o 'PRECIO'"
+          );
+          setProcesando(false);
+          return;
+        }
+
+        let actualizados = 0;
+        let noEncontrados = 0;
+        let errores = 0;
+        const productosNoEncontrados: string[] = [];
+
+        // Procesar cada fila
+        for (let i = 0; i < datos.length; i++) {
+          const fila: any = datos[i];
+
+          // Obtener código y precio (soportar diferentes nombres de columnas)
+          const codigo = fila.CODIGO || fila.codigo;
+          const precio =
+            fila.P_MAYOREO || fila.p_mayoreo || fila.PRECIO || fila.precio;
+
+          if (!codigo || precio === undefined || precio === null) {
+            errores++;
+            continue;
+          }
+
+          try {
+            // Buscar el producto por código
+            const { data: producto, error: errorBusqueda } = await supabase
+              .from("productos")
+              .select("id, CODIGO, P_MAYOREO")
+              .eq("CODIGO", codigo)
+              .single();
+
+            if (errorBusqueda || !producto) {
+              noEncontrados++;
+              productosNoEncontrados.push(codigo);
+              continue;
+            }
+
+            // Actualizar el precio
+            const { error: errorActualizar } = await supabase
+              .from("productos")
+              .update({ P_MAYOREO: parseFloat(precio) })
+              .eq("id", producto.id);
+
+            if (errorActualizar) {
+              errores++;
+              console.error(`Error actualizando ${codigo}:`, errorActualizar);
+            } else {
+              actualizados++;
+            }
+          } catch (err) {
+            errores++;
+            console.error(`Error procesando ${codigo}:`, err);
+          }
+
+          // Actualizar progreso
+          setProgreso(Math.round(((i + 1) / datos.length) * 100));
+        }
+
+        // Mostrar resultados
+        setResultado({
+          total: datos.length,
+          actualizados,
+          noEncontrados,
+          errores,
+          productosNoEncontrados: productosNoEncontrados.slice(0, 10), // Mostrar solo los primeros 10
+        });
+      } catch (err: any) {
+        setError(`Error procesando el archivo: ${err.message}`);
+      } finally {
+        setProcesando(false);
+      }
+    };
+
+    return (
+      <motion.div
+        key="actualizar-bd"
+        className="min-h-screen"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <div className="px-6 py-6">
+        
+          <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">
+            Actualizar Base de Datos
+          </h2>
+
+          {/* Instrucciones */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+            <h3 className="font-semibold text-blue-900 mb-2">
+              📋 Instrucciones:
+            </h3>
+            <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+              <li>
+                El archivo CSV debe tener las columnas: <strong>CODIGO</strong>{" "}
+                y <strong>P_MAYOREO</strong>
+              </li>
+              <li>También acepta: codigo, p_mayoreo, PRECIO, precio</li>
+              <li>
+                Ejemplo de formato:
+                <pre className="bg-white p-2 mt-1 rounded text-xs overflow-x-auto">
+                  CODIGO,P_MAYOREO
+                  <p> 49550T,150.50 </p>
+                  <p> 11520T,73.00 </p>
+                </pre>
+              </li>
+              <li>
+                Solo se actualizarán los productos que existan en la base de
+                datos
+              </li>
+            </ul>
+          </div>
+
+          {/* Selector de archivo */}
+          <div className="bg-white border border-zinc-300 rounded-xl p-4 mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Seleccionar archivo CSV
+            </label>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              disabled={procesando}
+              className="w-full text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 disabled:opacity-50"
+            />
+
+            {archivo && (
+              <p className="mt-2 text-sm text-zinc-600">
+                📄 {archivo.name} ({(archivo.size / 1024).toFixed(2)} KB)
+              </p>
+            )}
+          </div>
+
+          {/* Errores */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          {/* Barra de progreso */}
+          {procesando && (
+            <div className="bg-white border border-zinc-300 rounded-xl p-4 mb-4">
+              <div className="flex justify-between mb-2">
+                <span className="text-sm font-medium text-zinc-700">
+                  Procesando...
+                </span>
+                <span className="text-sm font-medium text-zinc-700">
+                  {progreso}%
+                </span>
+              </div>
+              <div className="w-full bg-zinc-200 rounded-full h-2.5">
+                <div
+                  className="bg-orange-500 h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${progreso}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+
+          {/* Resultados */}
+          {resultado && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+              <h3 className="font-semibold text-green-900 mb-2">
+                Proceso completado
+              </h3>
+              <div className="space-y-1 text-sm text-green-800">
+                <p>
+                  Total de filas: <strong>{resultado.total}</strong>
+                </p>
+                <p>
+                  Actualizados: <strong>{resultado.actualizados}</strong>
+                </p>
+                <p>
+                  No encontrados: <strong>{resultado.noEncontrados}</strong>
+                </p>
+                <p>
+                  Errores: <strong>{resultado.errores}</strong>
+                </p>
+              </div>
+
+              {resultado.productosNoEncontrados.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-green-200">
+                  <p className="text-sm font-semibold text-green-900 mb-1">
+                    Productos no encontrados (primeros 10):
+                  </p>
+                  <ul className="text-xs text-green-700 list-disc list-inside">
+                    {resultado.productosNoEncontrados.map(
+                      (codigo: string, i: number) => (
+                        <li key={i}>{codigo}</li>
+                      )
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Botón de acción */}
+          <button
+            onClick={procesarCSV}
+            disabled={!archivo || procesando}
+            className={`w-full py-3 rounded-xl font-semibold transition ${
+              !archivo || procesando
+                ? "bg-zinc-300 text-zinc-500 cursor-not-allowed"
+                : "bg-orange-500 text-white hover:bg-orange-600"
+            }`}
+          >
+            {procesando ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                Procesando...
+              </span>
+            ) : (
+              "Actualizar Precios"
+            )}
+          </button>
+        </div>
+      </motion.div>
+    );
+  };
 
   // Función para enviar el pedido
 
@@ -697,97 +1019,138 @@ export default function HomePage() {
   ];
 
   const SelectorEstado = ({ estadoActual, pedidoId, onEstadoChange }: any) => {
-  const estados = [
-    { valor: 'revision', label: 'En Revisión', color: 'bg-yellow-100 text-yellow-800' },
-    { valor: 'recibido', label: 'Recibido', color: 'bg-blue-100 text-blue-800' },
-    { valor: 'surtiendo', label: 'Surtiendo', color: 'bg-purple-100 text-purple-800' },
-    { valor: 'encajado', label: 'Encajado', color: 'bg-indigo-100 text-indigo-800' },
-    { valor: 'en_camino', label: 'En Camino', color: 'bg-orange-100 text-orange-800' },
-    { valor: 'completado', label: 'Completado', color: 'bg-green-100 text-green-800' }
-  ];
+    const estados = [
+      {
+        valor: "revision",
+        label: "En Revisión",
+        color: "bg-yellow-100 text-yellow-800",
+      },
+      {
+        valor: "recibido",
+        label: "Recibido",
+        color: "bg-blue-100 text-blue-800",
+      },
+      {
+        valor: "surtiendo",
+        label: "Surtiendo",
+        color: "bg-purple-100 text-purple-800",
+      },
+      {
+        valor: "encajado",
+        label: "Encajado",
+        color: "bg-indigo-100 text-indigo-800",
+      },
+      {
+        valor: "en_camino",
+        label: "En Camino",
+        color: "bg-orange-100 text-orange-800",
+      },
+      {
+        valor: "completado",
+        label: "Completado",
+        color: "bg-green-100 text-green-800",
+      },
+    ];
 
-  const [cambiando, setCambiando] = useState(false);
+    const [cambiando, setCambiando] = useState(false);
 
-  const cambiarEstado = async (nuevoEstado: string) => {
-    setCambiando(true);
-    try {
-      const { error } = await supabase
-        .from('pedidos')
-        .update({ estado: nuevoEstado })
-        .eq('id', pedidoId);
+    const cambiarEstado = async (nuevoEstado: string) => {
+      setCambiando(true);
+      try {
+        const { error } = await supabase
+          .from("pedidos")
+          .update({ estado: nuevoEstado })
+          .eq("id", pedidoId);
 
-      if (error) throw error;
-      
-      onEstadoChange(nuevoEstado);
-      setActualizacionReciente(true);
-setTimeout(() => setActualizacionReciente(false), 2000);
+        if (error) throw error;
 
-    } catch (error) {
-      console.error('Error actualizando estado:', error);
-      alert('Error al actualizar el estado');
-    } finally {
-      setCambiando(false);
-      
-    }
+        onEstadoChange(nuevoEstado);
+        setActualizacionReciente(true);
+        setTimeout(() => setActualizacionReciente(false), 2000);
+      } catch (error) {
+        console.error("Error actualizando estado:", error);
+        alert("Error al actualizar el estado");
+      } finally {
+        setCambiando(false);
+      }
+    };
+
+    return (
+      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4">
+        <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+          Estado del Pedido
+        </label>
+        <select
+          value={estadoActual || "revision"}
+          onChange={(e) => cambiarEstado(e.target.value)}
+          disabled={cambiando}
+          className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm font-medium text-black focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-zinc-100"
+        >
+          {estados.map((estado) => (
+            <option key={estado.valor} value={estado.valor}>
+              {estado.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
   };
 
-  return (
-    <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4">
-      <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-        Estado del Pedido
-      </label>
-      <select
-        value={estadoActual || 'revision'}
-        onChange={(e) => cambiarEstado(e.target.value)}
-        disabled={cambiando}
-        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm font-medium text-black focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-zinc-100"
+  const BadgeEstado = ({ estado }: any) => {
+    const estados: any = {
+      revision: {
+        label: "En Revisión",
+        color: "bg-yellow-100 text-yellow-800 border-yellow-200",
+      },
+      recibido: {
+        label: "Recibido",
+        color: "bg-blue-100 text-blue-800 border-blue-200",
+      },
+      surtiendo: {
+        label: "Surtiendo",
+        color: "bg-purple-100 text-purple-800 border-purple-200",
+      },
+      encajado: {
+        label: "Encajado",
+        color: "bg-indigo-100 text-indigo-800 border-indigo-200",
+      },
+      en_camino: {
+        label: "En Camino",
+        color: "bg-orange-100 text-orange-800 border-orange-200",
+      },
+      completado: {
+        label: "Completado",
+        color: "bg-green-100 text-green-800 border-green-200",
+      },
+    };
+
+    const estadoInfo = estados[estado || "revision"];
+
+    return (
+      <span
+        className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${estadoInfo.color}`}
       >
-        {estados.map((estado) => (
-          <option key={estado.valor} value={estado.valor}>
-            {estado.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-};
-
-const BadgeEstado = ({ estado }: any) => {
-  const estados: any = {
-    revision: { label: 'En Revisión', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-    recibido: { label: 'Recibido', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-    surtiendo: { label: 'Surtiendo', color: 'bg-purple-100 text-purple-800 border-purple-200' },
-    encajado: { label: 'Encajado', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-    en_camino: { label: 'En Camino', color: 'bg-orange-100 text-orange-800 border-orange-200' },
-    completado: { label: 'Completado', color: 'bg-green-100 text-green-800 border-green-200' }
+        {estadoInfo.label}
+      </span>
+    );
   };
 
-  const estadoInfo = estados[estado || 'revision'];
+  const HistorialPedidos = ({ cuenta, setVistaPerfil }: any) => {
+    const [pedidos, setPedidos] = useState<any[]>([]);
+    const [cargando, setCargando] = useState(true);
+    const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
+    const [cargandoPDF, setCargandoPDF] = useState(false);
+    const [cuentaPedido, setCuentaPedido] = useState<any>(null);
+    const [actualizacionReciente, setActualizacionReciente] = useState(false);
 
-  return (
-    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${estadoInfo.color}`}>
-      {estadoInfo.label}
-    </span>
-  );
-};
+    useEffect(() => {
+      const fetchPedidos = async () => {
+        if (!cuenta?.id && !esAdmin) return;
 
-
- const HistorialPedidos = ({ cuenta, setVistaPerfil }: any) => {
-  const [pedidos, setPedidos] = useState<any[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
-  const [cargandoPDF, setCargandoPDF] = useState(false);
-  const [cuentaPedido, setCuentaPedido] = useState<any>(null);
-  const [actualizacionReciente, setActualizacionReciente] = useState(false); 
-
-  useEffect(() => {
-    const fetchPedidos = async () => {
-      if (!cuenta?.id && !esAdmin) return;
-
-      let query = supabase
-        .from("pedidos")
-        .select(
-          `
+        let query = supabase
+          .from("pedidos")
+          .select(
+            `
           id, 
           total, 
           created_at,
@@ -801,39 +1164,40 @@ const BadgeEstado = ({ estado }: any) => {
             numero_tel
           )
         `
-        )
-        .order("created_at", { ascending: false });
+          )
+          .order("created_at", { ascending: false });
 
-      if (!esAdmin) {
-        query = query.eq("cuenta_id", cuenta.id);
-      }
+        if (!esAdmin) {
+          query = query.eq("cuenta_id", cuenta.id);
+        }
 
-      const { data, error } = await query;
+        const { data, error } = await query;
 
-      if (!error && data) {
-        setPedidos(data);
-      }
-      setCargando(false);
-    };
+        if (!error && data) {
+          setPedidos(data);
+        }
+        setCargando(false);
+      };
 
-    fetchPedidos();
-    const channel = supabase
-      .channel('pedidos-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'pedidos',
-          ...(esAdmin ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` })
-        },
-        async (payload) => {
-          console.log('Cambio detectado:', payload);
+      fetchPedidos();
+      const channel = supabase
+        .channel("pedidos-changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "pedidos",
+            ...(esAdmin ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` }),
+          },
+          async (payload) => {
+            console.log("Cambio detectado:", payload);
 
-          if (payload.eventType === 'UPDATE') {
-            const { data: pedidoActualizado } = await supabase
-              .from('pedidos')
-              .select(`
+            if (payload.eventType === "UPDATE") {
+              const { data: pedidoActualizado } = await supabase
+                .from("pedidos")
+                .select(
+                  `
                 id, 
                 total, 
                 created_at,
@@ -846,29 +1210,31 @@ const BadgeEstado = ({ estado }: any) => {
                   ferreteria,
                   numero_tel
                 )
-              `)
-              .eq('id', payload.new.id)
-              .single();
-
-            if (pedidoActualizado) {
-              setPedidos((prev) =>
-                prev.map((p) =>
-                  p.id === pedidoActualizado.id ? pedidoActualizado : p
+              `
                 )
-              );
+                .eq("id", payload.new.id)
+                .single();
 
-              if (pedidoSeleccionado?.id === pedidoActualizado.id) {
-                setPedidoSeleccionado(pedidoActualizado);
-                setCuentaPedido(pedidoActualizado.cuentas || cuenta);
+              if (pedidoActualizado) {
+                setPedidos((prev) =>
+                  prev.map((p) =>
+                    p.id === pedidoActualizado.id ? pedidoActualizado : p
+                  )
+                );
+
+                if (pedidoSeleccionado?.id === pedidoActualizado.id) {
+                  setPedidoSeleccionado(pedidoActualizado);
+                  setCuentaPedido(pedidoActualizado.cuentas || cuenta);
+                }
+
+                setActualizacionReciente(true);
+                setTimeout(() => setActualizacionReciente(false), 2000);
               }
-
-              setActualizacionReciente(true);
-              setTimeout(() => setActualizacionReciente(false), 2000);
-            }
-          } else if (payload.eventType === 'INSERT') {
-            const { data: nuevoPedido } = await supabase
-              .from('pedidos')
-              .select(`
+            } else if (payload.eventType === "INSERT") {
+              const { data: nuevoPedido } = await supabase
+                .from("pedidos")
+                .select(
+                  `
                 id, 
                 total, 
                 created_at,
@@ -881,67 +1247,228 @@ const BadgeEstado = ({ estado }: any) => {
                   ferreteria,
                   numero_tel
                 )
-              `)
-              .eq('id', payload.new.id)
-              .single();
+              `
+                )
+                .eq("id", payload.new.id)
+                .single();
 
-            if (nuevoPedido) {
-              setPedidos((prev) => [nuevoPedido, ...prev]);
-              setActualizacionReciente(true);
-              setTimeout(() => setActualizacionReciente(false), 2000);
-            }
-          } else if (payload.eventType === 'DELETE') {
-            setPedidos((prev) => prev.filter((p) => p.id !== payload.old.id));
-            
-            if (pedidoSeleccionado?.id === payload.old.id) {
-              setPedidoSeleccionado(null);
+              if (nuevoPedido) {
+                setPedidos((prev) => [nuevoPedido, ...prev]);
+                setActualizacionReciente(true);
+                setTimeout(() => setActualizacionReciente(false), 2000);
+              }
+            } else if (payload.eventType === "DELETE") {
+              setPedidos((prev) => prev.filter((p) => p.id !== payload.old.id));
+
+              if (pedidoSeleccionado?.id === payload.old.id) {
+                setPedidoSeleccionado(null);
+              }
             }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }, [cuenta, esAdmin, pedidoSeleccionado?.id]);
+
+    const verDetallePedido = (pedido: any) => {
+      setPedidoSeleccionado(pedido);
+      setCuentaPedido(pedido.cuentas || cuenta);
     };
-  }, [cuenta, esAdmin, pedidoSeleccionado?.id]);
 
-  const verDetallePedido = (pedido: any) => {
-    setPedidoSeleccionado(pedido);
-    setCuentaPedido(pedido.cuentas || cuenta);
-  };
+    const actualizarEstadoLocal = (nuevoEstado: string) => {
+      // Ya no es necesario porque Realtime lo maneja
+    };
 
-  const actualizarEstadoLocal = (nuevoEstado: string) => {
-    // Ya no es necesario porque Realtime lo maneja
-  };
+    const descargarPDF = async () => {
+      if (!pedidoSeleccionado?.pdf_url) return;
 
-  const descargarPDF = async () => {
-    if (!pedidoSeleccionado?.pdf_url) return;
-    
-    setCargandoPDF(true);
-    try {
-      const response = await fetch(pedidoSeleccionado.pdf_url);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Pedido_${pedidoSeleccionado.id}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error('Error descargando PDF:', error);
-      alert('Error al descargar el PDF');
-    } finally {
-      setCargandoPDF(false);
+      setCargandoPDF(true);
+      try {
+        const response = await fetch(pedidoSeleccionado.pdf_url);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Pedido_${pedidoSeleccionado.id}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error("Error descargando PDF:", error);
+        alert("Error al descargar el PDF");
+      } finally {
+        setCargandoPDF(false);
+      }
+    };
+
+    if (pedidoSeleccionado) {
+      return (
+        <motion.div
+          key="detalle-pedido"
+          className="min-h-screen"
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -40 }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          onDragEnd={(event, info) => {
+            if (info.offset.x > 100) {
+              setPedidoSeleccionado(null);
+            }
+          }}
+        >
+          <BackBtn onBack={() => setPedidoSeleccionado(null)} />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-2">
+            Detalle del Pedido
+          </h2>
+
+          {esAdmin && (
+            <SelectorEstado
+              estadoActual={pedidoSeleccionado.estado}
+              pedidoId={pedidoSeleccionado.id}
+              onEstadoChange={actualizarEstadoLocal}
+            />
+          )}
+
+          {!esAdmin && (
+            <div className="mb-4">
+              <BadgeEstado estado={pedidoSeleccionado.estado} />
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Pedido #</span>
+              <span className="font-semibold text-zinc-900">
+                {pedidoSeleccionado.id}
+              </span>
+            </div>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Fecha</span>
+              <span className="font-semibold text-zinc-900">
+                {new Date(pedidoSeleccionado.created_at).toLocaleDateString(
+                  "es-MX",
+                  {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  }
+                )}
+              </span>
+            </div>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Cliente</span>
+              <span className="font-semibold text-zinc-900">
+                {cuentaPedido?.cliente || "N/A"}
+              </span>
+            </div>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Ferretería</span>
+              <span className="font-semibold text-zinc-900">
+                {cuentaPedido?.ferreteria || "N/A"}
+              </span>
+            </div>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Cuenta</span>
+              <span className="font-semibold text-zinc-900">
+                {cuentaPedido?.numero_cuenta}
+              </span>
+            </div>
+            {cuentaPedido?.numero_tel && (
+              <div className="flex justify-between mb-2">
+                <span className="text-sm text-zinc-600">Teléfono</span>
+                <span className="font-semibold text-zinc-900">
+                  {cuentaPedido.numero_tel}
+                </span>
+              </div>
+            )}
+            <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
+              <span className="font-bold text-zinc-900">Total</span>
+              <span className="font-bold text-orange-500 text-lg">
+                ${pedidoSeleccionado.total.toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          <h3 className="text-lg font-semibold text-zinc-900 mb-3">
+            Documento del Pedido
+          </h3>
+
+          {pedidoSeleccionado.pdf_url ? (
+            <div className="space-y-3">
+              <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm">
+                <iframe
+                  src={pedidoSeleccionado.pdf_url}
+                  className="w-full h-[500px]"
+                  title="Vista previa del pedido"
+                />
+              </div>
+
+              <button
+                onClick={descargarPDF}
+                disabled={cargandoPDF}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold shadow-sm transition flex items-center justify-center gap-2 disabled:bg-orange-300"
+              >
+                {cargandoPDF ? (
+                  <>
+                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                    Descargando...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-5 h-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+                      />
+                    </svg>
+                    Descargar PDF
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 text-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="w-12 h-12 mx-auto text-zinc-400 mb-2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+                />
+              </svg>
+              <p className="text-zinc-500 text-sm">
+                PDF no disponible para este pedido
+              </p>
+            </div>
+          )}
+        </motion.div>
+      );
     }
-  };
 
-  if (pedidoSeleccionado) {
     return (
       <motion.div
-        key="detalle-pedido"
+        key={vistaPerfil}
         className="min-h-screen"
         initial={{ opacity: 0, x: 40 }}
         animate={{ opacity: 1, x: 0 }}
@@ -951,220 +1478,59 @@ const BadgeEstado = ({ estado }: any) => {
         dragConstraints={{ left: 0, right: 0 }}
         onDragEnd={(event, info) => {
           if (info.offset.x > 100) {
-            setPedidoSeleccionado(null);
+            setVistaPerfil("menu");
           }
         }}
       >
+        <BackBtn onBack={() => setVistaPerfil("menu")} />
 
-        <BackBtn onBack={() => setPedidoSeleccionado(null)} />
-
-        <h2 className="text-xl font-bold text-zinc-900 mb-2">
-          Detalle del Pedido
+        <h2 className="text-xl font-bold text-zinc-900 mb-4">
+          {esAdmin ? "Todos los Pedidos" : "Tus Pedidos"}
         </h2>
 
-        {esAdmin && (
-          <SelectorEstado
-            estadoActual={pedidoSeleccionado.estado}
-            pedidoId={pedidoSeleccionado.id}
-            onEstadoChange={actualizarEstadoLocal}
-          />
-        )}
-
-        {!esAdmin && (
-          <div className="mb-4">
-            <BadgeEstado estado={pedidoSeleccionado.estado} />
-          </div>
-        )}
-
-        <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-          <div className="flex justify-between mb-2">
-            <span className="text-sm text-zinc-600">Pedido #</span>
-            <span className="font-semibold text-zinc-900">
-              {pedidoSeleccionado.id}
-            </span>
-          </div>
-          <div className="flex justify-between mb-2">
-            <span className="text-sm text-zinc-600">Fecha</span>
-            <span className="font-semibold text-zinc-900">
-              {new Date(pedidoSeleccionado.created_at).toLocaleDateString(
-                "es-MX",
-                {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                }
-              )}
-            </span>
-          </div>
-          <div className="flex justify-between mb-2">
-            <span className="text-sm text-zinc-600">Cliente</span>
-            <span className="font-semibold text-zinc-900">
-              {cuentaPedido?.cliente || "N/A"}
-            </span>
-          </div>
-          <div className="flex justify-between mb-2">
-            <span className="text-sm text-zinc-600">Ferretería</span>
-            <span className="font-semibold text-zinc-900">
-              {cuentaPedido?.ferreteria || "N/A"}
-            </span>
-          </div>
-          <div className="flex justify-between mb-2">
-            <span className="text-sm text-zinc-600">Cuenta</span>
-            <span className="font-semibold text-zinc-900">
-              {cuentaPedido?.numero_cuenta}
-            </span>
-          </div>
-          {cuentaPedido?.numero_tel && (
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-zinc-600">Teléfono</span>
-              <span className="font-semibold text-zinc-900">
-                {cuentaPedido.numero_tel}
-              </span>
-            </div>
-          )}
-          <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
-            <span className="font-bold text-zinc-900">Total</span>
-            <span className="font-bold text-orange-500 text-lg">
-              ${pedidoSeleccionado.total.toFixed(2)}
-            </span>
-          </div>
-        </div>
-
-        <h3 className="text-lg font-semibold text-zinc-900 mb-3">
-          Documento del Pedido
-        </h3>
-
-        {pedidoSeleccionado.pdf_url ? (
-          <div className="space-y-3">
-            <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm">
-              <iframe
-                src={pedidoSeleccionado.pdf_url}
-                className="w-full h-[500px]"
-                title="Vista previa del pedido"
-              />
-            </div>
-
-            <button
-              onClick={descargarPDF}
-              disabled={cargandoPDF}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold shadow-sm transition flex items-center justify-center gap-2 disabled:bg-orange-300"
-            >
-              {cargandoPDF ? (
-                <>
-                  <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                  Descargando...
-                </>
-              ) : (
-                <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                    stroke="currentColor"
-                    className="w-5 h-5"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
-                    />
-                  </svg>
-                  Descargar PDF
-                </>
-              )}
-            </button>
-          </div>
+        {cargando ? (
+          <p className="text-center text-zinc-500">Cargando...</p>
+        ) : pedidos.length === 0 ? (
+          <p className="text-center text-zinc-500 mt-8">
+            No hay pedidos registrados
+          </p>
         ) : (
-          <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 text-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-12 h-12 mx-auto text-zinc-400 mb-2"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-              />
-            </svg>
-            <p className="text-zinc-500 text-sm">
-              PDF no disponible para este pedido
-            </p>
+          <div className="space-y-3">
+            {pedidos.map((pedido) => (
+              <div
+                key={pedido.id}
+                onClick={() => verDetallePedido(pedido)}
+                className="border border-zinc-200 rounded-xl p-4 bg-white shadow-sm cursor-pointer hover:bg-zinc-50 transition"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex-1">
+                    <p className="font-semibold text-zinc-900">
+                      Pedido #{pedido.id}
+                    </p>
+                    {esAdmin && pedido.cuentas && (
+                      <p className="text-xs text-zinc-600 mt-1">
+                        {pedido.cuentas.cliente || "Sin nombre"} -{" "}
+                        {pedido.cuentas.numero_cuenta}
+                      </p>
+                    )}
+                    <p className="text-sm text-zinc-500 mt-1">
+                      {new Date(pedido.created_at).toLocaleDateString("es-MX")}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <BadgeEstado estado={pedido.estado} />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <span className="text-zinc-400 text-sm">Ver detalles →</span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </motion.div>
     );
-  }
-
-  return (
-    <motion.div
-      key={vistaPerfil}
-      className="min-h-screen"
-      initial={{ opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -40 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-      drag="x"
-      dragConstraints={{ left: 0, right: 0 }}
-      onDragEnd={(event, info) => {
-        if (info.offset.x > 100) {
-          setVistaPerfil("menu");
-        }
-      }}
-    >
-
-      <BackBtn onBack={() => setVistaPerfil("menu")} />
-
-      <h2 className="text-xl font-bold text-zinc-900 mb-4">
-        {esAdmin ? "Todos los Pedidos" : "Tus Pedidos"}
-      </h2>
-
-      {cargando ? (
-        <p className="text-center text-zinc-500">Cargando...</p>
-      ) : pedidos.length === 0 ? (
-        <p className="text-center text-zinc-500 mt-8">
-          No hay pedidos registrados
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {pedidos.map((pedido) => (
-            <div
-              key={pedido.id}
-              onClick={() => verDetallePedido(pedido)}
-              className="border border-zinc-200 rounded-xl p-4 bg-white shadow-sm cursor-pointer hover:bg-zinc-50 transition"
-            >
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex-1">
-                  <p className="font-semibold text-zinc-900">
-                    Pedido #{pedido.id}
-                  </p>
-                  {esAdmin && pedido.cuentas && (
-                    <p className="text-xs text-zinc-600 mt-1">
-                      {pedido.cuentas.cliente || "Sin nombre"} - {pedido.cuentas.numero_cuenta}
-                    </p>
-                  )}
-                  <p className="text-sm text-zinc-500 mt-1">
-                    {new Date(pedido.created_at).toLocaleDateString("es-MX")}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <BadgeEstado estado={pedido.estado} />
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <span className="text-zinc-400 text-sm">Ver detalles →</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </motion.div>
-  );
-};
+  };
 
   interface ToggleVisibilidadParams {
     productoId: number;
@@ -1502,6 +1868,12 @@ const BadgeEstado = ({ estado }: any) => {
                 <span className="font-medium">Código</span>
                 <span>{producto.CODIGO}</span>
               </div>
+
+              <div className="flex justify-between py-2">
+  <span className="font-medium">Marca</span>
+  <span className="text-blue-600 font-semibold">{getNombreMarca(producto.marca_id)}</span>
+</div>
+
               <div className="flex justify-between py-2">
                 <span className="font-medium">Precio</span>
                 <span>${producto.P_MAYOREO?.toFixed(2)}</span>
@@ -1555,6 +1927,12 @@ const BadgeEstado = ({ estado }: any) => {
       </AnimatePresence>
     );
   };
+
+  const getNombreMarca = (marcaId: number) => {
+  if (!marcaId) return "Sin marca";
+  const marca = marcas.find((m) => m.id === marcaId);
+  return marca ? marca.nombre_marca : "Sin marca";
+};
 
   // Mostrar vista de producto si hay uno seleccionado
   if (productoSeleccionado) {
@@ -1610,48 +1988,45 @@ const BadgeEstado = ({ estado }: any) => {
               Introduce tu número de cuenta para continuar
             </p>
 
-           
-<div className="relative w-full">
-  <input
-    type={mostrar ? "text" : "password"}
-    placeholder="Número de cuenta"
-    value={numCuentaInput}
-    onChange={(e) => setNumCuentaInput(e.target.value)}
-    className="border border-zinc-300 text-zinc-600 rounded-lg px-4 py-3 w-full text-center text-lg"
-  />
+            <div className="relative w-full">
+              <input
+                type={mostrar ? "text" : "password"}
+                placeholder="Número de cuenta"
+                value={numCuentaInput}
+                onChange={(e) => setNumCuentaInput(e.target.value)}
+                className="border border-zinc-300 text-zinc-600 rounded-lg px-4 py-3 w-full text-center text-lg"
+              />
 
-  <button
-    type="button"
-    onClick={() => setMostrar(!mostrar)}
-    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600"
-  >
-    <AnimatePresence mode="wait" initial={false}>
-      {mostrar ? (
-        <motion.div
-          key="off"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.8 }}
-          transition={{ duration: 0.15 }}
-        >
-          <Eye size={22} />
-        </motion.div>
-      ) : (
-        <motion.div
-          key="on"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.8 }}
-          transition={{ duration: 0.15 }}
-        >
-          <EyeOff size={22} />
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </button>
-</div>
-
-
+              <button
+                type="button"
+                onClick={() => setMostrar(!mostrar)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600"
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  {mostrar ? (
+                    <motion.div
+                      key="off"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      <Eye size={22} />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="on"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      <EyeOff size={22} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </button>
+            </div>
 
             {errorLogin && (
               <p className="text-red-500 text-sm mt-2">{errorLogin}</p>
@@ -1684,11 +2059,7 @@ const BadgeEstado = ({ estado }: any) => {
                 </h1>
               </div>
 
-              {activeTab === "categorias" && (
-                <p className="mt-6 text-lg font-semibold text-zinc-700">
-                  ELIGE UNA CATEGORÍA
-                </p>
-              )}
+              {activeTab === "categorias"}
 
               {activeTab === "buscar" && (
                 <p className="mt-6 text-lg font-semibold text-zinc-700">
@@ -1702,260 +2073,322 @@ const BadgeEstado = ({ estado }: any) => {
           <main className="flex-1 px-4 pb-32 overflow-hidden">
             <AnimatePresence mode="wait">
               {/* Categorías */}
-              {activeTab === "categorias" && (
-                <motion.div
-                  key="categorias"
-                  initial={{ opacity: 0, x: -40 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 40 }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                >
-                  {/* Si no hay categoría seleccionada, se muestran todas las categorías */}
-                  {!categoriaSeleccionada ? (
-                    <motion.div
-                      key="lista-categorias"
-                      initial={{ opacity: 0, y: 30 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -30 }}
-                      transition={{ duration: 0.4, ease: "easeOut" }}
-                      className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 px-3 mt-4"
-                    >
-                      {categorias.map((cat) => (
-                        <div
-                          key={cat.id_categoria}
-                          onClick={async () => {
-                            // Guarda posición antes de cambiar
-                            localStorage.setItem(
-                              "scrollPos",
-                              window.scrollY.toString()
-                            );
+{activeTab === "categorias" && (
+  <motion.div
+    key="categorias"
+    initial={{ opacity: 0, x: -40 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: 40 }}
+    transition={{ duration: 0.3, ease: "easeInOut" }}
+  >
+    {/* Si no hay categoría ni marca seleccionada, mostrar pestañas */}
+    {!categoriaSeleccionada && !marcaSeleccionada ? (
+      <motion.div
+        key="menu-categorias-marcas"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -30 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="px-3 mt-4"
+      >
+        {/* Pestañas */}
+        <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
+          <button
+            onClick={() => setSubTab("categorias")}
+            className={`flex-1 py-3 rounded-lg font-semibold transition ${
+              subTab === "categorias"
+                ? "bg-orange-500 text-white"
+                : "text-zinc-600 hover:bg-zinc-100"
+            }`}
+          >
+            CATEGORÍAS
+          </button>
+          <button
+            onClick={() => setSubTab("marcas")}
+            className={`flex-1 py-3 rounded-lg font-semibold transition ${
+              subTab === "marcas"
+                ? "bg-orange-500 text-white"
+                : "text-zinc-600 hover:bg-zinc-100"
+            }`}
+          >
+            MARCAS
+          </button>
+        </div>
 
-                            if (window.scrollY > 100) {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                            }
+        {/* Grid de Categorías */}
+        {subTab === "categorias" && (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+            {categorias.map((cat) => (
+              <div
+                key={cat.id_categoria}
+                onClick={async () => {
+                  localStorage.setItem("scrollPos", window.scrollY.toString());
+                  if (window.scrollY > 100) {
+                    window.scrollTo({ top: 0, behavior: "instant" });
+                  }
+                  setCategoriaSeleccionada(cat);
 
-                            setCategoriaSeleccionada(cat);
+                  const { data, error } = await supabase
+                    .from("productos")
+                    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id")
+                    .eq("CATEGORIA_ID", cat.id_categoria);
 
-                            const { data, error } = await supabase
-                              .from("productos")
-                              .select(
-                                "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible"
-                              )
-                              .eq("CATEGORIA_ID", cat.id_categoria);
+                  const productosNormalizados = (data || []).map((producto) => ({
+                    ...producto,
+                    visible: producto.visible ?? true,
+                  }));
 
-                            // Normalizar el campo visible
-                            const productosNormalizados = (data || []).map(
-                              (producto) => ({
-                                ...producto,
-                                visible: producto.visible ?? true,
-                              })
-                            );
+                  setArticulos(error ? [] : productosNormalizados);
+                  requestAnimationFrame(() => {
+                    window.scrollTo({ top: 0, behavior: "instant" });
+                  });
+                }}
+                className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+              >
+                <div className="relative w-full h-40">
+                  <SkeletonImage
+                    src={cat.img || "/placeholder.jpg"}
+                    alt={cat.nombre_categoria}
+                    className="object-cover"
+                  />
+                </div>
+                <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+                  {cat.nombre_categoria}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-                            setArticulos(error ? [] : productosNormalizados);
-                            requestAnimationFrame(() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                            });
-                          }}
-                          className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-                        >
-                          <div className="relative w-full h-40">
-                            <SkeletonImage
-                              src={cat.img || "/placeholder.jpg"}
-                              alt={cat.nombre_categoria}
-                              className="object-cover"
-                            />
-                          </div>
-                          <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
-                            {cat.nombre_categoria}
-                          </div>
-                        </div>
-                      ))}
-                    </motion.div>
-                  ) : (
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={categoriaSeleccionada.id_categoria}
-                        initial={{ opacity: 0, y: 40 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -40 }}
-                        transition={{ duration: 0.4, ease: "easeInOut" }}
-                        className="px-4 pb-20"
-                      >
-                        <motion.div
-                          key="vista-productos"
-                          className="px-4 pb-20"
-                          initial={{ opacity: 0, x: 40 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -40 }}
-                          transition={{ duration: 0.3, ease: "easeInOut" }}
-                          drag="x"
-                          dragConstraints={{ left: 0, right: 0 }}
-                          onDragEnd={(event, info) => {
-                            if (info.offset.x > 100) {
-                              // Si se arrastra más de 100px a la derecha → volver
-                              setCategoriaSeleccionada(null);
+        {/* Grid de Marcas */}
+        {subTab === "marcas" && (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+            {marcas.map((marca) => (
+              <div
+                key={marca.id}
+                onClick={async () => {
+                  localStorage.setItem("scrollPos", window.scrollY.toString());
+                  if (window.scrollY > 100) {
+                    window.scrollTo({ top: 0, behavior: "instant" });
+                  }
+                  setMarcaSeleccionada(marca);
 
-                              // Recupera la posición previa del scroll
-                              const savedScroll =
-                                localStorage.getItem("scrollPos");
-                              if (savedScroll) {
-                                setTimeout(() => {
-                                  window.scrollTo({
-                                    top: parseInt(savedScroll),
-                                    behavior: "instant",
-                                  });
-                                }, 50);
-                              }
-                            }
-                          }}
-                        >
-                          {/* Imagen y título de categoría */}
+                  const { data, error } = await supabase
+                    .from("productos")
+                    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id")
+                    .eq("marca_id", marca.id);
 
-                          <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
-                            <SkeletonImage
-                              src={
-                                categoriaSeleccionada.img || "/placeholder.jpg"
-                              }
-                              alt={categoriaSeleccionada.nombre_categoria}
-                              className="object-contain"
-                            />
-                          </div>
+                  const productosNormalizados = (data || []).map((producto) => ({
+                    ...producto,
+                    visible: producto.visible ?? true,
+                  }));
 
-                          {/* Botón volver */}
-                          <AnimatePresence>
-                            {categoriaSeleccionada && (
-                              <BackBtn
-                                onBack={() => {
-                                  setCategoriaSeleccionada(null);
-                                  const savedScroll =
-                                    localStorage.getItem("scrollPos");
-                                  if (savedScroll) {
-                                    setTimeout(() => {
-                                      window.scrollTo({
-                                        top: parseInt(savedScroll),
-                                        behavior: "instant",
-                                      });
-                                    }, 50);
-                                  }
-                                }}
-                              />
-                            )}
-                          </AnimatePresence>
+                  setArticulos(error ? [] : productosNormalizados);
+                  requestAnimationFrame(() => {
+                    window.scrollTo({ top: 0, behavior: "instant" });
+                  });
+                }}
+                className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+              >
+                <div className="relative w-full h-40">
+                  <SkeletonImage
+                    src={marca.img || "/placeholder.jpg"}
+                    alt={marca.nombre_marca}
+                    className="object-cover"
+                  />
+                </div>
+                <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+                  {marca.nombre_marca}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    ) : (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={categoriaSeleccionada?.id_categoria || marcaSeleccionada?.id}
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -40 }}
+          transition={{ duration: 0.4, ease: "easeInOut" }}
+          className="px-4 pb-20"
+        >
+          <motion.div
+            key="vista-productos"
+            className="px-4 pb-20"
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            onDragEnd={(event, info) => {
+              if (info.offset.x > 100) {
+                setCategoriaSeleccionada(null);
+                setMarcaSeleccionada(null);
+                const savedScroll = localStorage.getItem("scrollPos");
+                if (savedScroll) {
+                  setTimeout(() => {
+                    window.scrollTo({
+                      top: parseInt(savedScroll),
+                      behavior: "instant",
+                    });
+                  }, 50);
+                }
+              }
+            }}
+          >
+            <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
+              <SkeletonImage
+                src={
+                  (categoriaSeleccionada?.img || marcaSeleccionada?.img) ||
+                  "/placeholder.jpg"
+                }
+                alt={
+                  categoriaSeleccionada?.nombre_categoria ||
+                  marcaSeleccionada?.nombre_marca
+                }
+                className="object-contain"
+              />
+            </div>
 
-                          {/* Título*/}
-                          <div className="flex items-center justify-between mb-3">
-                            <h2 className="text-xl font-bold text-zinc-800">
-                              {categoriaSeleccionada.nombre_categoria}
-                            </h2>
-                          </div>
-
-                          {/* Buscador */}
-                          <div className="relative mb-4">
-                            <input
-                              type="text"
-                              placeholder="Buscar"
-                              value={searchTerm}
-                              onChange={(e) => setSearchTerm(e.target.value)}
-                              className="w-full rounded-full border border-zinc-300 px-10 py-2 pr-10 text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-[16px] md:text-sm"
-                            />
-                            <Search className="absolute left-3 top-2.5 text-zinc-500 w-5 h-5 " />
-                          </div>
-
-                          {/* Lista de productos */}
-                          <div className="space-y-2">
-                            {articulos
-                              .filter((a) => {
-                                // Filtrar por visibilidad (solo admin ve productos ocultos)
-                                if (!esAdmin && !a.visible) return false;
-
-                                // Filtrar por búsqueda
-                                return (
-                                  (a.TITULO &&
-                                    a.TITULO.toLowerCase().includes(
-                                      searchTerm.toLowerCase()
-                                    )) ||
-                                  (a.CODIGO &&
-                                    a.CODIGO.toLowerCase().includes(
-                                      searchTerm.toLowerCase()
-                                    ))
-                                );
-                              })
-                              .map((art) => (
-                                <motion.div
-                                  key={art.id}
-                                  variants={{
-                                    hidden: { opacity: 0, y: 10 },
-                                    show: { opacity: 1, y: 0 },
-                                  }}
-                                  transition={{ duration: 0.3 }}
-                                  onClick={() => {
-                                    // Guarda posición del scroll
-                                    const scrollY = window.scrollY;
-                                    localStorage.setItem(
-                                      "scrollProducto",
-                                      scrollY.toString()
-                                    );
-
-                                    setProductoSeleccionado(art);
-                                  }}
-                                  className="flex items-center justify-between bg-white rounded-xl border border-zinc-200 shadow-sm hover:shadow-md transition p-2 cursor-pointer"
-                                >
-                                  <div className="flex items-center space-x-3 flex-1">
-                                    <div className="relative w-14 h-14 rounded-md overflow-hidden bg-white">
-                                      <SkeletonImage
-                                        src={art.IMAGEN || "/placeholder.jpg"}
-                                        alt={art.TITULO}
-                                        className="object-contain"
-                                      />
-                                    </div>
-                                    <div className="text-sm font-medium text-zinc-700 leading-tight max-w-[200px]">
-                                      {art.TITULO}
-                                      <p className="text-xs text-zinc-500">
-                                        Código: {art.CODIGO}
-                                      </p>
-                                    </div>
-                                  </div>
-
-                                  {/* Switch de visibilidad - Solo visible para Admin */}
-                                  {esAdmin && (
-                                    <div
-                                      className="flex items-center gap-2 ml-2"
-                                      onClick={(e) => e.stopPropagation()} // Prevenir que abra el detalle
-                                    >
-                                      <label className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                          type="checkbox"
-                                          checked={art.visible}
-                                          onChange={() =>
-                                            toggleVisibilidad(
-                                              art.id,
-                                              art.visible
-                                            )
-                                          }
-                                          className="sr-only peer"
-                                        />
-                                        <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                      </label>
-                                      <span className="text-xs text-zinc-500">
-                                        {art.visible ? "Visible" : "Oculto"}
-                                      </span>
-                                    </div>
-                                  )}
-                                </motion.div>
-                              ))}
-
-                            {articulos.length === 0 && (
-                              <p className="text-center text-zinc-500 py-10">
-                                No hay productos en esta categoría.
-                              </p>
-                            )}
-                          </div>
-                        </motion.div>
-                      </motion.div>
-                    </AnimatePresence>
-                  )}
-                </motion.div>
+            <AnimatePresence>
+              {(categoriaSeleccionada || marcaSeleccionada) && (
+                <BackBtn
+                  onBack={() => {
+                    setCategoriaSeleccionada(null);
+                    setMarcaSeleccionada(null);
+                    const savedScroll = localStorage.getItem("scrollPos");
+                    if (savedScroll) {
+                      setTimeout(() => {
+                        window.scrollTo({
+                          top: parseInt(savedScroll),
+                          behavior: "instant",
+                        });
+                      }, 50);
+                    }
+                  }}
+                />
               )}
+            </AnimatePresence>
+
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-bold text-zinc-800">
+                {categoriaSeleccionada?.nombre_categoria ||
+                  marcaSeleccionada?.nombre_marca}
+              </h2>
+            </div>
+
+            <div className="relative mb-4">
+              <input
+                type="text"
+                placeholder="Buscar"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full rounded-full border border-zinc-300 px-10 py-2 pr-10 text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-[16px] md:text-sm"
+              />
+              <Search className="absolute left-3 top-2.5 text-zinc-500 w-5 h-5 " />
+            </div>
+
+            <div className="space-y-2">
+              {articulos
+                .filter((a) => {
+                  if (!esAdmin && !a.visible) return false;
+                  return (
+                    (a.TITULO &&
+                      a.TITULO.toLowerCase().includes(
+                        searchTerm.toLowerCase()
+                      )) ||
+                    (a.CODIGO &&
+                      a.CODIGO.toLowerCase().includes(
+                        searchTerm.toLowerCase()
+                      ))
+                  );
+                })
+                .map((art) => (
+                  <motion.div
+                    key={art.id}
+                    variants={{
+                      hidden: { opacity: 0, y: 10 },
+                      show: { opacity: 1, y: 0 },
+                    }}
+                    transition={{ duration: 0.3 }}
+                    onClick={() => {
+                      const scrollY = window.scrollY;
+                      localStorage.setItem(
+                        "scrollProducto",
+                        scrollY.toString()
+                      );
+                      setProductoSeleccionado(art);
+                    }}
+                    className="flex items-center justify-between bg-white rounded-xl border border-zinc-200 shadow-sm hover:shadow-md transition p-2 cursor-pointer"
+                  >
+                    <div className="flex items-center space-x-3 flex-1">
+                      <div className="relative w-14 h-14 rounded-md overflow-hidden bg-white">
+                        <SkeletonImage
+                          src={art.IMAGEN || "/placeholder.jpg"}
+                          alt={art.TITULO}
+                          className="object-contain"
+                        />
+                      </div>
+                      <div className="text-sm font-medium text-zinc-700 leading-tight max-w-[200px]">
+                        <p className="text-xs text-blue-600 font-medium">
+                          {getNombreMarca(art.marca_id)}
+                        </p>
+                        {art.TITULO}
+                        <p className="text-xs text-zinc-500">
+                          Código: {art.CODIGO}
+                        </p>
+                        
+                      </div>
+                    </div>
+
+                    {!esAdmin && (
+                      <p className="text-xs text-zinc-500 mr-3 ml-2">
+                        $ {art.P_MAYOREO?.toFixed(2)}
+                      </p>
+                    )}
+
+                    {esAdmin && (
+                      <div
+                        className="flex items-center gap-2 ml-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={art.visible}
+                            onChange={() =>
+                              toggleVisibilidad(art.id, art.visible)
+                            }
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                        <span className="text-xs text-zinc-500">
+                          {art.visible ? "Visible" : "Oculto"}
+                        </span>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+
+              {articulos.length === 0 && (
+                <p className="text-center text-zinc-500 py-10">
+                  No hay productos en esta {categoriaSeleccionada ? "categoría" : "marca"}.
+                </p>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    )}
+  </motion.div>
+)}
+
+
 
               {/* Buscar */}
               {activeTab === "buscar" && (
@@ -2364,12 +2797,13 @@ const BadgeEstado = ({ estado }: any) => {
                           onClick={() => setVistaPerfil("address")}
                         />
 
-                        {/* Crear solicitud 
-          <MenuItem
-            label="Create Request"
-            icon={<sometingicon size={20} />}
-            onClick={() => alert("Pendiente")}
-          />*/}
+                        {esAdmin && (
+                          <MenuItem
+                            label="Actualizar base de datos"
+                            icon={<DatabaseBackup size={20} />}
+                            onClick={() => setVistaPerfil("actualizar-bd")}
+                          />
+                        )}
 
                         {/* Apoyo */}
                         <MenuItem
@@ -2464,6 +2898,10 @@ const BadgeEstado = ({ estado }: any) => {
                       cuenta={cuenta}
                       setVistaPerfil={setVistaPerfil}
                     />
+                  )}
+
+                  {vistaPerfil === "actualizar-bd" && (
+                    <ActualizarBDView setVistaPerfil={setVistaPerfil} />
                   )}
 
                   {/* CONFIGURACIÓN */}
