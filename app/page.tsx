@@ -19,6 +19,7 @@ import {
   EyeOff,
   Eye,
   DatabaseBackup,
+  PackagePlus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
@@ -624,6 +625,322 @@ export default function HomePage() {
     );
   };
 
+  const AgregarProductoView = ({ setVistaPerfil }: any) => {
+  const [titulo, setTitulo] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [precio, setPrecio] = useState("");
+  const [categoriaId, setCategoriaId] = useState("");
+  const [marcaId, setMarcaId] = useState("");
+  const [imagenFile, setImagenFile] = useState<File | null>(null);
+  const [imagenPreview, setImagenPreview] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+
+  const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validar que sea imagen
+      if (!file.type.startsWith("image/")) {
+        setMensaje("Por favor selecciona un archivo de imagen válido");
+        return;
+      }
+
+      // Validar tamaño (máximo 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setMensaje("La imagen no debe superar los 5MB");
+        return;
+      }
+
+      setImagenFile(file);
+
+      // Crear preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagenPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const agregarProducto = async () => {
+    setGuardando(true);
+    setMensaje("");
+
+    // Validaciones
+    if (!titulo || !codigo || !precio || !categoriaId) {
+      setMensaje("Por favor completa todos los campos obligatorios");
+      setGuardando(false);
+      return;
+    }
+
+    try {
+      let urlImagen = "";
+
+      // Si hay imagen, subirla primero
+      if (imagenFile) {
+        const timestamp = Date.now();
+        const extension = imagenFile.name.split(".").pop();
+        const nombreArchivo = `producto_nuevo_${timestamp}.${extension}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("imagenes_productos")
+          .upload(nombreArchivo, imagenFile, {
+            cacheControl: "3600",
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error("Error subiendo imagen:", uploadError);
+          setMensaje("Error al subir la imagen");
+          setGuardando(false);
+          return;
+        }
+
+        // Obtener URL pública
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("imagenes_productos").getPublicUrl(nombreArchivo);
+
+        urlImagen = publicUrl;
+      }
+
+      // Insertar producto en la base de datos
+      const { error: insertError } = await supabase.from("productos").insert([
+        {
+          TITULO: titulo,
+          DESCRIPCION: descripcion,
+          CODIGO: codigo,
+          P_MAYOREO: parseFloat(precio),
+          CATEGORIA_ID: parseInt(categoriaId),
+          marca_id: marcaId ? parseInt(marcaId) : null,
+          IMAGEN: urlImagen,
+          visible: true,
+        },
+      ]);
+
+      if (insertError) {
+        console.error("Error agregando producto:", insertError);
+        
+        // Verificar si es error de código duplicado
+        if (insertError.code === "23505") {
+          setMensaje("Ya existe un producto con ese código");
+        } else {
+          setMensaje("Error al agregar el producto");
+        }
+      } else {
+        setMensaje("Producto agregado correctamente");
+
+        // Limpiar formulario
+        setTimeout(() => {
+          setTitulo("");
+          setDescripcion("");
+          setCodigo("");
+          setPrecio("");
+          setCategoriaId("");
+          setMarcaId("");
+          setImagenFile(null);
+          setImagenPreview("");
+          setMensaje("");
+        }, 2000);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setMensaje("Ocurrió un error inesperado");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <motion.div
+      key="agregar-producto"
+      className="min-h-screen"
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -40 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+    >
+      <div className="px-6 py-6">
+        <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+        <h2 className="text-xl font-bold text-zinc-900 mb-6">Agregar Producto</h2>
+
+        {/* Imagen */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-zinc-700 mb-2">
+            Imagen del Producto
+          </label>
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-dashed border-zinc-300 bg-zinc-50 flex items-center justify-center">
+              {imagenPreview ? (
+                <Image src={imagenPreview} alt="Preview" fill className="object-contain" />
+              ) : (
+                <div className="text-center text-zinc-400">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="w-12 h-12 mx-auto mb-2"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+                    />
+                  </svg>
+                  <p className="text-sm">Sin imagen</p>
+                </div>
+              )}
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImagenChange}
+              className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+            />
+          </div>
+        </div>
+
+        {/* Título */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-zinc-700 mb-2">
+            Título <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            placeholder="Ej: Martillo de Goma 16oz"
+            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          />
+        </div>
+
+        {/* Descripción */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-zinc-700 mb-2">
+            Descripción
+          </label>
+          <textarea
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            rows={3}
+            placeholder="Descripción detallada del producto (opcional)"
+            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          />
+        </div>
+
+        {/* Código */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-zinc-700 mb-2">
+            Código <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+            placeholder="Ej: 19129T"
+            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          />
+        </div>
+
+        {/* Precio */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-zinc-700 mb-2">
+            Precio de Mayoreo <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-2.5 text-zinc-500">$</span>
+            <input
+              type="number"
+              step="0.01"
+              value={precio}
+              onChange={(e) => setPrecio(e.target.value)}
+              placeholder="0.00"
+              className="w-full border border-zinc-300 rounded-lg pl-8 pr-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+        </div>
+
+        {/* Categoría */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-zinc-700 mb-2">
+            Categoría <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={categoriaId}
+            onChange={(e) => setCategoriaId(e.target.value)}
+            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          >
+            <option value="">Seleccionar categoría</option>
+            {categorias.map((cat) => (
+              <option key={cat.id_categoria} value={cat.id_categoria}>
+                {cat.nombre_categoria}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Marca */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-zinc-700 mb-2">Marca</label>
+          <select
+            value={marcaId}
+            onChange={(e) => setMarcaId(e.target.value)}
+            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          >
+            <option value="">Sin marca</option>
+            {marcas.map((marca) => (
+              <option key={marca.id} value={marca.id}>
+                {marca.nombre_marca}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Mensaje */}
+        {mensaje && (
+          <div
+            className={`mb-4 p-3 rounded-lg text-sm ${
+              mensaje.includes("Error") || mensaje.includes("completa")
+                ? "bg-red-50 text-red-700 border border-red-200"
+                : "bg-green-50 text-green-700 border border-green-200"
+            }`}
+          >
+            {mensaje}
+          </div>
+        )}
+
+        {/* Botones */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => setVistaPerfil("menu")}
+            disabled={guardando}
+            className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={agregarProducto}
+            disabled={guardando || !titulo || !codigo || !precio || !categoriaId}
+            className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {guardando ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                Guardando...
+              </span>
+            ) : (
+              "Agregar Producto"
+            )}
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
   // Función para enviar el pedido
 
   const enviarPedido = async () => {
@@ -1044,6 +1361,11 @@ export default function HomePage() {
         label: "Completado",
         color: "bg-green-100 text-green-800",
       },
+      {
+        valor: "listo_para_recoger",
+        label: "Listo para recoger",
+        color: "bg-emerald-100 text-emerald-800",
+      },
     ];
 
     const [cambiando, setCambiando] = useState(false);
@@ -1091,7 +1413,7 @@ export default function HomePage() {
   };
 
   const BadgeEstado = ({ estado }: any) => {
-    const estados: any = {
+    const estados: Record<string, { label: string; color: string }> = {
       revision: {
         label: "En Revisión",
         color: "bg-yellow-100 text-yellow-800 border-yellow-200",
@@ -1116,9 +1438,13 @@ export default function HomePage() {
         label: "Completado",
         color: "bg-green-100 text-green-800 border-green-200",
       },
+      listo_para_recoger: {
+        label: "Listo para recoger",
+        color: "bg-emerald-100 text-emerald-800 border-emerald-200",
+      },
     };
 
-    const estadoInfo = estados[estado || "revision"];
+    const estadoInfo = estados[estado] ?? estados["revision"];
 
     return (
       <span
@@ -1744,7 +2070,7 @@ export default function HomePage() {
     );
   };
 
-  // Vista de detalle de producto
+  // Vista de detalle de producto 
 
   const VistaProducto = ({ producto, onBack }: any) => {
     const [cantidad, setCantidad] = useState("1");
@@ -1757,6 +2083,10 @@ export default function HomePage() {
     const [imagenPreview, setImagenPreview] = useState(producto.IMAGEN || "");
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState("");
+    const [mostrarModalEliminar, setMostrarModalEliminar] = useState(false);
+    const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
+    const [errorEliminar, setErrorEliminar] = useState("");
+    const [eliminando, setEliminando] = useState(false);
 
     const handleChange = (e: any) => {
       const value = e.target.value;
@@ -1915,6 +2245,61 @@ export default function HomePage() {
         setGuardando(false);
       }
     };
+
+    // eliminar producto
+    const eliminarProducto = async () => {
+  if (!esAdmin) return;
+
+  setEliminando(true);
+  setErrorEliminar("");
+
+  // Validar número de cuenta
+  if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
+    setErrorEliminar("Número de cuenta incorrecto");
+    setEliminando(false);
+    return;
+  }
+
+  try {
+    if (producto.IMAGEN && producto.IMAGEN.includes("imagenes_productos")) {
+      const urlParts = producto.IMAGEN.split("/");
+      const nombreArchivo = urlParts[urlParts.length - 1];
+
+      const { error: deleteImageError } = await supabase.storage
+        .from("imagenes_productos")
+        .remove([nombreArchivo]);
+
+      if (deleteImageError) {
+        console.error("Error eliminando imagen:", deleteImageError);
+      }
+    }
+    const { error: deleteError } = await supabase
+      .from("productos")
+      .delete()
+      .eq("id", producto.id);
+
+    if (deleteError) {
+      console.error("Error eliminando producto:", deleteError);
+      setErrorEliminar("Error al eliminar el producto");
+      setEliminando(false);
+      return;
+    }
+
+    // cerra modal y mostrar mensaje
+    setMostrarModalEliminar(false);
+    setMensaje("Producto eliminado correctamente");
+  
+    setTimeout(() => {
+      onBack();
+    }, 1000);
+
+  } catch (error) {
+    console.error("Error:", error);
+    setErrorEliminar("Ocurrió un error inesperado");
+  } finally {
+    setEliminando(false);
+  }
+};
 
     const cantidadNum = parseInt(cantidad) || 1;
 
@@ -2103,38 +2488,64 @@ export default function HomePage() {
                 )}
 
                 {/* Botones */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setModoEdicion(false);
-                      setTitulo(producto.TITULO || "");
-                      setDescripcion(producto.DESCRIPCION || "");
-                      setCategoriaId(producto.CATEGORIA_ID || "");
-                      setMarcaId(producto.marca_id || "");
-                      setImagenFile(null);
-                      setImagenPreview(producto.IMAGEN || "");
-                      setMensaje("");
-                    }}
-                    disabled={guardando}
-                    className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={guardarCambios}
-                    disabled={guardando || !titulo}
-                    className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {guardando ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                        Guardando...
-                      </span>
-                    ) : (
-                      "Guardar Cambios"
-                    )}
-                  </button>
-                </div>
+<div className="space-y-3">
+  <div className="flex gap-3">
+    <button
+      onClick={() => {
+        setModoEdicion(false);
+        setTitulo(producto.TITULO || "");
+        setDescripcion(producto.DESCRIPCION || "");
+        setCategoriaId(producto.CATEGORIA_ID || "");
+        setMarcaId(producto.marca_id || "");
+        setImagenFile(null);
+        setImagenPreview(producto.IMAGEN || "");
+        setMensaje("");
+      }}
+      disabled={guardando}
+      className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+    >
+      Cancelar
+    </button>
+    <button
+      onClick={guardarCambios}
+      disabled={guardando || !titulo}
+      className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {guardando ? (
+        <span className="flex items-center justify-center gap-2">
+          <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+          Guardando...
+        </span>
+      ) : (
+        "Guardar Cambios"
+      )}
+    </button>
+  </div>
+
+  {/* Botón Eliminar Producto */}
+  <button
+    onClick={() => setMostrarModalEliminar(true)}
+    disabled={guardando}
+    className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      className="w-5 h-5"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+      />
+    </svg>
+    Eliminar Producto
+  </button>
+</div>
+
               </div>
             ) : (
               // MODO VISTA NORMAL
@@ -2163,7 +2574,7 @@ export default function HomePage() {
 
                   <div className="flex justify-between py-2">
                     <span className="font-medium">Marca</span>
-                    <span className="text-blue-600 font-semibold">
+                    <span className="text-orange-500 font-semibold">
                       {getNombreMarca(producto.marca_id)}
                     </span>
                   </div>
@@ -2222,6 +2633,99 @@ export default function HomePage() {
                 </div>
               </>
             )}
+
+            {/* Modal de Confirmación para Eliminar */}
+{mostrarModalEliminar && (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="bg-white rounded-2xl w-[90%] max-w-md p-6 shadow-2xl"
+    >
+      <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={2}
+          stroke="currentColor"
+          className="w-8 h-8 text-red-600"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+          />
+        </svg>
+      </div>
+
+      <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
+        ¿Eliminar Producto?
+      </h3>
+      
+      <p className="text-sm text-zinc-600 text-center mb-6">
+        Esta acción no se puede deshacer. El producto y su imagen serán eliminados permanentemente.
+      </p>
+
+      {/* Información del producto */}
+      <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
+        <p className="text-xs text-zinc-500 mb-1">Producto a eliminar:</p>
+        <p className="text-sm font-semibold text-zinc-900">{producto.TITULO}</p>
+        <p className="text-xs text-zinc-500 mt-1">Código: {producto.CODIGO}</p>
+      </div>
+
+      {/* Confirmación de número de cuenta */}
+      <div className="mb-4">
+        <label className="block text-sm font-semibold text-zinc-700 mb-2">
+          Confirma tu número de cuenta para continuar
+        </label>
+        <input
+          type="text"
+          value={numeroCuentaConfirm}
+          onChange={(e) => {
+            setNumeroCuentaConfirm(e.target.value);
+            setErrorEliminar("");
+          }}
+          placeholder="Ingresa tu número de cuenta"
+          className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+          disabled={eliminando}
+        />
+        {errorEliminar && (
+          <p className="text-red-500 text-sm mt-2">{errorEliminar}</p>
+        )}
+      </div>
+
+      {/* Botones */}
+      <div className="flex gap-3">
+        <button
+          onClick={() => {
+            setMostrarModalEliminar(false);
+            setNumeroCuentaConfirm("");
+            setErrorEliminar("");
+          }}
+          disabled={eliminando}
+          className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={eliminarProducto}
+          disabled={eliminando || !numeroCuentaConfirm}
+          className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {eliminando ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+              Eliminando...
+            </span>
+          ) : (
+            "Eliminar"
+          )}
+        </button>
+      </div>
+    </motion.div>
+  </div>
+)}
           </motion.div>
         </motion.div>
       </AnimatePresence>
@@ -2464,6 +2968,7 @@ export default function HomePage() {
                                 <SkeletonImage
                                   src={cat.img || "/placeholder.jpg"}
                                   alt={cat.nombre_categoria}
+                                  w
                                   className="object-cover"
                                 />
                               </div>
@@ -2520,15 +3025,22 @@ export default function HomePage() {
                               }}
                               className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
                             >
-                              <div className="relative w-full h-40">
-                                <SkeletonImage
-                                  src={marca.img || "/placeholder.jpg"}
-                                  alt={marca.nombre_marca}
-                                  className="object-cover"
-                                />
-                              </div>
-                              <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
-                                {marca.nombre_marca}
+                              <div
+                                key={marca.id}
+                                onClick={async () => {}}
+                                className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+                              >
+                                <div className="relative w-full h-28 sm:h-36 md:h-40 overflow-hidden">
+                                  <SkeletonImage
+                                    src={marca.img || "/placeholder.jpg"}
+                                    alt={marca.nombre_marca}
+                                    className="object-contain object-center w-full h-full"
+                                  />
+                                </div>
+
+                                <div className="p-2 text-center font-semibold text-zinc-800 text-sm truncate">
+                                  {marca.nombre_marca}
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -2670,7 +3182,7 @@ export default function HomePage() {
                                       />
                                     </div>
                                     <div className="text-sm font-medium text-zinc-700 leading-tight max-w-[200px]">
-                                      <p className="text-xs text-blue-600 font-medium">
+                                      <p className="text-xs text-orange-500 font-medium">
                                         {getNombreMarca(art.marca_id)}
                                       </p>
                                       {art.TITULO}
@@ -2681,7 +3193,7 @@ export default function HomePage() {
                                   </div>
 
                                   {!esAdmin && (
-                                    <p className="text-xs text-zinc-500 mr-3 ml-2">
+                                    <p className="text-xs font-bold text-orange-500 mr-3 ml-2">
                                       $ {art.P_MAYOREO?.toFixed(2)}
                                     </p>
                                   )}
@@ -3142,13 +3654,21 @@ export default function HomePage() {
                           />
                         )}
 
-                        {/* Apoyo */}
-                        <MenuItem
-                          label="Apoyo"
-                          icon={<FileQuestionMark size={20} />}
-                          onClick={() => setVistaPerfil("apoyo")}
-                        />
+                        {esAdmin && (
+                          <MenuItem
+                            label="Agregar producto"
+                            icon={<PackagePlus size={20} />}
+                            onClick={() => setVistaPerfil("agregar-producto")}
+                          />
+                        )}
 
+                        {!esAdmin && (
+                          <MenuItem
+                            label="Apoyo"
+                            icon={<FileQuestionMark size={20} />}
+                            onClick={() => setVistaPerfil("apoyo")}
+                          />
+                        )}
                         {/* Configuración */}
                         <MenuItem
                           label="Configuración"
@@ -3239,6 +3759,10 @@ export default function HomePage() {
 
                   {vistaPerfil === "actualizar-bd" && (
                     <ActualizarBDView setVistaPerfil={setVistaPerfil} />
+                  )}
+
+                  {vistaPerfil === "agregar-producto" && (
+                    <AgregarProductoView setVistaPerfil={setVistaPerfil} />
                   )}
 
                   {/* CONFIGURACIÓN */}
