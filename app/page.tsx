@@ -113,6 +113,10 @@ export default function HomePage() {
   >("agregar");
   const [itemSeleccionado, setItemSeleccionado] = useState<any>(null);
 
+  const [origenProducto, setOrigenProducto] = useState<"catalogo" | "carrito">(
+    "catalogo"
+  );
+
   const BackBtn = ({ onBack }: any) => {
     if (typeof document === "undefined") return null;
 
@@ -2884,7 +2888,13 @@ export default function HomePage() {
   // Vista de detalle de producto
 
   const VistaProducto = ({ producto, onBack }: any) => {
-    const [cantidad, setCantidad] = useState("1");
+    // Determinar si viene del carrito
+    const itemEnCarrito = carrito.find((p) => p.id === producto.id);
+    const esDesdeCarrito = !!itemEnCarrito;
+
+    const [cantidad, setCantidad] = useState(
+      esDesdeCarrito ? itemEnCarrito.cantidad.toString() : "1"
+    );
     const [modoEdicion, setModoEdicion] = useState(false);
     const [titulo, setTitulo] = useState(producto.TITULO || "");
     const [descripcion, setDescripcion] = useState(producto.DESCRIPCION || "");
@@ -2919,42 +2929,67 @@ export default function HomePage() {
       }
     };
 
-    const handleAdd = () =>
-      setCantidad((c) => (c === "" ? "1" : (parseInt(c) + 1).toString()));
+    const handleAdd = (): void =>
+      setCantidad((c: string): string =>
+        c === "" ? "1" : (parseInt(c, 10) + 1).toString()
+      );
 
-    const handleSubtract = () =>
-      setCantidad((c) => {
-        if (c === "" || parseInt(c) <= 1) return "1";
-        return (parseInt(c) - 1).toString();
+    const handleSubtract = (): void =>
+      setCantidad((c: string): string => {
+        if (c === "" || parseInt(c, 10) <= 1) return "1";
+        return (parseInt(c, 10) - 1).toString();
       });
 
-    const agregarAlCarrito = () => {
+    // FUNCIÓN PARA AGREGAR O MODIFICAR EN CARRITO
+    const agregarOModificarCarrito = () => {
       const cant = parseInt(cantidad) || 1;
 
-      setCarrito((prev: any[]) => {
-        const existe = prev.find((p) => p.id === producto.id);
-        if (existe) {
+      if (esDesdeCarrito) {
+        // Modificar cantidad existente
+        setCarrito((prev: any[]) => {
           return prev.map((p) =>
             p.id === producto.id
               ? {
                   ...p,
-                  cantidad: p.cantidad + cant,
-                  subtotal: (p.cantidad + cant) * p.P_MAYOREO,
+                  cantidad: cant,
+                  subtotal: cant * p.P_MAYOREO,
                 }
               : p
           );
-        } else {
-          return [
-            ...prev,
-            {
-              ...producto,
-              cantidad: cant,
-              subtotal: cant * producto.P_MAYOREO,
-            },
-          ];
-        }
-      });
+        });
+      } else {
+        // Agregar nuevo o sumar cantidad
+        setCarrito((prev: any[]) => {
+          const existe = prev.find((p) => p.id === producto.id);
+          if (existe) {
+            return prev.map((p) =>
+              p.id === producto.id
+                ? {
+                    ...p,
+                    cantidad: p.cantidad + cant,
+                    subtotal: (p.cantidad + cant) * p.P_MAYOREO,
+                  }
+                : p
+            );
+          } else {
+            return [
+              ...prev,
+              {
+                ...producto,
+                cantidad: cant,
+                subtotal: cant * producto.P_MAYOREO,
+              },
+            ];
+          }
+        });
+      }
 
+      onBack();
+    };
+
+    // FUNCIÓN PARA ELIMINAR DEL CARRITO
+    const eliminarDelCarrito = () => {
+      setCarrito((prev: any[]) => prev.filter((p) => p.id !== producto.id));
       onBack();
     };
 
@@ -2966,7 +3001,6 @@ export default function HomePage() {
           return;
         }
 
-        // Validar tamaño (máximo 5MB)
         if (file.size > 5 * 1024 * 1024) {
           setMensaje("La imagen no debe superar los 5MB");
           return;
@@ -2981,7 +3015,6 @@ export default function HomePage() {
       }
     };
 
-    // guardar cambios
     const guardarCambios = async () => {
       if (!esAdmin) return;
 
@@ -2991,7 +3024,6 @@ export default function HomePage() {
       try {
         let urlImagen = producto.IMAGEN;
 
-        // Si hay nueva imagen, subirla primero
         if (imagenFile) {
           const timestamp = Date.now();
           const extension = imagenFile.name.split(".").pop();
@@ -3057,14 +3089,12 @@ export default function HomePage() {
       }
     };
 
-    // eliminar producto
     const eliminarProducto = async () => {
       if (!esAdmin) return;
 
       setEliminando(true);
       setErrorEliminar("");
 
-      // Validar número de cuenta
       if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
         setErrorEliminar("Número de cuenta incorrecto");
         setEliminando(false);
@@ -3096,7 +3126,6 @@ export default function HomePage() {
           return;
         }
 
-        // cerra modal y mostrar mensaje
         setMostrarModalEliminar(false);
         setMensaje("Producto eliminado correctamente");
 
@@ -3141,8 +3170,8 @@ export default function HomePage() {
               ←
             </button>
 
-            {/* Botón editar */}
-            {esAdmin && !modoEdicion && (
+            {/* Botón editar (solo admin y no desde carrito) */}
+            {esAdmin && !modoEdicion && !esDesdeCarrito && (
               <button
                 onClick={() => setModoEdicion(true)}
                 className="absolute top-9 right-7 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-3 shadow transition z-10"
@@ -3332,7 +3361,6 @@ export default function HomePage() {
                     </button>
                   </div>
 
-                  {/* Botón Eliminar Producto */}
                   <button
                     onClick={() => setMostrarModalEliminar(true)}
                     disabled={guardando}
@@ -3359,6 +3387,13 @@ export default function HomePage() {
             ) : (
               // MODO VISTA NORMAL
               <>
+                {/* Badge si es desde carrito */}
+                {esDesdeCarrito && (
+                  <div className="absolute top-20 right-7 bg-orange-500 text-white text-xs px-3 py-1 rounded-full font-semibold z-10">
+                    En carrito
+                  </div>
+                )}
+
                 {/* Imagen */}
                 <div className="flex justify-center mb-3 pt-20">
                   <div className="relative w-60 h-60">
@@ -3432,13 +3467,39 @@ export default function HomePage() {
                     </button>
                   </div>
 
-                  {/* Botón agregar */}
+                  {/* Botón principal */}
                   <button
-                    onClick={agregarAlCarrito}
+                    onClick={agregarOModificarCarrito}
                     className="w-full mt-5 bg-orange-500 text-white py-3 rounded-xl font-bold shadow hover:bg-orange-600 transition"
                   >
-                    Agregar al carrito
+                    {esDesdeCarrito
+                      ? "Modificar cantidad"
+                      : "Agregar al carrito"}
                   </button>
+
+                  {/* Botón eliminar del carrito */}
+                  {esDesdeCarrito && (
+                    <button
+                      onClick={eliminarDelCarrito}
+                      className="w-full mt-3 bg-red-500 text-white py-3 rounded-xl font-bold shadow hover:bg-red-600 transition flex items-center justify-center gap-2"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                        stroke="currentColor"
+                        className="w-5 h-5"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                        />
+                      </svg>
+                      Eliminar del carrito
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -3477,7 +3538,6 @@ export default function HomePage() {
                     serán eliminados permanentemente.
                   </p>
 
-                  {/* Información del producto */}
                   <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
                     <p className="text-xs text-zinc-500 mb-1">
                       Producto a eliminar:
@@ -3490,7 +3550,6 @@ export default function HomePage() {
                     </p>
                   </div>
 
-                  {/* Confirmación de número de cuenta */}
                   <div className="mb-4">
                     <label className="block text-sm font-semibold text-zinc-700 mb-2">
                       Confirma tu número de cuenta para continuar
@@ -3513,7 +3572,6 @@ export default function HomePage() {
                     )}
                   </div>
 
-                  {/* Botones */}
                   <div className="flex gap-3">
                     <button
                       onClick={() => {
@@ -4162,7 +4220,7 @@ export default function HomePage() {
                                 if ("vibrate" in navigator)
                                   navigator.vibrate(100);
 
-                                // 🔎 Buscar producto por código al escanear
+                                // Buscar producto por código al escanear
                                 const { data, error } = await supabase
                                   .from("productos")
                                   .select(
@@ -4899,84 +4957,108 @@ export default function HomePage() {
           </main>
 
           {/* Barra de navegación */}
-          <nav
-            className="
-          fixed bottom-0 left-0 z-50
+<nav
+  className="
+    fixed bottom-0 left-0 z-50
     flex w-full items-center justify-around
     border-t border-zinc-200 bg-white 
     p-3 pb-12 pt-5  
     text-zinc-700 shadow-md
-        "
-          >
-            <button
-              onClick={() => setActiveTab("categorias")}
-              className={`flex flex-col items-center text-xs ${
-                activeTab === "categorias"
-                  ? "text-orange-500"
-                  : "hover:text-orange-500"
-              }`}
-            >
-              <Hammer size={20} />
-              CATEGORÍAS
-            </button>
+  "
+>
+  <button
+    onClick={() => {
+      if (activeTab === "categorias") {
+        // Si ya estamos en categorías, regresar nivel por nivel
+        if (categoriaSeleccionada || marcaSeleccionada) {
+          setCategoriaSeleccionada(null);
+          setMarcaSeleccionada(null);
+        
+        } else {
+          // Ya estamos en el nivel principal, no hacer nada o scroll arriba
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }
+      } else {
+        // Si estamos en otra tab, cambiar a categorías
+        setActiveTab("categorias");
+      }
+    }}
+    className={`flex flex-col items-center text-xs ${
+      activeTab === "categorias"
+        ? "text-orange-500"
+        : "hover:text-orange-500"
+    }`}
+  >
+    <Hammer size={20} />
+    CATEGORÍAS
+  </button>
 
-            <button
-              onClick={() => {
-                window.scrollTo({ top: 0, behavior: "instant" });
-                setActiveTab("buscar");
-              }}
-              className={`flex flex-col items-center text-xs ${
-                activeTab === "buscar"
-                  ? "text-orange-500"
-                  : "hover:text-orange-500"
-              }`}
-            >
-              <Search size={20} />
-              BUSCAR
-            </button>
+  <button
+    onClick={() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      setActiveTab("buscar");
+    }}
+    className={`flex flex-col items-center text-xs ${
+      activeTab === "buscar"
+        ? "text-orange-500"
+        : "hover:text-orange-500"
+    }`}
+  >
+    <Search size={20} />
+    BUSCAR
+  </button>
 
-            <button
-              onClick={() => setActiveTab("carrito")}
-              className={`flex flex-col items-center text-xs ${
-                activeTab === "carrito"
-                  ? "text-orange-500"
-                  : "hover:text-orange-500"
-              }`}
-            >
-              <ShoppingCart size={20} />
-              CARRITO
-            </button>
+  <button
+    onClick={() => setActiveTab("carrito")}
+    className={`flex flex-col items-center text-xs ${
+      activeTab === "carrito"
+        ? "text-orange-500"
+        : "hover:text-orange-500"
+    }`}
+  >
+    <ShoppingCart size={20} />
+    CARRITO
+  </button>
 
-            <button
-              onClick={() => {
-                window.scrollTo({ top: 0, behavior: "instant" });
-                setActiveTab("perfil");
-              }}
-              className={`flex flex-col items-center text-xs ${
-                activeTab === "perfil"
-                  ? "text-orange-500"
-                  : "hover:text-orange-500"
-              }`}
-            >
-              <User size={20} />
-              PERFIL
-            </button>
+  <button
+    onClick={() => {
+      if (activeTab === "perfil") {
+        // Si ya estamos en perfil y hay una vista activa, regresar al menú
+        if (vistaPerfil !== "menu") {
+          setVistaPerfil("menu");
+        } else {
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }
+      } else {
+        window.scrollTo({ top: 0, behavior: "instant" });
+        setActiveTab("perfil");
+      }
+    }}
+    className={`flex flex-col items-center text-xs ${
+      activeTab === "perfil"
+        ? "text-orange-500"
+        : "hover:text-orange-500"
+    }`}
+  >
+    <User size={20} />
+    PERFIL
+  </button>
 
-            <button
-              onClick={() => {
-                window.scrollTo({ top: 0, behavior: "instant" }); // Resetea el scroll al inicio
-                setActiveTab("ubicacion");
-              }}
-              className={`flex flex-col items-center text-xs ${
-                activeTab === "ubicacion"
-                  ? "text-orange-500"
-                  : "hover:text-orange-500"
-              }`}
-            >
-              <MapPin size={20} />
-              UBICACIÓN
-            </button>
-          </nav>
+  <button
+    onClick={() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      setActiveTab("ubicacion");
+    }}
+    className={`flex flex-col items-center text-xs ${
+      activeTab === "ubicacion"
+        ? "text-orange-500"
+        : "hover:text-orange-500"
+    }`}
+  >
+    <MapPin size={20} />
+    UBICACIÓN
+  </button>
+</nav>
         </div>
       )}
     </>
