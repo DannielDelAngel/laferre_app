@@ -3477,7 +3477,7 @@ export default function HomePage() {
                       : "Agregar al carrito"}
                   </button>
 
-                  {/* Botón eliminar del carrito */}
+                  {/* Botón eliminar del carrito 
                   {esDesdeCarrito && (
                     <button
                       onClick={eliminarDelCarrito}
@@ -3500,6 +3500,7 @@ export default function HomePage() {
                       Eliminar del carrito
                     </button>
                   )}
+                  */}
                 </div>
               </>
             )}
@@ -5029,6 +5030,7 @@ export default function HomePage() {
         } else {
           window.scrollTo({ top: 0, behavior: "instant" });
         }
+        
       } else {
         window.scrollTo({ top: 0, behavior: "instant" });
         setActiveTab("perfil");
