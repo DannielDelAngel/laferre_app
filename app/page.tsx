@@ -6,7 +6,7 @@ import {
   Home,
   Search,
   ShoppingCart,
-  HelpCircle,
+  FileCog,
   MapPin,
   Hammer,
   X,
@@ -20,6 +20,8 @@ import {
   Eye,
   DatabaseBackup,
   PackagePlus,
+  Box,
+  Boxes,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
@@ -103,6 +105,13 @@ export default function HomePage() {
   const [subTab, setSubTab] = useState("categorias"); // categorias | marcas
   const [marcas, setMarcas] = useState<any[]>([]);
   const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
+
+  const [mostrarModalCategoria, setMostrarModalCategoria] = useState(false);
+  const [mostrarModalMarca, setMostrarModalMarca] = useState(false);
+  const [modoEdicionCatMarca, setModoEdicionCatMarca] = useState<
+    "agregar" | "eliminar"
+  >("agregar");
+  const [itemSeleccionado, setItemSeleccionado] = useState<any>(null);
 
   const BackBtn = ({ onBack }: any) => {
     if (typeof document === "undefined") return null;
@@ -325,6 +334,789 @@ export default function HomePage() {
 
   const [selectedApoyo, setSelectedApoyo] = useState<Apoyo | null>(null);
 
+  // Componente para gestionar marcas
+  const GestionarMarcasView = ({ setVistaPerfil }: any) => {
+    const [nombre, setNombre] = useState("");
+    const [imagenFile, setImagenFile] = useState<File | null>(null);
+    const [imagenPreview, setImagenPreview] = useState("");
+    const [guardando, setGuardando] = useState(false);
+    const [mensaje, setMensaje] = useState("");
+    const [modoEliminar, setModoEliminar] = useState(false);
+    const [marcaEliminar, setMarcaEliminar] = useState<any>(null);
+    const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
+    const [errorEliminar, setErrorEliminar] = useState("");
+
+    const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        if (!file.type.startsWith("image/")) {
+          setMensaje("Por favor selecciona un archivo de imagen válido");
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          setMensaje("La imagen no debe superar los 5MB");
+          return;
+        }
+        setImagenFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => setImagenPreview(reader.result as string);
+        reader.readAsDataURL(file);
+      }
+    };
+
+    const agregarMarca = async () => {
+      setGuardando(true);
+      setMensaje("");
+
+      if (!nombre) {
+        setMensaje("Por favor ingresa el nombre de la marca");
+        setGuardando(false);
+        return;
+      }
+
+      try {
+        let urlImagen = "";
+
+        if (imagenFile) {
+          const timestamp = Date.now();
+          const extension = imagenFile.name.split(".").pop();
+          const nombreArchivo = `marca_${timestamp}.${extension}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("imagenes_categorias")
+            .upload(nombreArchivo, imagenFile, {
+              cacheControl: "3600",
+              upsert: true,
+            });
+
+          if (uploadError) {
+            setMensaje("Error al subir la imagen");
+            setGuardando(false);
+            return;
+          }
+
+          const {
+            data: { publicUrl },
+          } = supabase.storage
+            .from("imagenes_categorias")
+            .getPublicUrl(nombreArchivo);
+          urlImagen = publicUrl;
+        }
+
+        const { error } = await supabase.from("marcas").insert([
+          {
+            nombre_marca: nombre,
+            img: urlImagen,
+          },
+        ]);
+
+        if (error) {
+          setMensaje(
+            error.code === "23505"
+              ? "Ya existe una marca con ese nombre"
+              : "Error al agregar marca"
+          );
+        } else {
+          setMensaje("Marca agregada correctamente");
+          // Recargar marcas
+          const { data } = await supabase
+            .from("marcas")
+            .select("id, nombre_marca, img")
+            .order("nombre_marca", { ascending: true });
+          setMarcas(data || []);
+
+          setTimeout(() => {
+            setNombre("");
+            setImagenFile(null);
+            setImagenPreview("");
+            setMensaje("");
+          }, 2000);
+        }
+      } catch (error) {
+        setMensaje("Ocurrió un error inesperado");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    const eliminarMarca = async () => {
+      if (!marcaEliminar) return;
+      setGuardando(true);
+      setErrorEliminar("");
+
+      if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
+        setErrorEliminar("Número de cuenta incorrecto");
+        setGuardando(false);
+        return;
+      }
+
+      try {
+        // Eliminar imagen si existe
+        if (
+          marcaEliminar.img &&
+          marcaEliminar.img.includes("imagenes_categorias")
+        ) {
+          const urlParts = marcaEliminar.img.split("/");
+          const nombreArchivo = urlParts[urlParts.length - 1];
+          await supabase.storage
+            .from("imagenes_categorias")
+            .remove([nombreArchivo]);
+        }
+
+        const { error } = await supabase
+          .from("marcas")
+          .delete()
+          .eq("id", marcaEliminar.id);
+
+        if (error) {
+          setErrorEliminar("Error al eliminar la marca");
+        } else {
+          setMensaje("Marca eliminada correctamente");
+          // Recargar marcas
+          const { data } = await supabase
+            .from("marcas")
+            .select("id, nombre_marca, img")
+            .order("nombre_marca", { ascending: true });
+          setMarcas(data || []);
+
+          setModoEliminar(false);
+          setMarcaEliminar(null);
+          setNumeroCuentaConfirm("");
+        }
+      } catch (error) {
+        setErrorEliminar("Ocurrió un error inesperado");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    return (
+      <motion.div
+        key="gestionar-marcas"
+        className="min-h-screen"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <div className="px-6 py-6">
+          <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-6">
+            Gestionar Marcas
+          </h2>
+
+          {/* Pestañas */}
+          <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
+            <button
+              onClick={() => setModoEliminar(false)}
+              className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                !modoEliminar
+                  ? "bg-orange-500 text-white"
+                  : "text-zinc-600 hover:bg-zinc-100"
+              }`}
+            >
+              Agregar
+            </button>
+            <button
+              onClick={() => setModoEliminar(true)}
+              className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                modoEliminar
+                  ? "bg-red-500 text-white"
+                  : "text-zinc-600 hover:bg-zinc-100"
+              }`}
+            >
+              Eliminar
+            </button>
+          </div>
+
+          {!modoEliminar ? (
+            /* MODO AGREGAR */
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Imagen
+                </label>
+                <div className="flex flex-col items-center gap-3">
+                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-dashed border-zinc-300 bg-zinc-50 flex items-center justify-center">
+                    {imagenPreview ? (
+                      <Image
+                        src={imagenPreview}
+                        alt="Preview"
+                        fill
+                        className="object-contain"
+                      />
+                    ) : (
+                      <div className="text-center text-zinc-400">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={1.5}
+                          stroke="currentColor"
+                          className="w-12 h-12 mx-auto mb-2"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+                          />
+                        </svg>
+                        <p className="text-sm">Sin imagen</p>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImagenChange}
+                    className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Nombre de la Marca <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  placeholder="Ej: TRUPER"
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {mensaje && (
+                <div
+                  className={`mb-4 p-3 rounded-lg text-sm ${
+                    mensaje.includes("Error") || mensaje.includes("ingresa")
+                      ? "bg-red-50 text-red-700 border border-red-200"
+                      : "bg-green-50 text-green-700 border border-green-200"
+                  }`}
+                >
+                  {mensaje}
+                </div>
+              )}
+
+              <button
+                onClick={agregarMarca}
+                disabled={guardando || !nombre}
+                className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {guardando ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                    Guardando...
+                  </span>
+                ) : (
+                  "Agregar Marca"
+                )}
+              </button>
+            </>
+          ) : (
+            /* MODO ELIMINAR */
+            <>
+              <p className="text-sm text-zinc-600 mb-4">
+                Selecciona una marca para eliminar:
+              </p>
+              <div className="space-y-2 mb-4">
+                {marcas.map((marca) => (
+                  <div
+                    key={marca.id}
+                    onClick={() => setMarcaEliminar(marca)}
+                    className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition ${
+                      marcaEliminar?.id === marca.id
+                        ? "border-red-500 bg-red-50"
+                        : "border-zinc-200 hover:border-red-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden">
+                        <Image
+                          src={marca.img || "/placeholder.jpg"}
+                          alt={marca.nombre_marca}
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                      <span className="font-semibold text-zinc-800">
+                        {marca.nombre_marca}
+                      </span>
+                    </div>
+                    {marcaEliminar?.id === marca.id && (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                        stroke="currentColor"
+                        className="w-6 h-6 text-red-500"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {marcaEliminar && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                      Confirma tu número de cuenta
+                    </label>
+                    <input
+                      type="text"
+                      value={numeroCuentaConfirm}
+                      onChange={(e) => {
+                        setNumeroCuentaConfirm(e.target.value);
+                        setErrorEliminar("");
+                      }}
+                      placeholder="Ingresa tu número de cuenta"
+                      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      disabled={guardando}
+                    />
+                    {errorEliminar && (
+                      <p className="text-red-500 text-sm mt-2">
+                        {errorEliminar}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={eliminarMarca}
+                    disabled={guardando || !numeroCuentaConfirm}
+                    className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {guardando ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                        Eliminando...
+                      </span>
+                    ) : (
+                      "Eliminar Marca"
+                    )}
+                  </button>
+                </>
+              )}
+
+              {mensaje && (
+                <div className="mt-4 p-3 rounded-lg text-sm bg-green-50 text-green-700 border border-green-200">
+                  {mensaje}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </motion.div>
+    );
+  };
+
+  // Componente para gestionar categorías
+  const GestionarCategoriasView = ({ setVistaPerfil }: any) => {
+    const [nombre, setNombre] = useState("");
+    const [orden, setOrden] = useState("");
+    const [imagenFile, setImagenFile] = useState<File | null>(null);
+    const [imagenPreview, setImagenPreview] = useState("");
+    const [guardando, setGuardando] = useState(false);
+    const [mensaje, setMensaje] = useState("");
+    const [modoEliminar, setModoEliminar] = useState(false);
+    const [categoriaEliminar, setCategoriaEliminar] = useState<any>(null);
+    const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
+    const [errorEliminar, setErrorEliminar] = useState("");
+
+    const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        if (!file.type.startsWith("image/")) {
+          setMensaje("Por favor selecciona un archivo de imagen válido");
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          setMensaje("La imagen no debe superar los 5MB");
+          return;
+        }
+        setImagenFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => setImagenPreview(reader.result as string);
+        reader.readAsDataURL(file);
+      }
+    };
+
+    const agregarCategoria = async () => {
+      setGuardando(true);
+      setMensaje("");
+
+      const nombreNormalizado = nombre.trim().toUpperCase();
+
+      if (!nombreNormalizado || !orden) {
+        setMensaje("Por favor completa todos los campos obligatorios");
+        setGuardando(false);
+        return;
+      }
+
+      try {
+        let urlImagen = "";
+
+        if (imagenFile) {
+          const timestamp = Date.now();
+          const extension = imagenFile.name.split(".").pop();
+          const nombreArchivo = `categoria_${timestamp}.${extension}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("imagenes_categorias")
+            .upload(nombreArchivo, imagenFile, {
+              cacheControl: "3600",
+              upsert: true,
+            });
+
+          if (uploadError) {
+            setMensaje("Error al subir la imagen");
+            setGuardando(false);
+            return;
+          }
+
+          const {
+            data: { publicUrl },
+          } = supabase.storage
+            .from("imagenes_categorias")
+            .getPublicUrl(nombreArchivo);
+          urlImagen = publicUrl;
+        }
+
+        const { error } = await supabase.from("categorias").insert([
+          {
+            nombre_categoria: nombreNormalizado,
+            orden: parseInt(orden),
+            img: urlImagen,
+          },
+        ]);
+
+        if (error) {
+          console.error(error);
+          setMensaje(error.message);
+        } else {
+          setMensaje("Categoría agregada correctamente");
+          // Recargar categorías
+          const { data } = await supabase
+            .from("categorias")
+            .select("id_categoria, nombre_categoria, img, orden")
+            .order("orden", { ascending: true });
+          setCategorias(data || []);
+
+          setTimeout(() => {
+            setNombre("");
+            setOrden("");
+            setImagenFile(null);
+            setImagenPreview("");
+            setMensaje("");
+          }, 2000);
+        }
+      } catch (error) {
+        setMensaje("Ocurrió un error inesperado");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    const eliminarCategoria = async () => {
+      if (!categoriaEliminar) return;
+      setGuardando(true);
+      setErrorEliminar("");
+
+      if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
+        setErrorEliminar("Número de cuenta incorrecto");
+        setGuardando(false);
+        return;
+      }
+
+      try {
+        // Eliminar imagen si existe
+        if (
+          categoriaEliminar.img &&
+          categoriaEliminar.img.includes("imagenes_categorias")
+        ) {
+          const urlParts = categoriaEliminar.img.split("/");
+          const nombreArchivo = urlParts[urlParts.length - 1];
+          await supabase.storage
+            .from("imagenes_categorias")
+            .remove([nombreArchivo]);
+        }
+
+        const { error } = await supabase
+          .from("categorias")
+          .delete()
+          .eq("id_categoria", categoriaEliminar.id_categoria);
+
+        if (error) {
+          setErrorEliminar("Error al eliminar la categoría");
+        } else {
+          setMensaje("Categoría eliminada correctamente");
+          // Recargar categorías
+          const { data } = await supabase
+            .from("categorias")
+            .select("id_categoria, nombre_categoria, img, orden")
+            .order("orden", { ascending: true });
+          setCategorias(data || []);
+
+          setModoEliminar(false);
+          setCategoriaEliminar(null);
+          setNumeroCuentaConfirm("");
+        }
+      } catch (error) {
+        setErrorEliminar("Ocurrió un error inesperado");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    return (
+      <motion.div
+        key="gestionar-categorias"
+        className="min-h-screen"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <div className="px-6 py-6">
+          <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-6">
+            Gestionar Categorías
+          </h2>
+
+          {/* Pestañas */}
+          <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
+            <button
+              onClick={() => setModoEliminar(false)}
+              className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                !modoEliminar
+                  ? "bg-orange-500 text-white"
+                  : "text-zinc-600 hover:bg-zinc-100"
+              }`}
+            >
+              Agregar
+            </button>
+            <button
+              onClick={() => setModoEliminar(true)}
+              className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                modoEliminar
+                  ? "bg-red-500 text-white"
+                  : "text-zinc-600 hover:bg-zinc-100"
+              }`}
+            >
+              Eliminar
+            </button>
+          </div>
+
+          {!modoEliminar ? (
+            /* MODO AGREGAR */
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Imagen
+                </label>
+                <div className="flex flex-col items-center gap-3">
+                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-dashed border-zinc-300 bg-zinc-50 flex items-center justify-center">
+                    {imagenPreview ? (
+                      <Image
+                        src={imagenPreview}
+                        alt="Preview"
+                        fill
+                        className="object-contain"
+                      />
+                    ) : (
+                      <div className="text-center text-zinc-400">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={1.5}
+                          stroke="currentColor"
+                          className="w-12 h-12 mx-auto mb-2"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+                          />
+                        </svg>
+                        <p className="text-sm">Sin imagen</p>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImagenChange}
+                    className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Nombre <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  placeholder="Ej: HERRAMIENTAS"
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Orden <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  value={orden}
+                  onChange={(e) => setOrden(e.target.value)}
+                  placeholder="1"
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {mensaje && (
+                <div
+                  className={`mb-4 p-3 rounded-lg text-sm ${
+                    mensaje.includes("Error") || mensaje.includes("completa")
+                      ? "bg-red-50 text-red-700 border border-red-200"
+                      : "bg-green-50 text-green-700 border border-green-200"
+                  }`}
+                >
+                  {mensaje}
+                </div>
+              )}
+
+              <button
+                onClick={agregarCategoria}
+                disabled={guardando || !nombre || !orden}
+                className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {guardando ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                    Guardando...
+                  </span>
+                ) : (
+                  "Agregar Categoría"
+                )}
+              </button>
+            </>
+          ) : (
+            /* MODO ELIMINAR */
+            <>
+              <p className="text-sm text-zinc-600 mb-4">
+                Selecciona una categoría para eliminar:
+              </p>
+              <div className="space-y-2 mb-4">
+                {categorias.map((cat) => (
+                  <div
+                    key={cat.id_categoria}
+                    onClick={() => setCategoriaEliminar(cat)}
+                    className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition ${
+                      categoriaEliminar?.id_categoria === cat.id_categoria
+                        ? "border-red-500 bg-red-50"
+                        : "border-zinc-200 hover:border-red-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden">
+                        <Image
+                          src={cat.img || "/placeholder.jpg"}
+                          alt={cat.nombre_categoria}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <span className="font-semibold text-zinc-800">
+                        {cat.nombre_categoria}
+                      </span>
+                    </div>
+                    {categoriaEliminar?.id_categoria === cat.id_categoria && (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                        stroke="currentColor"
+                        className="w-6 h-6 text-red-500"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {categoriaEliminar && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                      Confirma tu número de cuenta
+                    </label>
+                    <input
+                      type="text"
+                      value={numeroCuentaConfirm}
+                      onChange={(e) => {
+                        setNumeroCuentaConfirm(e.target.value);
+                        setErrorEliminar("");
+                      }}
+                      placeholder="Ingresa tu número de cuenta"
+                      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      disabled={guardando}
+                    />
+                    {errorEliminar && (
+                      <p className="text-red-500 text-sm mt-2">
+                        {errorEliminar}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={eliminarCategoria}
+                    disabled={guardando || !numeroCuentaConfirm}
+                    className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {guardando ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                        Eliminando...
+                      </span>
+                    ) : (
+                      "Eliminar Categoría"
+                    )}
+                  </button>
+                </>
+              )}
+
+              {mensaje && (
+                <div className="mt-4 p-3 rounded-lg text-sm bg-green-50 text-green-700 border border-green-200">
+                  {mensaje}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </motion.div>
+    );
+  };
+
   // Componente para actualizar la base de datos desde CSV
   const ActualizarBDView = ({ setVistaPerfil }: any) => {
     const [archivo, setArchivo] = useState<File | null>(null);
@@ -504,9 +1296,14 @@ export default function HomePage() {
               <li>
                 Ejemplo de formato:
                 <pre className="bg-white p-2 mt-1 rounded text-xs overflow-x-auto">
-                  CODIGO,P_MAYOREO
-                  <p> 49550T,150.50 </p>
-                  <p> 11520T,73.00 </p>
+                  <div className="relative w-full h-30 mb-2">
+                    <Image
+                      src="/ejemplof.png"
+                      alt="ejemplo formato CSV"
+                      fill
+                      className="object-contain object-left"
+                    />
+                  </div>
                 </pre>
               </li>
               <li>
@@ -626,321 +1423,335 @@ export default function HomePage() {
   };
 
   const AgregarProductoView = ({ setVistaPerfil }: any) => {
-  const [titulo, setTitulo] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [codigo, setCodigo] = useState("");
-  const [precio, setPrecio] = useState("");
-  const [categoriaId, setCategoriaId] = useState("");
-  const [marcaId, setMarcaId] = useState("");
-  const [imagenFile, setImagenFile] = useState<File | null>(null);
-  const [imagenPreview, setImagenPreview] = useState("");
-  const [guardando, setGuardando] = useState(false);
-  const [mensaje, setMensaje] = useState("");
+    const [titulo, setTitulo] = useState("");
+    const [descripcion, setDescripcion] = useState("");
+    const [codigo, setCodigo] = useState("");
+    const [precio, setPrecio] = useState("");
+    const [categoriaId, setCategoriaId] = useState("");
+    const [marcaId, setMarcaId] = useState("");
+    const [imagenFile, setImagenFile] = useState<File | null>(null);
+    const [imagenPreview, setImagenPreview] = useState("");
+    const [guardando, setGuardando] = useState(false);
+    const [mensaje, setMensaje] = useState("");
 
-  const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validar que sea imagen
-      if (!file.type.startsWith("image/")) {
-        setMensaje("Por favor selecciona un archivo de imagen válido");
-        return;
-      }
-
-      // Validar tamaño (máximo 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setMensaje("La imagen no debe superar los 5MB");
-        return;
-      }
-
-      setImagenFile(file);
-
-      // Crear preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagenPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const agregarProducto = async () => {
-    setGuardando(true);
-    setMensaje("");
-
-    // Validaciones
-    if (!titulo || !codigo || !precio || !categoriaId) {
-      setMensaje("Por favor completa todos los campos obligatorios");
-      setGuardando(false);
-      return;
-    }
-
-    try {
-      let urlImagen = "";
-
-      // Si hay imagen, subirla primero
-      if (imagenFile) {
-        const timestamp = Date.now();
-        const extension = imagenFile.name.split(".").pop();
-        const nombreArchivo = `producto_nuevo_${timestamp}.${extension}`;
-
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("imagenes_productos")
-          .upload(nombreArchivo, imagenFile, {
-            cacheControl: "3600",
-            upsert: true,
-          });
-
-        if (uploadError) {
-          console.error("Error subiendo imagen:", uploadError);
-          setMensaje("Error al subir la imagen");
-          setGuardando(false);
+    const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        // Validar que sea imagen
+        if (!file.type.startsWith("image/")) {
+          setMensaje("Por favor selecciona un archivo de imagen válido");
           return;
         }
 
-        // Obtener URL pública
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("imagenes_productos").getPublicUrl(nombreArchivo);
-
-        urlImagen = publicUrl;
-      }
-
-      // Insertar producto en la base de datos
-      const { error: insertError } = await supabase.from("productos").insert([
-        {
-          TITULO: titulo,
-          DESCRIPCION: descripcion,
-          CODIGO: codigo,
-          P_MAYOREO: parseFloat(precio),
-          CATEGORIA_ID: parseInt(categoriaId),
-          marca_id: marcaId ? parseInt(marcaId) : null,
-          IMAGEN: urlImagen,
-          visible: true,
-        },
-      ]);
-
-      if (insertError) {
-        console.error("Error agregando producto:", insertError);
-        
-        // Verificar si es error de código duplicado
-        if (insertError.code === "23505") {
-          setMensaje("Ya existe un producto con ese código");
-        } else {
-          setMensaje("Error al agregar el producto");
+        // Validar tamaño (máximo 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          setMensaje("La imagen no debe superar los 5MB");
+          return;
         }
-      } else {
-        setMensaje("Producto agregado correctamente");
 
-        // Limpiar formulario
-        setTimeout(() => {
-          setTitulo("");
-          setDescripcion("");
-          setCodigo("");
-          setPrecio("");
-          setCategoriaId("");
-          setMarcaId("");
-          setImagenFile(null);
-          setImagenPreview("");
-          setMensaje("");
-        }, 2000);
+        setImagenFile(file);
+
+        // Crear preview
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImagenPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
       }
-    } catch (error) {
-      console.error("Error:", error);
-      setMensaje("Ocurrió un error inesperado");
-    } finally {
-      setGuardando(false);
-    }
-  };
+    };
 
-  return (
-    <motion.div
-      key="agregar-producto"
-      className="min-h-screen"
-      initial={{ opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -40 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-    >
-      <div className="px-6 py-6">
-        <BackBtn onBack={() => setVistaPerfil("menu")} />
+    const agregarProducto = async () => {
+      setGuardando(true);
+      setMensaje("");
 
-        <h2 className="text-xl font-bold text-zinc-900 mb-6">Agregar Producto</h2>
+      // Validaciones
+      if (!titulo || !codigo || !precio || !categoriaId) {
+        setMensaje("Por favor completa todos los campos obligatorios");
+        setGuardando(false);
+        return;
+      }
 
-        {/* Imagen */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-zinc-700 mb-2">
-            Imagen del Producto
-          </label>
-          <div className="flex flex-col items-center gap-3">
-            <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-dashed border-zinc-300 bg-zinc-50 flex items-center justify-center">
-              {imagenPreview ? (
-                <Image src={imagenPreview} alt="Preview" fill className="object-contain" />
-              ) : (
-                <div className="text-center text-zinc-400">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={1.5}
-                    stroke="currentColor"
-                    className="w-12 h-12 mx-auto mb-2"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
-                    />
-                  </svg>
-                  <p className="text-sm">Sin imagen</p>
-                </div>
-              )}
+      try {
+        let urlImagen = "";
+
+        // Si hay imagen, subirla primero
+        if (imagenFile) {
+          const timestamp = Date.now();
+          const extension = imagenFile.name.split(".").pop();
+          const nombreArchivo = `producto_nuevo_${timestamp}.${extension}`;
+
+          const { data: uploadData, error: uploadError } =
+            await supabase.storage
+              .from("imagenes_productos")
+              .upload(nombreArchivo, imagenFile, {
+                cacheControl: "3600",
+                upsert: true,
+              });
+
+          if (uploadError) {
+            console.error("Error subiendo imagen:", uploadError);
+            setMensaje("Error al subir la imagen");
+            setGuardando(false);
+            return;
+          }
+
+          // Obtener URL pública
+          const {
+            data: { publicUrl },
+          } = supabase.storage
+            .from("imagenes_productos")
+            .getPublicUrl(nombreArchivo);
+
+          urlImagen = publicUrl;
+        }
+
+        // Insertar producto en la base de datos
+        const { error: insertError } = await supabase.from("productos").insert([
+          {
+            TITULO: titulo,
+            DESCRIPCION: descripcion,
+            CODIGO: codigo,
+            P_MAYOREO: parseFloat(precio),
+            CATEGORIA_ID: parseInt(categoriaId),
+            marca_id: marcaId ? parseInt(marcaId) : null,
+            IMAGEN: urlImagen,
+            visible: true,
+          },
+        ]);
+
+        if (insertError) {
+          console.error("Error agregando producto:", insertError);
+
+          // Verificar si es error de código duplicado
+          if (insertError.code === "23505") {
+            setMensaje("Ya existe un producto con ese código");
+          } else {
+            setMensaje("Error al agregar el producto");
+          }
+        } else {
+          setMensaje("Producto agregado correctamente");
+
+          // Limpiar formulario
+          setTimeout(() => {
+            setTitulo("");
+            setDescripcion("");
+            setCodigo("");
+            setPrecio("");
+            setCategoriaId("");
+            setMarcaId("");
+            setImagenFile(null);
+            setImagenPreview("");
+            setMensaje("");
+          }, 2000);
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        setMensaje("Ocurrió un error inesperado");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    return (
+      <motion.div
+        key="agregar-producto"
+        className="min-h-screen"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <div className="px-6 py-6">
+          <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-6">
+            Agregar Producto
+          </h2>
+
+          {/* Imagen */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Imagen del Producto
+            </label>
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-dashed border-zinc-300 bg-zinc-50 flex items-center justify-center">
+                {imagenPreview ? (
+                  <Image
+                    src={imagenPreview}
+                    alt="Preview"
+                    fill
+                    className="object-contain"
+                  />
+                ) : (
+                  <div className="text-center text-zinc-400">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="w-12 h-12 mx-auto mb-2"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+                      />
+                    </svg>
+                    <p className="text-sm">Sin imagen</p>
+                  </div>
+                )}
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImagenChange}
+                className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+              />
             </div>
+          </div>
+
+          {/* Título */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Título <span className="text-red-500">*</span>
+            </label>
             <input
-              type="file"
-              accept="image/*"
-              onChange={handleImagenChange}
-              className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+              type="text"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              placeholder="Ej: Martillo de Goma 16oz"
+              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
-        </div>
 
-        {/* Título */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-zinc-700 mb-2">
-            Título <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={titulo}
-            onChange={(e) => setTitulo(e.target.value)}
-            placeholder="Ej: Martillo de Goma 16oz"
-            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-          />
-        </div>
-
-        {/* Descripción */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-zinc-700 mb-2">
-            Descripción
-          </label>
-          <textarea
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            rows={3}
-            placeholder="Descripción detallada del producto (opcional)"
-            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-          />
-        </div>
-
-        {/* Código */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-zinc-700 mb-2">
-            Código <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={codigo}
-            onChange={(e) => setCodigo(e.target.value.toUpperCase())}
-            placeholder="Ej: 19129T"
-            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-          />
-        </div>
-
-        {/* Precio */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-zinc-700 mb-2">
-            Precio de Mayoreo <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 top-2.5 text-zinc-500">$</span>
-            <input
-              type="number"
-              step="0.01"
-              value={precio}
-              onChange={(e) => setPrecio(e.target.value)}
-              placeholder="0.00"
-              className="w-full border border-zinc-300 rounded-lg pl-8 pr-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          {/* Descripción */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Descripción
+            </label>
+            <textarea
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              rows={3}
+              placeholder="Descripción detallada del producto (opcional)"
+              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
-        </div>
 
-        {/* Categoría */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-zinc-700 mb-2">
-            Categoría <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={categoriaId}
-            onChange={(e) => setCategoriaId(e.target.value)}
-            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="">Seleccionar categoría</option>
-            {categorias.map((cat) => (
-              <option key={cat.id_categoria} value={cat.id_categoria}>
-                {cat.nombre_categoria}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Marca */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-zinc-700 mb-2">Marca</label>
-          <select
-            value={marcaId}
-            onChange={(e) => setMarcaId(e.target.value)}
-            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="">Sin marca</option>
-            {marcas.map((marca) => (
-              <option key={marca.id} value={marca.id}>
-                {marca.nombre_marca}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Mensaje */}
-        {mensaje && (
-          <div
-            className={`mb-4 p-3 rounded-lg text-sm ${
-              mensaje.includes("Error") || mensaje.includes("completa")
-                ? "bg-red-50 text-red-700 border border-red-200"
-                : "bg-green-50 text-green-700 border border-green-200"
-            }`}
-          >
-            {mensaje}
+          {/* Código */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Código <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+              placeholder="Ej: 19129T"
+              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
           </div>
-        )}
 
-        {/* Botones */}
-        <div className="flex gap-3">
-          <button
-            onClick={() => setVistaPerfil("menu")}
-            disabled={guardando}
-            className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={agregarProducto}
-            disabled={guardando || !titulo || !codigo || !precio || !categoriaId}
-            className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {guardando ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                Guardando...
-              </span>
-            ) : (
-              "Agregar Producto"
-            )}
-          </button>
+          {/* Precio */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Precio de Mayoreo <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-2.5 text-zinc-500">$</span>
+              <input
+                type="number"
+                step="0.01"
+                value={precio}
+                onChange={(e) => setPrecio(e.target.value)}
+                placeholder="0.00"
+                className="w-full border border-zinc-300 rounded-lg pl-8 pr-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+          </div>
+
+          {/* Categoría */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Categoría <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={categoriaId}
+              onChange={(e) => setCategoriaId(e.target.value)}
+              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">Seleccionar categoría</option>
+              {categorias.map((cat) => (
+                <option key={cat.id_categoria} value={cat.id_categoria}>
+                  {cat.nombre_categoria}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Marca */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Marca
+            </label>
+            <select
+              value={marcaId}
+              onChange={(e) => setMarcaId(e.target.value)}
+              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">Sin marca</option>
+              {marcas.map((marca) => (
+                <option key={marca.id} value={marca.id}>
+                  {marca.nombre_marca}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Mensaje */}
+          {mensaje && (
+            <div
+              className={`mb-4 p-3 rounded-lg text-sm ${
+                mensaje.includes("Error") || mensaje.includes("completa")
+                  ? "bg-red-50 text-red-700 border border-red-200"
+                  : "bg-green-50 text-green-700 border border-green-200"
+              }`}
+            >
+              {mensaje}
+            </div>
+          )}
+
+          {/* Botones */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => setVistaPerfil("menu")}
+              disabled={guardando}
+              className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={agregarProducto}
+              disabled={
+                guardando || !titulo || !codigo || !precio || !categoriaId
+              }
+              className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {guardando ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                  Guardando...
+                </span>
+              ) : (
+                "Agregar Producto"
+              )}
+            </button>
+          </div>
         </div>
-      </div>
-    </motion.div>
-  );
-};
+      </motion.div>
+    );
+  };
   // Función para enviar el pedido
 
   const enviarPedido = async () => {
@@ -2070,7 +2881,7 @@ export default function HomePage() {
     );
   };
 
-  // Vista de detalle de producto 
+  // Vista de detalle de producto
 
   const VistaProducto = ({ producto, onBack }: any) => {
     const [cantidad, setCantidad] = useState("1");
@@ -2248,58 +3059,57 @@ export default function HomePage() {
 
     // eliminar producto
     const eliminarProducto = async () => {
-  if (!esAdmin) return;
+      if (!esAdmin) return;
 
-  setEliminando(true);
-  setErrorEliminar("");
+      setEliminando(true);
+      setErrorEliminar("");
 
-  // Validar número de cuenta
-  if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
-    setErrorEliminar("Número de cuenta incorrecto");
-    setEliminando(false);
-    return;
-  }
-
-  try {
-    if (producto.IMAGEN && producto.IMAGEN.includes("imagenes_productos")) {
-      const urlParts = producto.IMAGEN.split("/");
-      const nombreArchivo = urlParts[urlParts.length - 1];
-
-      const { error: deleteImageError } = await supabase.storage
-        .from("imagenes_productos")
-        .remove([nombreArchivo]);
-
-      if (deleteImageError) {
-        console.error("Error eliminando imagen:", deleteImageError);
+      // Validar número de cuenta
+      if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
+        setErrorEliminar("Número de cuenta incorrecto");
+        setEliminando(false);
+        return;
       }
-    }
-    const { error: deleteError } = await supabase
-      .from("productos")
-      .delete()
-      .eq("id", producto.id);
 
-    if (deleteError) {
-      console.error("Error eliminando producto:", deleteError);
-      setErrorEliminar("Error al eliminar el producto");
-      setEliminando(false);
-      return;
-    }
+      try {
+        if (producto.IMAGEN && producto.IMAGEN.includes("imagenes_productos")) {
+          const urlParts = producto.IMAGEN.split("/");
+          const nombreArchivo = urlParts[urlParts.length - 1];
 
-    // cerra modal y mostrar mensaje
-    setMostrarModalEliminar(false);
-    setMensaje("Producto eliminado correctamente");
-  
-    setTimeout(() => {
-      onBack();
-    }, 1000);
+          const { error: deleteImageError } = await supabase.storage
+            .from("imagenes_productos")
+            .remove([nombreArchivo]);
 
-  } catch (error) {
-    console.error("Error:", error);
-    setErrorEliminar("Ocurrió un error inesperado");
-  } finally {
-    setEliminando(false);
-  }
-};
+          if (deleteImageError) {
+            console.error("Error eliminando imagen:", deleteImageError);
+          }
+        }
+        const { error: deleteError } = await supabase
+          .from("productos")
+          .delete()
+          .eq("id", producto.id);
+
+        if (deleteError) {
+          console.error("Error eliminando producto:", deleteError);
+          setErrorEliminar("Error al eliminar el producto");
+          setEliminando(false);
+          return;
+        }
+
+        // cerra modal y mostrar mensaje
+        setMostrarModalEliminar(false);
+        setMensaje("Producto eliminado correctamente");
+
+        setTimeout(() => {
+          onBack();
+        }, 1000);
+      } catch (error) {
+        console.error("Error:", error);
+        setErrorEliminar("Ocurrió un error inesperado");
+      } finally {
+        setEliminando(false);
+      }
+    };
 
     const cantidadNum = parseInt(cantidad) || 1;
 
@@ -2488,64 +3298,63 @@ export default function HomePage() {
                 )}
 
                 {/* Botones */}
-<div className="space-y-3">
-  <div className="flex gap-3">
-    <button
-      onClick={() => {
-        setModoEdicion(false);
-        setTitulo(producto.TITULO || "");
-        setDescripcion(producto.DESCRIPCION || "");
-        setCategoriaId(producto.CATEGORIA_ID || "");
-        setMarcaId(producto.marca_id || "");
-        setImagenFile(null);
-        setImagenPreview(producto.IMAGEN || "");
-        setMensaje("");
-      }}
-      disabled={guardando}
-      className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
-    >
-      Cancelar
-    </button>
-    <button
-      onClick={guardarCambios}
-      disabled={guardando || !titulo}
-      className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      {guardando ? (
-        <span className="flex items-center justify-center gap-2">
-          <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-          Guardando...
-        </span>
-      ) : (
-        "Guardar Cambios"
-      )}
-    </button>
-  </div>
+                <div className="space-y-3">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setModoEdicion(false);
+                        setTitulo(producto.TITULO || "");
+                        setDescripcion(producto.DESCRIPCION || "");
+                        setCategoriaId(producto.CATEGORIA_ID || "");
+                        setMarcaId(producto.marca_id || "");
+                        setImagenFile(null);
+                        setImagenPreview(producto.IMAGEN || "");
+                        setMensaje("");
+                      }}
+                      disabled={guardando}
+                      className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={guardarCambios}
+                      disabled={guardando || !titulo}
+                      className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {guardando ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                          Guardando...
+                        </span>
+                      ) : (
+                        "Guardar Cambios"
+                      )}
+                    </button>
+                  </div>
 
-  {/* Botón Eliminar Producto */}
-  <button
-    onClick={() => setMostrarModalEliminar(true)}
-    disabled={guardando}
-    className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
-  >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      className="w-5 h-5"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-      />
-    </svg>
-    Eliminar Producto
-  </button>
-</div>
-
+                  {/* Botón Eliminar Producto */}
+                  <button
+                    onClick={() => setMostrarModalEliminar(true)}
+                    disabled={guardando}
+                    className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-5 h-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                      />
+                    </svg>
+                    Eliminar Producto
+                  </button>
+                </div>
               </div>
             ) : (
               // MODO VISTA NORMAL
@@ -2635,97 +3444,106 @@ export default function HomePage() {
             )}
 
             {/* Modal de Confirmación para Eliminar */}
-{mostrarModalEliminar && (
-  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="bg-white rounded-2xl w-[90%] max-w-md p-6 shadow-2xl"
-    >
-      <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={2}
-          stroke="currentColor"
-          className="w-8 h-8 text-red-600"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-          />
-        </svg>
-      </div>
+            {mostrarModalEliminar && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-white rounded-2xl w-[90%] max-w-md p-6 shadow-2xl"
+                >
+                  <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-8 h-8 text-red-600"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                      />
+                    </svg>
+                  </div>
 
-      <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
-        ¿Eliminar Producto?
-      </h3>
-      
-      <p className="text-sm text-zinc-600 text-center mb-6">
-        Esta acción no se puede deshacer. El producto y su imagen serán eliminados permanentemente.
-      </p>
+                  <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
+                    ¿Eliminar Producto?
+                  </h3>
 
-      {/* Información del producto */}
-      <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
-        <p className="text-xs text-zinc-500 mb-1">Producto a eliminar:</p>
-        <p className="text-sm font-semibold text-zinc-900">{producto.TITULO}</p>
-        <p className="text-xs text-zinc-500 mt-1">Código: {producto.CODIGO}</p>
-      </div>
+                  <p className="text-sm text-zinc-600 text-center mb-6">
+                    Esta acción no se puede deshacer. El producto y su imagen
+                    serán eliminados permanentemente.
+                  </p>
 
-      {/* Confirmación de número de cuenta */}
-      <div className="mb-4">
-        <label className="block text-sm font-semibold text-zinc-700 mb-2">
-          Confirma tu número de cuenta para continuar
-        </label>
-        <input
-          type="text"
-          value={numeroCuentaConfirm}
-          onChange={(e) => {
-            setNumeroCuentaConfirm(e.target.value);
-            setErrorEliminar("");
-          }}
-          placeholder="Ingresa tu número de cuenta"
-          className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-          disabled={eliminando}
-        />
-        {errorEliminar && (
-          <p className="text-red-500 text-sm mt-2">{errorEliminar}</p>
-        )}
-      </div>
+                  {/* Información del producto */}
+                  <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
+                    <p className="text-xs text-zinc-500 mb-1">
+                      Producto a eliminar:
+                    </p>
+                    <p className="text-sm font-semibold text-zinc-900">
+                      {producto.TITULO}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-1">
+                      Código: {producto.CODIGO}
+                    </p>
+                  </div>
 
-      {/* Botones */}
-      <div className="flex gap-3">
-        <button
-          onClick={() => {
-            setMostrarModalEliminar(false);
-            setNumeroCuentaConfirm("");
-            setErrorEliminar("");
-          }}
-          disabled={eliminando}
-          className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
-        >
-          Cancelar
-        </button>
-        <button
-          onClick={eliminarProducto}
-          disabled={eliminando || !numeroCuentaConfirm}
-          className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {eliminando ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-              Eliminando...
-            </span>
-          ) : (
-            "Eliminar"
-          )}
-        </button>
-      </div>
-    </motion.div>
-  </div>
-)}
+                  {/* Confirmación de número de cuenta */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                      Confirma tu número de cuenta para continuar
+                    </label>
+                    <input
+                      type="text"
+                      value={numeroCuentaConfirm}
+                      onChange={(e) => {
+                        setNumeroCuentaConfirm(e.target.value);
+                        setErrorEliminar("");
+                      }}
+                      placeholder="Ingresa tu número de cuenta"
+                      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      disabled={eliminando}
+                    />
+                    {errorEliminar && (
+                      <p className="text-red-500 text-sm mt-2">
+                        {errorEliminar}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Botones */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setMostrarModalEliminar(false);
+                        setNumeroCuentaConfirm("");
+                        setErrorEliminar("");
+                      }}
+                      disabled={eliminando}
+                      className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={eliminarProducto}
+                      disabled={eliminando || !numeroCuentaConfirm}
+                      className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {eliminando ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                          Eliminando...
+                        </span>
+                      ) : (
+                        "Eliminar"
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
           </motion.div>
         </motion.div>
       </AnimatePresence>
@@ -3662,6 +4480,23 @@ export default function HomePage() {
                           />
                         )}
 
+                        {esAdmin && (
+                          <>
+                            <MenuItem
+                              label="Gestionar Categorías"
+                              icon={<Boxes size={20} />}
+                              onClick={() =>
+                                setVistaPerfil("gestionar-categorias")
+                              }
+                            />
+                            <MenuItem
+                              label="Gestionar Marcas"
+                              icon={<Box size={20} />}
+                              onClick={() => setVistaPerfil("gestionar-marcas")}
+                            />
+                          </>
+                        )}
+
                         {!esAdmin && (
                           <MenuItem
                             label="Apoyo"
@@ -3763,6 +4598,14 @@ export default function HomePage() {
 
                   {vistaPerfil === "agregar-producto" && (
                     <AgregarProductoView setVistaPerfil={setVistaPerfil} />
+                  )}
+
+                  {vistaPerfil === "gestionar-categorias" && (
+                    <GestionarCategoriasView setVistaPerfil={setVistaPerfil} />
+                  )}
+
+                  {vistaPerfil === "gestionar-marcas" && (
+                    <GestionarMarcasView setVistaPerfil={setVistaPerfil} />
                   )}
 
                   {/* CONFIGURACIÓN */}
