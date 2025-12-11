@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import {
-  Home,
+  SquareStack,
   Search,
   ShoppingCart,
-  FileCog,
+  Codesandbox,
   MapPin,
   Hammer,
   X,
@@ -113,6 +113,10 @@ export default function HomePage() {
   >("agregar");
   const [itemSeleccionado, setItemSeleccionado] = useState<any>(null);
 
+  const [macroCategorias, setMacroCategorias] = useState<any[]>([]);
+  const [macroCategoriaSeleccionada, setMacroCategoriaSeleccionada] = useState<
+    any | null
+  >(null);
   const [origenProducto, setOrigenProducto] = useState<"catalogo" | "carrito">(
     "catalogo"
   );
@@ -272,18 +276,38 @@ export default function HomePage() {
     const fetchCategorias = async () => {
       const { data, error } = await supabase
         .from("categorias")
-        .select("id_categoria, nombre_categoria, img, orden")
+        .select(
+          "id_categoria, nombre_categoria, img, orden, macro_categoria_id"
+        )
         .order("orden", { ascending: true });
 
       if (error) {
         console.error("Error cargando categorías:", error.message);
       } else {
-        console.log("Categorías ordenadas:", data);
         setCategorias(data || []);
       }
     };
 
     fetchCategorias();
+  }, []);
+
+  // macro-categorias extracion
+  useEffect(() => {
+    const fetchMacroCategorias = async () => {
+      const { data, error } = await supabase
+        .from("macro_categorias")
+        .select("id, nombre, img, orden")
+        .order("orden", { ascending: true });
+
+      if (error) {
+        console.error("Error cargando macro-categorías:", error.message);
+      } else {
+        console.log("Macro-categorías cargadas:", data);
+        setMacroCategorias(data || []);
+      }
+    };
+
+    fetchMacroCategorias();
   }, []);
 
   // marcas extracion
@@ -310,7 +334,8 @@ export default function HomePage() {
     const fetchProductos = async () => {
       const { data, error } = await supabase
         .from("productos")
-        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id");
+        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID")
+
 
       // Normalizar visible
       const productosNormalizados = (data || []).map((producto) => ({
@@ -715,6 +740,578 @@ export default function HomePage() {
                   {mensaje}
                 </div>
               )}
+            </>
+          )}
+        </div>
+      </motion.div>
+    );
+  };
+
+  const GestionarMacroCategoriasView = ({ setVistaPerfil }: any) => {
+    const [nombre, setNombre] = useState("");
+    const [orden, setOrden] = useState("");
+    const [imagenFile, setImagenFile] = useState<File | null>(null);
+    const [imagenPreview, setImagenPreview] = useState("");
+    const [guardando, setGuardando] = useState(false);
+    const [mensaje, setMensaje] = useState("");
+    const [modoEliminar, setModoEliminar] = useState(false);
+    const [macroEliminar, setMacroEliminar] = useState<any>(null);
+    const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
+    const [errorEliminar, setErrorEliminar] = useState("");
+
+    const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        if (!file.type.startsWith("image/")) {
+          setMensaje("Por favor selecciona un archivo de imagen válido");
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          setMensaje("La imagen no debe superar los 5MB");
+          return;
+        }
+        setImagenFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => setImagenPreview(reader.result as string);
+        reader.readAsDataURL(file);
+      }
+    };
+
+    const agregarMacroCategoria = async () => {
+      setGuardando(true);
+      setMensaje("");
+
+      const nombreNormalizado = nombre.trim().toUpperCase();
+
+      if (!nombreNormalizado || !orden) {
+        setMensaje("Por favor completa todos los campos obligatorios");
+        setGuardando(false);
+        return;
+      }
+
+      try {
+        let urlImagen = "";
+
+        if (imagenFile) {
+          const timestamp = Date.now();
+          const extension = imagenFile.name.split(".").pop();
+          const nombreArchivo = `macro_categoria_${timestamp}.${extension}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("imagenes_categorias")
+            .upload(nombreArchivo, imagenFile, {
+              cacheControl: "3600",
+              upsert: true,
+            });
+
+          if (uploadError) {
+            setMensaje("Error al subir la imagen");
+            setGuardando(false);
+            return;
+          }
+
+          const {
+            data: { publicUrl },
+          } = supabase.storage
+            .from("imagenes_categorias")
+            .getPublicUrl(nombreArchivo);
+          urlImagen = publicUrl;
+        }
+
+        const { error } = await supabase.from("macro_categorias").insert([
+          {
+            nombre: nombreNormalizado,
+            orden: parseInt(orden),
+            img: urlImagen,
+          },
+        ]);
+
+        if (error) {
+          console.error(error);
+          setMensaje(
+            error.code === "23505"
+              ? "Ya existe una macro-categoría con ese nombre"
+              : "Error al agregar"
+          );
+        } else {
+          setMensaje("Macro-categoría agregada correctamente");
+
+          // Recargar macro-categorías
+          const { data } = await supabase
+            .from("macro_categorias")
+            .select("id, nombre, img, orden")
+            .order("orden", { ascending: true });
+          setMacroCategorias(data || []);
+
+          setTimeout(() => {
+            setNombre("");
+            setOrden("");
+            setImagenFile(null);
+            setImagenPreview("");
+            setMensaje("");
+          }, 2000);
+        }
+      } catch (error) {
+        setMensaje("Ocurrió un error inesperado");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    const eliminarMacroCategoria = async () => {
+      if (!macroEliminar) return;
+      setGuardando(true);
+      setErrorEliminar("");
+
+      if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
+        setErrorEliminar("Número de cuenta incorrecto");
+        setGuardando(false);
+        return;
+      }
+
+      try {
+        // Eliminar imagen si existe
+        if (
+          macroEliminar.img &&
+          macroEliminar.img.includes("imagenes_categorias")
+        ) {
+          const urlParts = macroEliminar.img.split("/");
+          const nombreArchivo = urlParts[urlParts.length - 1];
+          await supabase.storage
+            .from("imagenes_categorias")
+            .remove([nombreArchivo]);
+        }
+
+        const { error } = await supabase
+          .from("macro_categorias")
+          .delete()
+          .eq("id", macroEliminar.id);
+
+        if (error) {
+          setErrorEliminar("Error al eliminar la macro-categoría");
+        } else {
+          setMensaje("Macro-categoría eliminada correctamente");
+
+          // Recargar macro-categorías
+          const { data } = await supabase
+            .from("macro_categorias")
+            .select("id, nombre, img, orden")
+            .order("orden", { ascending: true });
+          setMacroCategorias(data || []);
+
+          setModoEliminar(false);
+          setMacroEliminar(null);
+          setNumeroCuentaConfirm("");
+        }
+      } catch (error) {
+        setErrorEliminar("Ocurrió un error inesperado");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    return (
+      <motion.div
+        key="gestionar-macro-categorias"
+        className="min-h-screen"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <div className="px-6 py-6">
+          <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-6">
+            Gestionar Macro-Categorías
+          </h2>
+
+          {/* Pestañas */}
+          <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
+            <button
+              onClick={() => setModoEliminar(false)}
+              className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                !modoEliminar
+                  ? "bg-orange-500 text-white"
+                  : "text-zinc-600 hover:bg-zinc-100"
+              }`}
+            >
+              Agregar
+            </button>
+            <button
+              onClick={() => setModoEliminar(true)}
+              className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                modoEliminar
+                  ? "bg-red-500 text-white"
+                  : "text-zinc-600 hover:bg-zinc-100"
+              }`}
+            >
+              Eliminar
+            </button>
+          </div>
+
+          {!modoEliminar ? (
+            /* MODO AGREGAR */
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Imagen
+                </label>
+                <div className="flex flex-col items-center gap-3">
+                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-dashed border-zinc-300 bg-zinc-50 flex items-center justify-center">
+                    {imagenPreview ? (
+                      <Image
+                        src={imagenPreview}
+                        alt="Preview"
+                        fill
+                        className="object-contain"
+                      />
+                    ) : (
+                      <div className="text-center text-zinc-400">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={1.5}
+                          stroke="currentColor"
+                          className="w-12 h-12 mx-auto mb-2"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+                          />
+                        </svg>
+                        <p className="text-sm">Sin imagen</p>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImagenChange}
+                    className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Nombre <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  placeholder="Ej: HERRAMIENTAS ELÉCTRICAS"
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Orden <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  value={orden}
+                  onChange={(e) => setOrden(e.target.value)}
+                  placeholder="1"
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {mensaje && (
+                <div
+                  className={`mb-4 p-3 rounded-lg text-sm ${
+                    mensaje.includes("Error") || mensaje.includes("completa")
+                      ? "bg-red-50 text-red-700 border border-red-200"
+                      : "bg-green-50 text-green-700 border border-green-200"
+                  }`}
+                >
+                  {mensaje}
+                </div>
+              )}
+
+              <button
+                onClick={agregarMacroCategoria}
+                disabled={guardando || !nombre || !orden}
+                className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {guardando ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                    Guardando...
+                  </span>
+                ) : (
+                  "Agregar Macro-Categoría"
+                )}
+              </button>
+            </>
+          ) : (
+            /* MODO ELIMINAR */
+            <>
+              <p className="text-sm text-zinc-600 mb-4">
+                Selecciona una macro-categoría para eliminar:
+              </p>
+              <div className="space-y-2 mb-4">
+                {macroCategorias.map((macro) => (
+                  <div
+                    key={macro.id}
+                    onClick={() => setMacroEliminar(macro)}
+                    className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition ${
+                      macroEliminar?.id === macro.id
+                        ? "border-red-500 bg-red-50"
+                        : "border-zinc-200 hover:border-red-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden">
+                        <Image
+                          src={macro.img || "/placeholder.jpg"}
+                          alt={macro.nombre}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <span className="font-semibold text-zinc-800">
+                        {macro.nombre}
+                      </span>
+                    </div>
+                    {macroEliminar?.id === macro.id && (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                        stroke="currentColor"
+                        className="w-6 h-6 text-red-500"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {macroEliminar && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                      Confirma tu número de cuenta
+                    </label>
+                    <input
+                      type="text"
+                      value={numeroCuentaConfirm}
+                      onChange={(e) => {
+                        setNumeroCuentaConfirm(e.target.value);
+                        setErrorEliminar("");
+                      }}
+                      placeholder="Ingresa tu número de cuenta"
+                      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      disabled={guardando}
+                    />
+                    {errorEliminar && (
+                      <p className="text-red-500 text-sm mt-2">
+                        {errorEliminar}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={eliminarMacroCategoria}
+                    disabled={guardando || !numeroCuentaConfirm}
+                    className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {guardando ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                        Eliminando...
+                      </span>
+                    ) : (
+                      "Eliminar Macro-Categoría"
+                    )}
+                  </button>
+                </>
+              )}
+
+              {mensaje && (
+                <div className="mt-4 p-3 rounded-lg text-sm bg-green-50 text-green-700 border border-green-200">
+                  {mensaje}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </motion.div>
+    );
+  };
+
+  const AsignarCategoriasView = ({ setVistaPerfil }: any) => {
+    const [categoriaSeleccionada, setCategoriaSeleccionada] =
+      useState<any>(null);
+    const [macroSeleccionada, setMacroSeleccionada] = useState("");
+    const [guardando, setGuardando] = useState(false);
+    const [mensaje, setMensaje] = useState("");
+
+    const asignarMacro = async () => {
+      if (!categoriaSeleccionada || !macroSeleccionada) return;
+
+      setGuardando(true);
+      setMensaje("");
+
+      try {
+        const { error } = await supabase
+          .from("categorias")
+          .update({ macro_categoria_id: parseInt(macroSeleccionada) })
+          .eq("id_categoria", categoriaSeleccionada.id_categoria);
+
+        if (error) {
+          setMensaje("Error al asignar categoría");
+        } else {
+          setMensaje("Asignación exitosa");
+
+          // Recargar categorías
+          const { data } = await supabase
+            .from("categorias")
+            .select(
+              "id_categoria, nombre_categoria, img, orden, macro_categoria_id"
+            )
+            .order("orden", { ascending: true });
+          setCategorias(data || []);
+
+          setTimeout(() => {
+            setCategoriaSeleccionada(null);
+            setMacroSeleccionada("");
+            setMensaje("");
+          }, 2000);
+        }
+      } catch (error) {
+        setMensaje("Ocurrió un error inesperado");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    return (
+      <motion.div
+        key="asignar-categorias"
+        className="min-h-screen"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <div className="px-6 py-6">
+          <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-6">
+            Asignar Categorías
+          </h2>
+
+          <p className="text-sm text-zinc-600 mb-4">
+            Selecciona una Subcategoría para asignarle una Categoría:
+          </p>
+
+          <div className="space-y-2 mb-4">
+            {categorias.map((cat) => (
+              <div
+                key={cat.id_categoria}
+                onClick={() => setCategoriaSeleccionada(cat)}
+                className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition ${
+                  categoriaSeleccionada?.id_categoria === cat.id_categoria
+                    ? "border-orange-500 bg-orange-50"
+                    : "border-zinc-200 hover:border-orange-300"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="relative w-12 h-12 rounded-lg overflow-hidden">
+                    <Image
+                      src={cat.img || "/placeholder.jpg"}
+                      alt={cat.nombre_categoria}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-zinc-800 block">
+                      {cat.nombre_categoria}
+                    </span>
+                    {cat.macro_categoria_id && (
+                      <span className="text-xs text-zinc-500">Ya asignada</span>
+                    )}
+                  </div>
+                </div>
+                {categoriaSeleccionada?.id_categoria === cat.id_categoria && (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="w-6 h-6 text-orange-500"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {categoriaSeleccionada && (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                  Selecciona la Categoría
+                </label>
+                <select
+                  value={macroSeleccionada}
+                  onChange={(e) => setMacroSeleccionada(e.target.value)}
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">Seleccionar...</option>
+                  {macroCategorias.map((macro) => (
+                    <option key={macro.id} value={macro.id}>
+                      {macro.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {mensaje && (
+                <div
+                  className={`mb-4 p-3 rounded-lg text-sm ${
+                    mensaje.includes("Error")
+                      ? "bg-red-50 text-red-700 border border-red-200"
+                      : "bg-green-50 text-green-700 border border-green-200"
+                  }`}
+                >
+                  {mensaje}
+                </div>
+              )}
+
+              <button
+                onClick={asignarMacro}
+                disabled={guardando || !macroSeleccionada}
+                className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {guardando ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                    Asignando...
+                  </span>
+                ) : (
+                  "Asignar Categoría"
+                )}
+              </button>
             </>
           )}
         </div>
@@ -1675,25 +2272,24 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Categoría */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-zinc-700 mb-2">
-              Categoría <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={categoriaId}
-              onChange={(e) => setCategoriaId(e.target.value)}
-              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="">Seleccionar categoría</option>
-              {categorias.map((cat) => (
-                <option key={cat.id_categoria} value={cat.id_categoria}>
-                  {cat.nombre_categoria}
-                </option>
-              ))}
-            </select>
-          </div>
-
+     {/* Categoría */}
+<div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Categoría
+  </label>
+  <select
+    value={categoriaId}
+    onChange={(e) => setCategoriaId(e.target.value)}
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+  >
+    <option value="">Seleccionar categoría</option>
+    {categorias.map((cat) => (
+      <option key={cat.id_categoria} value={String(cat.id_categoria)}>
+        {cat.nombre_categoria}
+      </option>
+    ))}
+  </select>
+</div>
           {/* Marca */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-zinc-700 mb-2">
@@ -2898,8 +3494,16 @@ export default function HomePage() {
     const [modoEdicion, setModoEdicion] = useState(false);
     const [titulo, setTitulo] = useState(producto.TITULO || "");
     const [descripcion, setDescripcion] = useState(producto.DESCRIPCION || "");
-    const [categoriaId, setCategoriaId] = useState(producto.CATEGORIA_ID || "");
-    const [marcaId, setMarcaId] = useState(producto.marca_id || "");
+    const [categoriaId, setCategoriaId] = useState(
+  producto.CATEGORIA_ID ? String(producto.CATEGORIA_ID) : ""
+);
+const [marcaId, setMarcaId] = useState(
+  producto.marca_id ? String(producto.marca_id) : ""
+);
+
+console.log("Producto CATEGORIA_ID:", producto.CATEGORIA_ID);
+console.log("categoriaId inicial:", categoriaId);
+console.log("Categorías disponibles:", categorias.map(c => ({ id: c.id_categoria, nombre: c.nombre_categoria })));
     const [imagenFile, setImagenFile] = useState<File | null>(null);
     const [imagenPreview, setImagenPreview] = useState(producto.IMAGEN || "");
     const [guardando, setGuardando] = useState(false);
@@ -3193,8 +3797,11 @@ export default function HomePage() {
               </button>
             )}
 
+        
+        
             {/* MODO EDICIÓN (ADMIN) */}
             {modoEdicion && esAdmin ? (
+              
               <div className="px-6 py-20">
                 <h2 className="text-xl font-bold text-zinc-900 mb-6">
                   Editar Producto
@@ -3276,23 +3883,23 @@ export default function HomePage() {
                 </div>
 
                 {/* Categoría */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Categoría
-                  </label>
-                  <select
-                    value={categoriaId}
-                    onChange={(e) => setCategoriaId(e.target.value)}
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-                  >
-                    <option value="">Seleccionar categoría</option>
-                    {categorias.map((cat) => (
-                      <option key={cat.id_categoria} value={cat.id_categoria}>
-                        {cat.nombre_categoria}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+<div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Categoría
+  </label>
+  <select
+    value={categoriaId}
+    onChange={(e) => setCategoriaId(e.target.value)}
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+  >
+    <option value="">Seleccionar categoría</option>
+    {categorias.map((cat) => (
+      <option key={cat.id_categoria} value={String(cat.id_categoria)}>
+        {cat.nombre_categoria}
+      </option>
+    ))}
+  </select>
+</div>
 
                 {/* Marca */}
                 <div className="mb-4">
@@ -3334,8 +3941,8 @@ export default function HomePage() {
                         setModoEdicion(false);
                         setTitulo(producto.TITULO || "");
                         setDescripcion(producto.DESCRIPCION || "");
-                        setCategoriaId(producto.CATEGORIA_ID || "");
-                        setMarcaId(producto.marca_id || "");
+                        setCategoriaId(producto.CATEGORIA_ID ? String(producto.CATEGORIA_ID) : "");
+setMarcaId(producto.marca_id ? String(producto.marca_id) : "");
                         setImagenFile(null);
                         setImagenPreview(producto.IMAGEN || "");
                         setMensaje("");
@@ -3739,14 +4346,6 @@ export default function HomePage() {
                   BODEGA FERRETERA DE MONTERREY
                 </h1>
               </div>
-
-              {activeTab === "categorias"}
-
-              {activeTab === "buscar" && (
-                <p className="mt-6 text-lg font-semibold text-zinc-700">
-                  BÚSQUEDA POR CÓDIGO
-                </p>
-              )}
             </header>
           )}
 
@@ -3762,17 +4361,19 @@ export default function HomePage() {
                   exit={{ opacity: 0, x: 40 }}
                   transition={{ duration: 0.3, ease: "easeInOut" }}
                 >
-                  {/* Si no hay categoría ni marca seleccionada, mostrar pestañas */}
-                  {!categoriaSeleccionada && !marcaSeleccionada ? (
+                  {/* Si no hay nada seleccionado, mostrar pestañas con Macro-Categorías y Marcas */}
+                  {!macroCategoriaSeleccionada &&
+                  !categoriaSeleccionada &&
+                  !marcaSeleccionada ? (
                     <motion.div
-                      key="menu-categorias-marcas"
+                      key="menu-principal"
                       initial={{ opacity: 0, y: 30 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -30 }}
                       transition={{ duration: 0.4, ease: "easeOut" }}
                       className="px-3 mt-4"
                     >
-                      {/* Pestañas */}
+                      {/* Pestañas Categorías / Marcas */}
                       <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
                         <button
                           onClick={() => setSubTab("categorias")}
@@ -3796,12 +4397,12 @@ export default function HomePage() {
                         </button>
                       </div>
 
-                      {/* Grid de Categorías */}
+                      {/* Grid de Macro-Categorías */}
                       {subTab === "categorias" && (
                         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-                          {categorias.map((cat) => (
+                          {macroCategorias.map((macro) => (
                             <div
-                              key={cat.id_categoria}
+                              key={macro.id}
                               onClick={async () => {
                                 localStorage.setItem(
                                   "scrollPos",
@@ -3813,25 +4414,18 @@ export default function HomePage() {
                                     behavior: "instant",
                                   });
                                 }
-                                setCategoriaSeleccionada(cat);
+                                setMacroCategoriaSeleccionada(macro);
 
+                                // Cargar categorías de esta macro-categoría
                                 const { data, error } = await supabase
-                                  .from("productos")
+                                  .from("categorias")
                                   .select(
-                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id"
+                                    "id_categoria, nombre_categoria, img, orden"
                                   )
-                                  .eq("CATEGORIA_ID", cat.id_categoria);
+                                  .eq("macro_categoria_id", macro.id)
+                                  .order("orden", { ascending: true });
 
-                                const productosNormalizados = (data || []).map(
-                                  (producto) => ({
-                                    ...producto,
-                                    visible: producto.visible ?? true,
-                                  })
-                                );
-
-                                setArticulos(
-                                  error ? [] : productosNormalizados
-                                );
+                                setCategorias(data || []);
                                 requestAnimationFrame(() => {
                                   window.scrollTo({
                                     top: 0,
@@ -3843,19 +4437,26 @@ export default function HomePage() {
                             >
                               <div className="relative w-full h-40">
                                 <SkeletonImage
-                                  src={cat.img || "/placeholder.jpg"}
-                                  alt={cat.nombre_categoria}
-                                  w
+                                  src={macro.img || "/placeholder.jpg"}
+                                  alt={macro.nombre}
                                   className="object-cover"
                                 />
                               </div>
                               <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
-                                {cat.nombre_categoria}
+                                {macro.nombre}
                               </div>
                             </div>
                           ))}
                         </div>
                       )}
+
+                      {macroCategorias.length === 0 &&
+                        subTab === "categorias" && (
+                          <p className="text-center text-zinc-500 py-10">
+                            No hay macro-categorías disponibles. El
+                            administrador debe crear algunas.
+                          </p>
+                        )}
 
                       {/* Grid de Marcas */}
                       {subTab === "marcas" && (
@@ -3879,8 +4480,9 @@ export default function HomePage() {
                                 const { data, error } = await supabase
                                   .from("productos")
                                   .select(
-                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id"
-                                  )
+  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+)
+
                                   .eq("marca_id", marca.id);
 
                                 const productosNormalizados = (data || []).map(
@@ -3902,29 +4504,149 @@ export default function HomePage() {
                               }}
                               className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
                             >
-                              <div
-                                key={marca.id}
-                                onClick={async () => {}}
-                                className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-                              >
-                                <div className="relative w-full h-28 sm:h-36 md:h-40 overflow-hidden">
-                                  <SkeletonImage
-                                    src={marca.img || "/placeholder.jpg"}
-                                    alt={marca.nombre_marca}
-                                    className="object-contain object-center w-full h-full"
-                                  />
-                                </div>
-
-                                <div className="p-2 text-center font-semibold text-zinc-800 text-sm truncate">
-                                  {marca.nombre_marca}
-                                </div>
+                              <div className="relative w-full h-28 sm:h-36 md:h-40 overflow-hidden">
+                                <SkeletonImage
+                                  src={marca.img || "/placeholder.jpg"}
+                                  alt={marca.nombre_marca}
+                                  className="object-contain object-center w-full h-full"
+                                />
+                              </div>
+                              <div className="p-2 text-center font-semibold text-zinc-800 text-sm truncate">
+                                {marca.nombre_marca}
                               </div>
                             </div>
                           ))}
                         </div>
                       )}
                     </motion.div>
+                  ) : macroCategoriaSeleccionada &&
+                    !categoriaSeleccionada &&
+                    !marcaSeleccionada ? (
+                    /* Mostrar subcategorías dentro de la categoría seleccionada */
+                    <motion.div
+                      key="categorias-en-macro"
+                      className="min-h-screen"
+                      initial={{ opacity: 0, x: 40 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -40 }}
+                      transition={{ duration: 0.3, ease: "easeInOut" }}
+                      drag="x"
+                      dragConstraints={{ left: 0, right: 0 }}
+                      onDragEnd={(event, info) => {
+                        if (info.offset.x > 100) {
+                          setMacroCategoriaSeleccionada(null);
+                        }
+                      }}
+                    >
+                      <AnimatePresence>
+                        <BackBtn
+                          onBack={() => {
+                            setMacroCategoriaSeleccionada(null);
+
+                            // Recargar todas las categorías
+                            const fetchCategorias = async () => {
+                              const { data, error } = await supabase
+                                .from("categorias")
+                                .select(
+                                  "id_categoria, nombre_categoria, img, orden, macro_categoria_id"
+                                )
+                                .order("orden", { ascending: true });
+
+                              if (error) {
+                                console.error(
+                                  "Error cargando categorías:",
+                                  error.message
+                                );
+                              } else {
+                                setCategorias(data || []);
+                              }
+                            };
+
+                            fetchCategorias();
+
+                            const savedScroll =
+                              localStorage.getItem("scrollPos");
+                            if (savedScroll) {
+                              setTimeout(() => {
+                                window.scrollTo({
+                                  top: parseInt(savedScroll),
+                                  behavior: "instant",
+                                });
+                              }, 50);
+                            }
+                          }}
+                        />
+                      </AnimatePresence>
+
+                      <h2 className="text-xl font-bold text-zinc-800 mb-4">
+                        {macroCategoriaSeleccionada.nombre}
+                      </h2>
+
+                      {/* Grid de Categorías dentro de la macro */}
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                        {categorias.map((cat) => (
+                          <div
+                            key={cat.id_categoria}
+                            onClick={async () => {
+                              localStorage.setItem(
+                                "scrollPos",
+                                window.scrollY.toString()
+                              );
+                              if (window.scrollY > 100) {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                              }
+                              setCategoriaSeleccionada(cat);
+
+                              const { data, error } = await supabase
+                                .from("productos")
+                                .select(
+  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+)
+
+                                .eq("CATEGORIA_ID", cat.id_categoria);
+
+                              const productosNormalizados = (data || []).map(
+                                (producto) => ({
+                                  ...producto,
+                                  visible: producto.visible ?? true,
+                                })
+                              );
+
+                              setArticulos(error ? [] : productosNormalizados);
+                              requestAnimationFrame(() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                              });
+                            }}
+                            className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+                          >
+                            <div className="relative w-full h-40">
+                              <SkeletonImage
+                                src={cat.img || "/placeholder.jpg"}
+                                alt={cat.nombre_categoria}
+                                className="object-cover"
+                              />
+                            </div>
+                            <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+                              {cat.nombre_categoria}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {categorias.length === 0 && (
+                        <p className="text-center text-zinc-500 py-10">
+                          No hay categorías en esta macro-categoría.
+                        </p>
+                      )}
+                    </motion.div>
                   ) : (
+                    /* Vista de productos (cuando hay categoría o marca seleccionada) */
                     <AnimatePresence mode="wait">
                       <motion.div
                         key={
@@ -4014,10 +4736,19 @@ export default function HomePage() {
                               onChange={(e) => setSearchTerm(e.target.value)}
                               className="w-full rounded-full border border-zinc-300 px-10 py-2 pr-10 text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-[16px] md:text-sm"
                             />
-                            <Search className="absolute left-3 top-2.5 text-zinc-500 w-5 h-5 " />
+                            <Search className="absolute left-3 top-2.5 text-zinc-500 w-5 h-5" />
                           </div>
 
-                          <div className="space-y-2">
+                          <div
+                            className="
+                              grid 
+                              grid-cols-2 
+                              md:grid-cols-3 
+                              lg:grid-cols-4 
+                              gap-4 
+                              pb-10
+                            "
+                          >
                             {articulos
                               .filter((a) => {
                                 if (!esAdmin && !a.visible) return false;
@@ -4048,36 +4779,39 @@ export default function HomePage() {
                                     );
                                     setProductoSeleccionado(art);
                                   }}
-                                  className="flex items-center justify-between bg-white rounded-xl border border-zinc-200 shadow-sm hover:shadow-md transition p-2 cursor-pointer"
+                                  className="bg-white rounded-xl border border-zinc-200 shadow hover:shadow-md transition cursor-pointer overflow-hidden p-3"
                                 >
-                                  <div className="flex items-center space-x-3 flex-1">
-                                    <div className="relative w-14 h-14 rounded-md overflow-hidden bg-white">
-                                      <SkeletonImage
-                                        src={art.IMAGEN || "/placeholder.jpg"}
-                                        alt={art.TITULO}
-                                        className="object-contain"
-                                      />
-                                    </div>
-                                    <div className="text-sm font-medium text-zinc-700 leading-tight max-w-[200px]">
-                                      <p className="text-xs text-orange-500 font-medium">
-                                        {getNombreMarca(art.marca_id)}
-                                      </p>
-                                      {art.TITULO}
-                                      <p className="text-xs text-zinc-500">
-                                        Código: {art.CODIGO}
-                                      </p>
-                                    </div>
+                                  {/* Imagen grande */}
+                                  <div className="relative w-full h-36 md:h-40 lg:h-48 rounded-lg overflow-hidden bg-white mb-2">
+                                    <SkeletonImage
+                                      src={art.IMAGEN || "/placeholder.jpg"}
+                                      alt={art.TITULO}
+                                      className="object-contain"
+                                    />
                                   </div>
 
+                                  {/* Nombre y detalles */}
+                                  <div className="text-sm font-semibold text-zinc-700">
+                                    <p className="text-xs text-orange-500 font-medium">
+                                      {getNombreMarca(art.marca_id)}
+                                    </p>
+                                    <p className="line-clamp-2">{art.TITULO}</p>
+                                    <p className="text-xs text-zinc-500 mt-1">
+                                      Código: {art.CODIGO}
+                                    </p>
+                                  </div>
+
+                                  {/* Precio (si NO es admin) */}
                                   {!esAdmin && (
-                                    <p className="text-xs font-bold text-orange-500 mr-3 ml-2">
+                                    <p className="text-sm font-bold text-orange-500 mt-2">
                                       $ {art.P_MAYOREO?.toFixed(2)}
                                     </p>
                                   )}
 
+                                  {/* Toggle (solo admin) */}
                                   {esAdmin && (
                                     <div
-                                      className="flex items-center gap-2 ml-2"
+                                      className="flex items-center gap-2 mt-2"
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       <label className="relative inline-flex items-center cursor-pointer">
@@ -4092,7 +4826,7 @@ export default function HomePage() {
                                           }
                                           className="sr-only peer"
                                         />
-                                        <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
                                       </label>
                                       <span className="text-xs text-zinc-500">
                                         {art.visible ? "Visible" : "Oculto"}
@@ -4103,7 +4837,7 @@ export default function HomePage() {
                               ))}
 
                             {articulos.length === 0 && (
-                              <p className="text-center text-zinc-500 py-10">
+                              <p className="text-center text-zinc-500 py-10 col-span-full">
                                 No hay productos en esta{" "}
                                 {categoriaSeleccionada ? "categoría" : "marca"}.
                               </p>
@@ -4144,8 +4878,9 @@ export default function HomePage() {
                           const { data, error } = await supabase
                             .from("productos")
                             .select(
-                              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible"
-                            )
+  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+)
+
                             .or(
                               `TITULO.ilike.%${value}%,CODIGO.ilike.%${value}%`
                             )
@@ -4225,8 +4960,9 @@ export default function HomePage() {
                                 const { data, error } = await supabase
                                   .from("productos")
                                   .select(
-                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible"
-                                  )
+  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+)
+
                                   .or(
                                     `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%`
                                   )
@@ -4542,7 +5278,7 @@ export default function HomePage() {
                         {esAdmin && (
                           <>
                             <MenuItem
-                              label="Gestionar Categorías"
+                              label="Gestionar Subcategorías"
                               icon={<Boxes size={20} />}
                               onClick={() =>
                                 setVistaPerfil("gestionar-categorias")
@@ -4550,10 +5286,28 @@ export default function HomePage() {
                             />
                             <MenuItem
                               label="Gestionar Marcas"
-                              icon={<Box size={20} />}
+                              icon={<Codesandbox size={20} />}
                               onClick={() => setVistaPerfil("gestionar-marcas")}
                             />
                           </>
+                        )}
+
+                        {esAdmin && (
+                          <MenuItem
+                            label="Gestionar Categorías"
+                            icon={<SquareStack size={20} />}
+                            onClick={() =>
+                              setVistaPerfil("gestionar-macro-categorias")
+                            }
+                          />
+                        )}
+
+                        {esAdmin && (
+                          <MenuItem
+                            label="Asignar Subcategorías"
+                            icon={<Box size={20} />}
+                            onClick={() => setVistaPerfil("asignar-categorias")}
+                          />
                         )}
 
                         {!esAdmin && (
@@ -4665,6 +5419,16 @@ export default function HomePage() {
 
                   {vistaPerfil === "gestionar-marcas" && (
                     <GestionarMarcasView setVistaPerfil={setVistaPerfil} />
+                  )}
+
+                  {vistaPerfil === "gestionar-macro-categorias" && (
+                    <GestionarMacroCategoriasView
+                      setVistaPerfil={setVistaPerfil}
+                    />
+                  )}
+
+                  {vistaPerfil === "asignar-categorias" && (
+                    <AsignarCategoriasView setVistaPerfil={setVistaPerfil} />
                   )}
 
                   {/* CONFIGURACIÓN */}
@@ -4958,109 +5722,107 @@ export default function HomePage() {
           </main>
 
           {/* Barra de navegación */}
-<nav
-  className="
+          <nav
+            className="
     fixed bottom-0 left-0 z-50
     flex w-full items-center justify-around
     border-t border-zinc-200 bg-white 
     p-3 pb-12 pt-5  
     text-zinc-700 shadow-md
   "
->
-  <button
-    onClick={() => {
-      if (activeTab === "categorias") {
-        // Si ya estamos en categorías, regresar nivel por nivel
-        if (categoriaSeleccionada || marcaSeleccionada) {
-          setCategoriaSeleccionada(null);
-          setMarcaSeleccionada(null);
-        
-        } else {
-          // Ya estamos en el nivel principal, no hacer nada o scroll arriba
-          window.scrollTo({ top: 0, behavior: "instant" });
-        }
-      } else {
-        // Si estamos en otra tab, cambiar a categorías
-        setActiveTab("categorias");
-      }
-    }}
-    className={`flex flex-col items-center text-xs ${
-      activeTab === "categorias"
-        ? "text-orange-500"
-        : "hover:text-orange-500"
-    }`}
-  >
-    <Hammer size={20} />
-    CATEGORÍAS
-  </button>
+          >
+            <button
+              onClick={() => {
+                if (activeTab === "categorias") {
+                  // Si ya estamos en categorías, regresar nivel por nivel
+                  if (categoriaSeleccionada || marcaSeleccionada) {
+                    setCategoriaSeleccionada(null);
+                    setMarcaSeleccionada(null);
+                  } else if (macroCategoriaSeleccionada) {
+                    setMacroCategoriaSeleccionada(null);
+                  } else {
+                    window.scrollTo({ top: 0, behavior: "instant" });
+                  }
+                } else {
+                  setActiveTab("categorias");
+                }
+              }}
+              className={`flex flex-col items-center text-xs ${
+                activeTab === "categorias"
+                  ? "text-orange-500"
+                  : "hover:text-orange-500"
+              }`}
+            >
+              <Hammer size={20} />
+              CATEGORÍAS
+            </button>
 
-  <button
-    onClick={() => {
-      window.scrollTo({ top: 0, behavior: "instant" });
-      setActiveTab("buscar");
-    }}
-    className={`flex flex-col items-center text-xs ${
-      activeTab === "buscar"
-        ? "text-orange-500"
-        : "hover:text-orange-500"
-    }`}
-  >
-    <Search size={20} />
-    BUSCAR
-  </button>
+            <button
+              onClick={() => {
+                window.scrollTo({ top: 0, behavior: "instant" });
+                setActiveTab("buscar");
+              }}
+              className={`flex flex-col items-center text-xs ${
+                activeTab === "buscar"
+                  ? "text-orange-500"
+                  : "hover:text-orange-500"
+              }`}
+            >
+              <Search size={20} />
+              BUSCAR
+            </button>
 
-  <button
-    onClick={() => setActiveTab("carrito")}
-    className={`flex flex-col items-center text-xs ${
-      activeTab === "carrito"
-        ? "text-orange-500"
-        : "hover:text-orange-500"
-    }`}
-  >
-    <ShoppingCart size={20} />
-    CARRITO
-  </button>
+            <button
+              onClick={() => setActiveTab("carrito")}
+              className={`flex flex-col items-center text-xs ${
+                activeTab === "carrito"
+                  ? "text-orange-500"
+                  : "hover:text-orange-500"
+              }`}
+            >
+              <ShoppingCart size={20} />
+              CARRITO
+            </button>
 
-  <button
-    onClick={() => {
-      if (activeTab === "perfil") {
-        // Si ya estamos en perfil y hay una vista activa, regresar al menú
-        if (vistaPerfil !== "menu") {
-          setVistaPerfil("menu");
-        } else {
-          window.scrollTo({ top: 0, behavior: "instant" });
-        }
-        
-      } else {
-        window.scrollTo({ top: 0, behavior: "instant" });
-        setActiveTab("perfil");
-      }
-    }}
-    className={`flex flex-col items-center text-xs ${
-      activeTab === "perfil"
-        ? "text-orange-500"
-        : "hover:text-orange-500"
-    }`}
-  >
-    <User size={20} />
-    PERFIL
-  </button>
+            <button
+              onClick={() => {
+                if (activeTab === "perfil") {
+                  // Si ya estamos en perfil y hay una vista activa, regresar al menú
+                  if (vistaPerfil !== "menu") {
+                    setVistaPerfil("menu");
+                  } else {
+                    window.scrollTo({ top: 0, behavior: "instant" });
+                  }
+                } else {
+                  window.scrollTo({ top: 0, behavior: "instant" });
+                  setActiveTab("perfil");
+                }
+              }}
+              className={`flex flex-col items-center text-xs ${
+                activeTab === "perfil"
+                  ? "text-orange-500"
+                  : "hover:text-orange-500"
+              }`}
+            >
+              <User size={20} />
+              PERFIL
+            </button>
 
-  <button
-    onClick={() => {
-      window.scrollTo({ top: 0, behavior: "instant" });
-      setActiveTab("ubicacion");
-    }}
-    className={`flex flex-col items-center text-xs ${
-      activeTab === "ubicacion"
-        ? "text-orange-500"
-        : "hover:text-orange-500"
-    }`}
-  >
-    <MapPin size={20} />
-    UBICACIÓN
-  </button>
-</nav>
+            <button
+              onClick={() => {
+                window.scrollTo({ top: 0, behavior: "instant" });
+                setActiveTab("ubicacion");
+              }}
+              className={`flex flex-col items-center text-xs ${
+                activeTab === "ubicacion"
+                  ? "text-orange-500"
+                  : "hover:text-orange-500"
+              }`}
+            >
+              <MapPin size={20} />
+              UBICACIÓN
+            </button>
+          </nav>
         </div>
       )}
     </>
