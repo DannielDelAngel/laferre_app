@@ -121,6 +121,7 @@ export default function HomePage() {
     "catalogo"
   );
 
+
   const BackBtn = ({ onBack }: any) => {
     if (typeof document === "undefined") return null;
 
@@ -215,7 +216,6 @@ export default function HomePage() {
   // fin del componente zomm img
 
   // verifica si hay una cuenta logeada al cargar la pagina
-
   useEffect(() => {
     const init = async () => {
       const saved = localStorage.getItem("cuentaActiva");
@@ -242,6 +242,32 @@ export default function HomePage() {
 
     init();
   }, []);
+
+  // sincronizar carrito con localstorage
+  useEffect(() => {
+  if (cuenta?.numero_cuenta) {
+    const saved = localStorage.getItem(`carrito_${cuenta.numero_cuenta}`);
+    if (saved) {
+      setCarrito(JSON.parse(saved));
+    }
+  }
+}, [cuenta]);
+// guardar carrito en localstorage al actualizar
+useEffect(() => {
+  if (cuenta?.numero_cuenta) {
+    localStorage.setItem(
+      `carrito_${cuenta.numero_cuenta}`,
+      JSON.stringify(carrito)
+    );
+  }
+}, [carrito, cuenta]);
+// limpiar carrito si no hay cuenta
+useEffect(() => {
+  if (!cuenta) {
+    setCarrito([]);
+  }
+}, [cuenta]);
+
 
   // funcion para validar la cuenta ingresada
   const validarCuenta = async () => {
@@ -387,12 +413,15 @@ export default function HomePage() {
           setMensaje("La imagen no debe superar los 5MB");
           return;
         }
+        
         setImagenFile(file);
         const reader = new FileReader();
         reader.onloadend = () => setImagenPreview(reader.result as string);
         reader.readAsDataURL(file);
       }
     };
+
+    
 
     const agregarMarca = async () => {
       setGuardando(true);
@@ -924,7 +953,7 @@ export default function HomePage() {
           <BackBtn onBack={() => setVistaPerfil("menu")} />
 
           <h2 className="text-xl font-bold text-zinc-900 mb-6">
-            Gestionar Macro-Categorías
+            Gestionar Categorías
           </h2>
 
           {/* Pestañas */}
@@ -1045,7 +1074,7 @@ export default function HomePage() {
                     Guardando...
                   </span>
                 ) : (
-                  "Agregar Macro-Categoría"
+                  "Agregar Categoría"
                 )}
               </button>
             </>
@@ -1053,7 +1082,7 @@ export default function HomePage() {
             /* MODO ELIMINAR */
             <>
               <p className="text-sm text-zinc-600 mb-4">
-                Selecciona una macro-categoría para eliminar:
+                Selecciona una categoría para eliminar:
               </p>
               <div className="space-y-2 mb-4">
                 {macroCategorias.map((macro) => (
@@ -1491,7 +1520,7 @@ export default function HomePage() {
           <BackBtn onBack={() => setVistaPerfil("menu")} />
 
           <h2 className="text-xl font-bold text-zinc-900 mb-6">
-            Gestionar Categorías
+            Gestionar Subcategorías
           </h2>
 
           {/* Pestañas */}
@@ -3604,27 +3633,37 @@ export default function HomePage() {
       onBack();
     };
 
-    const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        if (!file.type.startsWith("image/")) {
-          setMensaje("Por favor selecciona un archivo de imagen válido");
-          return;
-        }
+    const handleImagenChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-        if (file.size > 5 * 1024 * 1024) {
-          setMensaje("La imagen no debe superar los 5MB");
-          return;
-        }
+  // Validaciones
+  if (!file.type.startsWith("image/")) {
+    setMensaje("Por favor selecciona una imagen válida.");
+    return;
+  }
 
-        setImagenFile(file);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setImagenPreview(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      }
-    };
+  if (file.size > 5 * 1024 * 1024) {
+    setMensaje("La imagen no debe superar los 5MB.");
+    return;
+  }
+// Eliminar imagen vieja si existe
+  if (producto.IMAGEN) {
+    const nombreArchivoViejo = producto.IMAGEN.split("/").pop();
+    await supabase.storage.from("imagenes_productos").remove([nombreArchivoViejo]);
+  }
+
+  // Guardar archivo para subir luego
+  setImagenFile(file);
+
+  // Vista previa inmediata
+  const reader = new FileReader();
+  reader.onloadend = () => {
+    setImagenPreview(reader.result as string);
+  };
+  reader.readAsDataURL(file);
+};
+
 
     const guardarCambios = async () => {
       if (!esAdmin) return;
@@ -4463,14 +4502,20 @@ export default function HomePage() {
                         </div>
                       )}
 
-                      {macroCategorias.length === 0 &&
+                                           {macroCategorias.length === 0 &&
                         subTab === "categorias" && (
-                          <p className="text-center text-zinc-500 py-10">
-                            No hay macro-categorías disponibles. El
-                            administrador debe crear algunas.
-                          </p>
-                        )}
-
+                        <div className="flex items-center justify-center py-20">
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{
+                              duration: 2,
+                              repeat: Infinity,
+                              ease: "linear",
+                            }}
+                            className="w-12 h-12 border-4 border-zinc-200 border-t-orange-500 rounded-full"
+                          />
+                        </div>
+                      )}
                       {/* Grid de Marcas */}
                       {subTab === "marcas" && (
                         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
@@ -4535,6 +4580,7 @@ export default function HomePage() {
                   ) : macroCategoriaSeleccionada &&
                     !categoriaSeleccionada &&
                     !marcaSeleccionada ? (
+                      
                     /* Mostrar subcategorías dentro de la categoría seleccionada */
                     <motion.div
                       key="categorias-en-macro"
