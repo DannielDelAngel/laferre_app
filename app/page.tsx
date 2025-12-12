@@ -334,8 +334,9 @@ export default function HomePage() {
     const fetchProductos = async () => {
       const { data, error } = await supabase
         .from("productos")
-        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID")
-
+        .select(
+          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+        );
 
       // Normalizar visible
       const productosNormalizados = (data || []).map((producto) => ({
@@ -2272,24 +2273,24 @@ export default function HomePage() {
             </div>
           </div>
 
-     {/* Categoría */}
-<div className="mb-4">
-  <label className="block text-sm font-medium text-zinc-700 mb-2">
-    Categoría
-  </label>
-  <select
-    value={categoriaId}
-    onChange={(e) => setCategoriaId(e.target.value)}
-    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-  >
-    <option value="">Seleccionar categoría</option>
-    {categorias.map((cat) => (
-      <option key={cat.id_categoria} value={String(cat.id_categoria)}>
-        {cat.nombre_categoria}
-      </option>
-    ))}
-  </select>
-</div>
+          {/* Categoría */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Categoría
+            </label>
+            <select
+              value={categoriaId}
+              onChange={(e) => setCategoriaId(e.target.value)}
+              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+            >
+              <option value="">Seleccionar categoría</option>
+              {categorias.map((cat) => (
+                <option key={cat.id_categoria} value={String(cat.id_categoria)}>
+                  {cat.nombre_categoria}
+                </option>
+              ))}
+            </select>
+          </div>
           {/* Marca */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-zinc-700 mb-2">
@@ -2554,7 +2555,7 @@ export default function HomePage() {
       docEnvio.line(145, yTotales + 8, 196, yTotales + 8);
       docEnvio.setFontSize(9);
       docEnvio.text("TOTAL NETO:", 145, yTotales + 13);
-      docEnvio.text(`$ ${totalConIVA.toFixed(2)}`, 180, yTotales + 13, {
+      docEnvio.text(`$ ${totalConIVA.toFixed(2)}`, 195, yTotales + 13, {
         align: "right",
       });
 
@@ -2649,7 +2650,7 @@ export default function HomePage() {
       docCliente.text("TOTAL NETO:", 145, yTotalesCliente + 13);
       docCliente.text(
         `$ ${totalConIVA.toFixed(2)}`,
-        180,
+        195,
         yTotalesCliente + 13,
         { align: "right" }
       );
@@ -3495,15 +3496,21 @@ export default function HomePage() {
     const [titulo, setTitulo] = useState(producto.TITULO || "");
     const [descripcion, setDescripcion] = useState(producto.DESCRIPCION || "");
     const [categoriaId, setCategoriaId] = useState(
-  producto.CATEGORIA_ID ? String(producto.CATEGORIA_ID) : ""
-);
-const [marcaId, setMarcaId] = useState(
-  producto.marca_id ? String(producto.marca_id) : ""
-);
+      producto.CATEGORIA_ID ? String(producto.CATEGORIA_ID) : ""
+    );
+    const [marcaId, setMarcaId] = useState(
+      producto.marca_id ? String(producto.marca_id) : ""
+    );
 
-console.log("Producto CATEGORIA_ID:", producto.CATEGORIA_ID);
-console.log("categoriaId inicial:", categoriaId);
-console.log("Categorías disponibles:", categorias.map(c => ({ id: c.id_categoria, nombre: c.nombre_categoria })));
+    console.log("Producto CATEGORIA_ID:", producto.CATEGORIA_ID);
+    console.log("categoriaId inicial:", categoriaId);
+    console.log(
+      "Categorías disponibles:",
+      categorias.map((c) => ({
+        id: c.id_categoria,
+        nombre: c.nombre_categoria,
+      }))
+    );
     const [imagenFile, setImagenFile] = useState<File | null>(null);
     const [imagenPreview, setImagenPreview] = useState(producto.IMAGEN || "");
     const [guardando, setGuardando] = useState(false);
@@ -3797,11 +3804,8 @@ console.log("Categorías disponibles:", categorias.map(c => ({ id: c.id_categori
               </button>
             )}
 
-        
-        
             {/* MODO EDICIÓN (ADMIN) */}
             {modoEdicion && esAdmin ? (
-              
               <div className="px-6 py-20">
                 <h2 className="text-xl font-bold text-zinc-900 mb-6">
                   Editar Producto
@@ -3883,23 +3887,26 @@ console.log("Categorías disponibles:", categorias.map(c => ({ id: c.id_categori
                 </div>
 
                 {/* Categoría */}
-<div className="mb-4">
-  <label className="block text-sm font-medium text-zinc-700 mb-2">
-    Categoría
-  </label>
-  <select
-    value={categoriaId}
-    onChange={(e) => setCategoriaId(e.target.value)}
-    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-  >
-    <option value="">Seleccionar categoría</option>
-    {categorias.map((cat) => (
-      <option key={cat.id_categoria} value={String(cat.id_categoria)}>
-        {cat.nombre_categoria}
-      </option>
-    ))}
-  </select>
-</div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Categoría
+                  </label>
+                  <select
+                    value={categoriaId}
+                    onChange={(e) => setCategoriaId(e.target.value)}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                  >
+                    <option value="">Seleccionar categoría</option>
+                    {categorias.map((cat) => (
+                      <option
+                        key={cat.id_categoria}
+                        value={String(cat.id_categoria)}
+                      >
+                        {cat.nombre_categoria}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                 {/* Marca */}
                 <div className="mb-4">
@@ -3941,8 +3948,14 @@ console.log("Categorías disponibles:", categorias.map(c => ({ id: c.id_categori
                         setModoEdicion(false);
                         setTitulo(producto.TITULO || "");
                         setDescripcion(producto.DESCRIPCION || "");
-                        setCategoriaId(producto.CATEGORIA_ID ? String(producto.CATEGORIA_ID) : "");
-setMarcaId(producto.marca_id ? String(producto.marca_id) : "");
+                        setCategoriaId(
+                          producto.CATEGORIA_ID
+                            ? String(producto.CATEGORIA_ID)
+                            : ""
+                        );
+                        setMarcaId(
+                          producto.marca_id ? String(producto.marca_id) : ""
+                        );
                         setImagenFile(null);
                         setImagenPreview(producto.IMAGEN || "");
                         setMensaje("");
@@ -4480,8 +4493,8 @@ setMarcaId(producto.marca_id ? String(producto.marca_id) : "");
                                 const { data, error } = await supabase
                                   .from("productos")
                                   .select(
-  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
-)
+                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                  )
 
                                   .eq("marca_id", marca.id);
 
@@ -4603,8 +4616,8 @@ setMarcaId(producto.marca_id ? String(producto.marca_id) : "");
                               const { data, error } = await supabase
                                 .from("productos")
                                 .select(
-  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
-)
+                                  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                )
 
                                 .eq("CATEGORIA_ID", cat.id_categoria);
 
@@ -4878,8 +4891,8 @@ setMarcaId(producto.marca_id ? String(producto.marca_id) : "");
                           const { data, error } = await supabase
                             .from("productos")
                             .select(
-  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
-)
+                              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                            )
 
                             .or(
                               `TITULO.ilike.%${value}%,CODIGO.ilike.%${value}%`
@@ -4942,60 +4955,132 @@ setMarcaId(producto.marca_id ? String(producto.marca_id) : "");
 
                     {/* Escáner de código de barras */}
                     {scannerOpen && (
-                      <div className="mt-4 rounded-xl overflow-hidden border border-zinc-300">
-                        <BarcodeScannerComponent
-                          width="100%"
-                          height={250}
-                          onUpdate={async (err, result) => {
-                            if (result) {
-                              const codigo = result.getText();
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="mt-4 rounded-xl overflow-hidden border-2 border-orange-300 shadow-lg bg-white"
+                      >
+                        {/* Indicador de estado */}
+                        <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                            <span className="text-white text-sm font-medium">
+                              Escaneando código de barras...
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => setScannerOpen(false)}
+                            className="text-white hover:bg-white/20 rounded-full p-1 transition"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
 
-                              if (codigo) {
-                                setSearchTerm(codigo);
-                                setScannerOpen(false);
-                                if ("vibrate" in navigator)
-                                  navigator.vibrate(100);
+                        {/* Cámara del escáner */}
+                        <div className="relative bg-black">
+                          <BarcodeScannerComponent
+                            width="100%"
+                            height={280}
+                            onUpdate={async (err: any, result) => {
+                              if (result) {
+                                const codigo = result.getText();
 
-                                // Buscar producto por código al escanear
-                                const { data, error } = await supabase
-                                  .from("productos")
-                                  .select(
-  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
-)
+                                if (codigo) {
+                                  if ("vibrate" in navigator)
+                                    navigator.vibrate(100);
+                                  setSearchTerm(codigo);
+                                  setTimeout(() => setScannerOpen(false), 300);
 
-                                  .or(
-                                    `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%`
-                                  )
-                                  .limit(50);
+                                  try {
+                                    // Buscar producto por código
+                                    const { data, error } = await supabase
+                                      .from("productos")
+                                      .select(
+                                        "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                      )
+                                      .or(
+                                        `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%`
+                                      )
+                                      .limit(50);
 
-                                if (error) {
-                                  console.error(
-                                    "Error buscando por código:",
-                                    error.message
-                                  );
-                                } else {
-                                  // Normalizar visible
-                                  const productosNormalizados = (
-                                    data || []
-                                  ).map((producto) => ({
-                                    ...producto,
-                                    visible: producto.visible ?? true,
-                                  }));
-                                  setProductos(productosNormalizados);
+                                    if (error) {
+                                      console.error(
+                                        "Error buscando por código:",
+                                        error.message
+                                      );
+                                      alert(
+                                        "Error al buscar el producto. Intenta de nuevo."
+                                      );
+                                      return;
+                                    }
+
+                                    // Normalizar visible
+                                    const productosNormalizados = (
+                                      data || []
+                                    ).map((producto) => ({
+                                      ...producto,
+                                      visible: producto.visible ?? true,
+                                    }));
+
+                                    setProductos(productosNormalizados);
+                                    if (productosNormalizados.length > 0) {
+                                      console.log(
+                                        `✓ ${productosNormalizados.length} producto(s) encontrado(s)`
+                                      );
+                                    } else {
+                                      alert(
+                                        `No se encontraron productos con el código: ${codigo}`
+                                      );
+                                    }
+                                  } catch (error) {
+                                    console.error(
+                                      "Error procesando código:",
+                                      error
+                                    );
+                                    alert(
+                                      "Ocurrió un error al procesar el código escaneado."
+                                    );
+                                  }
+                                }
+                              } else if (err) {
+                                if (
+                                  (err as Error)?.name !== "NotFoundException"
+                                ) {
+                                  console.error("Error del escáner:", err);
                                 }
                               }
-                            } else if (err) {
-                              console.error("Error leyendo código:", err);
-                            }
-                          }}
-                        />
-                        <button
-                          onClick={() => setScannerOpen(false)}
-                          className="w-full bg-red-500 text-white py-2 text-sm font-medium"
-                        >
-                          Cerrar cámara
-                        </button>
-                      </div>
+                            }}
+                          />
+
+                          {/* Overlay con guía de escaneo */}
+                          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                            <div className="border-2 border-white w-64 h-32 rounded-lg shadow-2xl">
+                              <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-orange-500"></div>
+                              <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-orange-500"></div>
+                              <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-orange-500"></div>
+                              <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-orange-500"></div>
+                            </div>
+                          </div>
+                          <div className="absolute bottom-4 left-0 right-0 text-center">
+                            <p className="text-white text-sm font-medium bg-black/60 backdrop-blur-sm inline-block px-4 py-2 rounded-full">
+                              Centra el código de barras en el marco
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Botones de acción */}
+                        <div className="flex gap-2 p-3 bg-zinc-50">
+                          <button
+                            onClick={() => setScannerOpen(false)}
+                            className="flex-1 bg-white border border-zinc-300 text-zinc-700 py-2.5 rounded-lg font-semibold hover:bg-zinc-50 transition flex items-center justify-center gap-2"
+                          >
+                            <X size={18} />
+                            Cancelar
+                          </button>
+                        </div>
+                      </motion.div>
                     )}
 
                     {/* Resultados */}
@@ -5249,21 +5334,30 @@ setMarcaId(producto.marca_id ? String(producto.marca_id) : "");
                         <MenuItem
                           icon={<History size={20} />}
                           label="Mis pedidos"
-                          onClick={() => setVistaPerfil("pedidos")}
+                          onClick={() => {
+                            window.scrollTo({ top: 0, behavior: "instant" });
+                            setVistaPerfil("pedidos");
+                          }}
                         />
 
                         {/* Dirección */}
                         <MenuItem
                           label="Shipping Address"
                           icon={<MapPinHouse size={20} />}
-                          onClick={() => setVistaPerfil("address")}
+                          onClick={() => {
+                            window.scrollTo({ top: 0, behavior: "instant" });
+                            setVistaPerfil("address");
+                          }}
                         />
 
                         {esAdmin && (
                           <MenuItem
                             label="Actualizar base de datos"
                             icon={<DatabaseBackup size={20} />}
-                            onClick={() => setVistaPerfil("actualizar-bd")}
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("actualizar-bd");
+                            }}
                           />
                         )}
 
@@ -5271,7 +5365,10 @@ setMarcaId(producto.marca_id ? String(producto.marca_id) : "");
                           <MenuItem
                             label="Agregar producto"
                             icon={<PackagePlus size={20} />}
-                            onClick={() => setVistaPerfil("agregar-producto")}
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("agregar-producto");
+                            }}
                           />
                         )}
 
@@ -5280,14 +5377,24 @@ setMarcaId(producto.marca_id ? String(producto.marca_id) : "");
                             <MenuItem
                               label="Gestionar Subcategorías"
                               icon={<Boxes size={20} />}
-                              onClick={() =>
-                                setVistaPerfil("gestionar-categorias")
-                              }
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("gestionar-categorias");
+                              }}
                             />
                             <MenuItem
                               label="Gestionar Marcas"
                               icon={<Codesandbox size={20} />}
-                              onClick={() => setVistaPerfil("gestionar-marcas")}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("gestionar-marcas");
+                              }}
                             />
                           </>
                         )}
@@ -5296,9 +5403,10 @@ setMarcaId(producto.marca_id ? String(producto.marca_id) : "");
                           <MenuItem
                             label="Gestionar Categorías"
                             icon={<SquareStack size={20} />}
-                            onClick={() =>
-                              setVistaPerfil("gestionar-macro-categorias")
-                            }
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("gestionar-macro-categorias");
+                            }}
                           />
                         )}
 
@@ -5306,7 +5414,10 @@ setMarcaId(producto.marca_id ? String(producto.marca_id) : "");
                           <MenuItem
                             label="Asignar Subcategorías"
                             icon={<Box size={20} />}
-                            onClick={() => setVistaPerfil("asignar-categorias")}
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("asignar-categorias");
+                            }}
                           />
                         )}
 
@@ -5314,14 +5425,20 @@ setMarcaId(producto.marca_id ? String(producto.marca_id) : "");
                           <MenuItem
                             label="Apoyo"
                             icon={<FileQuestionMark size={20} />}
-                            onClick={() => setVistaPerfil("apoyo")}
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("apoyo");
+                            }}
                           />
                         )}
                         {/* Configuración */}
                         <MenuItem
                           label="Configuración"
                           icon={<Settings size={20} />}
-                          onClick={() => setVistaPerfil("settings")}
+                          onClick={() => {
+                            window.scrollTo({ top: 0, behavior: "instant" });
+                            setVistaPerfil("settings");
+                          }}
                         />
 
                         {/* Logout */}
