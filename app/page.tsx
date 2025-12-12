@@ -121,7 +121,6 @@ export default function HomePage() {
     "catalogo"
   );
 
-
   const BackBtn = ({ onBack }: any) => {
     if (typeof document === "undefined") return null;
 
@@ -245,29 +244,28 @@ export default function HomePage() {
 
   // sincronizar carrito con localstorage
   useEffect(() => {
-  if (cuenta?.numero_cuenta) {
-    const saved = localStorage.getItem(`carrito_${cuenta.numero_cuenta}`);
-    if (saved) {
-      setCarrito(JSON.parse(saved));
+    if (cuenta?.numero_cuenta) {
+      const saved = localStorage.getItem(`carrito_${cuenta.numero_cuenta}`);
+      if (saved) {
+        setCarrito(JSON.parse(saved));
+      }
     }
-  }
-}, [cuenta]);
-// guardar carrito en localstorage al actualizar
-useEffect(() => {
-  if (cuenta?.numero_cuenta) {
-    localStorage.setItem(
-      `carrito_${cuenta.numero_cuenta}`,
-      JSON.stringify(carrito)
-    );
-  }
-}, [carrito, cuenta]);
-// limpiar carrito si no hay cuenta
-useEffect(() => {
-  if (!cuenta) {
-    setCarrito([]);
-  }
-}, [cuenta]);
-
+  }, [cuenta]);
+  // guardar carrito en localstorage al actualizar
+  useEffect(() => {
+    if (cuenta?.numero_cuenta) {
+      localStorage.setItem(
+        `carrito_${cuenta.numero_cuenta}`,
+        JSON.stringify(carrito)
+      );
+    }
+  }, [carrito, cuenta]);
+  // limpiar carrito si no hay cuenta
+  useEffect(() => {
+    if (!cuenta) {
+      setCarrito([]);
+    }
+  }, [cuenta]);
 
   // funcion para validar la cuenta ingresada
   const validarCuenta = async () => {
@@ -413,15 +411,13 @@ useEffect(() => {
           setMensaje("La imagen no debe superar los 5MB");
           return;
         }
-        
+
         setImagenFile(file);
         const reader = new FileReader();
         reader.onloadend = () => setImagenPreview(reader.result as string);
         reader.readAsDataURL(file);
       }
     };
-
-    
 
     const agregarMarca = async () => {
       setGuardando(true);
@@ -3530,6 +3526,9 @@ useEffect(() => {
     const [marcaId, setMarcaId] = useState(
       producto.marca_id ? String(producto.marca_id) : ""
     );
+    const [imagenAmpliada, setImagenAmpliada] = useState(false);
+    const [scale, setScale] = useState(1);
+    const [posicion, setPosicion] = useState({ x: 0, y: 0 });
 
     console.log("Producto CATEGORIA_ID:", producto.CATEGORIA_ID);
     console.log("categoriaId inicial:", categoriaId);
@@ -3633,37 +3632,40 @@ useEffect(() => {
       onBack();
     };
 
-    const handleImagenChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
+    const handleImagenChange = async (
+      e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-  // Validaciones
-  if (!file.type.startsWith("image/")) {
-    setMensaje("Por favor selecciona una imagen válida.");
-    return;
-  }
+      // Validaciones
+      if (!file.type.startsWith("image/")) {
+        setMensaje("Por favor selecciona una imagen válida.");
+        return;
+      }
 
-  if (file.size > 5 * 1024 * 1024) {
-    setMensaje("La imagen no debe superar los 5MB.");
-    return;
-  }
-// Eliminar imagen vieja si existe
-  if (producto.IMAGEN) {
-    const nombreArchivoViejo = producto.IMAGEN.split("/").pop();
-    await supabase.storage.from("imagenes_productos").remove([nombreArchivoViejo]);
-  }
+      if (file.size > 5 * 1024 * 1024) {
+        setMensaje("La imagen no debe superar los 5MB.");
+        return;
+      }
+      // Eliminar imagen vieja si existe
+      if (producto.IMAGEN) {
+        const nombreArchivoViejo = producto.IMAGEN.split("/").pop();
+        await supabase.storage
+          .from("imagenes_productos")
+          .remove([nombreArchivoViejo]);
+      }
 
-  // Guardar archivo para subir luego
-  setImagenFile(file);
+      // Guardar archivo para subir luego
+      setImagenFile(file);
 
-  // Vista previa inmediata
-  const reader = new FileReader();
-  reader.onloadend = () => {
-    setImagenPreview(reader.result as string);
-  };
-  reader.readAsDataURL(file);
-};
-
+      // Vista previa inmediata
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagenPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    };
 
     const guardarCambios = async () => {
       if (!esAdmin) return;
@@ -4054,7 +4056,10 @@ useEffect(() => {
                 )}
 
                 {/* Imagen */}
-                <div className="flex justify-center mb-3 pt-20">
+                <div
+                  className="flex justify-center mb-3 pt-20 cursor-pointer"
+                  onClick={() => setImagenAmpliada(true)}
+                >
                   <div className="relative w-60 h-60">
                     <SkeletonImage
                       src={producto.IMAGEN || "/placeholder.jpg"}
@@ -4135,33 +4140,110 @@ useEffect(() => {
                       ? "Modificar cantidad"
                       : "Agregar al carrito"}
                   </button>
-
-                  {/* Botón eliminar del carrito 
-                  {esDesdeCarrito && (
-                    <button
-                      onClick={eliminarDelCarrito}
-                      className="w-full mt-3 bg-red-500 text-white py-3 rounded-xl font-bold shadow hover:bg-red-600 transition flex items-center justify-center gap-2"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={2}
-                        stroke="currentColor"
-                        className="w-5 h-5"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-                        />
-                      </svg>
-                      Eliminar del carrito
-                    </button>
-                  )}
-                  */}
                 </div>
               </>
+            )}
+
+            {/* Modal de Imagen Ampliada con Zoom */}
+            {imagenAmpliada && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black z-[9999] flex items-center justify-center"
+                onClick={() => {
+                  if (scale === 1) {
+                    setImagenAmpliada(false);
+                    setScale(1);
+                    setPosicion({ x: 0, y: 0 });
+                  }
+                }}
+              >
+                {/* Botón cerrar */}
+                <button
+                  onClick={() => {
+                    setImagenAmpliada(false);
+                    setScale(1);
+                    setPosicion({ x: 0, y: 0 });
+                  }}
+                  className="absolute top-4 right-4 z-[10000] bg-white/20 backdrop-blur-sm text-white rounded-full p-3 hover:bg-white/30 transition"
+                >
+                  <X size={24} />
+                </button>
+
+                {/* Controles de zoom */}
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-4 bg-white/20 backdrop-blur-sm rounded-full px-6 py-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setScale(Math.max(1, scale - 0.5));
+                      if (scale - 0.5 <= 1) {
+                        setPosicion({ x: 0, y: 0 });
+                      }
+                    }}
+                    disabled={scale <= 1}
+                    className="text-white text-2xl font-bold disabled:opacity-30"
+                  >
+                    −
+                  </button>
+                  <span className="text-white font-semibold min-w-[60px] text-center">
+                    {Math.round(scale * 100)}%
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setScale(Math.min(4, scale + 0.5));
+                    }}
+                    disabled={scale >= 4}
+                    className="text-white text-2xl font-bold disabled:opacity-30"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Imagen con zoom y drag */}
+                <motion.div
+                  className="relative w-full h-full flex items-center justify-center overflow-hidden touch-none"
+                  drag={scale > 1}
+                  dragConstraints={{
+                    left: scale > 1 ? -((scale - 1) * 200) : 0,
+                    right: scale > 1 ? (scale - 1) * 200 : 0,
+                    top: scale > 1 ? -((scale - 1) * 200) : 0,
+                    bottom: scale > 1 ? (scale - 1) * 200 : 0,
+                  }}
+                  dragElastic={0.1}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    if (scale > 1) {
+                      setScale(1);
+                      setPosicion({ x: 0, y: 0 });
+                    } else {
+                      setScale(2);
+                    }
+                  }}
+                  style={{
+                    scale: scale,
+                    x: posicion.x,
+                    y: posicion.y,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Image
+                    src={producto.IMAGEN || "/placeholder.jpg"}
+                    alt={producto.TITULO}
+                    fill
+                    className="object-contain select-none pointer-events-none"
+                    draggable={false}
+                  />
+                </motion.div>
+
+                {/* Indicador de ayuda */}
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/20 backdrop-blur-sm text-white text-sm px-4 py-2 rounded-full">
+                  {scale === 1
+                    ? "Toca para cerrar • Doble toca para zoom"
+                    : "Arrastra para mover • Doble toca para alejar"}
+                </div>
+              </motion.div>
             )}
 
             {/* Modal de Confirmación para Eliminar */}
@@ -4188,7 +4270,6 @@ useEffect(() => {
                       />
                     </svg>
                   </div>
-
                   <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
                     ¿Eliminar Producto?
                   </h3>
@@ -4268,6 +4349,7 @@ useEffect(() => {
     );
   };
 
+  //aqui termina vista producto
   const getNombreMarca = (marcaId: number) => {
     if (!marcaId) return "Sin marca";
     const marca = marcas.find((m) => m.id === marcaId);
@@ -4502,20 +4584,20 @@ useEffect(() => {
                         </div>
                       )}
 
-                                           {macroCategorias.length === 0 &&
+                      {macroCategorias.length === 0 &&
                         subTab === "categorias" && (
-                        <div className="flex items-center justify-center py-20">
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{
-                              duration: 2,
-                              repeat: Infinity,
-                              ease: "linear",
-                            }}
-                            className="w-12 h-12 border-4 border-zinc-200 border-t-orange-500 rounded-full"
-                          />
-                        </div>
-                      )}
+                          <div className="flex items-center justify-center py-20">
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{
+                                duration: 2,
+                                repeat: Infinity,
+                                ease: "linear",
+                              }}
+                              className="w-12 h-12 border-4 border-zinc-200 border-t-orange-500 rounded-full"
+                            />
+                          </div>
+                        )}
                       {/* Grid de Marcas */}
                       {subTab === "marcas" && (
                         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
@@ -4580,7 +4662,6 @@ useEffect(() => {
                   ) : macroCategoriaSeleccionada &&
                     !categoriaSeleccionada &&
                     !marcaSeleccionada ? (
-                      
                     /* Mostrar subcategorías dentro de la categoría seleccionada */
                     <motion.div
                       key="categorias-en-macro"
@@ -4700,7 +4781,7 @@ useEffect(() => {
 
                       {categorias.length === 0 && (
                         <p className="text-center text-zinc-500 py-10">
-                          No hay categorías en esta macro-categoría.
+                          No hay subcategorías en esta categoría.
                         </p>
                       )}
                     </motion.div>
@@ -4712,157 +4793,141 @@ useEffect(() => {
                           categoriaSeleccionada?.id_categoria ||
                           marcaSeleccionada?.id
                         }
-                        initial={{ opacity: 0, y: 40 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -40 }}
-                        transition={{ duration: 0.4, ease: "easeInOut" }}
-                        className="px-4 pb-20"
-                      >
-                        <motion.div
-                          key="vista-productos"
-                          className="px-4 pb-20"
-                          initial={{ opacity: 0, x: 40 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -40 }}
-                          transition={{ duration: 0.3, ease: "easeInOut" }}
-                          drag="x"
-                          dragConstraints={{ left: 0, right: 0 }}
-                          onDragEnd={(event, info) => {
-                            if (info.offset.x > 100) {
-                              setCategoriaSeleccionada(null);
-                              setMarcaSeleccionada(null);
-                              const savedScroll =
-                                localStorage.getItem("scrollPos");
-                              if (savedScroll) {
-                                setTimeout(() => {
-                                  window.scrollTo({
-                                    top: parseInt(savedScroll),
-                                    behavior: "instant",
-                                  });
-                                }, 50);
-                              }
+                        initial={{ opacity: 0, x: 40 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -40 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        className="pb-20"
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        onDragEnd={(event, info) => {
+                          if (info.offset.x > 100) {
+                            setCategoriaSeleccionada(null);
+                            setMarcaSeleccionada(null);
+                            const savedScroll =
+                              localStorage.getItem("scrollPos");
+                            if (savedScroll) {
+                              setTimeout(() => {
+                                window.scrollTo({
+                                  top: parseInt(savedScroll),
+                                  behavior: "instant",
+                                });
+                              }, 50);
                             }
-                          }}
-                        >
-                          <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
-                            <SkeletonImage
-                              src={
-                                categoriaSeleccionada?.img ||
-                                marcaSeleccionada?.img ||
-                                "/placeholder.jpg"
-                              }
-                              alt={
-                                categoriaSeleccionada?.nombre_categoria ||
-                                marcaSeleccionada?.nombre_marca
-                              }
-                              className="object-contain"
-                            />
-                          </div>
+                          }
+                        }}
+                      >
+                        <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
+                          <SkeletonImage
+                            src={
+                              categoriaSeleccionada?.img ||
+                              marcaSeleccionada?.img ||
+                              "/placeholder.jpg"
+                            }
+                            alt={
+                              categoriaSeleccionada?.nombre_categoria ||
+                              marcaSeleccionada?.nombre_marca
+                            }
+                            className="object-contain"
+                          />
+                        </div>
 
-                          <AnimatePresence>
-                            {(categoriaSeleccionada || marcaSeleccionada) && (
-                              <BackBtn
-                                onBack={() => {
-                                  setCategoriaSeleccionada(null);
-                                  setMarcaSeleccionada(null);
-                                  const savedScroll =
-                                    localStorage.getItem("scrollPos");
-                                  if (savedScroll) {
-                                    setTimeout(() => {
-                                      window.scrollTo({
-                                        top: parseInt(savedScroll),
-                                        behavior: "instant",
-                                      });
-                                    }, 50);
-                                  }
+                        <AnimatePresence>
+                          {(categoriaSeleccionada || marcaSeleccionada) && (
+                            <BackBtn
+                              onBack={() => {
+                                setCategoriaSeleccionada(null);
+                                setMarcaSeleccionada(null);
+                                const savedScroll =
+                                  localStorage.getItem("scrollPos");
+                                if (savedScroll) {
+                                  setTimeout(() => {
+                                    window.scrollTo({
+                                      top: parseInt(savedScroll),
+                                      behavior: "instant",
+                                    });
+                                  }, 50);
+                                }
+                              }}
+                            />
+                          )}
+                        </AnimatePresence>
+
+                        <div className="flex items-center justify-between mb-3">
+                          <h2 className="text-xl font-bold text-zinc-800">
+                            {categoriaSeleccionada?.nombre_categoria ||
+                              marcaSeleccionada?.nombre_marca}
+                          </h2>
+                        </div>
+
+                        <div className="relative mb-4">
+                          <input
+                            type="text"
+                            placeholder="Buscar"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full rounded-full border border-zinc-300 px-10 py-2 pr-10 text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-[16px] md:text-sm"
+                          />
+                          <Search className="absolute left-3 top-2.5 text-zinc-500 w-5 h-5" />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 pb-10">
+                          {articulos
+                            .filter((a) => {
+                              if (!esAdmin && !a.visible) return false;
+                              return (
+                                (a.TITULO &&
+                                  a.TITULO.toLowerCase().includes(
+                                    searchTerm.toLowerCase()
+                                  )) ||
+                                (a.CODIGO &&
+                                  a.CODIGO.toLowerCase().includes(
+                                    searchTerm.toLowerCase()
+                                  ))
+                              );
+                            })
+                            .map((art) => (
+                              <motion.div
+                                key={art.id}
+                                variants={{
+                                  hidden: { opacity: 0, y: 10 },
+                                  show: { opacity: 1, y: 0 },
                                 }}
-                              />
-                            )}
-                          </AnimatePresence>
+                                transition={{ duration: 0.3 }}
+                                onClick={() => {
+                                  const scrollY = window.scrollY;
+                                  localStorage.setItem(
+                                    "scrollProducto",
+                                    scrollY.toString()
+                                  );
+                                  setProductoSeleccionado(art);
+                                }}
+                                className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+                              >
+                                {/* Imagen grande */}
+                                <div className="relative w-full h-40 bg-white">
+                                  <SkeletonImage
+                                    src={art.IMAGEN || "/placeholder.jpg"}
+                                    alt={art.TITULO}
+                                    className="object-contain"
+                                  />
+                                </div>
 
-                          <div className="flex items-center justify-between mb-3">
-                            <h2 className="text-xl font-bold text-zinc-800">
-                              {categoriaSeleccionada?.nombre_categoria ||
-                                marcaSeleccionada?.nombre_marca}
-                            </h2>
-                          </div>
-
-                          <div className="relative mb-4">
-                            <input
-                              type="text"
-                              placeholder="Buscar"
-                              value={searchTerm}
-                              onChange={(e) => setSearchTerm(e.target.value)}
-                              className="w-full rounded-full border border-zinc-300 px-10 py-2 pr-10 text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-[16px] md:text-sm"
-                            />
-                            <Search className="absolute left-3 top-2.5 text-zinc-500 w-5 h-5" />
-                          </div>
-
-                          <div
-                            className="
-                              grid 
-                              grid-cols-2 
-                              md:grid-cols-3 
-                              lg:grid-cols-4 
-                              gap-4 
-                              pb-10
-                            "
-                          >
-                            {articulos
-                              .filter((a) => {
-                                if (!esAdmin && !a.visible) return false;
-                                return (
-                                  (a.TITULO &&
-                                    a.TITULO.toLowerCase().includes(
-                                      searchTerm.toLowerCase()
-                                    )) ||
-                                  (a.CODIGO &&
-                                    a.CODIGO.toLowerCase().includes(
-                                      searchTerm.toLowerCase()
-                                    ))
-                                );
-                              })
-                              .map((art) => (
-                                <motion.div
-                                  key={art.id}
-                                  variants={{
-                                    hidden: { opacity: 0, y: 10 },
-                                    show: { opacity: 1, y: 0 },
-                                  }}
-                                  transition={{ duration: 0.3 }}
-                                  onClick={() => {
-                                    const scrollY = window.scrollY;
-                                    localStorage.setItem(
-                                      "scrollProducto",
-                                      scrollY.toString()
-                                    );
-                                    setProductoSeleccionado(art);
-                                  }}
-                                  className="bg-white rounded-xl border border-zinc-200 shadow hover:shadow-md transition cursor-pointer overflow-hidden p-3"
-                                >
-                                  {/* Imagen grande */}
-                                  <div className="relative w-full h-36 md:h-40 lg:h-48 rounded-lg overflow-hidden bg-white mb-2">
-                                    <SkeletonImage
-                                      src={art.IMAGEN || "/placeholder.jpg"}
-                                      alt={art.TITULO}
-                                      className="object-contain"
-                                    />
-                                  </div>
-
-                                  {/* Nombre y detalles */}
-                                  <div className="text-sm font-semibold text-zinc-700">
-                                    <p className="text-xs text-orange-500 font-medium">
-                                      {getNombreMarca(art.marca_id)}
-                                    </p>
-                                    <p className="line-clamp-2">{art.TITULO}</p>
-                                    <p className="text-xs text-zinc-500 mt-1">
-                                      Código: {art.CODIGO}
-                                    </p>
-                                  </div>
+                                {/* Nombre y detalles */}
+                                <div className="p-2">
+                                  <p className="text-xs text-orange-500 font-medium">
+                                    {getNombreMarca(art.marca_id)}
+                                  </p>
+                                  <p className="text-sm font-semibold text-zinc-700 line-clamp-2">
+                                    {art.TITULO}
+                                  </p>
+                                  <p className="text-xs text-zinc-500 mt-1">
+                                    {art.CODIGO}
+                                  </p>
 
                                   {/* Precio (si NO es admin) */}
                                   {!esAdmin && (
-                                    <p className="text-sm font-bold text-orange-500 mt-2">
+                                    <p className="text-sm font-bold text-orange-500 mt-1">
                                       $ {art.P_MAYOREO?.toFixed(2)}
                                     </p>
                                   )}
@@ -4892,17 +4957,17 @@ useEffect(() => {
                                       </span>
                                     </div>
                                   )}
-                                </motion.div>
-                              ))}
+                                </div>
+                              </motion.div>
+                            ))}
 
-                            {articulos.length === 0 && (
-                              <p className="text-center text-zinc-500 py-10 col-span-full">
-                                No hay productos en esta{" "}
-                                {categoriaSeleccionada ? "categoría" : "marca"}.
-                              </p>
-                            )}
-                          </div>
-                        </motion.div>
+                          {articulos.length === 0 && (
+                            <p className="text-center text-zinc-500 py-10 col-span-full">
+                              No hay productos en esta{" "}
+                              {categoriaSeleccionada ? "categoría" : "marca"}.
+                            </p>
+                          )}
+                        </div>
                       </motion.div>
                     </AnimatePresence>
                   )}
