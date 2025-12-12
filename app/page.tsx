@@ -4166,13 +4166,13 @@ export default function HomePage() {
                     setScale(1);
                     setPosicion({ x: 0, y: 0 });
                   }}
-                  className="absolute top-4 right-4 z-[10000] bg-white/20 backdrop-blur-sm text-white rounded-full p-3 hover:bg-white/30 transition"
+                  className="absolute top-4 right-4 z-[10000] bg-gray-800 text-white rounded-full p-3 hover:bg-white/30 transition"
                 >
                   <X size={24} />
                 </button>
 
                 {/* Controles de zoom */}
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-4 bg-white/20 backdrop-blur-sm rounded-full px-6 py-3">
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-4 bg-gray-800 rounded-full px-6 py-3">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -4238,7 +4238,7 @@ export default function HomePage() {
                 </motion.div>
 
                 {/* Indicador de ayuda */}
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/20 backdrop-blur-sm text-white text-sm px-4 py-2 rounded-full">
+               <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-gray-700 text-white text-sm px-4 py-2 rounded-full shadow-md">
                   {scale === 1
                     ? "Toca para cerrar • Doble toca para zoom"
                     : "Arrastra para mover • Doble toca para alejar"}
