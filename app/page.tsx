@@ -22,6 +22,10 @@ import {
   PackagePlus,
   Box,
   Boxes,
+  Users,
+  FilePenLine ,  
+  Edit2, 
+  ChevronLeft,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
@@ -45,7 +49,7 @@ const SkeletonImage = ({ src, alt, className }: any) => {
         className={`${className} transition-opacity duration-300 ${
           loaded ? "opacity-100" : "opacity-0"
         }`}
-        onLoadingComplete={() => setLoaded(true)}
+        onLoad={() => setLoaded(true)}
       />
     </div>
   );
@@ -57,7 +61,7 @@ interface Cuenta {
   numero_tel?: string;
   [key: string]: any;
 }
-
+ 
 export default function HomePage() {
   const [cuentaActiva, setCuentaActiva] = useState<string | null>(null);
   const [numCuentaInput, setNumCuentaInput] = useState("");
@@ -121,6 +125,330 @@ export default function HomePage() {
     "catalogo"
   );
 
+
+  const getPathFromUrl = (url: string) => {
+  try {
+    const parts = url.split('/imagenes_categorias/');
+    return parts[1] || null;
+  } catch {
+    return null;
+  }
+};
+
+// Vista de Edición de Categorías/Subcategorías
+const VistaEdicionCategorias = ({ 
+  setVistaPerfil, 
+  supabase, 
+  categorias, 
+  setCategorias,
+  macroCategorias,
+  setMacroCategorias,
+  cuenta 
+}: any) => {
+  const [tipo, setTipo] = useState<'macro' | 'subcategoria'>('macro');
+  const [itemSeleccionado, setItemSeleccionado] = useState<any>(null);
+  const [nombre, setNombre] = useState('');
+  const [orden, setOrden] = useState('');
+  const [imagenFile, setImagenFile] = useState<File | null>(null);
+  const [imagenPreview, setImagenPreview] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState('');
+
+  const handleSeleccionar = (item: any) => {
+    setItemSeleccionado(item);
+    setNombre(item.nombre || item.nombre_categoria);
+    setOrden(String(item.orden));
+    setImagenPreview(item.img || '');
+    setImagenFile(null);
+    setMensaje('');
+  };
+
+  const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setMensaje('Por favor selecciona una imagen válida');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setMensaje('La imagen no debe superar los 5MB');
+        return;
+      }
+      setImagenFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setImagenPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+ const guardarCambios = async () => {
+  if (!itemSeleccionado) return;
+
+  setGuardando(true);
+  setMensaje('');
+
+  const imagenAnterior = itemSeleccionado.img;
+
+  try {
+    let urlImagen = imagenAnterior;
+    if (imagenFile) {
+      const timestamp = Date.now();
+      const extension = imagenFile.name.split('.').pop();
+      const nombreArchivo = `${tipo}_${itemSeleccionado.id}_${timestamp}.${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('imagenes_categorias')
+        .upload(nombreArchivo, imagenFile, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        setMensaje('Error al subir la imagen');
+        setGuardando(false);
+        return;
+      }
+
+      const { data } = supabase.storage
+        .from('imagenes_categorias')
+        .getPublicUrl(nombreArchivo);
+
+      urlImagen = data.publicUrl;
+    }
+
+    const tabla = tipo === 'macro' ? 'macro_categorias' : 'categorias';
+    const campoNombre = tipo === 'macro' ? 'nombre' : 'nombre_categoria';
+    const campoId = tipo === 'macro' ? 'id' : 'id_categoria';
+
+    const { error: updateError } = await supabase
+      .from(tabla)
+      .update({
+        [campoNombre]: nombre.trim().toUpperCase(),
+        orden: parseInt(orden),
+        img: urlImagen,
+      })
+      .eq(campoId, itemSeleccionado[campoId]);
+
+    if (updateError) {
+      setMensaje('Error al actualizar');
+      console.error(updateError);
+      setGuardando(false);
+      return;
+    }
+
+    /* borrar imagen anterior */
+    if (imagenFile && imagenAnterior && imagenAnterior !== urlImagen) {
+      const pathAnterior = getPathFromUrl(imagenAnterior);
+
+      if (pathAnterior) {
+        await supabase.storage
+          .from('imagenes_categorias')
+          .remove([pathAnterior]);
+      }
+    }
+
+    setMensaje('Cambios guardados correctamente');
+
+    if (tipo === 'macro') {
+      const { data } = await supabase
+        .from('macro_categorias')
+        .select('id, nombre, img, orden')
+        .order('orden', { ascending: true });
+      setMacroCategorias(data || []);
+    } else {
+      const { data } = await supabase
+        .from('categorias')
+        .select('id_categoria, nombre_categoria, img, orden, macro_categoria_id')
+        .order('orden', { ascending: true });
+      setCategorias(data || []);
+    }
+
+    setTimeout(() => {
+      setItemSeleccionado(null);
+      setNombre('');
+      setOrden('');
+      setImagenPreview('');
+      setImagenFile(null);
+      setMensaje('');
+    }, 2000);
+  } catch (error) {
+    console.error(error);
+    setMensaje('Ocurrió un error inesperado');
+  } finally {
+    setGuardando(false);
+  }
+};
+
+
+  const items = tipo === 'macro' 
+    ? [...macroCategorias].sort((a, b) => a.orden - b.orden)
+    : [...categorias].sort((a, b) => a.orden - b.orden);
+
+  return (
+    <div className="min-h-screen px-6 py-6">
+       <BackBtn onBack={() => setVistaPerfil("menu")} />
+      <h2 className="text-xl font-bold text-zinc-900 mb-6">
+        Editar Categorías
+      </h2>
+
+      {/* Selector de tipo */}
+      <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
+        <button
+          onClick={() => {
+            setTipo('macro');
+            setItemSeleccionado(null);
+            setMensaje('');
+          }}
+          className={`flex-1 py-3 rounded-lg font-semibold transition ${
+            tipo === 'macro'
+              ? 'bg-orange-500 text-white'
+              : 'text-zinc-600 hover:bg-zinc-100'
+          }`}
+        >
+          Categorías
+        </button>
+        <button
+          onClick={() => {
+            setTipo('subcategoria');
+            setItemSeleccionado(null);
+            setMensaje('');
+          }}
+          className={`flex-1 py-3 rounded-lg font-semibold transition ${
+            tipo === 'subcategoria'
+              ? 'bg-orange-500 text-white'
+              : 'text-zinc-600 hover:bg-zinc-100'
+          }`}
+        >
+          Subcategorías
+        </button>
+      </div>
+
+      {!itemSeleccionado ? (
+        /* LISTA DE ITEMS */
+        <div className="space-y-2">
+          <p className="text-sm text-zinc-600 mb-3">
+            Selecciona {tipo === 'macro' ? 'una categoría' : 'una subcategoría'} para editar:
+          </p>
+          {items.map((item: any) => (
+            <div
+              key={item.id || item.id_categoria}
+              onClick={() => handleSeleccionar(item)}
+              className="flex items-center justify-between p-3 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-blue-400 transition bg-white"
+            >
+              <div className="flex items-center gap-3">
+                <div className="relative w-12 h-12 rounded-lg overflow-hidden">
+                  <img
+                    src={item.img || '/placeholder.jpg'}
+                    alt={item.nombre || item.nombre_categoria}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div>
+                  <p className="font-semibold text-zinc-800">
+                    {item.nombre || item.nombre_categoria}
+                  </p>
+                  <p className="text-xs text-zinc-500">Orden: {item.orden}</p>
+                </div>
+              </div>
+              <Edit2 size={18} className="text-blue-500" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* FORMULARIO DE EDICIÓN */
+        <div>
+          {/* Imagen */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Imagen
+            </label>
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-zinc-300">
+                <img
+                  src={imagenPreview || '/placeholder.jpg'}
+                  alt="Preview"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImagenChange}
+                className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+            </div>
+          </div>
+
+          {/* Nombre */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Nombre
+            </label>
+            <input
+              type="text"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Orden */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Orden
+            </label>
+            <input
+              type="number"
+              value={orden}
+              onChange={(e) => setOrden(e.target.value)}
+              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Mensaje */}
+          {mensaje && (
+            <div
+              className={`mb-4 p-3 rounded-lg text-sm ${
+                mensaje.includes('Error')
+                  ? 'bg-red-50 text-red-700 border border-red-200'
+                  : 'bg-green-50 text-green-700 border border-green-200'
+              }`}
+            >
+              {mensaje}
+            </div>
+          )}
+
+          {/* Botones */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setItemSeleccionado(null);
+                setNombre('');
+                setOrden('');
+                setImagenPreview('');
+                setImagenFile(null);
+                setMensaje('');
+              }}
+              disabled={guardando}
+              className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={guardarCambios}
+              disabled={guardando || !nombre || !orden}
+              className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-semibold hover:bg-blue-600 transition disabled:opacity-50"
+            >
+              {guardando ? 'Guardando...' : 'Guardar Cambios'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
   const BackBtn = ({ onBack }: any) => {
     if (typeof document === "undefined") return null;
 
@@ -132,10 +460,10 @@ export default function HomePage() {
         transition={{ duration: 0.18, ease: "easeOut" }}
         whileTap={{ scale: 0.93 }}
         onClick={onBack}
-        className="fixed top-5 left-4 z-[9999] bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow-lg transition text-2xl"
+        className="fixed top-5 left-4 z-[9999] bg-transparent hover:bg-white/20 bg-orange text-orange-500 rounded-full p-4 shadow-lg transition text-2xl"
         aria-label="Volver"
       >
-        ←
+       <ChevronLeft  size={34} />
       </motion.button>
     );
 
@@ -326,7 +654,6 @@ export default function HomePage() {
       if (error) {
         console.error("Error cargando macro-categorías:", error.message);
       } else {
-        console.log("Macro-categorías cargadas:", data);
         setMacroCategorias(data || []);
       }
     };
@@ -345,7 +672,6 @@ export default function HomePage() {
       if (error) {
         console.error("Error cargando marcas:", error.message);
       } else {
-        console.log("Marcas cargadas:", data);
         setMarcas(data || []);
       }
     };
@@ -1344,6 +1670,608 @@ export default function HomePage() {
       </motion.div>
     );
   };
+
+  const GestionarCuentasView = ({ setVistaPerfil }: any) => {
+  const [cuentas, setCuentas] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [modoVista, setModoVista] = useState<"lista" | "agregar" | "editar">("lista");
+  const [cuentaSeleccionada, setCuentaSeleccionada] = useState<any>(null);
+  const [numeroCuenta, setNumeroCuenta] = useState("");
+  const [cliente, setCliente] = useState("");
+  const [ferreteria, setFerreteria] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [numeroTel, setNumeroTel] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+  const [mostrarModalEliminar, setMostrarModalEliminar] = useState(false);
+  const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
+  const [errorEliminar, setErrorEliminar] = useState("");
+  const [eliminando, setEliminando] = useState(false);
+
+  useEffect(() => {
+    cargarCuentas();
+  }, []);
+
+  const cargarCuentas = async () => {
+    setCargando(true);
+    const { data, error } = await supabase
+      .from("cuentas")
+      .select("*")
+      .order("numero_cuenta", { ascending: true });
+
+    if (!error && data) {
+      setCuentas(data);
+    }
+    setCargando(false);
+  };
+
+  const limpiarFormulario = () => {
+    setNumeroCuenta("");
+    setCliente("");
+    setFerreteria("");
+    setDireccion("");
+    setNumeroTel("");
+    setMensaje("");
+    setCuentaSeleccionada(null);
+  };
+
+  const agregarCuenta = async () => {
+    setGuardando(true);
+    setMensaje("");
+
+    if (!numeroCuenta.trim()) {
+      setMensaje("El número de cuenta es obligatorio");
+      setGuardando(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from("cuentas").insert([
+        {
+          numero_cuenta: numeroCuenta.trim(),
+          cliente: cliente.trim() || null,
+          ferreteria: ferreteria.trim() || null,
+          direccion: direccion.trim() || null,
+          numero_tel: numeroTel.trim() || null,
+        },
+      ]);
+
+      if (error) {
+        if (error.code === "23505") {
+          setMensaje("Ya existe una cuenta con ese número");
+        } else {
+          setMensaje("Error al agregar la cuenta");
+        }
+      } else {
+        setMensaje("Cuenta agregada correctamente");
+        await cargarCuentas();
+        setTimeout(() => {
+          limpiarFormulario();
+          setModoVista("lista");
+        }, 1500);
+      }
+    } catch (error) {
+      setMensaje("Ocurrió un error inesperado");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const editarCuenta = async () => {
+  if (!cuentaSeleccionada) return;
+
+  if (!numeroCuenta.trim()) {
+    setMensaje("El número de cuenta es obligatorio");
+    return;
+  }
+
+  setGuardando(true);
+  setMensaje("");
+
+  try {
+    const { error } = await supabase
+      .from("cuentas")
+      .update({
+        numero_cuenta: numeroCuenta.trim(),
+        cliente: cliente.trim() || null,
+        ferreteria: ferreteria.trim() || null,
+        direccion: direccion.trim() || null,
+        numero_tel: numeroTel.trim() || null,
+
+      })
+      .eq("id", cuentaSeleccionada.id);
+
+    if (error) {
+      if (error.code === "23505") {
+        setMensaje("Ya existe una cuenta con ese número");
+      } else {
+        setMensaje("Error al actualizar la cuenta");
+      }
+    } else {
+      setMensaje("Cuenta actualizada correctamente");
+      await cargarCuentas();
+      setTimeout(() => {
+        limpiarFormulario();
+        setModoVista("lista");
+      }, 1500);
+    }
+  } catch (err) {
+    setMensaje("Ocurrió un error inesperado");
+  } finally {
+    setGuardando(false);
+  }
+};
+
+
+  const eliminarCuenta = async () => {
+    if (!cuentaSeleccionada) return;
+
+    setEliminando(true);
+    setErrorEliminar("");
+
+   if (numeroCuentaConfirm.trim() !== cuentaSeleccionada.numero_cuenta) {
+      setErrorEliminar("Número de cuenta incorrecto");
+      setEliminando(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("cuentas")
+        .delete()
+        .eq("id", cuentaSeleccionada.id);
+
+      if (error) {
+        setErrorEliminar("Error al eliminar la cuenta");
+      } else {
+        setMensaje("Cuenta eliminada correctamente");
+        await cargarCuentas();
+        setMostrarModalEliminar(false);
+        limpiarFormulario();
+        setModoVista("lista");
+      }
+    } catch (error) {
+      setErrorEliminar("Ocurrió un error inesperado");
+    } finally {
+      setEliminando(false);
+    }
+  };
+
+  const abrirEdicion = (cuentaItem: any) => {
+    setCuentaSeleccionada(cuentaItem);
+    setNumeroCuenta(cuentaItem.numero_cuenta);
+    setCliente(cuentaItem.cliente || "");
+    setFerreteria(cuentaItem.ferreteria || "");
+    setDireccion(cuentaItem.direccion || "");
+     setNumeroTel(cuentaItem.numero_tel ? String(cuentaItem.numero_tel) : "");
+    setModoVista("editar");
+  };
+
+  return (
+    <motion.div
+      key="gestionar-cuentas"
+      className="min-h-screen"
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -40 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+    >
+      <div className="px-6 py-6">
+        <BackBtn
+          onBack={() => {
+            if (modoVista !== "lista") {
+              limpiarFormulario();
+              setModoVista("lista");
+            } else {
+              setVistaPerfil("menu");
+            }
+          }}
+        />
+
+        <h2 className="text-xl font-bold text-zinc-900 mb-6">
+          Gestionar Cuentas
+        </h2>
+
+        {/* VISTA LISTA */}
+        {modoVista === "lista" && (
+          <>
+            <button
+              onClick={() => setModoVista("agregar")}
+              className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition mb-4"
+            >
+              + Agregar Nueva Cuenta
+            </button>
+
+            {cargando ? (
+              <div className="flex justify-center py-10">
+                <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {cuentas.map((cuentaItem) => (
+                  <div
+                    key={cuentaItem.id}
+                    onClick={() => abrirEdicion(cuentaItem)}
+                    className="bg-white border border-zinc-200 rounded-xl p-4 shadow-sm cursor-pointer hover:bg-zinc-50 transition"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <p className="font-bold text-zinc-900 text-lg">
+                          {cuentaItem.numero_cuenta}
+                        </p>
+                        {cuentaItem.cliente && (
+                          <p className="text-sm text-zinc-600 mt-1">
+                            {cuentaItem.cliente}
+                          </p>
+                        )}
+                        {cuentaItem.ferreteria && (
+                          <p className="text-sm text-zinc-500 mt-1">
+                            {cuentaItem.ferreteria}
+                          </p>
+                        )}
+                        {cuentaItem.numero_tel && (
+                          <p className="text-xs text-zinc-400 mt-1">
+                            Tel. {cuentaItem.numero_tel}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-zinc-400">›</span>
+                    </div>
+                  </div>
+                ))}
+
+                {cuentas.length === 0 && (
+                  <p className="text-center text-zinc-500 py-10">
+                    No hay cuentas registradas
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* VISTA AGREGAR */}
+        {modoVista === "agregar" && (
+          <>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Número de Cuenta <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={numeroCuenta}
+                onChange={(e) => setNumeroCuenta(e.target.value)}
+                placeholder="Ej: C001"
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Nombre del Cliente
+              </label>
+              <input
+                type="text"
+                value={cliente}
+                onChange={(e) => setCliente(e.target.value)}
+                placeholder="Nombre completo"
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Ferretería
+              </label>
+              <input
+                type="text"
+                value={ferreteria}
+                onChange={(e) => setFerreteria(e.target.value)}
+                placeholder="Nombre de la ferretería"
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Dirección
+              </label>
+              <textarea
+                value={direccion}
+                onChange={(e) => setDireccion(e.target.value)}
+                placeholder="Dirección completa"
+                rows={3}
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Teléfono
+              </label>
+              <input
+                type="text"
+                value={numeroTel}
+                onChange={(e) => setNumeroTel(e.target.value)}
+                placeholder="Número de teléfono"
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            {mensaje && (
+              <div
+                className={`mb-4 p-3 rounded-lg text-sm ${
+                  mensaje.includes("Error") || mensaje.includes("obligatorio")
+                    ? "bg-red-50 text-red-700 border border-red-200"
+                    : "bg-green-50 text-green-700 border border-green-200"
+                }`}
+              >
+                {mensaje}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  limpiarFormulario();
+                  setModoVista("lista");
+                }}
+                disabled={guardando}
+                className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={agregarCuenta}
+                disabled={guardando || !numeroCuenta}
+                className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {guardando ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                    Guardando...
+                  </span>
+                ) : (
+                  "Agregar Cuenta"
+                )}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* VISTA EDITAR */}
+        {modoVista === "editar" && cuentaSeleccionada && (
+          <>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Número de Cuenta
+              </label>
+              <input
+                type="text"
+                value={numeroCuenta}
+                onChange={(e) => setNumeroCuenta(e.target.value)}  
+                
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Nombre del Cliente
+              </label>
+              <input
+                type="text"
+                value={cliente}
+                onChange={(e) => setCliente(e.target.value)}
+                placeholder="Nombre completo"
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Ferretería
+              </label>
+              <input
+                type="text"
+                value={ferreteria}
+                onChange={(e) => setFerreteria(e.target.value)}
+                placeholder="Nombre de la ferretería"
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Dirección
+              </label>
+              <textarea
+                value={direccion}
+                onChange={(e) => setDireccion(e.target.value)}
+                placeholder="Dirección completa"
+                rows={3}
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Teléfono
+              </label>
+              <input
+                type="text"
+                value={numeroTel}
+                onChange={(e) => setNumeroTel(e.target.value)}
+                placeholder="Número de teléfono"
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            {mensaje && (
+              <div
+                className={`mb-4 p-3 rounded-lg text-sm ${
+                  mensaje.includes("Error")
+                    ? "bg-red-50 text-red-700 border border-red-200"
+                    : "bg-green-50 text-green-700 border border-green-200"
+                }`}
+              >
+                {mensaje}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    limpiarFormulario();
+                    setModoVista("lista");
+                  }}
+                  disabled={guardando}
+                  className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={editarCuenta}
+                  disabled={guardando}
+                  className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {guardando ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                      Guardando...
+                    </span>
+                  ) : (
+                    "Guardar Cambios"
+                  )}
+                </button>
+              </div>
+
+              <button
+                onClick={() => setMostrarModalEliminar(true)}
+                disabled={guardando}
+                className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-5 h-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                  />
+                </svg>
+                Eliminar Cuenta
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Modal de Confirmación para Eliminar */}
+      {mostrarModalEliminar && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl w-[90%] max-w-md p-6 shadow-2xl"
+          >
+            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                className="w-8 h-8 text-red-600"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                />
+              </svg>
+            </div>
+
+            <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
+              ¿Eliminar Cuenta?
+            </h3>
+
+            <p className="text-sm text-zinc-600 text-center mb-6">
+              Esta acción no se puede deshacer. La cuenta será eliminada
+              permanentemente.
+            </p>
+
+            <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
+              <p className="text-xs text-zinc-500 mb-1">Cuenta a eliminar:</p>
+              <p className="text-sm font-semibold text-zinc-900">
+                {cuentaSeleccionada?.numero_cuenta}
+              </p>
+              {cuentaSeleccionada?.cliente && (
+                <p className="text-xs text-zinc-500 mt-1">
+                  {cuentaSeleccionada.cliente}
+                </p>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                Confirma tu número de cuenta para continuar
+              </label>
+              <input
+                type="text"
+                value={numeroCuentaConfirm}
+                onChange={(e) => {
+                  setNumeroCuentaConfirm(e.target.value);
+                  setErrorEliminar("");
+                }}
+                placeholder="Ingresa tu número de cuenta"
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                disabled={eliminando}
+              />
+              {errorEliminar && (
+                <p className="text-red-500 text-sm mt-2">{errorEliminar}</p>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setMostrarModalEliminar(false);
+                  setNumeroCuentaConfirm("");
+                  setErrorEliminar("");
+                }}
+                disabled={eliminando}
+                className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={eliminarCuenta}
+                disabled={eliminando || !numeroCuentaConfirm}
+                className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {eliminando ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                    Eliminando...
+                  </span>
+                ) : (
+                  "Eliminar"
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </motion.div>
+  );
+};
 
   // Componente para gestionar categorías
   const GestionarCategoriasView = ({ setVistaPerfil }: any) => {
@@ -2419,7 +3347,7 @@ export default function HomePage() {
       if (errorPedido) {
         console.error("Error registrando pedido:", errorPedido);
       } else {
-        console.log("Pedido registrado:", pedidoInsertado);
+        console.log("Pedido registrado");
       }
 
       const jsPDFModule = await import("jspdf");
@@ -2705,14 +3633,14 @@ export default function HomePage() {
       if (uploadError) {
         console.error("Error subiendo PDF a Supabase:", uploadError);
       } else {
-        console.log("PDF subido correctamente:", uploadData);
+        console.log("PDF subido correctamente");
 
         // Obtener URL pública del PDF
         const {
           data: { publicUrl },
         } = supabase.storage.from("pedidos-pdf").getPublicUrl(nombreArchivoPDF);
 
-        console.log("URL pública del PDF:", publicUrl);
+      
 
         // Actualizar el pedido con la URL del PDF
         const { error: updateError } = await supabase
@@ -3417,7 +4345,7 @@ export default function HomePage() {
         return;
       }
 
-      console.log("Actualizando cuenta:", cuenta.numero_cuenta);
+      
 
       const { data, error } = await supabase
         .from("cuentas")
@@ -3529,16 +4457,6 @@ export default function HomePage() {
     const [imagenAmpliada, setImagenAmpliada] = useState(false);
     const [scale, setScale] = useState(1);
     const [posicion, setPosicion] = useState({ x: 0, y: 0 });
-
-    console.log("Producto CATEGORIA_ID:", producto.CATEGORIA_ID);
-    console.log("categoriaId inicial:", categoriaId);
-    console.log(
-      "Categorías disponibles:",
-      categorias.map((c) => ({
-        id: c.id_categoria,
-        nombre: c.nombre_categoria,
-      }))
-    );
     const [imagenFile, setImagenFile] = useState<File | null>(null);
     const [imagenPreview, setImagenPreview] = useState(producto.IMAGEN || "");
     const [guardando, setGuardando] = useState(false);
@@ -4094,7 +5012,7 @@ export default function HomePage() {
 
                   {!esAdmin && (
                     <div className="flex justify-between py-2">
-                      <span className="font-medium">Subtotal</span>
+                      <span className="font-medium">Total de artículo</span>
                       <span>
                         ${(cantidadNum * producto.P_MAYOREO).toFixed(2)}
                       </span>
@@ -4465,7 +5383,7 @@ export default function HomePage() {
       ) : (
         <div className="flex min-h-screen flex-col bg-white font-sans">
           {/* Encabezado, solo se muestra si NO hay categoría seleccionada */}
-          {!(activeTab === "categorias" && categoriaSeleccionada) && (
+          {!(activeTab === "categorias" && categoriaSeleccionada ) &&(
             <header className="p-6 pt-10 text-center">
               <div className="flex items-center justify-center gap-3">
                 <div className="relative w-30 h-30">
@@ -5138,7 +6056,7 @@ export default function HomePage() {
                                     setProductos(productosNormalizados);
                                     if (productosNormalizados.length > 0) {
                                       console.log(
-                                        `✓ ${productosNormalizados.length} producto(s) encontrado(s)`
+                                        ` ${productosNormalizados.length} producto(s) encontrado(s)`
                                       );
                                     } else {
                                       alert(
@@ -5532,6 +6450,17 @@ export default function HomePage() {
                           />
                         )}
 
+                        {esAdmin && (
+                          <MenuItem
+                            label="Gestionar Cuentas"
+                            icon={<Users  size={20} />}
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("gestionar-cuentas");
+                            }}
+                          />
+                        )}
+
                         {!esAdmin && (
                           <MenuItem
                             label="Apoyo"
@@ -5542,6 +6471,18 @@ export default function HomePage() {
                             }}
                           />
                         )}
+
+                        {esAdmin && (
+                          <MenuItem
+                            label="Edicion de Categorias"
+                            icon={<FilePenLine  size={20} />}
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("edicion-categorias");
+                            }}
+                          />
+                        )}
+
                         {/* Configuración */}
                         <MenuItem
                           label="Configuración"
@@ -5625,6 +6566,19 @@ export default function HomePage() {
                     </motion.div>
                   )}
 
+
+{vistaPerfil === "edicion-categorias" && (
+  <VistaEdicionCategorias
+    setVistaPerfil={setVistaPerfil}
+    supabase={supabase}
+    categorias={categorias}
+    setCategorias={setCategorias}
+    macroCategorias={macroCategorias}
+    setMacroCategorias={setMacroCategorias}
+    cuenta={cuenta}
+  />
+)}
+
                   {/* HISTORIAL DE PEDIDOS */}
                   {vistaPerfil === "pedidos" && (
                     <HistorialPedidos
@@ -5658,6 +6612,10 @@ export default function HomePage() {
                   {vistaPerfil === "asignar-categorias" && (
                     <AsignarCategoriasView setVistaPerfil={setVistaPerfil} />
                   )}
+
+                  {vistaPerfil === "gestionar-cuentas" && (
+  <GestionarCuentasView setVistaPerfil={setVistaPerfil} />
+)}
 
                   {/* CONFIGURACIÓN */}
                   {vistaPerfil === "settings" && (
