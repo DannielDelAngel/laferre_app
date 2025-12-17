@@ -33,6 +33,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { createPortal } from "react-dom";
+import InstallPWA from "@/app/InstallPWA";
 
 const SkeletonImage = ({ src, alt, className }: any) => {
   const [loaded, setLoaded] = useState(false);
@@ -5333,6 +5334,7 @@ export default function HomePage() {
 
   return (
     <>
+    <InstallPWA />
       {/* LOGIN ANTES DE ENTRAR A LA APP */}
       {!cuentaActiva ? (
         <div className="min-h-screen bg-gradient-to-tr from-slate-50 to-gray-50 flex flex-col justify-center shadow items-center p-6 text-center">
