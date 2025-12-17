@@ -5833,6 +5833,7 @@ export default function HomePage() {
                                     behavior: "instant",
                                   });
                                 }
+                                setCategorias([]); 
                                 setMacroCategoriaSeleccionada(macro);
 
                                 // Cargar categorías de esta macro-categoría
@@ -5900,6 +5901,7 @@ export default function HomePage() {
                                     behavior: "instant",
                                   });
                                 }
+                                setArticulos([]); 
                                 setMarcaSeleccionada(marca);
 
                                 const { data, error } = await supabase
@@ -5983,6 +5985,7 @@ export default function HomePage() {
                                   behavior: "instant",
                                 });
                               }
+                              setArticulos([]); 
                               setCategoriaSeleccionada(cat);
 
                               const { data, error } = await supabase
