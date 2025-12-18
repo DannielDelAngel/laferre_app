@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef,useMemo  } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import {
   SquareStack,
@@ -70,6 +70,7 @@ export default function HomePage() {
   const [vistaPerfil, setVistaPerfil] = useState("menu"); // menu | apoyo | settings | address | pedidos
   const [cuenta, setCuenta] = useState<Cuenta | null>(null); // datos completos de supabase
   const [mostrarExito, setMostrarExito] = useState(false);
+const [categoriasAdmin, setCategoriasAdmin] = useState<any[]>([]);
 
   const [activeTab, setActiveTab] = useState("categorias");
   const [searchTerm, setSearchTerm] = useState("");
@@ -126,11 +127,19 @@ export default function HomePage() {
     "catalogo"
   );
 
-  const regresar = () => {
-  setSearchTerm("");            
-  setCategoriaSeleccionada(null);
-  setMarcaSeleccionada(null);
-};
+useEffect(() => {
+  const cargarCategorias = async () => {
+    const { data } = await supabase
+      .from("categorias")
+      .select("id_categoria, nombre_categoria, img, orden, macro_categoria_id")
+      .order("orden", { ascending: true });
+
+    setCategoriasAdmin(data || []);
+  };
+
+  cargarCategorias();
+}, []);
+
 
   const articulosFiltrados = articulos.filter((a) => {
     if (!esAdmin && !a.visible) return false;
@@ -170,6 +179,23 @@ export default function HomePage() {
     const [imagenPreview, setImagenPreview] = useState("");
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState("");
+    const [categoriasEdicion, setCategoriasEdicion] = useState<any[]>([]);
+
+    useEffect(() => {
+  if (tipo === "subcategoria") {
+    const cargarTodas = async () => {
+      const { data, error } = await supabase
+        .from("categorias")
+        .select("id_categoria, nombre_categoria, img, orden, macro_categoria_id")
+        .order("orden", { ascending: true });
+
+      if (!error) setCategoriasEdicion(data || []);
+    };
+
+    cargarTodas();
+  }
+}, [tipo]);
+
 
     const handleSeleccionar = (item: any) => {
       setItemSeleccionado(item);
@@ -299,9 +325,9 @@ export default function HomePage() {
     };
 
     const items =
-      tipo === "macro"
-        ? [...macroCategorias].sort((a, b) => a.orden - b.orden)
-        : [...categorias].sort((a, b) => a.orden - b.orden);
+  tipo === "macro"
+    ? [...macroCategorias].sort((a, b) => a.orden - b.orden)
+    : [...categoriasEdicion].sort((a, b) => a.orden - b.orden);
 
     return (
       <div className="min-h-screen px-6 py-6">
@@ -705,7 +731,7 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from("productos")
         .select(
-          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
         );
 
       // Normalizar visible
@@ -1590,7 +1616,7 @@ export default function HomePage() {
           </p>
 
           <div className="space-y-2 mb-4">
-            {categorias.map((cat) => (
+           {categoriasAdmin.map((cat) => (
               <div
                 key={cat.id_categoria}
                 onClick={() => setCategoriaSeleccionada(cat)}
@@ -2598,7 +2624,7 @@ export default function HomePage() {
                 Selecciona una categoría para eliminar:
               </p>
               <div className="space-y-2 mb-4">
-                {categorias.map((cat) => (
+                {categoriasAdmin.map((cat) => (
                   <div
                     key={cat.id_categoria}
                     onClick={() => setCategoriaEliminar(cat)}
@@ -3259,7 +3285,7 @@ export default function HomePage() {
               className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
             >
               <option value="">Seleccionar categoría</option>
-              {categorias.map((cat) => (
+              {categoriasAdmin.map((cat) => (
                 <option key={cat.id_categoria} value={String(cat.id_categoria)}>
                   {cat.nombre_categoria}
                 </option>
@@ -4245,6 +4271,8 @@ export default function HomePage() {
   interface Producto {
     id: number;
     visible: boolean;
+    liquidacion?: boolean;
+    top_ventas?: boolean;
     [key: string]: any;
   }
 
@@ -4272,6 +4300,56 @@ export default function HomePage() {
     } catch (error) {
       console.error("Error al actualizar visibilidad:", error);
       // Opcional: Mostrar mensaje de error al usuario
+    }
+  };
+
+  const toggleLiquidacion = async (
+    productoId: number,
+    liquidacionActual: boolean
+  ): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from("productos")
+        .update({ liquidacion: !liquidacionActual })
+        .eq("id", productoId);
+
+      if (error) throw error;
+
+      setArticulos((prevArticulos: Producto[]) =>
+        prevArticulos.map((art: Producto) =>
+          art.id === productoId
+            ? { ...art, liquidacion: !liquidacionActual }
+            : art
+        )
+      );
+
+      console.log("Liquidación actualizada correctamente");
+    } catch (error) {
+      console.error("Error al actualizar liquidación:", error);
+    }
+  };
+
+  const toggleTopVentas = async (
+    productoId: number,
+    topVentasActual: boolean
+  ): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from("productos")
+        .update({ top_ventas: !topVentasActual })
+        .eq("id", productoId);
+
+      if (error) throw error;
+
+      setArticulos((prevArticulos: Producto[]) =>
+        prevArticulos.map((art: Producto) =>
+          art.id === productoId ? { ...art, top_ventas: !topVentasActual } : art
+        )
+      );
+
+      console.log("Top ventas actualizado correctamente");
+    } catch (error) {
+      console.error("Error al actualizar top ventas:", error);
     }
   };
 
@@ -5334,7 +5412,7 @@ export default function HomePage() {
 
   return (
     <>
-    <InstallPWA />
+      <InstallPWA />
       {/* LOGIN ANTES DE ENTRAR A LA APP */}
       {!cuentaActiva ? (
         <div className="min-h-screen bg-gradient-to-tr from-slate-50 to-gray-50 flex flex-col justify-center shadow items-center p-6 text-center">
@@ -5505,7 +5583,7 @@ export default function HomePage() {
                         let query = supabase
                           .from("productos")
                           .select(
-                            "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                            "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
                           );
 
                         // Filtrar por categoría o marca si hay una seleccionada
@@ -5547,7 +5625,7 @@ export default function HomePage() {
                             let query = supabase
                               .from("productos")
                               .select(
-                                "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
                               );
 
                             if (categoriaSeleccionada) {
@@ -5835,7 +5913,7 @@ export default function HomePage() {
                                     behavior: "instant",
                                   });
                                 }
-                                setCategorias([]); 
+                                setCategorias([]);
                                 setMacroCategoriaSeleccionada(macro);
 
                                 // Cargar categorías de esta macro-categoría
@@ -5861,7 +5939,7 @@ export default function HomePage() {
                                 <SkeletonImage
                                   src={macro.img || "/placeholder.jpg"}
                                   alt={macro.nombre}
-                                  className="object-cover"
+                                  className="object-contain"
                                 />
                               </div>
                               <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
@@ -5903,13 +5981,13 @@ export default function HomePage() {
                                     behavior: "instant",
                                   });
                                 }
-                                setArticulos([]); 
+                                setArticulos([]);
                                 setMarcaSeleccionada(marca);
 
                                 const { data, error } = await supabase
                                   .from("productos")
                                   .select(
-                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
                                   )
 
                                   .eq("marca_id", marca.id);
@@ -5987,13 +6065,13 @@ export default function HomePage() {
                                   behavior: "instant",
                                 });
                               }
-                              setArticulos([]); 
+                              setArticulos([]);
                               setCategoriaSeleccionada(cat);
 
                               const { data, error } = await supabase
                                 .from("productos")
                                 .select(
-                                  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
                                 )
 
                                 .eq("CATEGORIA_ID", cat.id_categoria);
@@ -6019,7 +6097,7 @@ export default function HomePage() {
                               <SkeletonImage
                                 src={cat.img || "/placeholder.jpg"}
                                 alt={cat.nombre_categoria}
-                                className="object-cover"
+                                className="object-contain"
                               />
                             </div>
                             <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
@@ -6163,8 +6241,20 @@ export default function HomePage() {
                                       alt={art.TITULO}
                                       className="object-contain"
                                     />
+                                    {/* Badges de Liquidación y Top Ventas */}
+                                    <div className="absolute top-2 right-2 flex flex-col gap-1">
+                                      {art.liquidacion && (
+                                        <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
+                                          LIQUIDACIÓN
+                                        </span>
+                                      )}
+                                      {art.top_ventas && (
+                                        <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
+                                          MAS VENDIDOS 
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
-
                                   <div className="p-2">
                                     <p className="text-xs text-orange-500 font-medium">
                                       {getNombreMarca(art.marca_id)}
@@ -6185,27 +6275,75 @@ export default function HomePage() {
                                     {/* Toggle (solo admin) */}
                                     {esAdmin && (
                                       <div
-                                        className="flex items-center gap-2 mt-2"
+                                        className="flex flex-col gap-2 mt-2"
                                         onClick={(e) => e.stopPropagation()}
                                       >
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                          <input
-                                            type="checkbox"
-                                            checked={art.visible}
-                                            onChange={() =>
-                                              toggleVisibilidad(
-                                                art.id,
-                                                art.visible
-                                              )
-                                            }
-                                            className="sr-only peer"
-                                          />
-                                          <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-                                        </label>
+                                        {/* Toggle Visible */}
+                                        <div className="flex items-center gap-2">
+                                          <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              checked={art.visible}
+                                              onChange={() =>
+                                                toggleVisibilidad(
+                                                  art.id,
+                                                  art.visible
+                                                )
+                                              }
+                                              className="sr-only peer"
+                                            />
+                                            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                                          </label>
+                                          <span className="text-xs text-zinc-500">
+                                            {art.visible ? "Visible" : "Oculto"}
+                                          </span>
+                                        </div>
 
-                                        <span className="text-xs text-zinc-500">
-                                          {art.visible ? "Visible" : "Oculto"}
-                                        </span>
+                                        {/* Toggle Liquidación */}
+                                        <div className="flex items-center gap-2">
+                                          <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              checked={art.liquidacion ?? false}
+                                              onChange={() =>
+                                                toggleLiquidacion(
+                                                  art.id,
+                                                  art.liquidacion ?? false
+                                                )
+                                              }
+                                              className="sr-only peer"
+                                            />
+                                            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                                          </label>
+                                          <span className="text-xs text-zinc-500">
+                                            {art.liquidacion
+                                              ? "En Liquidación"
+                                              : "Liquidación"}
+                                          </span>
+                                        </div>
+
+                                        {/* Toggle Top Ventas */}
+                                        <div className="flex items-center gap-2">
+                                          <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              checked={art.top_ventas ?? false}
+                                              onChange={() =>
+                                                toggleTopVentas(
+                                                  art.id,
+                                                  art.top_ventas ?? false
+                                                )
+                                              }
+                                              className="sr-only peer"
+                                            />
+                                            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                                          </label>
+                                          <span className="text-xs text-zinc-500">
+                                            {art.top_ventas
+                                              ? "Top Ventas"
+                                              : "Top Ventas"}
+                                          </span>
+                                        </div>
                                       </div>
                                     )}
                                   </div>
@@ -6276,7 +6414,7 @@ export default function HomePage() {
                           const { data, error } = await supabase
                             .from("productos")
                             .select(
-                              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
                             )
 
                             .or(
@@ -6383,7 +6521,7 @@ export default function HomePage() {
                                     const { data, error } = await supabase
                                       .from("productos")
                                       .select(
-                                        "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                        "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
                                       )
                                       .or(
                                         `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%`
@@ -6725,16 +6863,6 @@ export default function HomePage() {
                           }}
                         />
 
-                        {/* Dirección */}
-                        <MenuItem
-                          label="Shipping Address"
-                          icon={<MapPinHouse size={20} />}
-                          onClick={() => {
-                            window.scrollTo({ top: 0, behavior: "instant" });
-                            setVistaPerfil("address");
-                          }}
-                        />
-
                         {esAdmin && (
                           <MenuItem
                             label="Actualizar base de datos"
@@ -6771,16 +6899,14 @@ export default function HomePage() {
                               }}
                             />
                             <MenuItem
-                              label="Gestionar Marcas"
-                              icon={<Codesandbox size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("gestionar-marcas");
-                              }}
-                            />
+                            label="Asignar Subcategorías"
+                            icon={<Box size={20} />}
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("asignar-categorias");
+                            }}
+                          />
+                            
                           </>
                         )}
 
@@ -6797,13 +6923,28 @@ export default function HomePage() {
 
                         {esAdmin && (
                           <MenuItem
-                            label="Asignar Subcategorías"
-                            icon={<Box size={20} />}
+                            label="Edicion de Categorias"
+                            icon={<FilePenLine size={20} />}
                             onClick={() => {
                               window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("asignar-categorias");
+                              setVistaPerfil("edicion-categorias");
                             }}
                           />
+                        )}
+
+
+                        {esAdmin && (
+                          <MenuItem
+                              label="Gestionar Marcas"
+                              icon={<Codesandbox size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("gestionar-marcas");
+                              }}
+                            />
                         )}
 
                         {esAdmin && (
@@ -6828,16 +6969,16 @@ export default function HomePage() {
                           />
                         )}
 
-                        {esAdmin && (
-                          <MenuItem
-                            label="Edicion de Categorias"
-                            icon={<FilePenLine size={20} />}
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("edicion-categorias");
-                            }}
-                          />
-                        )}
+                        
+                        {/* Dirección */}
+                        <MenuItem
+                          label="Shipping Address"
+                          icon={<MapPinHouse size={20} />}
+                          onClick={() => {
+                            window.scrollTo({ top: 0, behavior: "instant" });
+                            setVistaPerfil("address");
+                          }}
+                        />
 
                         {/* Configuración */}
                         <MenuItem
