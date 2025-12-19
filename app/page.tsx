@@ -26,6 +26,7 @@ import {
   FilePenLine,
   Edit2,
   ChevronLeft,
+  ScanBarcode,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
@@ -70,7 +71,7 @@ export default function HomePage() {
   const [vistaPerfil, setVistaPerfil] = useState("menu"); // menu | apoyo | settings | address | pedidos
   const [cuenta, setCuenta] = useState<Cuenta | null>(null); // datos completos de supabase
   const [mostrarExito, setMostrarExito] = useState(false);
-const [categoriasAdmin, setCategoriasAdmin] = useState<any[]>([]);
+  const [categoriasAdmin, setCategoriasAdmin] = useState<any[]>([]);
 
   const [activeTab, setActiveTab] = useState("categorias");
   const [searchTerm, setSearchTerm] = useState("");
@@ -127,19 +128,52 @@ const [categoriasAdmin, setCategoriasAdmin] = useState<any[]>([]);
     "catalogo"
   );
 
-useEffect(() => {
-  const cargarCategorias = async () => {
-    const { data } = await supabase
-      .from("categorias")
-      .select("id_categoria, nombre_categoria, img, orden, macro_categoria_id")
-      .order("orden", { ascending: true });
+  const buscarStateRef = useRef<{
+    categoria: any;
+    marca: any;
+    searchTerm: string;
+    productos: any[];
+  }>({
+    categoria: null,
+    marca: null,
+    searchTerm: "",
+    productos: [],
+  });
 
-    setCategoriasAdmin(data || []);
-  };
+  useEffect(() => {
+    if (activeTab !== "buscar") {
+      buscarStateRef.current = {
+        categoria: categoriaSeleccionada,
+        marca: marcaSeleccionada,
+        searchTerm,
+        productos,
+      };
+    }
+  }, [activeTab]);
 
-  cargarCategorias();
-}, []);
+  useEffect(() => {
+    if (activeTab === "buscar") {
+      setCategoriaSeleccionada(buscarStateRef.current.categoria);
+      setMarcaSeleccionada(buscarStateRef.current.marca);
+      setSearchTerm(buscarStateRef.current.searchTerm);
+      setProductos(buscarStateRef.current.productos);
+    }
+  }, [activeTab]);
 
+  useEffect(() => {
+    const cargarCategorias = async () => {
+      const { data } = await supabase
+        .from("categorias")
+        .select(
+          "id_categoria, nombre_categoria, img, orden, macro_categoria_id"
+        )
+        .order("orden", { ascending: true });
+
+      setCategoriasAdmin(data || []);
+    };
+
+    cargarCategorias();
+  }, []);
 
   const articulosFiltrados = articulos.filter((a) => {
     if (!esAdmin && !a.visible) return false;
@@ -182,20 +216,21 @@ useEffect(() => {
     const [categoriasEdicion, setCategoriasEdicion] = useState<any[]>([]);
 
     useEffect(() => {
-  if (tipo === "subcategoria") {
-    const cargarTodas = async () => {
-      const { data, error } = await supabase
-        .from("categorias")
-        .select("id_categoria, nombre_categoria, img, orden, macro_categoria_id")
-        .order("orden", { ascending: true });
+      if (tipo === "subcategoria") {
+        const cargarTodas = async () => {
+          const { data, error } = await supabase
+            .from("categorias")
+            .select(
+              "id_categoria, nombre_categoria, img, orden, macro_categoria_id"
+            )
+            .order("orden", { ascending: true });
 
-      if (!error) setCategoriasEdicion(data || []);
-    };
+          if (!error) setCategoriasEdicion(data || []);
+        };
 
-    cargarTodas();
-  }
-}, [tipo]);
-
+        cargarTodas();
+      }
+    }, [tipo]);
 
     const handleSeleccionar = (item: any) => {
       setItemSeleccionado(item);
@@ -325,9 +360,9 @@ useEffect(() => {
     };
 
     const items =
-  tipo === "macro"
-    ? [...macroCategorias].sort((a, b) => a.orden - b.orden)
-    : [...categoriasEdicion].sort((a, b) => a.orden - b.orden);
+      tipo === "macro"
+        ? [...macroCategorias].sort((a, b) => a.orden - b.orden)
+        : [...categoriasEdicion].sort((a, b) => a.orden - b.orden);
 
     return (
       <div className="min-h-screen px-6 py-6">
@@ -1616,7 +1651,7 @@ useEffect(() => {
           </p>
 
           <div className="space-y-2 mb-4">
-           {categoriasAdmin.map((cat) => (
+            {categoriasAdmin.map((cat) => (
               <div
                 key={cat.id_categoria}
                 onClick={() => setCategoriaSeleccionada(cat)}
@@ -4952,7 +4987,7 @@ useEffect(() => {
                     className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
                   >
                     <option value="">Seleccionar categoría</option>
-                    {categorias.map((cat) => (
+                    {categoriasAdmin.map((cat) => (
                       <option
                         key={cat.id_categoria}
                         value={String(cat.id_categoria)}
@@ -5478,17 +5513,17 @@ useEffect(() => {
           </div>
         </div>
       ) : (
-        <div className="flex min-h-screen flex-col bg-white font-sans">
-          <header className="p-6 pt-10 text-center bg-white sticky top-0 z-50 border-zinc-200">
+        <div className="flex min-h-screen flex-col  bg-white font-sans">
+          <header className="p-6 pt-3 text-center bg-orange-500 sticky top-0 z-50 border-zinc-200">
             <AnimatePresence>
-              {!["buscar", "carrito", "perfil"].includes(activeTab) && (
-                <motion.div
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                  className="flex items-center justify-center gap-3 mb-4"
-                >
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                className="flex items-center justify-center gap-3 mb-4"
+              >
+                {/*
                   <div className="relative w-30 h-20">
                     <Image
                       src="/logo-bfm.jpg"
@@ -5500,154 +5535,141 @@ useEffect(() => {
                   <h1 className="text-2xl font-bold text-zinc-900">
                     BODEGA FERRETERA DE MONTERREY
                   </h1>
-                </motion.div>
-              )}
+                  */}
+              </motion.div>
             </AnimatePresence>
 
-            {/* Buscador - Solo visible en pestaña de categorías */}
-            {activeTab === "categorias" && (
-              <div className="max-w-2xl mx-auto">
-                <div className="flex items-center gap-2">
-                  {/* Botón volver - solo si hay algo seleccionado */}
-                  <AnimatePresence>
-                    {(macroCategoriaSeleccionada ||
-                      categoriaSeleccionada ||
-                      marcaSeleccionada) && (
-                      <motion.button
-                        initial={{ opacity: 0, x: -20, scale: 0.8 }}
-                        animate={{ opacity: 1, x: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: -20, scale: 0.8 }}
-                        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => {
-                          if (categoriaSeleccionada || marcaSeleccionada) {
-                            setCategoriaSeleccionada(null);
-                            setMarcaSeleccionada(null);
-                            setSearchTerm("");
+            <div className="max-w-2xl mx-auto">
+  <AnimatePresence mode="wait">
+    {!["carrito", "perfil", "ubicacion"].includes(activeTab) ? (
+      <motion.div
+        key="header-search"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.25, ease: "easeInOut" }}
+      >
+                  <div className="flex items-center gap-2">
+                    {/* Botón volver - solo si hay algo seleccionado */}
+                    <AnimatePresence>
+                      {(macroCategoriaSeleccionada ||
+                        categoriaSeleccionada ||
+                        marcaSeleccionada) &&
+                        activeTab !== "buscar" && (
+                          <motion.button
+                            initial={{ opacity: 0, x: -20, scale: 0.8 }}
+                            animate={{ opacity: 1, x: 0, scale: 1 }}
+                            exit={{ opacity: 0, x: -20, scale: 0.8 }}
+                            transition={{
+                              duration: 0.3,
+                              ease: [0.4, 0, 0.2, 1],
+                            }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => {
+                              if (categoriaSeleccionada || marcaSeleccionada) {
+                                setCategoriaSeleccionada(null);
+                                setMarcaSeleccionada(null);
+                                setSearchTerm("");
+                                setProductos([]);
+                                const savedScroll =
+                                  localStorage.getItem("scrollPos");
+                                if (savedScroll) {
+                                  setTimeout(() => {
+                                    window.scrollTo({
+                                      top: parseInt(savedScroll),
+                                      behavior: "instant",
+                                    });
+                                  }, 50);
+                                }
+                              } else if (macroCategoriaSeleccionada) {
+                                setMacroCategoriaSeleccionada(null);
+                                setSearchTerm("");
+                                setProductos([]);
+                                const savedScroll =
+                                  localStorage.getItem("scrollPos");
+                                if (savedScroll) {
+                                  setTimeout(() => {
+                                    window.scrollTo({
+                                      top: parseInt(savedScroll),
+                                      behavior: "instant",
+                                    });
+                                  }, 50);
+                                }
+                              }
+                            }}
+                            className="bg-white text-orange-500 rounded-full p-2 transition-colors flex-shrink-0 shadow-md hover:bg-orange-50"
+                          >
+                            <ChevronLeft size={20} />
+                          </motion.button>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Campo de búsqueda */}
+                     <AnimatePresence mode="wait">
+            {(activeTab === "buscar" || activeTab === "categorias") &&(
+              <motion.div
+                key="search-bar"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+                className="relative flex-1"
+              >
+
+                 
+                      <input
+                        type="text"
+                        placeholder={
+                          categoriaSeleccionada
+                            ? `Buscar en ${categoriaSeleccionada.nombre_categoria}`
+                            : marcaSeleccionada
+                            ? `Buscar en ${marcaSeleccionada.nombre_marca}`
+                            : "Buscar en Bodega Ferretera Monterrey..."
+                        }
+                        value={searchTerm}
+                        onChange={async (e) => {
+                          const value = e.target.value;
+                          setSearchTerm(value);
+
+                          if (value.trim() === "") {
                             setProductos([]);
-                            const savedScroll =
-                              localStorage.getItem("scrollPos");
-                            if (savedScroll) {
-                              setTimeout(() => {
-                                window.scrollTo({
-                                  top: parseInt(savedScroll),
-                                  behavior: "instant",
-                                });
-                              }, 50);
-                            }
-                          } else if (macroCategoriaSeleccionada) {
-                            setMacroCategoriaSeleccionada(null);
-                            setSearchTerm("");
-                            setProductos([]);
-                            const savedScroll =
-                              localStorage.getItem("scrollPos");
-                            if (savedScroll) {
-                              setTimeout(() => {
-                                window.scrollTo({
-                                  top: parseInt(savedScroll),
-                                  behavior: "instant",
-                                });
-                              }, 50);
-                            }
+                            return;
                           }
-                        }}
-                        className="bg-orange-500 text-white rounded-full p-2 hover:bg-orange-600 transition-colors flex-shrink-0 shadow-md"
-                      >
-                        <ChevronLeft size={20} />
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
 
-                  {/* Campo de búsqueda */}
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      placeholder={
-                        categoriaSeleccionada
-                          ? `Buscar en ${categoriaSeleccionada.nombre_categoria}`
-                          : marcaSeleccionada
-                          ? `Buscar en ${marcaSeleccionada.nombre_marca}`
-                          : "Buscar productos..."
-                      }
-                      value={searchTerm}
-                      onChange={async (e) => {
-                        const value = e.target.value;
-                        setSearchTerm(value);
+                          const palabras = value.trim().split(/\s+/);
 
-                        if (value.trim() === "") {
-                          setProductos([]);
-                          return;
-                        }
+                          let query = supabase
+                            .from("productos")
+                            .select(
+                              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                            );
 
-                        // Construir la consulta base
-                        let query = supabase
-                          .from("productos")
-                          .select(
-                            "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
-                          );
+                          // Filtro por categoría o marca
+                          if (categoriaSeleccionada) {
+                            query = query.eq(
+                              "CATEGORIA_ID",
+                              categoriaSeleccionada.id_categoria
+                            );
+                          } else if (marcaSeleccionada) {
+                            query = query.eq("marca_id", marcaSeleccionada.id);
+                          }
 
-                        // Filtrar por categoría o marca si hay una seleccionada
-                        if (categoriaSeleccionada) {
-                          query = query.eq(
-                            "CATEGORIA_ID",
-                            categoriaSeleccionada.id_categoria
-                          );
-                        } else if (marcaSeleccionada) {
-                          query = query.eq("marca_id", marcaSeleccionada.id);
-                        }
+                          palabras.forEach((palabra) => {
+                            query = query.or(
+                              `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%`
+                            );
+                          });
 
-                        // Aplicar búsqueda por texto
-                        query = query
-                          .or(`TITULO.ilike.%${value}%,CODIGO.ilike.%${value}%`)
-                          .limit(50);
+                          query = query.limit(50);
 
-                        const { data, error } = await query;
+                          const { data, error } = await query;
 
-                        if (error) {
-                          console.error(
-                            "Error buscando productos:",
-                            error.message
-                          );
-                        } else {
-                          const productosNormalizados = (data || []).map(
-                            (producto) => ({
-                              ...producto,
-                              visible: producto.visible ?? true,
-                            })
-                          );
-                          setProductos(productosNormalizados);
-                        }
-                      }}
-                      onFocus={() => {
-                        // Si hay texto, mostrar resultados al hacer focus
-                        if (searchTerm.trim()) {
-                          const fetchProductos = async () => {
-                            let query = supabase
-                              .from("productos")
-                              .select(
-                                "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
-                              );
-
-                            if (categoriaSeleccionada) {
-                              query = query.eq(
-                                "CATEGORIA_ID",
-                                categoriaSeleccionada.id_categoria
-                              );
-                            } else if (marcaSeleccionada) {
-                              query = query.eq(
-                                "marca_id",
-                                marcaSeleccionada.id
-                              );
-                            }
-
-                            query = query
-                              .or(
-                                `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%`
-                              )
-                              .limit(50);
-
-                            const { data } = await query;
-
+                          if (error) {
+                            console.error(
+                              "Error buscando productos:",
+                              error.message
+                            );
+                          } else {
                             const productosNormalizados = (data || []).map(
                               (producto) => ({
                                 ...producto,
@@ -5655,201 +5677,277 @@ useEffect(() => {
                               })
                             );
                             setProductos(productosNormalizados);
-                          };
-
-                          fetchProductos();
-                        }
-                      }}
-                      className="w-full rounded-full border border-zinc-300 pl-10 pr-10 py-2.5 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all duration-200"
-                    />
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
-
-                    {/* Botón limpiar búsqueda */}
-                    <AnimatePresence>
-                      {searchTerm && (
-                        <motion.button
-                          initial={{ scale: 0, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => {
-                            setSearchTerm("");
-                            setProductos([]);
-                          }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
-                        >
-                          <X size={18} />
-                        </motion.button>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Sugerencias de búsqueda */}
-                    <AnimatePresence>
-                      {searchTerm &&
-                        productos.length > 0 &&
-                        !categoriaSeleccionada &&
-                        !marcaSeleccionada && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{
-                              duration: 0.3,
-                              ease: [0.4, 0, 0.2, 1],
-                            }}
-                            className="absolute top-full left-0 right-0 mt-2 bg-white border border-zinc-200 rounded-xl shadow-lg max-h-96 overflow-y-auto z-50"
-                          >
-                            {productos
-                              .filter(
-                                (prod) => esAdmin || (prod.visible ?? true)
-                              )
-                              .slice(0, 10)
-                              .map((prod, index) => (
-                                <motion.div
-                                  key={prod.id}
-                                  initial={{ opacity: 0, x: -10 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  transition={{
-                                    delay: index * 0.03,
-                                    duration: 0.2,
-                                  }}
-                                  whileTap={{ scale: 0.98 }}
-                                  onClick={() => {
-                                    setProductoSeleccionado(prod);
-                                    setSearchTerm("");
-                                    setProductos([]);
-                                  }}
-                                  className="flex items-center gap-3 p-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-b-0 transition-colors"
-                                >
-                                  <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100 flex-shrink-0">
-                                    <Image
-                                      src={prod.IMAGEN || "/placeholder.jpg"}
-                                      alt={prod.TITULO}
-                                      fill
-                                      className="object-contain"
-                                    />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-semibold text-sm text-zinc-800 truncate">
-                                      {prod.TITULO}
-                                    </p>
-                                    <p className="text-xs text-zinc-500">
-                                      Código: {prod.CODIGO}
-                                    </p>
-                                    {!esAdmin && (
-                                      <p className="text-xs text-orange-500 font-semibold">
-                                        ${prod.P_MAYOREO?.toFixed(2)}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    strokeWidth={2}
-                                    stroke="currentColor"
-                                    className="w-4 h-4 text-zinc-400 flex-shrink-0"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M8.25 4.5l7.5 7.5-7.5 7.5"
-                                    />
-                                  </svg>
-                                </motion.div>
-                              ))}
-
-                            {productos.length > 10 && (
-                              <div className="p-3 text-center text-xs text-zinc-500 bg-zinc-50">
-                                Mostrando 10 de {productos.length} resultados
-                              </div>
-                            )}
-                          </motion.div>
-                        )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-
-                {/* Breadcrumb */}
-                <AnimatePresence>
-                  {(macroCategoriaSeleccionada ||
-                    categoriaSeleccionada ||
-                    marcaSeleccionada) && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                      className="flex items-center gap-2 mt-3 text-xs text-zinc-500 overflow-x-auto pb-1"
-                    >
-                      <button
-                        onClick={() => {
-                          setMacroCategoriaSeleccionada(null);
-                          setCategoriaSeleccionada(null);
-                          setMarcaSeleccionada(null);
-                          setSearchTerm("");
-                          setProductos([]);
+                          }
                         }}
-                        className="hover:text-orange-500 whitespace-nowrap transition-colors"
-                      >
-                        Inicio
-                      </button>
+                        onFocus={() => {
+                          // Si hay texto, mostrar resultados al hacer focus
+                          if (searchTerm.trim()) {
+                            const fetchProductos = async () => {
+                              let query = supabase
+                                .from("productos")
+                                .select(
+                                  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                );
 
-                      {macroCategoriaSeleccionada && (
-                        <>
-                          <ChevronLeft
-                            size={12}
-                            className="rotate-180 flex-shrink-0"
-                          />
+                              if (categoriaSeleccionada) {
+                                query = query.eq(
+                                  "CATEGORIA_ID",
+                                  categoriaSeleccionada.id_categoria
+                                );
+                              } else if (marcaSeleccionada) {
+                                query = query.eq(
+                                  "marca_id",
+                                  marcaSeleccionada.id
+                                );
+                              }
+
+                              query = query
+                                .or(
+                                  `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%`
+                                )
+                                .limit(50);
+
+                              const { data } = await query;
+
+                              const productosNormalizados = (data || []).map(
+                                (producto) => ({
+                                  ...producto,
+                                  visible: producto.visible ?? true,
+                                })
+                              );
+                              setProductos(productosNormalizados);
+                            };
+
+                            fetchProductos();
+                          }
+                        }}
+                        className="w-full rounded-full border bg-white border-zinc-300 pl-10 pr-10 py-2.5 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-white transition-all duration-200"
+                      />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
+
+                      {/* Botón limpiar búsqueda */}
+                      <AnimatePresence>
+                        {searchTerm && (
+                          <motion.button
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => {
+                              setSearchTerm("");
+                              setProductos([]);
+                            }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
+                          >
+                            <X size={18} />
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Botón escáner (solo en Buscar) */}
+                      <AnimatePresence>
+                        {!searchTerm && activeTab === "buscar" && (
+                          <motion.button
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setScannerOpen(true)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-600 transition-colors"
+                          >
+                            <ScanBarcode size={20} />
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Sugerencias de búsqueda */}
+                      <AnimatePresence>
+                        {searchTerm &&
+                          productos.length > 0 &&
+                          !categoriaSeleccionada &&
+                          !marcaSeleccionada &&
+                          activeTab !== "buscar" && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -10 }}
+                              transition={{
+                                duration: 0.3,
+                                ease: [0.4, 0, 0.2, 1],
+                              }}
+                              className="absolute top-full left-0 right-0 mt-2 bg-white border border-zinc-200 rounded-xl shadow-lg max-h-96 overflow-y-auto z-50"
+                            >
+                              {productos
+                                .filter(
+                                  (prod) => esAdmin || (prod.visible ?? true)
+                                )
+                                .slice(0, 10)
+                                .map((prod, index) => (
+                                  <motion.div
+                                    key={prod.id}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{
+                                      delay: index * 0.03,
+                                      duration: 0.2,
+                                    }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => {
+                                      setProductoSeleccionado(prod);
+                                      setSearchTerm("");
+                                      setProductos([]);
+                                    }}
+                                    className="flex items-center gap-3 p-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-b-0 transition-colors"
+                                  >
+                                    <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100 flex-shrink-0">
+                                      <Image
+                                        src={prod.IMAGEN || "/placeholder.jpg"}
+                                        alt={prod.TITULO}
+                                        fill
+                                        className="object-contain"
+                                      />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-semibold text-sm text-zinc-800 truncate">
+                                        {prod.TITULO}
+                                      </p>
+                                      <p className="text-xs text-zinc-500">
+                                        Código: {prod.CODIGO}
+                                      </p>
+                                      {!esAdmin && (
+                                        <p className="text-xs text-orange-500 font-semibold">
+                                          ${prod.P_MAYOREO?.toFixed(2)}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      strokeWidth={2}
+                                      stroke="currentColor"
+                                      className="w-4 h-4 text-zinc-400 flex-shrink-0"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M8.25 4.5l7.5 7.5-7.5 7.5"
+                                      />
+                                    </svg>
+                                  </motion.div>
+                                ))}
+
+                              {productos.length > 10 && (
+                                <div className="p-3 text-center text-xs text-zinc-500 bg-zinc-50">
+                                  Mostrando 10 de {productos.length} resultados
+                                </div>
+                              )}
+                            </motion.div>
+                          )}
+                     </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+
+                  {/* Breadcrumb */}
+                  <AnimatePresence>
+                    {(macroCategoriaSeleccionada ||
+                      categoriaSeleccionada ||
+                      marcaSeleccionada) &&
+                      activeTab !== "buscar" && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                          className="flex items-center gap-2 mt-3 text-xs text-amber-100 overflow-x-auto pb-1"
+                        >
                           <button
                             onClick={() => {
+                              setMacroCategoriaSeleccionada(null);
                               setCategoriaSeleccionada(null);
                               setMarcaSeleccionada(null);
                               setSearchTerm("");
                               setProductos([]);
                             }}
-                            className="hover:text-orange-500 whitespace-nowrap transition-colors"
+                            className="hover:text-white whitespace-nowrap transition-colors"
                           >
-                            {macroCategoriaSeleccionada.nombre.length > 20
-                              ? macroCategoriaSeleccionada.nombre.slice(0, 20) +
-                                "…"
-                              : macroCategoriaSeleccionada.nombre}
+                            Inicio
                           </button>
-                        </>
-                      )}
 
-                      {categoriaSeleccionada && (
-                        <>
-                          <ChevronLeft
-                            size={12}
-                            className="rotate-180 flex-shrink-0"
-                          />
-                          <span className="text-orange-500 font-medium whitespace-nowrap">
-                            {categoriaSeleccionada.nombre_categoria}
-                          </span>
-                        </>
-                      )}
+                          {macroCategoriaSeleccionada && (
+                            <>
+                              <ChevronLeft
+                                size={12}
+                                className="rotate-180 flex-shrink-0"
+                              />
+                              <button
+                                onClick={() => {
+                                  setCategoriaSeleccionada(null);
+                                  setMarcaSeleccionada(null);
+                                  setSearchTerm("");
+                                  setProductos([]);
+                                }}
+                                className="hover:text-white whitespace-nowrap transition-colors"
+                              >
+                                {macroCategoriaSeleccionada.nombre.length > 20
+                                  ? macroCategoriaSeleccionada.nombre.slice(
+                                      0,
+                                      20
+                                    ) + "…"
+                                  : macroCategoriaSeleccionada.nombre}
+                              </button>
+                            </>
+                          )}
 
-                      {marcaSeleccionada && (
-                        <>
-                          <ChevronLeft
-                            size={12}
-                            className="rotate-180 flex-shrink-0"
-                          />
-                          <span className="text-orange-500 font-medium whitespace-nowrap">
-                            {marcaSeleccionada.nombre_marca}
-                          </span>
-                        </>
+                          {categoriaSeleccionada && (
+                            <>
+                              <ChevronLeft
+                                size={12}
+                                className="rotate-180 flex-shrink-0"
+                              />
+                              <span className="text-white font-semibold whitespace-nowrap">
+                                {categoriaSeleccionada.nombre_categoria}
+                              </span>
+                            </>
+                          )}
+
+                          {marcaSeleccionada && (
+                            <>
+                              <ChevronLeft
+                                size={12}
+                                className="rotate-180 flex-shrink-0"
+                              />
+                              <span className="text-white font-semibold whitespace-nowrap">
+                                {marcaSeleccionada.nombre_marca}
+                              </span>
+                            </>
+                          )}
+                        </motion.div>
                       )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
+                  </AnimatePresence>
+                   </motion.div>
+               
+              ) : (
+                <motion.div
+        key="header-simple"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="h-[44px]"
+      />
+    )}
+  </AnimatePresence>
+</div>
           </header>
+
           {/* Contenido dinámico */}
-          <main className="flex-1 px-4 pb-32 overflow-hidden">
+          <main className="flex-1 pt-5 px-4 pb-32 overflow-hidden">
             <AnimatePresence mode="wait">
               {/* Categorías */}
               {activeTab === "categorias" && (
@@ -6250,7 +6348,7 @@ useEffect(() => {
                                       )}
                                       {art.top_ventas && (
                                         <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
-                                          MAS VENDIDOS 
+                                          MAS VENDIDOS
                                         </span>
                                       )}
                                     </div>
@@ -6396,86 +6494,6 @@ useEffect(() => {
                   transition={{ duration: 0.3, ease: "easeInOut" }}
                 >
                   <div className="mt-4 px-4 pb-32">
-                    {/* Campo de búsqueda */}
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Buscar por nombre o código"
-                        value={searchTerm}
-                        onChange={async (e) => {
-                          const value = e.target.value;
-                          setSearchTerm(value);
-
-                          if (value.trim() === "") {
-                            setProductos([]); // limpia resultados si no hay texto
-                            return;
-                          }
-
-                          const { data, error } = await supabase
-                            .from("productos")
-                            .select(
-                              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
-                            )
-
-                            .or(
-                              `TITULO.ilike.%${value}%,CODIGO.ilike.%${value}%`
-                            )
-                            .limit(500);
-
-                          if (error) {
-                            console.error(
-                              "Error buscando productos:",
-                              error.message
-                            );
-                          } else {
-                            // Normalizar visible
-                            const productosNormalizados = (data || []).map(
-                              (producto) => ({
-                                ...producto,
-                                visible: producto.visible ?? true,
-                              })
-                            );
-                            setProductos(productosNormalizados);
-                          }
-                        }}
-                        className="w-full rounded-full border border-zinc-300 px-4 py-2 pr-14 text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      />
-
-                      {/* Limpiar texto */}
-                      {searchTerm && (
-                        <button
-                          onClick={() => {
-                            setSearchTerm("");
-                            setProductos([]);
-                          }}
-                          className="absolute right-10 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-700"
-                        >
-                          <X size={18} />
-                        </button>
-                      )}
-
-                      {/* Botón de escáner */}
-                      <button
-                        onClick={() => setScannerOpen(!scannerOpen)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-600"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          strokeWidth={2}
-                          stroke="currentColor"
-                          className="w-5 h-5"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M3 17v2a2 2 0 002 2h2M17 21h2a2 2 0 002-2v-2M4 12h16"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-
                     {/* Escáner de código de barras */}
                     {scannerOpen && (
                       <motion.div
@@ -6483,7 +6501,7 @@ useEffect(() => {
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.3 }}
-                        className="mt-4 rounded-xl overflow-hidden border-2 border-orange-300 shadow-lg bg-white"
+                        className="mb-4 rounded-xl overflow-hidden border-2 border-orange-300 shadow-lg bg-white"
                       >
                         {/* Indicador de estado */}
                         <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 flex items-center justify-between">
@@ -6633,6 +6651,11 @@ useEffect(() => {
                                 <p className="text-xs text-zinc-500">
                                   Código: {prod.CODIGO}
                                 </p>
+                                {!esAdmin && (
+                                  <p className="text-xs text-orange-500 font-semibold">
+                                    ${prod.P_MAYOREO?.toFixed(2)}
+                                  </p>
+                                )}
                               </div>
                             </div>
                             <span className="text-zinc-400">{">"}</span>
@@ -6899,14 +6922,16 @@ useEffect(() => {
                               }}
                             />
                             <MenuItem
-                            label="Asignar Subcategorías"
-                            icon={<Box size={20} />}
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("asignar-categorias");
-                            }}
-                          />
-                            
+                              label="Asignar Subcategorías"
+                              icon={<Box size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("asignar-categorias");
+                              }}
+                            />
                           </>
                         )}
 
@@ -6932,19 +6957,18 @@ useEffect(() => {
                           />
                         )}
 
-
                         {esAdmin && (
                           <MenuItem
-                              label="Gestionar Marcas"
-                              icon={<Codesandbox size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("gestionar-marcas");
-                              }}
-                            />
+                            label="Gestionar Marcas"
+                            icon={<Codesandbox size={20} />}
+                            onClick={() => {
+                              window.scrollTo({
+                                top: 0,
+                                behavior: "instant",
+                              });
+                              setVistaPerfil("gestionar-marcas");
+                            }}
+                          />
                         )}
 
                         {esAdmin && (
@@ -6969,7 +6993,6 @@ useEffect(() => {
                           />
                         )}
 
-                        
                         {/* Dirección */}
                         <MenuItem
                           label="Shipping Address"
