@@ -5518,7 +5518,7 @@ export default function HomePage() {
         </div>
       ) : (
         <div className="flex min-h-screen flex-col  bg-white font-sans">
-          <header className="p-6 pt-3 text-center bg-orange-500 sticky top-0 z-50 border-zinc-200">
+          <header className="p-6 pt-3 text-center bg-orange-500 fixed top-0 left-0 right-0 z-50 border-zinc-200">
             <AnimatePresence>
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
@@ -5677,11 +5677,11 @@ export default function HomePage() {
                                   );
                                 }
 
-                                palabras.forEach((palabra) => {
-                                  query = query.or(
-                                    `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%`
-                                  );
-                                });
+                               palabras.forEach((palabra) => {
+  query = query.or(
+    `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`
+  );
+});
 
                                 query = query.limit(50);
 
@@ -5724,11 +5724,10 @@ export default function HomePage() {
                                     }
 
                                     query = query
-                                      .or(
-                                        `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%`
-                                      )
-                                      .limit(50);
-
+  .or(
+    `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%,C_PRODUCTO.ilike.%${searchTerm}%`
+  )
+  .limit(50);
                                     const { data } = await query;
 
                                     const productosNormalizados = (
@@ -5980,7 +5979,7 @@ export default function HomePage() {
           </header>
 
           {/* Contenido dinámico */}
-          <main className="flex-1 pt-5 px-4 pb-32 overflow-hidden">
+          <main className="flex-1 pt-[180px] px-4 pb-32 overflow-hidden">
             <AnimatePresence mode="wait">
               {/* Categorías */}
               {activeTab === "categorias" && (
@@ -6569,32 +6568,15 @@ export default function HomePage() {
 
                                   try {
                                     // Buscar producto por código
-                                    const { data, error } = await supabase
+                                   const { data, error } = await supabase
   .from("productos")
   .select(
-    `
-    id,
-    TITULO,
-    CODIGO,
-    C_PRODUCTO,
-    IMAGEN,
-    P_MAYOREO,
-    visible,
-    liquidacion,
-    top_ventas,
-    marca_id,
-    CATEGORIA_ID
-    `
+    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO"
   )
   .or(
-    `
-    TITULO.ilike.%${codigo}%,
-    CODIGO.ilike.%${codigo}%,
-    C_PRODUCTO.ilike.%${codigo}%
-    `
+    `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%,C_PRODUCTO.ilike.%${codigo}%`
   )
   .limit(50);
-
 
                                     if (error) {
                                       console.error(
