@@ -5638,22 +5638,6 @@ export default function HomePage() {
                                 const value = e.target.value;
                                 setSearchTerm(value);
 
-                                // Scroll down cuando escriba en categoría
-
-                                // Scroll down cuando escriba en categoría
-if ((categoriaSeleccionada || marcaSeleccionada) && value.length > 0) {
-  // Usar requestAnimationFrame para mantener header visible en móvil
-  requestAnimationFrame(() => {
-    window.scrollTo({ top: 300, behavior: "smooth" });
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: 299, behavior: "smooth" });
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: 300, behavior: "smooth" });
-      });
-    });
-  });
-}
-
                                 if (value.trim() === "") {
                                   setProductos([]);
                                   return;
@@ -6277,28 +6261,7 @@ if ((categoriaSeleccionada || marcaSeleccionada) && value.length > 0) {
                           }
                         }}
                       >
-                        <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
-                          <SkeletonImage
-                            src={
-                              categoriaSeleccionada?.img ||
-                              marcaSeleccionada?.img ||
-                              "/placeholder.jpg"
-                            }
-                            alt={
-                              categoriaSeleccionada?.nombre_categoria ||
-                              marcaSeleccionada?.nombre_marca
-                            }
-                            className="object-contain"
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between mb-3">
-                          <h2 className="text-xl font-bold text-zinc-800">
-                            {categoriaSeleccionada?.nombre_categoria ||
-                              marcaSeleccionada?.nombre_marca}
-                          </h2>
-                        </div>
-
+                        
                         {/* Banner búsqueda */}
                         <AnimatePresence>
                           {searchTerm && (
@@ -6329,6 +6292,28 @@ if ((categoriaSeleccionada || marcaSeleccionada) && value.length > 0) {
                             </motion.div>
                           )}
                         </AnimatePresence>
+                        <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
+                          <SkeletonImage
+                            src={
+                              categoriaSeleccionada?.img ||
+                              marcaSeleccionada?.img ||
+                              "/placeholder.jpg"
+                            }
+                            alt={
+                              categoriaSeleccionada?.nombre_categoria ||
+                              marcaSeleccionada?.nombre_marca
+                            }
+                            className="object-contain"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between mb-3">
+                          <h2 className="text-xl font-bold text-zinc-800">
+                            {categoriaSeleccionada?.nombre_categoria ||
+                              marcaSeleccionada?.nombre_marca}
+                          </h2>
+                        </div>
+
 
                         {/* Grid productos */}
                         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 pb-10">
