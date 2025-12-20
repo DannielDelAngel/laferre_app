@@ -72,7 +72,7 @@ export default function HomePage() {
   const [cuenta, setCuenta] = useState<Cuenta | null>(null); // datos completos de supabase
   const [mostrarExito, setMostrarExito] = useState(false);
   const [categoriasAdmin, setCategoriasAdmin] = useState<any[]>([]);
-
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState("categorias");
   const [searchTerm, setSearchTerm] = useState("");
   const [categorias, setCategorias] = useState<any[]>([]);
@@ -541,7 +541,7 @@ export default function HomePage() {
         transition={{ duration: 0.18, ease: "easeOut" }}
         whileTap={{ scale: 0.93 }}
         onClick={onBack}
-        className="fixed top-5 left-4 z-[9999] bg-transparent hover:bg-white/20 bg-orange text-orange-500 rounded-full p-4 shadow-lg transition text-2xl"
+        className="fixed top-5 left-4 z-[9999] bg-transparent hover:bg-white/20 bg-white text-orange-500 rounded-full p-4 shadow-lg transition text-2xl"
         aria-label="Volver"
       >
         <ChevronLeft size={34} />
@@ -2931,6 +2931,10 @@ export default function HomePage() {
                 y <strong>P_MAYOREO</strong>
               </li>
               <li>También acepta: codigo, p_mayoreo, PRECIO, precio</li>
+              <li>
+                la columna CODIGO debe ser tipo "general" y P_MAYOREO tipo
+                "numero"
+              </li>
               <li>
                 Ejemplo de formato:
                 <pre className="bg-white p-2 mt-1 rounded text-xs overflow-x-auto">
@@ -5540,410 +5544,439 @@ export default function HomePage() {
             </AnimatePresence>
 
             <div className="max-w-2xl mx-auto">
-  <AnimatePresence mode="wait">
-    {!["carrito", "perfil", "ubicacion"].includes(activeTab) ? (
-      <motion.div
-        key="header-search"
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
-        transition={{ duration: 0.25, ease: "easeInOut" }}
-      >
-                  <div className="flex items-center gap-2">
-                    {/* Botón volver - solo si hay algo seleccionado */}
+              <AnimatePresence mode="wait">
+                {!["carrito", "perfil", "ubicacion"].includes(activeTab) ? (
+                  <motion.div
+                    key="header-search"
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                  >
+                    <div className="flex items-center gap-2">
+                      {/* Botón volver - solo si hay algo seleccionado */}
+                      <AnimatePresence>
+                        {(macroCategoriaSeleccionada ||
+                          categoriaSeleccionada ||
+                          marcaSeleccionada) &&
+                          activeTab !== "buscar" && (
+                            <motion.button
+                              initial={{ opacity: 0, x: -20, scale: 0.8 }}
+                              animate={{ opacity: 1, x: 0, scale: 1 }}
+                              exit={{ opacity: 0, x: -20, scale: 0.8 }}
+                              transition={{
+                                duration: 0.3,
+                                ease: [0.4, 0, 0.2, 1],
+                              }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => {
+                                if (
+                                  categoriaSeleccionada ||
+                                  marcaSeleccionada
+                                ) {
+                                  setCategoriaSeleccionada(null);
+                                  setMarcaSeleccionada(null);
+                                  setSearchTerm("");
+                                  setProductos([]);
+                                  const savedScroll =
+                                    localStorage.getItem("scrollPos");
+                                  if (savedScroll) {
+                                    setTimeout(() => {
+                                      window.scrollTo({
+                                        top: parseInt(savedScroll),
+                                        behavior: "instant",
+                                      });
+                                    }, 50);
+                                  }
+                                } else if (macroCategoriaSeleccionada) {
+                                  setMacroCategoriaSeleccionada(null);
+                                  setSearchTerm("");
+                                  setProductos([]);
+                                  const savedScroll =
+                                    localStorage.getItem("scrollPos");
+                                  if (savedScroll) {
+                                    setTimeout(() => {
+                                      window.scrollTo({
+                                        top: parseInt(savedScroll),
+                                        behavior: "instant",
+                                      });
+                                    }, 50);
+                                  }
+                                }
+                              }}
+                              className="bg-white text-orange-500 rounded-full p-2 transition-colors flex-shrink-0 shadow-md hover:bg-orange-50"
+                            >
+                              <ChevronLeft size={20} />
+                            </motion.button>
+                          )}
+                      </AnimatePresence>
+
+                      {/* Campo de búsqueda */}
+                      <AnimatePresence mode="wait">
+                        {(activeTab === "buscar" ||
+                          activeTab === "categorias") && (
+                          <motion.div
+                            key="search-bar"
+                            initial={{ opacity: 0, y: -6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            transition={{ duration: 0.2 }}
+                            className="relative flex-1"
+                          >
+                            <input
+                              ref={searchInputRef}
+                              type="text"
+                              placeholder={
+                                categoriaSeleccionada
+                                  ? `Buscar en ${categoriaSeleccionada.nombre_categoria}`
+                                  : marcaSeleccionada
+                                  ? `Buscar en ${marcaSeleccionada.nombre_marca}`
+                                  : "Buscar en Bodega Ferretera Monterrey..."
+                              }
+                              value={searchTerm}
+                              onChange={async (e) => {
+                                const value = e.target.value;
+                                setSearchTerm(value);
+
+                                // Scroll down cuando escriba en categoría
+                                if (
+                                  (categoriaSeleccionada ||
+                                    marcaSeleccionada) &&
+                                  value.length > 0
+                                ) {
+                                  setTimeout(() => {
+                                    window.scrollTo({
+                                      top: 300,
+                                      behavior: "smooth",
+                                    });
+                                  }, 100);
+                                }
+
+                                if (value.trim() === "") {
+                                  setProductos([]);
+                                  return;
+                                }
+
+                                const palabras = value.trim().split(/\s+/);
+
+                                let query = supabase
+                                  .from("productos")
+                                  .select(
+                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                  );
+
+                                if (categoriaSeleccionada) {
+                                  query = query.eq(
+                                    "CATEGORIA_ID",
+                                    categoriaSeleccionada.id_categoria
+                                  );
+                                } else if (marcaSeleccionada) {
+                                  query = query.eq(
+                                    "marca_id",
+                                    marcaSeleccionada.id
+                                  );
+                                }
+
+                                palabras.forEach((palabra) => {
+                                  query = query.or(
+                                    `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%`
+                                  );
+                                });
+
+                                query = query.limit(50);
+
+                                const { data, error } = await query;
+
+                                if (error) {
+                                  console.error(
+                                    "Error buscando productos:",
+                                    error.message
+                                  );
+                                } else {
+                                  const productosNormalizados = (
+                                    data || []
+                                  ).map((producto) => ({
+                                    ...producto,
+                                    visible: producto.visible ?? true,
+                                  }));
+                                  setProductos(productosNormalizados);
+                                }
+                              }}
+                              onFocus={() => {
+                                if (searchTerm.trim()) {
+                                  const fetchProductos = async () => {
+                                    let query = supabase
+                                      .from("productos")
+                                      .select(
+                                        "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                      );
+
+                                    if (categoriaSeleccionada) {
+                                      query = query.eq(
+                                        "CATEGORIA_ID",
+                                        categoriaSeleccionada.id_categoria
+                                      );
+                                    } else if (marcaSeleccionada) {
+                                      query = query.eq(
+                                        "marca_id",
+                                        marcaSeleccionada.id
+                                      );
+                                    }
+
+                                    query = query
+                                      .or(
+                                        `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%`
+                                      )
+                                      .limit(50);
+
+                                    const { data } = await query;
+
+                                    const productosNormalizados = (
+                                      data || []
+                                    ).map((producto) => ({
+                                      ...producto,
+                                      visible: producto.visible ?? true,
+                                    }));
+                                    setProductos(productosNormalizados);
+                                  };
+
+                                  fetchProductos();
+                                }
+                              }}
+                              className="w-full rounded-full border bg-white border-zinc-300 pl-10 pr-10 py-2.5 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-white transition-all duration-200"
+                            />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
+
+                            {/* Botón limpiar búsqueda */}
+                            <AnimatePresence>
+                              {searchTerm && (
+                                <motion.button
+                                  initial={{ scale: 0, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  exit={{ scale: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => {
+                                    setSearchTerm("");
+                                    setProductos([]);
+                                  }}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
+                                >
+                                  <X size={18} />
+                                </motion.button>
+                              )}
+                            </AnimatePresence>
+
+                            {/* Botón escáner (solo en Buscar) */}
+                            <AnimatePresence>
+                              {!searchTerm && (
+                                <motion.button
+                                  initial={{ scale: 0, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  exit={{ scale: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => {
+                                    if (activeTab !== "buscar") {
+                                      setActiveTab("buscar");
+                                    }
+                                    setScannerOpen(true);
+                                  }}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-600 transition-colors"
+                                >
+                                  <ScanBarcode size={20} />
+                                </motion.button>
+                              )}
+                            </AnimatePresence>
+
+                            {/* Sugerencias de búsqueda */}
+                            <AnimatePresence>
+                              {searchTerm &&
+                                productos.length > 0 &&
+                                !categoriaSeleccionada &&
+                                !marcaSeleccionada &&
+                                activeTab !== "buscar" && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{
+                                      duration: 0.3,
+                                      ease: [0.4, 0, 0.2, 1],
+                                    }}
+                                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-zinc-200 rounded-xl shadow-lg max-h-96 overflow-y-auto z-50"
+                                  >
+                                    {productos
+                                      .filter(
+                                        (prod) =>
+                                          esAdmin || (prod.visible ?? true)
+                                      )
+                                      .slice(0, 10)
+                                      .map((prod, index) => (
+                                        <motion.div
+                                          key={prod.id}
+                                          initial={{ opacity: 0, x: -10 }}
+                                          animate={{ opacity: 1, x: 0 }}
+                                          transition={{
+                                            delay: index * 0.03,
+                                            duration: 0.2,
+                                          }}
+                                          whileTap={{ scale: 0.98 }}
+                                          onClick={() => {
+                                            setProductoSeleccionado(prod);
+                                            setSearchTerm("");
+                                            setProductos([]);
+                                          }}
+                                          className="flex items-center gap-3 p-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-b-0 transition-colors"
+                                        >
+                                          <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100 flex-shrink-0">
+                                            <Image
+                                              src={
+                                                prod.IMAGEN ||
+                                                "/placeholder.jpg"
+                                              }
+                                              alt={prod.TITULO}
+                                              fill
+                                              className="object-contain"
+                                            />
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="font-semibold text-sm text-zinc-800 truncate">
+                                              {prod.TITULO}
+                                            </p>
+                                            <p className="text-xs text-zinc-500">
+                                              Código: {prod.CODIGO}
+                                            </p>
+                                            {!esAdmin && (
+                                              <p className="text-xs text-orange-500 font-semibold">
+                                                ${prod.P_MAYOREO?.toFixed(2)}
+                                              </p>
+                                            )}
+                                          </div>
+                                          <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            strokeWidth={2}
+                                            stroke="currentColor"
+                                            className="w-4 h-4 text-zinc-400 flex-shrink-0"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              d="M8.25 4.5l7.5 7.5-7.5 7.5"
+                                            />
+                                          </svg>
+                                        </motion.div>
+                                      ))}
+
+                                    {productos.length > 10 && (
+                                      <div className="p-3 text-center text-xs text-zinc-500 bg-zinc-50">
+                                        Mostrando 10 de {productos.length}{" "}
+                                        resultados
+                                      </div>
+                                    )}
+                                  </motion.div>
+                                )}
+                            </AnimatePresence>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Breadcrumb */}
                     <AnimatePresence>
                       {(macroCategoriaSeleccionada ||
                         categoriaSeleccionada ||
                         marcaSeleccionada) &&
                         activeTab !== "buscar" && (
-                          <motion.button
-                            initial={{ opacity: 0, x: -20, scale: 0.8 }}
-                            animate={{ opacity: 1, x: 0, scale: 1 }}
-                            exit={{ opacity: 0, x: -20, scale: 0.8 }}
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
                             transition={{
                               duration: 0.3,
                               ease: [0.4, 0, 0.2, 1],
                             }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => {
-                              if (categoriaSeleccionada || marcaSeleccionada) {
+                            className="flex items-center gap-2 mt-3 text-xs text-amber-100 overflow-x-auto pb-1"
+                          >
+                            <button
+                              onClick={() => {
+                                setMacroCategoriaSeleccionada(null);
                                 setCategoriaSeleccionada(null);
                                 setMarcaSeleccionada(null);
                                 setSearchTerm("");
                                 setProductos([]);
-                                const savedScroll =
-                                  localStorage.getItem("scrollPos");
-                                if (savedScroll) {
-                                  setTimeout(() => {
-                                    window.scrollTo({
-                                      top: parseInt(savedScroll),
-                                      behavior: "instant",
-                                    });
-                                  }, 50);
-                                }
-                              } else if (macroCategoriaSeleccionada) {
-                                setMacroCategoriaSeleccionada(null);
-                                setSearchTerm("");
-                                setProductos([]);
-                                const savedScroll =
-                                  localStorage.getItem("scrollPos");
-                                if (savedScroll) {
-                                  setTimeout(() => {
-                                    window.scrollTo({
-                                      top: parseInt(savedScroll),
-                                      behavior: "instant",
-                                    });
-                                  }, 50);
-                                }
-                              }
-                            }}
-                            className="bg-white text-orange-500 rounded-full p-2 transition-colors flex-shrink-0 shadow-md hover:bg-orange-50"
-                          >
-                            <ChevronLeft size={20} />
-                          </motion.button>
+                              }}
+                              className="hover:text-white whitespace-nowrap transition-colors"
+                            >
+                              Inicio
+                            </button>
+
+                            {macroCategoriaSeleccionada && (
+                              <>
+                                <ChevronLeft
+                                  size={12}
+                                  className="rotate-180 flex-shrink-0"
+                                />
+                                <button
+                                  onClick={() => {
+                                    setCategoriaSeleccionada(null);
+                                    setMarcaSeleccionada(null);
+                                    setSearchTerm("");
+                                    setProductos([]);
+                                  }}
+                                  className="hover:text-white whitespace-nowrap transition-colors"
+                                >
+                                  {macroCategoriaSeleccionada.nombre.length > 20
+                                    ? macroCategoriaSeleccionada.nombre.slice(
+                                        0,
+                                        20
+                                      ) + "…"
+                                    : macroCategoriaSeleccionada.nombre}
+                                </button>
+                              </>
+                            )}
+
+                            {categoriaSeleccionada && (
+                              <>
+                                <ChevronLeft
+                                  size={12}
+                                  className="rotate-180 flex-shrink-0"
+                                />
+                                <span className="text-white font-semibold whitespace-nowrap">
+                                  {categoriaSeleccionada.nombre_categoria}
+                                </span>
+                              </>
+                            )}
+
+                            {marcaSeleccionada && (
+                              <>
+                                <ChevronLeft
+                                  size={12}
+                                  className="rotate-180 flex-shrink-0"
+                                />
+                                <span className="text-white font-semibold whitespace-nowrap">
+                                  {marcaSeleccionada.nombre_marca}
+                                </span>
+                              </>
+                            )}
+                          </motion.div>
                         )}
                     </AnimatePresence>
-
-                    {/* Campo de búsqueda */}
-                     <AnimatePresence mode="wait">
-            {(activeTab === "buscar" || activeTab === "categorias") &&(
-              <motion.div
-                key="search-bar"
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.2 }}
-                className="relative flex-1"
-              >
-
-                 
-                      <input
-                        type="text"
-                        placeholder={
-                          categoriaSeleccionada
-                            ? `Buscar en ${categoriaSeleccionada.nombre_categoria}`
-                            : marcaSeleccionada
-                            ? `Buscar en ${marcaSeleccionada.nombre_marca}`
-                            : "Buscar en Bodega Ferretera Monterrey..."
-                        }
-                        value={searchTerm}
-                        onChange={async (e) => {
-                          const value = e.target.value;
-                          setSearchTerm(value);
-
-                          if (value.trim() === "") {
-                            setProductos([]);
-                            return;
-                          }
-
-                          const palabras = value.trim().split(/\s+/);
-
-                          let query = supabase
-                            .from("productos")
-                            .select(
-                              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
-                            );
-
-                          // Filtro por categoría o marca
-                          if (categoriaSeleccionada) {
-                            query = query.eq(
-                              "CATEGORIA_ID",
-                              categoriaSeleccionada.id_categoria
-                            );
-                          } else if (marcaSeleccionada) {
-                            query = query.eq("marca_id", marcaSeleccionada.id);
-                          }
-
-                          palabras.forEach((palabra) => {
-                            query = query.or(
-                              `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%`
-                            );
-                          });
-
-                          query = query.limit(50);
-
-                          const { data, error } = await query;
-
-                          if (error) {
-                            console.error(
-                              "Error buscando productos:",
-                              error.message
-                            );
-                          } else {
-                            const productosNormalizados = (data || []).map(
-                              (producto) => ({
-                                ...producto,
-                                visible: producto.visible ?? true,
-                              })
-                            );
-                            setProductos(productosNormalizados);
-                          }
-                        }}
-                        onFocus={() => {
-                          // Si hay texto, mostrar resultados al hacer focus
-                          if (searchTerm.trim()) {
-                            const fetchProductos = async () => {
-                              let query = supabase
-                                .from("productos")
-                                .select(
-                                  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
-                                );
-
-                              if (categoriaSeleccionada) {
-                                query = query.eq(
-                                  "CATEGORIA_ID",
-                                  categoriaSeleccionada.id_categoria
-                                );
-                              } else if (marcaSeleccionada) {
-                                query = query.eq(
-                                  "marca_id",
-                                  marcaSeleccionada.id
-                                );
-                              }
-
-                              query = query
-                                .or(
-                                  `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%`
-                                )
-                                .limit(50);
-
-                              const { data } = await query;
-
-                              const productosNormalizados = (data || []).map(
-                                (producto) => ({
-                                  ...producto,
-                                  visible: producto.visible ?? true,
-                                })
-                              );
-                              setProductos(productosNormalizados);
-                            };
-
-                            fetchProductos();
-                          }
-                        }}
-                        className="w-full rounded-full border bg-white border-zinc-300 pl-10 pr-10 py-2.5 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-white transition-all duration-200"
-                      />
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
-
-                      {/* Botón limpiar búsqueda */}
-                      <AnimatePresence>
-                        {searchTerm && (
-                          <motion.button
-                            initial={{ scale: 0, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0, opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => {
-                              setSearchTerm("");
-                              setProductos([]);
-                            }}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
-                          >
-                            <X size={18} />
-                          </motion.button>
-                        )}
-                      </AnimatePresence>
-
-                      {/* Botón escáner (solo en Buscar) */}
-                      <AnimatePresence>
-                        {!searchTerm && activeTab === "buscar" && (
-                          <motion.button
-                            initial={{ scale: 0, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0, opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => setScannerOpen(true)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-600 transition-colors"
-                          >
-                            <ScanBarcode size={20} />
-                          </motion.button>
-                        )}
-                      </AnimatePresence>
-
-                      {/* Sugerencias de búsqueda */}
-                      <AnimatePresence>
-                        {searchTerm &&
-                          productos.length > 0 &&
-                          !categoriaSeleccionada &&
-                          !marcaSeleccionada &&
-                          activeTab !== "buscar" && (
-                            <motion.div
-                              initial={{ opacity: 0, y: -10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -10 }}
-                              transition={{
-                                duration: 0.3,
-                                ease: [0.4, 0, 0.2, 1],
-                              }}
-                              className="absolute top-full left-0 right-0 mt-2 bg-white border border-zinc-200 rounded-xl shadow-lg max-h-96 overflow-y-auto z-50"
-                            >
-                              {productos
-                                .filter(
-                                  (prod) => esAdmin || (prod.visible ?? true)
-                                )
-                                .slice(0, 10)
-                                .map((prod, index) => (
-                                  <motion.div
-                                    key={prod.id}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{
-                                      delay: index * 0.03,
-                                      duration: 0.2,
-                                    }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={() => {
-                                      setProductoSeleccionado(prod);
-                                      setSearchTerm("");
-                                      setProductos([]);
-                                    }}
-                                    className="flex items-center gap-3 p-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-b-0 transition-colors"
-                                  >
-                                    <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100 flex-shrink-0">
-                                      <Image
-                                        src={prod.IMAGEN || "/placeholder.jpg"}
-                                        alt={prod.TITULO}
-                                        fill
-                                        className="object-contain"
-                                      />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="font-semibold text-sm text-zinc-800 truncate">
-                                        {prod.TITULO}
-                                      </p>
-                                      <p className="text-xs text-zinc-500">
-                                        Código: {prod.CODIGO}
-                                      </p>
-                                      {!esAdmin && (
-                                        <p className="text-xs text-orange-500 font-semibold">
-                                          ${prod.P_MAYOREO?.toFixed(2)}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      strokeWidth={2}
-                                      stroke="currentColor"
-                                      className="w-4 h-4 text-zinc-400 flex-shrink-0"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        d="M8.25 4.5l7.5 7.5-7.5 7.5"
-                                      />
-                                    </svg>
-                                  </motion.div>
-                                ))}
-
-                              {productos.length > 10 && (
-                                <div className="p-3 text-center text-xs text-zinc-500 bg-zinc-50">
-                                  Mostrando 10 de {productos.length} resultados
-                                </div>
-                              )}
-                            </motion.div>
-                          )}
-                     </AnimatePresence>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-
-                  {/* Breadcrumb */}
-                  <AnimatePresence>
-                    {(macroCategoriaSeleccionada ||
-                      categoriaSeleccionada ||
-                      marcaSeleccionada) &&
-                      activeTab !== "buscar" && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                          className="flex items-center gap-2 mt-3 text-xs text-amber-100 overflow-x-auto pb-1"
-                        >
-                          <button
-                            onClick={() => {
-                              setMacroCategoriaSeleccionada(null);
-                              setCategoriaSeleccionada(null);
-                              setMarcaSeleccionada(null);
-                              setSearchTerm("");
-                              setProductos([]);
-                            }}
-                            className="hover:text-white whitespace-nowrap transition-colors"
-                          >
-                            Inicio
-                          </button>
-
-                          {macroCategoriaSeleccionada && (
-                            <>
-                              <ChevronLeft
-                                size={12}
-                                className="rotate-180 flex-shrink-0"
-                              />
-                              <button
-                                onClick={() => {
-                                  setCategoriaSeleccionada(null);
-                                  setMarcaSeleccionada(null);
-                                  setSearchTerm("");
-                                  setProductos([]);
-                                }}
-                                className="hover:text-white whitespace-nowrap transition-colors"
-                              >
-                                {macroCategoriaSeleccionada.nombre.length > 20
-                                  ? macroCategoriaSeleccionada.nombre.slice(
-                                      0,
-                                      20
-                                    ) + "…"
-                                  : macroCategoriaSeleccionada.nombre}
-                              </button>
-                            </>
-                          )}
-
-                          {categoriaSeleccionada && (
-                            <>
-                              <ChevronLeft
-                                size={12}
-                                className="rotate-180 flex-shrink-0"
-                              />
-                              <span className="text-white font-semibold whitespace-nowrap">
-                                {categoriaSeleccionada.nombre_categoria}
-                              </span>
-                            </>
-                          )}
-
-                          {marcaSeleccionada && (
-                            <>
-                              <ChevronLeft
-                                size={12}
-                                className="rotate-180 flex-shrink-0"
-                              />
-                              <span className="text-white font-semibold whitespace-nowrap">
-                                {marcaSeleccionada.nombre_marca}
-                              </span>
-                            </>
-                          )}
-                        </motion.div>
-                      )}
-                  </AnimatePresence>
-                   </motion.div>
-               
-              ) : (
-                <motion.div
-        key="header-simple"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="h-[44px]"
-      />
-    )}
-  </AnimatePresence>
-</div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="header-simple"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="h-[44px]"
+                  />
+                )}
+              </AnimatePresence>
+            </div>
           </header>
 
           {/* Contenido dinámico */}
@@ -6537,14 +6570,31 @@ export default function HomePage() {
                                   try {
                                     // Buscar producto por código
                                     const { data, error } = await supabase
-                                      .from("productos")
-                                      .select(
-                                        "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
-                                      )
-                                      .or(
-                                        `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%`
-                                      )
-                                      .limit(50);
+  .from("productos")
+  .select(
+    `
+    id,
+    TITULO,
+    CODIGO,
+    C_PRODUCTO,
+    IMAGEN,
+    P_MAYOREO,
+    visible,
+    liquidacion,
+    top_ventas,
+    marca_id,
+    CATEGORIA_ID
+    `
+  )
+  .or(
+    `
+    TITULO.ilike.%${codigo}%,
+    CODIGO.ilike.%${codigo}%,
+    C_PRODUCTO.ilike.%${codigo}%
+    `
+  )
+  .limit(50);
+
 
                                     if (error) {
                                       console.error(
@@ -7369,13 +7419,13 @@ export default function HomePage() {
                       <button
                         onClick={() =>
                           window.open(
-                            "https://wa.me/526682340531?text=Hola,%20quiero%20más%20información.",
+                            "https://wa.me/5218682340531?text=Hola,%20quiero%20más%20información.",
                             "_blank"
                           )
                         }
                         className="text-green-600 font-semibold text-lg underline"
                       >
-                        868 234 0531
+                        +5218682340531
                       </button>
                     </div>
 
