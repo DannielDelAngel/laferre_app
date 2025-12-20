@@ -5518,7 +5518,7 @@ export default function HomePage() {
         </div>
       ) : (
         <div className="flex min-h-screen flex-col  bg-white font-sans">
-          <header className="p-6 pt-3 text-center bg-orange-500 fixed top-0 left-0 right-0 z-50 border-zinc-200">
+          <header className="p-6 pt-3 text-center bg-orange-500 sticky top-0 z-50 border-zinc-200">
             <AnimatePresence>
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
@@ -5639,18 +5639,20 @@ export default function HomePage() {
                                 setSearchTerm(value);
 
                                 // Scroll down cuando escriba en categoría
-                                if (
-                                  (categoriaSeleccionada ||
-                                    marcaSeleccionada) &&
-                                  value.length > 0
-                                ) {
-                                  setTimeout(() => {
-                                    window.scrollTo({
-                                      top: 300,
-                                      behavior: "smooth",
-                                    });
-                                  }, 100);
-                                }
+
+                                // Scroll down cuando escriba en categoría
+if ((categoriaSeleccionada || marcaSeleccionada) && value.length > 0) {
+  // Usar requestAnimationFrame para mantener header visible en móvil
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: 300, behavior: "smooth" });
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 299, behavior: "smooth" });
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 300, behavior: "smooth" });
+      });
+    });
+  });
+}
 
                                 if (value.trim() === "") {
                                   setProductos([]);
@@ -5979,7 +5981,7 @@ export default function HomePage() {
           </header>
 
           {/* Contenido dinámico */}
-          <main className="flex-1 pt-[180px] px-4 pb-32 overflow-hidden">
+          <main className="flex-1 pt-5 px-4 pb-32 overflow-hidden">
             <AnimatePresence mode="wait">
               {/* Categorías */}
               {activeTab === "categorias" && (
@@ -6568,7 +6570,7 @@ export default function HomePage() {
 
                                   try {
                                     // Buscar producto por código
-                                   const { data, error } = await supabase
+                                    const { data, error } = await supabase
   .from("productos")
   .select(
     "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO"
