@@ -768,35 +768,31 @@ export default function HomePage() {
   }, []);
 
   // Cargar todos los productos al entrar a la pestaña de "buscar"
-  useEffect(() => {
-    const fetchProductos = async () => {
-      const { data, error } = await supabase
-        .from("productos")
-        .select(
-          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
-        );
+const fetchProductos = async () => {
+  const { data, error } = await supabase
+    .from("productos")
+    .select(
+      "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
+    );
 
-      // Normalizar visible
-      const productosNormalizados = (data || []).map((producto) => ({
-        ...producto,
-        visible: producto.visible ?? true,
-      }));
+  const productosNormalizados = (data || []).map((producto) => ({
+    ...producto,
+    visible: producto.visible ?? true,
+  }));
 
-      setProductos(productosNormalizados);
-      if (error) {
-        console.error("Error cargando productos:", error.message);
-      } else {
-        setProductos(data || []);
-      }
-    };
+  if (error) {
+    console.error("Error cargando productos:", error.message);
+  } else {
+    setProductos(productosNormalizados);
+  }
+};
 
-    useEffect(() => {
+useEffect(() => {
   if (activeTab === "buscar" && productos.length === 0) {
     fetchProductos();
   }
-}, [activeTab]);
+}, [activeTab, productos.length]);
 
-  }, [activeTab]);
 
   interface Apoyo {
     titulo: string;
