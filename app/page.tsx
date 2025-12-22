@@ -248,10 +248,11 @@ export default function HomePage() {
           setMensaje("Por favor selecciona una imagen válida");
           return;
         }
-        if (file.size > 5 * 1024 * 1024) {
-          setMensaje("La imagen no debe superar los 5MB");
-          return;
-        }
+        if (file.size > 800 * 1024) {
+  setMensaje("La imagen no debe superar los 800 KB");
+  return;
+}
+
         setImagenFile(file);
         const reader = new FileReader();
         reader.onloadend = () => setImagenPreview(reader.result as string);
@@ -277,7 +278,7 @@ export default function HomePage() {
           const { error: uploadError } = await supabase.storage
             .from("imagenes_categorias")
             .upload(nombreArchivo, imagenFile, {
-              cacheControl: "3600",
+              cacheControl: "public, max-age=31536000",
               upsert: true,
             });
 
@@ -422,7 +423,10 @@ export default function HomePage() {
                     <img
                       src={item.img || "/placeholder.jpg"}
                       alt={item.nombre || item.nombre_categoria}
-                      className="w-full h-full object-cover"
+                    
+  sizes="48px"
+  className="object-cover"
+  loading="lazy"
                     />
                   </div>
                   <div>
@@ -449,7 +453,10 @@ export default function HomePage() {
                   <img
                     src={imagenPreview || "/placeholder.jpg"}
                     alt="Preview"
-                    className="w-full h-full object-contain"
+                 
+  sizes="48px"
+  className="object-cover"
+  loading="lazy"
                   />
                 </div>
                 <input
@@ -783,9 +790,12 @@ export default function HomePage() {
       }
     };
 
-    if (activeTab === "buscar") {
-      fetchProductos();
-    }
+    useEffect(() => {
+  if (activeTab === "buscar" && productos.length === 0) {
+    fetchProductos();
+  }
+}, [activeTab]);
+
   }, [activeTab]);
 
   interface Apoyo {
@@ -814,10 +824,11 @@ export default function HomePage() {
           setMensaje("Por favor selecciona un archivo de imagen válido");
           return;
         }
-        if (file.size > 5 * 1024 * 1024) {
-          setMensaje("La imagen no debe superar los 5MB");
-          return;
-        }
+       if (file.size > 800 * 1024) {
+  setMensaje("La imagen no debe superar los 800 KB");
+  return;
+}
+
 
         setImagenFile(file);
         const reader = new FileReader();
@@ -847,7 +858,7 @@ export default function HomePage() {
           const { error: uploadError } = await supabase.storage
             .from("imagenes_categorias")
             .upload(nombreArchivo, imagenFile, {
-              cacheControl: "3600",
+              cacheControl: "public, max-age=31536000",
               upsert: true,
             });
 
@@ -1007,6 +1018,7 @@ export default function HomePage() {
                         alt="Preview"
                         fill
                         className="object-contain"
+                         loading="lazy"
                       />
                     ) : (
                       <div className="text-center text-zinc-400">
@@ -1101,6 +1113,7 @@ export default function HomePage() {
                           alt={marca.nombre_marca}
                           fill
                           className="object-contain"
+                           loading="lazy"
                         />
                       </div>
                       <span className="font-semibold text-zinc-800">
@@ -1199,10 +1212,11 @@ export default function HomePage() {
           setMensaje("Por favor selecciona un archivo de imagen válido");
           return;
         }
-        if (file.size > 5 * 1024 * 1024) {
-          setMensaje("La imagen no debe superar los 5MB");
-          return;
-        }
+        if (file.size > 800 * 1024) {
+  setMensaje("La imagen no debe superar los 800 KB");
+  return;
+}
+
         setImagenFile(file);
         const reader = new FileReader();
         reader.onloadend = () => setImagenPreview(reader.result as string);
@@ -1233,7 +1247,7 @@ export default function HomePage() {
           const { error: uploadError } = await supabase.storage
             .from("imagenes_categorias")
             .upload(nombreArchivo, imagenFile, {
-              cacheControl: "3600",
+              cacheControl: "public, max-age=31536000",
               upsert: true,
             });
 
@@ -1398,6 +1412,7 @@ export default function HomePage() {
                         alt="Preview"
                         fill
                         className="object-contain"
+                         loading="lazy"
                       />
                     ) : (
                       <div className="text-center text-zinc-400">
@@ -1505,6 +1520,7 @@ export default function HomePage() {
                           alt={macro.nombre}
                           fill
                           className="object-cover"
+                           loading="lazy"
                         />
                       </div>
                       <span className="font-semibold text-zinc-800">
@@ -1668,6 +1684,7 @@ export default function HomePage() {
                       alt={cat.nombre_categoria}
                       fill
                       className="object-cover"
+                       loading="lazy"
                     />
                   </div>
                   <div>
@@ -2376,10 +2393,11 @@ export default function HomePage() {
           setMensaje("Por favor selecciona un archivo de imagen válido");
           return;
         }
-        if (file.size > 5 * 1024 * 1024) {
-          setMensaje("La imagen no debe superar los 5MB");
-          return;
-        }
+        if (file.size > 800 * 1024) {
+  setMensaje("La imagen no debe superar los 800 KB");
+  return;
+}
+
         setImagenFile(file);
         const reader = new FileReader();
         reader.onloadend = () => setImagenPreview(reader.result as string);
@@ -2410,7 +2428,7 @@ export default function HomePage() {
           const { error: uploadError } = await supabase.storage
             .from("imagenes_categorias")
             .upload(nombreArchivo, imagenFile, {
-              cacheControl: "3600",
+              cacheControl: "public, max-age=31536000",
               upsert: true,
             });
 
@@ -2569,6 +2587,7 @@ export default function HomePage() {
                         alt="Preview"
                         fill
                         className="object-contain"
+                         loading="lazy"
                       />
                     ) : (
                       <div className="text-center text-zinc-400">
@@ -2676,6 +2695,7 @@ export default function HomePage() {
                           alt={cat.nombre_categoria}
                           fill
                           className="object-cover"
+                           loading="lazy"
                         />
                       </div>
                       <span className="font-semibold text-zinc-800">
@@ -2944,6 +2964,7 @@ export default function HomePage() {
                       alt="ejemplo formato CSV"
                       fill
                       className="object-contain object-left"
+                       loading="lazy"
                     />
                   </div>
                 </pre>
@@ -3085,11 +3106,12 @@ export default function HomePage() {
           return;
         }
 
-        // Validar tamaño (máximo 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-          setMensaje("La imagen no debe superar los 5MB");
-          return;
-        }
+        // Validar tamaño 
+       if (file.size > 800 * 1024) {
+  setMensaje("La imagen no debe superar los 800 KB");
+  return;
+}
+
 
         setImagenFile(file);
 
@@ -3126,7 +3148,7 @@ export default function HomePage() {
             await supabase.storage
               .from("imagenes_productos")
               .upload(nombreArchivo, imagenFile, {
-                cacheControl: "3600",
+                cacheControl: "public, max-age=31536000",
                 upsert: true,
               });
 
@@ -3223,6 +3245,7 @@ export default function HomePage() {
                     alt="Preview"
                     fill
                     className="object-contain"
+                     loading="lazy"
                   />
                 ) : (
                   <div className="text-center text-zinc-400">
@@ -3713,7 +3736,7 @@ export default function HomePage() {
         .from("pedidos-pdf")
         .upload(nombreArchivoPDF, pdfBlob, {
           contentType: "application/pdf",
-          cacheControl: "3600",
+          cacheControl: "public, max-age=31536000",
           upsert: true,
         });
 
@@ -4697,10 +4720,11 @@ export default function HomePage() {
         return;
       }
 
-      if (file.size > 5 * 1024 * 1024) {
-        setMensaje("La imagen no debe superar los 5MB.");
-        return;
-      }
+      if (file.size > 800 * 1024) {
+  setMensaje("La imagen no debe superar los 800 KB");
+  return;
+}
+
       // Eliminar imagen vieja si existe
       if (producto.IMAGEN) {
         const nombreArchivoViejo = producto.IMAGEN.split("/").pop();
@@ -4737,7 +4761,7 @@ export default function HomePage() {
             await supabase.storage
               .from("imagenes_productos")
               .upload(nombreArchivo, imagenFile, {
-                cacheControl: "3600",
+                cacheControl: "public, max-age=31536000",
                 upsert: true,
               });
 
@@ -4917,6 +4941,7 @@ export default function HomePage() {
                         alt="Preview"
                         fill
                         className="object-contain"
+                         loading="lazy"
                       />
                     </div>
                     <input
