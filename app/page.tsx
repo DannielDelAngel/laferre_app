@@ -249,9 +249,9 @@ export default function HomePage() {
           return;
         }
         if (file.size > 800 * 1024) {
-  setMensaje("La imagen no debe superar los 800 KB");
-  return;
-}
+          setMensaje("La imagen no debe superar los 800 KB");
+          return;
+        }
 
         setImagenFile(file);
         const reader = new FileReader();
@@ -423,10 +423,9 @@ export default function HomePage() {
                     <img
                       src={item.img || "/placeholder.jpg"}
                       alt={item.nombre || item.nombre_categoria}
-                    
-  sizes="48px"
-  className="object-cover"
-  loading="lazy"
+                      sizes="48px"
+                      className="object-cover"
+                      loading="lazy"
                     />
                   </div>
                   <div>
@@ -453,10 +452,9 @@ export default function HomePage() {
                   <img
                     src={imagenPreview || "/placeholder.jpg"}
                     alt="Preview"
-                 
-  sizes="48px"
-  className="object-cover"
-  loading="lazy"
+                    sizes="48px"
+                    className="object-cover"
+                    loading="lazy"
                   />
                 </div>
                 <input
@@ -768,31 +766,30 @@ export default function HomePage() {
   }, []);
 
   // Cargar todos los productos al entrar a la pestaña de "buscar"
-const fetchProductos = async () => {
-  const { data, error } = await supabase
-    .from("productos")
-    .select(
-      "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
-    );
+  const fetchProductos = async () => {
+    const { data, error } = await supabase
+      .from("productos")
+      .select(
+        "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
+      );
 
-  const productosNormalizados = (data || []).map((producto) => ({
-    ...producto,
-    visible: producto.visible ?? true,
-  }));
+    const productosNormalizados = (data || []).map((producto) => ({
+      ...producto,
+      visible: producto.visible ?? true,
+    }));
 
-  if (error) {
-    console.error("Error cargando productos:", error.message);
-  } else {
-    setProductos(productosNormalizados);
-  }
-};
+    if (error) {
+      console.error("Error cargando productos:", error.message);
+    } else {
+      setProductos(productosNormalizados);
+    }
+  };
 
-useEffect(() => {
-  if (activeTab === "buscar" && productos.length === 0) {
-    fetchProductos();
-  }
-}, [activeTab, productos.length]);
-
+  useEffect(() => {
+    if (activeTab === "buscar" && productos.length === 0) {
+      fetchProductos();
+    }
+  }, [activeTab, productos.length]);
 
   interface Apoyo {
     titulo: string;
@@ -820,11 +817,10 @@ useEffect(() => {
           setMensaje("Por favor selecciona un archivo de imagen válido");
           return;
         }
-       if (file.size > 800 * 1024) {
-  setMensaje("La imagen no debe superar los 800 KB");
-  return;
-}
-
+        if (file.size > 800 * 1024) {
+          setMensaje("La imagen no debe superar los 800 KB");
+          return;
+        }
 
         setImagenFile(file);
         const reader = new FileReader();
@@ -1014,7 +1010,7 @@ useEffect(() => {
                         alt="Preview"
                         fill
                         className="object-contain"
-                         loading="lazy"
+                        loading="lazy"
                       />
                     ) : (
                       <div className="text-center text-zinc-400">
@@ -1109,7 +1105,7 @@ useEffect(() => {
                           alt={marca.nombre_marca}
                           fill
                           className="object-contain"
-                           loading="lazy"
+                          loading="lazy"
                         />
                       </div>
                       <span className="font-semibold text-zinc-800">
@@ -1209,9 +1205,9 @@ useEffect(() => {
           return;
         }
         if (file.size > 800 * 1024) {
-  setMensaje("La imagen no debe superar los 800 KB");
-  return;
-}
+          setMensaje("La imagen no debe superar los 800 KB");
+          return;
+        }
 
         setImagenFile(file);
         const reader = new FileReader();
@@ -1408,7 +1404,7 @@ useEffect(() => {
                         alt="Preview"
                         fill
                         className="object-contain"
-                         loading="lazy"
+                        loading="lazy"
                       />
                     ) : (
                       <div className="text-center text-zinc-400">
@@ -1516,7 +1512,7 @@ useEffect(() => {
                           alt={macro.nombre}
                           fill
                           className="object-cover"
-                           loading="lazy"
+                          loading="lazy"
                         />
                       </div>
                       <span className="font-semibold text-zinc-800">
@@ -1680,7 +1676,7 @@ useEffect(() => {
                       alt={cat.nombre_categoria}
                       fill
                       className="object-cover"
-                       loading="lazy"
+                      loading="lazy"
                     />
                   </div>
                   <div>
@@ -2390,9 +2386,9 @@ useEffect(() => {
           return;
         }
         if (file.size > 800 * 1024) {
-  setMensaje("La imagen no debe superar los 800 KB");
-  return;
-}
+          setMensaje("La imagen no debe superar los 800 KB");
+          return;
+        }
 
         setImagenFile(file);
         const reader = new FileReader();
@@ -2583,7 +2579,7 @@ useEffect(() => {
                         alt="Preview"
                         fill
                         className="object-contain"
-                         loading="lazy"
+                        loading="lazy"
                       />
                     ) : (
                       <div className="text-center text-zinc-400">
@@ -2691,7 +2687,7 @@ useEffect(() => {
                           alt={cat.nombre_categoria}
                           fill
                           className="object-cover"
-                           loading="lazy"
+                          loading="lazy"
                         />
                       </div>
                       <span className="font-semibold text-zinc-800">
@@ -2839,17 +2835,6 @@ useEffect(() => {
           return;
         }
 
-        if (
-          !primeraFila.P_MAYOREO &&
-          !primeraFila.p_mayoreo &&
-          !primeraFila.PRECIO
-        ) {
-          setError(
-            "El CSV debe tener una columna 'P_MAYOREO' o 'p_mayoreo' o 'PRECIO'"
-          );
-          setProcesando(false);
-          return;
-        }
 
         let actualizados = 0;
         let noEncontrados = 0;
@@ -2860,23 +2845,38 @@ useEffect(() => {
         for (let i = 0; i < datos.length; i++) {
           const fila: any = datos[i];
 
-          // Obtener código y precio (soportar diferentes nombres de columnas)
-          const codigo = fila.CODIGO || fila.codigo;
-          const precio =
-            fila.P_MAYOREO || fila.p_mayoreo || fila.PRECIO || fila.precio;
+         // Obtener valores del CSV (soportar diferentes nombres de columnas)
+const codigo = fila.CODIGO || fila.codigo;
+const precio = fila.P_MAYOREO || fila.p_mayoreo || fila.PRECIO || fila.precio;
+const descripcion = fila.DESCRIPCION || fila.descripcion;
+const cProducto = fila.C_PRODUCTO || fila.c_producto;
+const titulo = fila.TITULO || fila.titulo;
 
-          if (!codigo || precio === undefined || precio === null) {
-            errores++;
-            continue;
-          }
+if (!codigo) {
+  errores++;
+  continue;
+}
 
+// Preparar objeto de actualización solo con campos que existan
+const datosActualizar: any = {};
+if (precio !== undefined && precio !== null) datosActualizar.P_MAYOREO = parseFloat(precio);
+if (descripcion !== undefined && descripcion !== null) datosActualizar.DESCRIPCION = descripcion;
+if (cProducto !== undefined && cProducto !== null) datosActualizar.C_PRODUCTO = cProducto;
+if (titulo !== undefined && titulo !== null) datosActualizar.TITULO = titulo;
+
+// Si no hay nada que actualizar, saltar
+if (Object.keys(datosActualizar).length === 0) {
+  errores++;
+  continue;
+}
+           
           try {
             // Buscar el producto por código
-            const { data: producto, error: errorBusqueda } = await supabase
-              .from("productos")
-              .select("id, CODIGO, P_MAYOREO")
-              .eq("CODIGO", codigo)
-              .single();
+           const { data: producto, error: errorBusqueda } = await supabase
+  .from("productos")
+  .select("id, CODIGO, P_MAYOREO, DESCRIPCION, C_PRODUCTO, TITULO")
+  .eq("CODIGO", codigo)
+  .single();
 
             if (errorBusqueda || !producto) {
               noEncontrados++;
@@ -2884,11 +2884,11 @@ useEffect(() => {
               continue;
             }
 
-            // Actualizar el precio
-            const { error: errorActualizar } = await supabase
-              .from("productos")
-              .update({ P_MAYOREO: parseFloat(precio) })
-              .eq("id", producto.id);
+            // Actualizar los campos
+const { error: errorActualizar } = await supabase
+  .from("productos")
+  .update(datosActualizar)
+  .eq("id", producto.id);
 
             if (errorActualizar) {
               errores++;
@@ -2943,10 +2943,10 @@ useEffect(() => {
             </h3>
             <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
               <li>
-                El archivo CSV debe tener las columnas: <strong>CODIGO</strong>{" "}
-                y <strong>P_MAYOREO</strong>
-              </li>
-              <li>También acepta: codigo, p_mayoreo, PRECIO, precio</li>
+  El archivo CSV debe tener la columna: <strong>CODIGO</strong> (obligatoria)
+</li>
+<li>Columnas opcionales: <strong>P_MAYOREO</strong>, <strong>DESCRIPCION</strong>, <strong>C_PRODUCTO</strong>, <strong>TITULO</strong></li>
+<li>También acepta minúsculas: codigo, p_mayoreo, precio, descripcion, c_producto, titulo</li>
               <li>
                 la columna CODIGO debe ser tipo "general" y P_MAYOREO tipo
                 "numero"
@@ -2956,11 +2956,11 @@ useEffect(() => {
                 <pre className="bg-white p-2 mt-1 rounded text-xs overflow-x-auto">
                   <div className="relative w-full h-30 mb-2">
                     <Image
-                      src="/ejemplof.png"
+                      src="/ejemplodoc.png"
                       alt="ejemplo formato CSV"
                       fill
                       className="object-contain object-left"
-                       loading="lazy"
+                      loading="lazy"
                     />
                   </div>
                 </pre>
@@ -3102,12 +3102,11 @@ useEffect(() => {
           return;
         }
 
-        // Validar tamaño 
-       if (file.size > 800 * 1024) {
-  setMensaje("La imagen no debe superar los 800 KB");
-  return;
-}
-
+        // Validar tamaño
+        if (file.size > 800 * 1024) {
+          setMensaje("La imagen no debe superar los 800 KB");
+          return;
+        }
 
         setImagenFile(file);
 
@@ -3241,7 +3240,7 @@ useEffect(() => {
                     alt="Preview"
                     fill
                     className="object-contain"
-                     loading="lazy"
+                    loading="lazy"
                   />
                 ) : (
                   <div className="text-center text-zinc-400">
@@ -4717,9 +4716,9 @@ useEffect(() => {
       }
 
       if (file.size > 800 * 1024) {
-  setMensaje("La imagen no debe superar los 800 KB");
-  return;
-}
+        setMensaje("La imagen no debe superar los 800 KB");
+        return;
+      }
 
       // Eliminar imagen vieja si existe
       if (producto.IMAGEN) {
@@ -4937,7 +4936,7 @@ useEffect(() => {
                         alt="Preview"
                         fill
                         className="object-contain"
-                         loading="lazy"
+                        loading="lazy"
                       />
                     </div>
                     <input
@@ -5147,6 +5146,18 @@ useEffect(() => {
                 <h2 className="text-center text-[20px] font-bold text-zinc-900 leading-snug px-2">
                   {producto.TITULO}
                 </h2>
+
+                {/* Descripción / Información Adicional */}
+{producto.DESCRIPCION && (
+  <div className="mt-5 px-4">
+    <h3 className="text-sm font-semibold text-zinc-900 mb-2">
+      Información Adicional
+    </h3>
+    <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200">
+      {producto.DESCRIPCION}
+    </p>
+  </div>
+)}
 
                 <div className="mt-4 text-sm text-zinc-700 px-2">
                   <div className="flex justify-between py-2">
@@ -5652,7 +5663,7 @@ useEffect(() => {
                                   ? `Buscar en ${categoriaSeleccionada.nombre_categoria}`
                                   : marcaSeleccionada
                                   ? `Buscar en ${marcaSeleccionada.nombre_marca}`
-                                  : "Buscar en Bodega Ferretera Monterrey..."
+                                  : "Buscar en Bodega Ferretera De Monterrey..."
                               }
                               value={searchTerm}
                               onChange={async (e) => {
@@ -5669,7 +5680,7 @@ useEffect(() => {
                                 let query = supabase
                                   .from("productos")
                                   .select(
-                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                    "*"
                                   );
 
                                 if (categoriaSeleccionada) {
@@ -5684,11 +5695,11 @@ useEffect(() => {
                                   );
                                 }
 
-                               palabras.forEach((palabra) => {
-  query = query.or(
-    `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`
-  );
-});
+                                palabras.forEach((palabra) => {
+                                  query = query.or(
+                                    `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`
+                                  );
+                                });
 
                                 query = query.limit(50);
 
@@ -5731,10 +5742,10 @@ useEffect(() => {
                                     }
 
                                     query = query
-  .or(
-    `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%,C_PRODUCTO.ilike.%${searchTerm}%`
-  )
-  .limit(50);
+                                      .or(
+                                        `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%,C_PRODUCTO.ilike.%${searchTerm}%`
+                                      )
+                                      .limit(50);
                                     const { data } = await query;
 
                                     const productosNormalizados = (
@@ -6208,7 +6219,7 @@ useEffect(() => {
                               const { data, error } = await supabase
                                 .from("productos")
                                 .select(
-                                  "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
+                                  "*"
                                 )
 
                                 .eq("CATEGORIA_ID", cat.id_categoria);
@@ -6282,7 +6293,6 @@ useEffect(() => {
                           }
                         }}
                       >
-                        
                         {/* Banner búsqueda */}
                         <AnimatePresence>
                           {searchTerm && (
@@ -6334,7 +6344,6 @@ useEffect(() => {
                               marcaSeleccionada?.nombre_marca}
                           </h2>
                         </div>
-
 
                         {/* Grid productos */}
                         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 pb-10">
@@ -6577,14 +6586,14 @@ useEffect(() => {
                                   try {
                                     // Buscar producto por código
                                     const { data, error } = await supabase
-  .from("productos")
-  .select(
-    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO"
-  )
-  .or(
-    `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%,C_PRODUCTO.ilike.%${codigo}%`
-  )
-  .limit(50);
+                                      .from("productos")
+                                      .select(
+                                        "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO"
+                                      )
+                                      .or(
+                                        `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%,C_PRODUCTO.ilike.%${codigo}%`
+                                      )
+                                      .limit(50);
 
                                     if (error) {
                                       console.error(
@@ -6836,6 +6845,90 @@ useEffect(() => {
 
                         {/* Total */}
                         <div className="mt-6 border-t border-zinc-300 pt-4 text-center">
+                          {/* Barra de progreso para pedido mínimo */}
+                          {(() => {
+                            const totalCarrito = carrito.reduce(
+                              (sum, p) => sum + p.subtotal,
+                              0
+                            );
+                            const minimoRequerido = 1000;
+                            const progreso = Math.min(
+                              (totalCarrito / minimoRequerido) * 100,
+                              100
+                            );
+                            const faltante = Math.max(
+                              minimoRequerido - totalCarrito,
+                              0
+                            );
+
+                            return (
+                              <div className="mb-4 bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-sm font-semibold text-zinc-700">
+                                    Pedido mínimo: $1,000.00
+                                  </span>
+                                  <span
+                                    className={`text-sm font-bold ${
+                                      totalCarrito >= minimoRequerido
+                                        ? "text-green-600"
+                                        : "text-orange-600"
+                                    }`}
+                                  >
+                                    ${totalCarrito.toFixed(2)}
+                                  </span>
+                                </div>
+
+                                {/* Barra de progreso */}
+                                <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${progreso}%` }}
+                                    transition={{
+                                      duration: 0.5,
+                                      ease: "easeOut",
+                                    }}
+                                    className={`h-full rounded-full transition-colors ${
+                                      progreso === 100
+                                        ? "bg-gradient-to-r from-green-500 to-green-600"
+                                        : "bg-gradient-to-r from-orange-500 to-orange-600"
+                                    }`}
+                                  />
+                                </div>
+
+                                {/* Mensaje de estado */}
+                                {totalCarrito >= minimoRequerido ? (
+                                  <div className="mt-2 flex items-center gap-2 text-green-600">
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      strokeWidth={2}
+                                      stroke="currentColor"
+                                      className="w-5 h-5"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                      />
+                                    </svg>
+                                    <span className="text-sm font-semibold">
+                                      ¡Pedido mínimo alcanzado!
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <p className="mt-2 text-xs text-zinc-600">
+                                    Te faltan{" "}
+                                    <span className="font-bold text-orange-600">
+                                      ${faltante.toFixed(2)}
+                                    </span>{" "}
+                                    para realizar el pedido
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
+
                           <p className="text-[16px] font-bold text-zinc-900">
                             Total: $
                             {carrito
@@ -6845,9 +6938,21 @@ useEffect(() => {
 
                           <button
                             onClick={() => setMostrarModalPedido(true)}
-                            className="w-full mt-3 bg-orange-500 text-white py-3 rounded-xl font-semibold text-[16px] shadow hover:bg-orange-600 transition"
+                            disabled={
+                              carrito.reduce((sum, p) => sum + p.subtotal, 0) <
+                              1000
+                            }
+                            className={`w-full mt-3 py-3 rounded-xl font-semibold text-[16px] shadow transition ${
+                              carrito.reduce((sum, p) => sum + p.subtotal, 0) >=
+                              1000
+                                ? "bg-orange-500 text-white hover:bg-orange-600"
+                                : "bg-zinc-300 text-zinc-500 cursor-not-allowed"
+                            }`}
                           >
-                            Confirmar pedido
+                            {carrito.reduce((sum, p) => sum + p.subtotal, 0) >=
+                            1000
+                              ? "Confirmar pedido"
+                              : "Confirmar pedido"}
                           </button>
                         </div>
                         {/* 
