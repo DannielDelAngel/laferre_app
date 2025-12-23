@@ -5483,13 +5483,25 @@ const { error: errorActualizar } = await supabase
     </motion.button>
   );
 
-  return (
-    <>
-      <InstallPWA />
+return (
+  <>
+    <InstallPWA />
+    <AnimatePresence mode="wait">
       {/* LOGIN ANTES DE ENTRAR A LA APP */}
       {!cuentaActiva ? (
-        <div className="min-h-screen bg-gradient-to-tr from-slate-50 to-gray-50 flex flex-col justify-center shadow items-center p-6 text-center">
-          <div className="w-full max-w-md bg-white rounded-xl shadow p-9">
+        <motion.div 
+          key="login"
+          initial={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+          className="min-h-screen bg-gradient-to-tr from-slate-50 to-gray-50 flex flex-col justify-center shadow items-center p-6 text-center"
+        >
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="w-full max-w-md bg-white rounded-xl shadow p-9"
+          >
             <h1 className="text-2xl font-bold text-zinc-800 mb-4">
               Ingresar a catálogo
             </h1>
@@ -5499,14 +5511,18 @@ const { error: errorActualizar } = await supabase
             </p>
 
             <div className="relative w-full">
-              <input
-                type={mostrar ? "text" : "password"}
-                placeholder="Número de cuenta"
-                value={numCuentaInput}
-                onChange={(e) => setNumCuentaInput(e.target.value)}
-                className="border border-zinc-300 text-zinc-600 rounded-lg px-4 py-3 w-full text-center text-lg"
-              />
-
+             <input
+  type={mostrar ? "text" : "password"}
+  placeholder="Número de cuenta"
+  value={numCuentaInput}
+  onChange={(e) => setNumCuentaInput(e.target.value)}
+  onKeyDown={(e) => {
+    if (e.key === 'Enter') {
+      validarCuenta();
+    }
+  }}
+  className="border border-zinc-300 text-zinc-600 rounded-lg px-4 py-3 w-full text-center text-lg"
+/>
               <button
                 type="button"
                 onClick={() => setMostrar(!mostrar)}
@@ -5538,9 +5554,18 @@ const { error: errorActualizar } = await supabase
               </button>
             </div>
 
-            {errorLogin && (
-              <p className="text-red-500 text-sm mt-2">{errorLogin}</p>
-            )}
+            <AnimatePresence>
+  {errorLogin && (
+    <motion.p 
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="text-red-500 text-sm mt-2"
+    >
+      {errorLogin}
+    </motion.p>
+  )}
+</AnimatePresence>
 
             <button
               onClick={validarCuenta}
@@ -5548,10 +5573,17 @@ const { error: errorActualizar } = await supabase
             >
               Entrar
             </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex min-h-screen flex-col  bg-white font-sans">
+        </motion.div>
+      </motion.div>
+    ) : (
+      <motion.div
+        key="app"
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="flex min-h-screen flex-col  bg-white font-sans"
+      >
+       
           <header className="p-6 pt-3 text-center bg-orange-500 sticky top-0 z-50 border-zinc-200">
             <AnimatePresence>
               <motion.div
@@ -7688,8 +7720,9 @@ const { error: errorActualizar } = await supabase
               UBICACIÓN
             </button>
           </nav>
-        </div>
+        </motion.div>
       )}
-    </>
-  );
+    </AnimatePresence>
+  </>
+);
 }
