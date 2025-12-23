@@ -127,6 +127,7 @@ export default function HomePage() {
   const [origenProducto, setOrigenProducto] = useState<"catalogo" | "carrito">(
     "catalogo"
   );
+  const [productosMostrados, setProductosMostrados] = useState(10);
 
   const buscarStateRef = useRef<{
     categoria: any;
@@ -782,6 +783,7 @@ export default function HomePage() {
       console.error("Error cargando productos:", error.message);
     } else {
       setProductos(productosNormalizados);
+      setProductosMostrados(10);
     }
   };
 
@@ -5718,6 +5720,7 @@ const { error: errorActualizar } = await supabase
                                     visible: producto.visible ?? true,
                                   }));
                                   setProductos(productosNormalizados);
+                                  setProductosMostrados(10);
                                 }
                               }}
                               onFocus={() => {
@@ -5755,6 +5758,7 @@ const { error: errorActualizar } = await supabase
                                       visible: producto.visible ?? true,
                                     }));
                                     setProductos(productosNormalizados);
+                                    setProductosMostrados(10);
                                   };
 
                                   fetchProductos();
@@ -6615,6 +6619,7 @@ const { error: errorActualizar } = await supabase
                                     }));
 
                                     setProductos(productosNormalizados);
+                                    setProductosMostrados(10);
                                     if (productosNormalizados.length > 0) {
                                       console.log(
                                         ` ${productosNormalizados.length} producto(s) encontrado(s)`
@@ -6676,40 +6681,50 @@ const { error: errorActualizar } = await supabase
                     {/* Resultados */}
                     <div className="mt-4 space-y-3">
                       {productos
-                        .filter((prod) => esAdmin || (prod.visible ?? true))
-                        .map((prod) => (
-                          <div
-                            key={prod.id}
-                            onClick={() => setProductoSeleccionado(prod)}
-                            className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 cursor-pointer"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100">
-                                <Image
-                                  src={
-                                    prod.IMAGEN ||
-                                    "https://via.placeholder.com/150?text=Sin+imagen"
-                                  }
-                                  alt={prod.TITULO || "Imagen de producto"}
-                                  fill
-                                  className="object-contain"
-                                />
-                              </div>
-                              <div>
-                                <p className="font-semibold">{prod.TITULO}</p>
-                                <p className="text-xs text-zinc-500">
-                                  Código: {prod.CODIGO}
-                                </p>
-                                {!esAdmin && (
-                                  <p className="text-xs text-orange-500 font-semibold">
-                                    ${prod.P_MAYOREO?.toFixed(2)}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <span className="text-zinc-400">{">"}</span>
-                          </div>
-                        ))}
+  .filter((prod) => esAdmin || (prod.visible ?? true))
+  .slice(0, productosMostrados)
+  .map((prod) => (
+    <div
+      key={prod.id}
+      onClick={() => setProductoSeleccionado(prod)}
+      className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 cursor-pointer"
+    >
+      <div className="flex items-center gap-3">
+        <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100">
+          <Image
+            src={
+              prod.IMAGEN ||
+              "https://via.placeholder.com/150?text=Sin+imagen"
+            }
+            alt={prod.TITULO || "Imagen de producto"}
+            fill
+            className="object-contain"
+          />
+        </div>
+        <div>
+          <p className="font-semibold">{prod.TITULO}</p>
+          <p className="text-xs text-zinc-500">
+            Código: {prod.CODIGO}
+          </p>
+          {!esAdmin && (
+            <p className="text-xs text-orange-500 font-semibold">
+              ${prod.P_MAYOREO?.toFixed(2)}
+            </p>
+          )}
+        </div>
+      </div>
+      <span className="text-zinc-400">{">"}</span>
+    </div>
+  ))}
+
+  {productos.filter((prod) => esAdmin || (prod.visible ?? true)).length > productosMostrados && (
+  <button
+    onClick={() => setProductosMostrados(prev => prev + 10)}
+    className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition mt-4"
+  >
+    Ver más productos ({productos.filter((prod) => esAdmin || (prod.visible ?? true)).length - productosMostrados} restantes)
+  </button>
+)}
 
                       {searchTerm && productos.length === 0 && (
                         <p className="text-center text-zinc-500 py-10">
