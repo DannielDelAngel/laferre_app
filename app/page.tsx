@@ -2837,7 +2837,6 @@ export default function HomePage() {
           return;
         }
 
-
         let actualizados = 0;
         let noEncontrados = 0;
         let errores = 0;
@@ -2847,38 +2846,43 @@ export default function HomePage() {
         for (let i = 0; i < datos.length; i++) {
           const fila: any = datos[i];
 
-         // Obtener valores del CSV (soportar diferentes nombres de columnas)
-const codigo = fila.CODIGO || fila.codigo;
-const precio = fila.P_MAYOREO || fila.p_mayoreo || fila.PRECIO || fila.precio;
-const descripcion = fila.DESCRIPCION || fila.descripcion;
-const cProducto = fila.C_PRODUCTO || fila.c_producto;
-const titulo = fila.TITULO || fila.titulo;
+          // Obtener valores del CSV (soportar diferentes nombres de columnas)
+          const codigo = fila.CODIGO || fila.codigo;
+          const precio =
+            fila.P_MAYOREO || fila.p_mayoreo || fila.PRECIO || fila.precio;
+          const descripcion = fila.DESCRIPCION || fila.descripcion;
+          const cProducto = fila.C_PRODUCTO || fila.c_producto;
+          const titulo = fila.TITULO || fila.titulo;
 
-if (!codigo) {
-  errores++;
-  continue;
-}
+          if (!codigo) {
+            errores++;
+            continue;
+          }
 
-// Preparar objeto de actualización solo con campos que existan
-const datosActualizar: any = {};
-if (precio !== undefined && precio !== null) datosActualizar.P_MAYOREO = parseFloat(precio);
-if (descripcion !== undefined && descripcion !== null) datosActualizar.DESCRIPCION = descripcion;
-if (cProducto !== undefined && cProducto !== null) datosActualizar.C_PRODUCTO = cProducto;
-if (titulo !== undefined && titulo !== null) datosActualizar.TITULO = titulo;
+          // Preparar objeto de actualización solo con campos que existan
+          const datosActualizar: any = {};
+          if (precio !== undefined && precio !== null)
+            datosActualizar.P_MAYOREO = parseFloat(precio);
+          if (descripcion !== undefined && descripcion !== null)
+            datosActualizar.DESCRIPCION = descripcion;
+          if (cProducto !== undefined && cProducto !== null)
+            datosActualizar.C_PRODUCTO = cProducto;
+          if (titulo !== undefined && titulo !== null)
+            datosActualizar.TITULO = titulo;
 
-// Si no hay nada que actualizar, saltar
-if (Object.keys(datosActualizar).length === 0) {
-  errores++;
-  continue;
-}
-           
+          // Si no hay nada que actualizar, saltar
+          if (Object.keys(datosActualizar).length === 0) {
+            errores++;
+            continue;
+          }
+
           try {
             // Buscar el producto por código
-           const { data: producto, error: errorBusqueda } = await supabase
-  .from("productos")
-  .select("id, CODIGO, P_MAYOREO, DESCRIPCION, C_PRODUCTO, TITULO")
-  .eq("CODIGO", codigo)
-  .single();
+            const { data: producto, error: errorBusqueda } = await supabase
+              .from("productos")
+              .select("id, CODIGO, P_MAYOREO, DESCRIPCION, C_PRODUCTO, TITULO")
+              .eq("CODIGO", codigo)
+              .single();
 
             if (errorBusqueda || !producto) {
               noEncontrados++;
@@ -2887,10 +2891,10 @@ if (Object.keys(datosActualizar).length === 0) {
             }
 
             // Actualizar los campos
-const { error: errorActualizar } = await supabase
-  .from("productos")
-  .update(datosActualizar)
-  .eq("id", producto.id);
+            const { error: errorActualizar } = await supabase
+              .from("productos")
+              .update(datosActualizar)
+              .eq("id", producto.id);
 
             if (errorActualizar) {
               errores++;
@@ -2945,10 +2949,18 @@ const { error: errorActualizar } = await supabase
             </h3>
             <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
               <li>
-  El archivo CSV debe tener la columna: <strong>CODIGO</strong> (obligatoria)
-</li>
-<li>Columnas opcionales: <strong>P_MAYOREO</strong>, <strong>DESCRIPCION</strong>, <strong>C_PRODUCTO</strong>, <strong>TITULO</strong></li>
-<li>También acepta minúsculas: codigo, p_mayoreo, precio, descripcion, c_producto, titulo</li>
+                El archivo CSV debe tener la columna: <strong>CODIGO</strong>{" "}
+                (obligatoria)
+              </li>
+              <li>
+                Columnas opcionales: <strong>P_MAYOREO</strong>,{" "}
+                <strong>DESCRIPCION</strong>, <strong>C_PRODUCTO</strong>,{" "}
+                <strong>TITULO</strong>
+              </li>
+              <li>
+                También acepta minúsculas: codigo, p_mayoreo, precio,
+                descripcion, c_producto, titulo
+              </li>
               <li>
                 la columna CODIGO debe ser tipo "general" y P_MAYOREO tipo
                 "numero"
@@ -5150,16 +5162,16 @@ const { error: errorActualizar } = await supabase
                 </h2>
 
                 {/* Descripción / Información Adicional */}
-{producto.DESCRIPCION && (
-  <div className="mt-5 px-4">
-    <h3 className="text-sm font-semibold text-zinc-900 mb-2">
-      Información Adicional
-    </h3>
-    <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200">
-      {producto.DESCRIPCION}
-    </p>
-  </div>
-)}
+                {producto.DESCRIPCION && (
+                  <div className="mt-5 px-4">
+                    <h3 className="text-sm font-semibold text-zinc-900 mb-2">
+                      Información Adicional
+                    </h3>
+                    <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200">
+                      {producto.DESCRIPCION}
+                    </p>
+                  </div>
+                )}
 
                 <div className="mt-4 text-sm text-zinc-700 px-2">
                   <div className="flex justify-between py-2">
@@ -5483,117 +5495,116 @@ const { error: errorActualizar } = await supabase
     </motion.button>
   );
 
-return (
-  <>
-    <InstallPWA />
-    <AnimatePresence mode="wait">
-      {/* LOGIN ANTES DE ENTRAR A LA APP */}
-      {!cuentaActiva ? (
-        <motion.div 
-          key="login"
-          initial={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="min-h-screen bg-gradient-to-tr from-slate-50 to-gray-50 flex flex-col justify-center shadow items-center p-6 text-center"
-        >
-          <motion.div 
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="w-full max-w-md bg-white rounded-xl shadow p-9"
+  return (
+    <>
+      <InstallPWA />
+      <AnimatePresence mode="wait">
+        {/* LOGIN ANTES DE ENTRAR A LA APP */}
+        {!cuentaActiva ? (
+          <motion.div
+            key="login"
+            initial={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="min-h-screen bg-gradient-to-tr from-slate-50 to-gray-50 flex flex-col justify-center shadow items-center p-6 text-center"
           >
-            <h1 className="text-2xl font-bold text-zinc-800 mb-4">
-              Ingresar a catálogo
-            </h1>
-
-            <p className="text-zinc-600 mb-6">
-              Introduce tu número de cuenta para continuar
-            </p>
-
-            <div className="relative w-full">
-             <input
-  type={mostrar ? "text" : "password"}
-  placeholder="Número de cuenta"
-  value={numCuentaInput}
-  onChange={(e) => setNumCuentaInput(e.target.value)}
-  onKeyDown={(e) => {
-    if (e.key === 'Enter') {
-      validarCuenta();
-    }
-  }}
-  className="border border-zinc-300 text-zinc-600 rounded-lg px-4 py-3 w-full text-center text-lg"
-/>
-              <button
-                type="button"
-                onClick={() => setMostrar(!mostrar)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600"
-              >
-                <AnimatePresence mode="wait" initial={false}>
-                  {mostrar ? (
-                    <motion.div
-                      key="off"
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      transition={{ duration: 0.15 }}
-                    >
-                      <Eye size={22} />
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="on"
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      transition={{ duration: 0.15 }}
-                    >
-                      <EyeOff size={22} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </button>
-            </div>
-
-            <AnimatePresence>
-  {errorLogin && (
-    <motion.p 
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="text-red-500 text-sm mt-2"
-    >
-      {errorLogin}
-    </motion.p>
-  )}
-</AnimatePresence>
-
-            <button
-              onClick={validarCuenta}
-              className="mt-5 bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-orange-600 transition"
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="w-full max-w-md bg-white rounded-xl shadow p-9"
             >
-              Entrar
-            </button>
-        </motion.div>
-      </motion.div>
-    ) : (
-      <motion.div
-        key="app"
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-        className="flex min-h-screen flex-col  bg-white font-sans"
-      >
-       
-          <header className="p-6 pt-3 text-center bg-orange-500 sticky top-0 z-50 border-zinc-200">
-            <AnimatePresence>
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                className="flex items-center justify-center gap-3 mb-4"
+              <h1 className="text-2xl font-bold text-zinc-800 mb-4">
+                Ingresar a catálogo
+              </h1>
+
+              <p className="text-zinc-600 mb-6">
+                Introduce tu número de cuenta para continuar
+              </p>
+
+              <div className="relative w-full">
+                <input
+                  type={mostrar ? "text" : "password"}
+                  placeholder="Número de cuenta"
+                  value={numCuentaInput}
+                  onChange={(e) => setNumCuentaInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      validarCuenta();
+                    }
+                  }}
+                  className="border border-zinc-300 text-zinc-600 rounded-lg px-4 py-3 w-full text-center text-lg"
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrar(!mostrar)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600"
+                >
+                  <AnimatePresence mode="wait" initial={false}>
+                    {mostrar ? (
+                      <motion.div
+                        key="off"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <Eye size={22} />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="on"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <EyeOff size={22} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </button>
+              </div>
+
+              <AnimatePresence>
+                {errorLogin && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="text-red-500 text-sm mt-2"
+                  >
+                    {errorLogin}
+                  </motion.p>
+                )}
+              </AnimatePresence>
+
+              <button
+                onClick={validarCuenta}
+                className="mt-5 bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-orange-600 transition"
               >
-                {/*
+                Entrar
+              </button>
+            </motion.div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="app"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, ease: "easeInOut" }}
+            className="flex min-h-screen flex-col  bg-white font-sans"
+          >
+            <header className="p-6 pt-3 text-center bg-orange-500 sticky top-0 z-50 border-zinc-200">
+              <AnimatePresence>
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                  className="flex items-center justify-center gap-3 mb-4"
+                >
+                  {/*
                   <div className="relative w-30 h-20">
                     <Image
                       src="/logo-bfm.jpg"
@@ -5606,183 +5617,143 @@ return (
                     BODEGA FERRETERA DE MONTERREY
                   </h1>
                   */}
-              </motion.div>
-            </AnimatePresence>
+                </motion.div>
+              </AnimatePresence>
 
-            <div className="max-w-2xl mx-auto">
-              <AnimatePresence mode="wait">
-                {!["carrito", "perfil", "ubicacion"].includes(activeTab) ? (
-                  <motion.div
-                    key="header-search"
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.25, ease: "easeInOut" }}
-                  >
-                    <div className="flex items-center gap-2">
-                      {/* Botón volver - solo si hay algo seleccionado */}
-                      <AnimatePresence>
-                        {(macroCategoriaSeleccionada ||
-                          categoriaSeleccionada ||
-                          marcaSeleccionada) &&
-                          activeTab !== "buscar" && (
-                            <motion.button
-                              initial={{ opacity: 0, x: -20, scale: 0.8 }}
-                              animate={{ opacity: 1, x: 0, scale: 1 }}
-                              exit={{ opacity: 0, x: -20, scale: 0.8 }}
-                              transition={{
-                                duration: 0.3,
-                                ease: [0.4, 0, 0.2, 1],
-                              }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => {
-                                if (
-                                  categoriaSeleccionada ||
-                                  marcaSeleccionada
-                                ) {
-                                  setCategoriaSeleccionada(null);
-                                  setMarcaSeleccionada(null);
-                                  setSearchTerm("");
-                                  setProductos([]);
-                                  const savedScroll =
-                                    localStorage.getItem("scrollPos");
-                                  if (savedScroll) {
-                                    setTimeout(() => {
-                                      window.scrollTo({
-                                        top: parseInt(savedScroll),
-                                        behavior: "instant",
-                                      });
-                                    }, 50);
-                                  }
-                                } else if (macroCategoriaSeleccionada) {
-                                  setMacroCategoriaSeleccionada(null);
-                                  setSearchTerm("");
-                                  setProductos([]);
-                                  const savedScroll =
-                                    localStorage.getItem("scrollPos");
-                                  if (savedScroll) {
-                                    setTimeout(() => {
-                                      window.scrollTo({
-                                        top: parseInt(savedScroll),
-                                        behavior: "instant",
-                                      });
-                                    }, 50);
-                                  }
-                                }
-                              }}
-                              className="bg-white text-orange-500 rounded-full p-2 transition-colors flex-shrink-0 shadow-md hover:bg-orange-50"
-                            >
-                              <ChevronLeft size={20} />
-                            </motion.button>
-                          )}
-                      </AnimatePresence>
-
-                      {/* Campo de búsqueda */}
-                      <AnimatePresence mode="wait">
-                        {(activeTab === "buscar" ||
-                          activeTab === "categorias") && (
-                          <motion.div
-                            key="search-bar"
-                            initial={{ opacity: 0, y: -6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            transition={{ duration: 0.2 }}
-                            className="relative flex-1"
-                          >
-                            <input
-                              ref={searchInputRef}
-                              type="text"
-                              placeholder={
-                                categoriaSeleccionada
-                                  ? `Buscar en ${categoriaSeleccionada.nombre_categoria}`
-                                  : marcaSeleccionada
-                                  ? `Buscar en ${marcaSeleccionada.nombre_marca}`
-                                  : "Buscar en Bodega Ferretera De Monterrey..."
-                              }
-                              value={searchTerm}
-                              onChange={async (e) => {
-                                const value = e.target.value;
-                                setSearchTerm(value);
-
-                                if (value.trim() === "") {
-                                  setProductos([]);
-                                  return;
-                                }
-
-                                const palabras = value.trim().split(/\s+/);
-
-                                let query = supabase
-                                  .from("productos")
-                                  .select(
-                                    "*"
-                                  );
-
-                                if (categoriaSeleccionada) {
-                                  query = query.eq(
-                                    "CATEGORIA_ID",
-                                    categoriaSeleccionada.id_categoria
-                                  );
-                                } else if (marcaSeleccionada) {
-                                  query = query.eq(
-                                    "marca_id",
-                                    marcaSeleccionada.id
-                                  );
-                                }
-
-                                palabras.forEach((palabra) => {
-                                  query = query.or(
-                                    `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`
-                                  );
-                                });
-
-                                query = query.limit(50);
-
-                                const { data, error } = await query;
-
-                                if (error) {
-                                  console.error(
-                                    "Error buscando productos:",
-                                    error.message
-                                  );
-                                } else {
-                                  const productosNormalizados = (
-                                    data || []
-                                  ).map((producto) => ({
-                                    ...producto,
-                                    visible: producto.visible ?? true,
-                                  }));
-                                  setProductos(productosNormalizados);
-                                  setProductosMostrados(10);
-                                }
-                              }}
-                              onFocus={() => {
-                                if (searchTerm.trim()) {
-                                  const fetchProductos = async () => {
-                                    let query = supabase
-                                      .from("productos")
-                                      .select(
-                                        "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
-                                      );
-
-                                    if (categoriaSeleccionada) {
-                                      query = query.eq(
-                                        "CATEGORIA_ID",
-                                        categoriaSeleccionada.id_categoria
-                                      );
-                                    } else if (marcaSeleccionada) {
-                                      query = query.eq(
-                                        "marca_id",
-                                        marcaSeleccionada.id
-                                      );
+              <div className="max-w-2xl mx-auto">
+                <AnimatePresence mode="wait">
+                  {!["carrito", "perfil", "ubicacion"].includes(activeTab) ? (
+                    <motion.div
+                      key="header-search"
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.25, ease: "easeInOut" }}
+                    >
+                      <div className="flex items-center gap-2">
+                        {/* Botón volver - solo si hay algo seleccionado */}
+                        <AnimatePresence>
+                          {(macroCategoriaSeleccionada ||
+                            categoriaSeleccionada ||
+                            marcaSeleccionada) &&
+                            activeTab !== "buscar" && (
+                              <motion.button
+                                initial={{ opacity: 0, x: -20, scale: 0.8 }}
+                                animate={{ opacity: 1, x: 0, scale: 1 }}
+                                exit={{ opacity: 0, x: -20, scale: 0.8 }}
+                                transition={{
+                                  duration: 0.3,
+                                  ease: [0.4, 0, 0.2, 1],
+                                }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => {
+                                  if (
+                                    categoriaSeleccionada ||
+                                    marcaSeleccionada
+                                  ) {
+                                    setCategoriaSeleccionada(null);
+                                    setMarcaSeleccionada(null);
+                                    setSearchTerm("");
+                                    setProductos([]);
+                                    const savedScroll =
+                                      localStorage.getItem("scrollPos");
+                                    if (savedScroll) {
+                                      setTimeout(() => {
+                                        window.scrollTo({
+                                          top: parseInt(savedScroll),
+                                          behavior: "instant",
+                                        });
+                                      }, 50);
                                     }
+                                  } else if (macroCategoriaSeleccionada) {
+                                    setMacroCategoriaSeleccionada(null);
+                                    setSearchTerm("");
+                                    setProductos([]);
+                                    const savedScroll =
+                                      localStorage.getItem("scrollPos");
+                                    if (savedScroll) {
+                                      setTimeout(() => {
+                                        window.scrollTo({
+                                          top: parseInt(savedScroll),
+                                          behavior: "instant",
+                                        });
+                                      }, 50);
+                                    }
+                                  }
+                                }}
+                                className="bg-white text-orange-500 rounded-full p-2 transition-colors flex-shrink-0 shadow-md hover:bg-orange-50"
+                              >
+                                <ChevronLeft size={20} />
+                              </motion.button>
+                            )}
+                        </AnimatePresence>
 
-                                    query = query
-                                      .or(
-                                        `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%,C_PRODUCTO.ilike.%${searchTerm}%`
-                                      )
-                                      .limit(50);
-                                    const { data } = await query;
+                        {/* Campo de búsqueda */}
+                        <AnimatePresence mode="wait">
+                          {(activeTab === "buscar" ||
+                            activeTab === "categorias") && (
+                            <motion.div
+                              key="search-bar"
+                              initial={{ opacity: 0, y: -6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -6 }}
+                              transition={{ duration: 0.2 }}
+                              className="relative flex-1"
+                            >
+                              <input
+                                ref={searchInputRef}
+                                type="text"
+                                placeholder={
+                                  categoriaSeleccionada
+                                    ? `Buscar en ${categoriaSeleccionada.nombre_categoria}`
+                                    : marcaSeleccionada
+                                    ? `Buscar en ${marcaSeleccionada.nombre_marca}`
+                                    : "Buscar en Bodega Ferretera De Monterrey..."
+                                }
+                                value={searchTerm}
+                                onChange={async (e) => {
+                                  const value = e.target.value;
+                                  setSearchTerm(value);
 
+                                  if (value.trim() === "") {
+                                    setProductos([]);
+                                    return;
+                                  }
+
+                                  const palabras = value.trim().split(/\s+/);
+
+                                  let query = supabase
+                                    .from("productos")
+                                    .select("*");
+
+                                  if (categoriaSeleccionada) {
+                                    query = query.eq(
+                                      "CATEGORIA_ID",
+                                      categoriaSeleccionada.id_categoria
+                                    );
+                                  } else if (marcaSeleccionada) {
+                                    query = query.eq(
+                                      "marca_id",
+                                      marcaSeleccionada.id
+                                    );
+                                  }
+
+                                  palabras.forEach((palabra) => {
+                                    query = query.or(
+                                      `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`
+                                    );
+                                  });
+
+                                  query = query.limit(50);
+
+                                  const { data, error } = await query;
+
+                                  if (error) {
+                                    console.error(
+                                      "Error buscando productos:",
+                                      error.message
+                                    );
+                                  } else {
                                     const productosNormalizados = (
                                       data || []
                                     ).map((producto) => ({
@@ -5791,369 +5762,492 @@ return (
                                     }));
                                     setProductos(productosNormalizados);
                                     setProductosMostrados(10);
-                                  };
+                                  }
+                                }}
+                                onFocus={() => {
+                                  if (searchTerm.trim()) {
+                                    const fetchProductos = async () => {
+                                      let query = supabase
+                                        .from("productos")
+                                        .select(
+                                          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                        );
 
-                                  fetchProductos();
-                                }
-                              }}
-                              className="w-full rounded-full border bg-white border-zinc-300 pl-10 pr-10 py-2.5 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-white transition-all duration-200"
-                            />
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
+                                      if (categoriaSeleccionada) {
+                                        query = query.eq(
+                                          "CATEGORIA_ID",
+                                          categoriaSeleccionada.id_categoria
+                                        );
+                                      } else if (marcaSeleccionada) {
+                                        query = query.eq(
+                                          "marca_id",
+                                          marcaSeleccionada.id
+                                        );
+                                      }
 
-                            {/* Botón limpiar búsqueda */}
-                            <AnimatePresence>
-                              {searchTerm && (
-                                <motion.button
-                                  initial={{ scale: 0, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  exit={{ scale: 0, opacity: 0 }}
-                                  transition={{ duration: 0.2 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => {
-                                    setSearchTerm("");
-                                    setProductos([]);
-                                  }}
-                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
-                                >
-                                  <X size={18} />
-                                </motion.button>
-                              )}
-                            </AnimatePresence>
+                                      query = query
+                                        .or(
+                                          `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%,C_PRODUCTO.ilike.%${searchTerm}%`
+                                        )
+                                        .limit(50);
+                                      const { data } = await query;
 
-                            {/* Botón escáner (solo en Buscar) */}
-                            <AnimatePresence>
-                              {!searchTerm && (
-                                <motion.button
-                                  initial={{ scale: 0, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  exit={{ scale: 0, opacity: 0 }}
-                                  transition={{ duration: 0.2 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => {
-                                    if (activeTab !== "buscar") {
-                                      setActiveTab("buscar");
-                                    }
-                                    setScannerOpen(true);
-                                  }}
-                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-600 transition-colors"
-                                >
-                                  <ScanBarcode size={20} />
-                                </motion.button>
-                              )}
-                            </AnimatePresence>
+                                      const productosNormalizados = (
+                                        data || []
+                                      ).map((producto) => ({
+                                        ...producto,
+                                        visible: producto.visible ?? true,
+                                      }));
+                                      setProductos(productosNormalizados);
+                                      setProductosMostrados(10);
+                                    };
 
-                            {/* Sugerencias de búsqueda */}
-                            <AnimatePresence>
-                              {searchTerm &&
-                                productos.length > 0 &&
-                                !categoriaSeleccionada &&
-                                !marcaSeleccionada &&
-                                activeTab !== "buscar" && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: -10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    transition={{
-                                      duration: 0.3,
-                                      ease: [0.4, 0, 0.2, 1],
+                                    fetchProductos();
+                                  }
+                                }}
+                                className="w-full rounded-full border bg-white border-zinc-300 pl-10 pr-10 py-2.5 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-white transition-all duration-200"
+                              />
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
+
+                              {/* Botón limpiar búsqueda */}
+                              <AnimatePresence>
+                                {searchTerm && (
+                                  <motion.button
+                                    initial={{ scale: 0, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => {
+                                      setSearchTerm("");
+                                      setProductos([]);
                                     }}
-                                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-zinc-200 rounded-xl shadow-lg max-h-96 overflow-y-auto z-50"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
                                   >
-                                    {productos
-                                      .filter(
-                                        (prod) =>
-                                          esAdmin || (prod.visible ?? true)
-                                      )
-                                      .slice(0, 10)
-                                      .map((prod, index) => (
-                                        <motion.div
-                                          key={prod.id}
-                                          initial={{ opacity: 0, x: -10 }}
-                                          animate={{ opacity: 1, x: 0 }}
-                                          transition={{
-                                            delay: index * 0.03,
-                                            duration: 0.2,
-                                          }}
-                                          whileTap={{ scale: 0.98 }}
-                                          onClick={() => {
-                                            setProductoSeleccionado(prod);
-                                            setSearchTerm("");
-                                            setProductos([]);
-                                          }}
-                                          className="flex items-center gap-3 p-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-b-0 transition-colors"
-                                        >
-                                          <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100 flex-shrink-0">
-                                            <Image
-                                              src={
-                                                prod.IMAGEN ||
-                                                "/placeholder.jpg"
-                                              }
-                                              alt={prod.TITULO}
-                                              fill
-                                              className="object-contain"
-                                            />
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <p className="font-semibold text-sm text-zinc-800 truncate">
-                                              {prod.TITULO}
-                                            </p>
-                                            <p className="text-xs text-zinc-500">
-                                              Código: {prod.CODIGO}
-                                            </p>
-                                            {!esAdmin && (
-                                              <p className="text-xs text-orange-500 font-semibold">
-                                                ${prod.P_MAYOREO?.toFixed(2)}
-                                              </p>
-                                            )}
-                                          </div>
-                                          <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            strokeWidth={2}
-                                            stroke="currentColor"
-                                            className="w-4 h-4 text-zinc-400 flex-shrink-0"
-                                          >
-                                            <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              d="M8.25 4.5l7.5 7.5-7.5 7.5"
-                                            />
-                                          </svg>
-                                        </motion.div>
-                                      ))}
-
-                                    {productos.length > 10 && (
-                                      <div className="p-3 text-center text-xs text-zinc-500 bg-zinc-50">
-                                        Mostrando 10 de {productos.length}{" "}
-                                        resultados
-                                      </div>
-                                    )}
-                                  </motion.div>
+                                    <X size={18} />
+                                  </motion.button>
                                 )}
-                            </AnimatePresence>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
+                              </AnimatePresence>
 
-                    {/* Breadcrumb */}
-                    <AnimatePresence>
-                      {(macroCategoriaSeleccionada ||
-                        categoriaSeleccionada ||
-                        marcaSeleccionada) &&
-                        activeTab !== "buscar" && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{
-                              duration: 0.3,
-                              ease: [0.4, 0, 0.2, 1],
-                            }}
-                            className="flex items-center gap-2 mt-3 text-xs text-amber-100 overflow-x-auto pb-1"
-                          >
-                            <button
-                              onClick={() => {
-                                setMacroCategoriaSeleccionada(null);
-                                setCategoriaSeleccionada(null);
-                                setMarcaSeleccionada(null);
-                                setSearchTerm("");
-                                setProductos([]);
-                              }}
-                              className="hover:text-white whitespace-nowrap transition-colors"
-                            >
-                              Inicio
-                            </button>
+                              {/* Botón escáner (solo en Buscar) */}
+                              <AnimatePresence>
+                                {!searchTerm && (
+                                  <motion.button
+                                    initial={{ scale: 0, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => {
+                                      if (activeTab !== "buscar") {
+                                        setActiveTab("buscar");
+                                      }
+                                      setScannerOpen(true);
+                                    }}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-600 transition-colors"
+                                  >
+                                    <ScanBarcode size={20} />
+                                  </motion.button>
+                                )}
+                              </AnimatePresence>
 
-                            {macroCategoriaSeleccionada && (
-                              <>
-                                <ChevronLeft
-                                  size={12}
-                                  className="rotate-180 flex-shrink-0"
-                                />
-                                <button
-                                  onClick={() => {
-                                    setCategoriaSeleccionada(null);
-                                    setMarcaSeleccionada(null);
-                                    setSearchTerm("");
-                                    setProductos([]);
-                                  }}
-                                  className="hover:text-white whitespace-nowrap transition-colors"
-                                >
-                                  {macroCategoriaSeleccionada.nombre.length > 20
-                                    ? macroCategoriaSeleccionada.nombre.slice(
-                                        0,
-                                        20
-                                      ) + "…"
-                                    : macroCategoriaSeleccionada.nombre}
-                                </button>
-                              </>
-                            )}
+                              {/* Sugerencias de búsqueda */}
+                              <AnimatePresence>
+                                {searchTerm &&
+                                  productos.length > 0 &&
+                                  !categoriaSeleccionada &&
+                                  !marcaSeleccionada &&
+                                  activeTab !== "buscar" && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -10 }}
+                                      transition={{
+                                        duration: 0.3,
+                                        ease: [0.4, 0, 0.2, 1],
+                                      }}
+                                      className="absolute top-full left-0 right-0 mt-2 bg-white border border-zinc-200 rounded-xl shadow-lg max-h-96 overflow-y-auto z-50"
+                                    >
+                                      {productos
+                                        .filter(
+                                          (prod) =>
+                                            esAdmin || (prod.visible ?? true)
+                                        )
+                                        .slice(0, 10)
+                                        .map((prod, index) => (
+                                          <motion.div
+                                            key={prod.id}
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{
+                                              delay: index * 0.03,
+                                              duration: 0.2,
+                                            }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={() => {
+                                              setProductoSeleccionado(prod);
+                                              setSearchTerm("");
+                                              setProductos([]);
+                                            }}
+                                            className="flex items-center gap-3 p-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-b-0 transition-colors"
+                                          >
+                                            <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100 flex-shrink-0">
+                                              <Image
+                                                src={
+                                                  prod.IMAGEN ||
+                                                  "/placeholder.jpg"
+                                                }
+                                                alt={prod.TITULO}
+                                                fill
+                                                className="object-contain"
+                                              />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <p className="font-semibold text-sm text-zinc-800 truncate">
+                                                {prod.TITULO}
+                                              </p>
+                                              <p className="text-xs text-zinc-500">
+                                                Código: {prod.CODIGO}
+                                              </p>
+                                              {!esAdmin && (
+                                                <p className="text-xs text-orange-500 font-semibold">
+                                                  ${prod.P_MAYOREO?.toFixed(2)}
+                                                </p>
+                                              )}
+                                            </div>
+                                            <svg
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              strokeWidth={2}
+                                              stroke="currentColor"
+                                              className="w-4 h-4 text-zinc-400 flex-shrink-0"
+                                            >
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                d="M8.25 4.5l7.5 7.5-7.5 7.5"
+                                              />
+                                            </svg>
+                                          </motion.div>
+                                        ))}
 
-                            {categoriaSeleccionada && (
-                              <>
-                                <ChevronLeft
-                                  size={12}
-                                  className="rotate-180 flex-shrink-0"
-                                />
-                                <span className="text-white font-semibold whitespace-nowrap">
-                                  {categoriaSeleccionada.nombre_categoria}
-                                </span>
-                              </>
-                            )}
-
-                            {marcaSeleccionada && (
-                              <>
-                                <ChevronLeft
-                                  size={12}
-                                  className="rotate-180 flex-shrink-0"
-                                />
-                                <span className="text-white font-semibold whitespace-nowrap">
-                                  {marcaSeleccionada.nombre_marca}
-                                </span>
-                              </>
-                            )}
-                          </motion.div>
-                        )}
-                    </AnimatePresence>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="header-simple"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="h-[44px]"
-                  />
-                )}
-              </AnimatePresence>
-            </div>
-          </header>
-
-          {/* Contenido dinámico */}
-          <main className="flex-1 pt-5 px-4 pb-32 overflow-hidden">
-            <AnimatePresence mode="wait">
-              {/* Categorías */}
-              {activeTab === "categorias" && (
-                <motion.div
-                  key="categorias"
-                  initial={{ opacity: 0, x: -40 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 40 }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                >
-                  {/* Si no hay nada seleccionado, mostrar pestañas con Macro-Categorías y Marcas */}
-                  {!macroCategoriaSeleccionada &&
-                  !categoriaSeleccionada &&
-                  !marcaSeleccionada ? (
-                    <motion.div
-                      key="menu-principal"
-                      initial={{ opacity: 0, y: 30 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -30 }}
-                      transition={{ duration: 0.4, ease: "easeOut" }}
-                      className="px-3 mt-4"
-                    >
-                      {/* Pestañas Categorías / Marcas */}
-                      <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
-                        <button
-                          onClick={() => setSubTab("categorias")}
-                          className={`flex-1 py-3 rounded-lg font-semibold transition ${
-                            subTab === "categorias"
-                              ? "bg-orange-500 text-white"
-                              : "text-zinc-600 hover:bg-zinc-100"
-                          }`}
-                        >
-                          CATEGORÍAS
-                        </button>
-                        <button
-                          onClick={() => setSubTab("marcas")}
-                          className={`flex-1 py-3 rounded-lg font-semibold transition ${
-                            subTab === "marcas"
-                              ? "bg-orange-500 text-white"
-                              : "text-zinc-600 hover:bg-zinc-100"
-                          }`}
-                        >
-                          MARCAS
-                        </button>
+                                      {productos.length > 10 && (
+                                        <div className="p-3 text-center text-xs text-zinc-500 bg-zinc-50">
+                                          Mostrando 10 de {productos.length}{" "}
+                                          resultados
+                                        </div>
+                                      )}
+                                    </motion.div>
+                                  )}
+                              </AnimatePresence>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
 
-                      {/* Grid de Macro-Categorías */}
-                      {subTab === "categorias" && (
-                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-                          {macroCategorias.map((macro) => (
-                            <div
-                              key={macro.id}
-                              onClick={async () => {
-                                localStorage.setItem(
-                                  "scrollPos",
-                                  window.scrollY.toString()
-                                );
-                                if (window.scrollY > 100) {
-                                  window.scrollTo({
-                                    top: 0,
-                                    behavior: "instant",
-                                  });
-                                }
-                                setCategorias([]);
-                                setMacroCategoriaSeleccionada(macro);
-
-                                // Cargar categorías de esta macro-categoría
-                                const { data, error } = await supabase
-                                  .from("categorias")
-                                  .select(
-                                    "id_categoria, nombre_categoria, img, orden"
-                                  )
-                                  .eq("macro_categoria_id", macro.id)
-                                  .order("orden", { ascending: true });
-
-                                setCategorias(data || []);
-                                requestAnimationFrame(() => {
-                                  window.scrollTo({
-                                    top: 0,
-                                    behavior: "instant",
-                                  });
-                                });
-                              }}
-                              className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-                            >
-                              <div className="relative w-full h-40">
-                                <SkeletonImage
-                                  src={macro.img || "/placeholder.jpg"}
-                                  alt={macro.nombre}
-                                  className="object-contain"
-                                />
-                              </div>
-                              <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
-                                {macro.nombre}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {macroCategorias.length === 0 &&
-                        subTab === "categorias" && (
-                          <div className="flex items-center justify-center py-20">
+                      {/* Breadcrumb */}
+                      <AnimatePresence>
+                        {(macroCategoriaSeleccionada ||
+                          categoriaSeleccionada ||
+                          marcaSeleccionada) &&
+                          activeTab !== "buscar" && (
                             <motion.div
-                              animate={{ rotate: 360 }}
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
                               transition={{
-                                duration: 2,
-                                repeat: Infinity,
-                                ease: "linear",
+                                duration: 0.3,
+                                ease: [0.4, 0, 0.2, 1],
                               }}
-                              className="w-12 h-12 border-4 border-zinc-200 border-t-orange-500 rounded-full"
-                            />
+                              className="flex items-center gap-2 mt-3 text-xs text-amber-100 overflow-x-auto pb-1"
+                            >
+                              <button
+                                onClick={() => {
+                                  setMacroCategoriaSeleccionada(null);
+                                  setCategoriaSeleccionada(null);
+                                  setMarcaSeleccionada(null);
+                                  setSearchTerm("");
+                                  setProductos([]);
+                                }}
+                                className="hover:text-white whitespace-nowrap transition-colors"
+                              >
+                                Inicio
+                              </button>
+
+                              {macroCategoriaSeleccionada && (
+                                <>
+                                  <ChevronLeft
+                                    size={12}
+                                    className="rotate-180 flex-shrink-0"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      setCategoriaSeleccionada(null);
+                                      setMarcaSeleccionada(null);
+                                      setSearchTerm("");
+                                      setProductos([]);
+                                    }}
+                                    className="hover:text-white whitespace-nowrap transition-colors"
+                                  >
+                                    {macroCategoriaSeleccionada.nombre.length >
+                                    20
+                                      ? macroCategoriaSeleccionada.nombre.slice(
+                                          0,
+                                          20
+                                        ) + "…"
+                                      : macroCategoriaSeleccionada.nombre}
+                                  </button>
+                                </>
+                              )}
+
+                              {categoriaSeleccionada && (
+                                <>
+                                  <ChevronLeft
+                                    size={12}
+                                    className="rotate-180 flex-shrink-0"
+                                  />
+                                  <span className="text-white font-semibold whitespace-nowrap">
+                                    {categoriaSeleccionada.nombre_categoria}
+                                  </span>
+                                </>
+                              )}
+
+                              {marcaSeleccionada && (
+                                <>
+                                  <ChevronLeft
+                                    size={12}
+                                    className="rotate-180 flex-shrink-0"
+                                  />
+                                  <span className="text-white font-semibold whitespace-nowrap">
+                                    {marcaSeleccionada.nombre_marca}
+                                  </span>
+                                </>
+                              )}
+                            </motion.div>
+                          )}
+                      </AnimatePresence>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="header-simple"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="h-[44px]"
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
+            </header>
+
+            {/* Contenido dinámico */}
+            <main className="flex-1 pt-5 px-4 pb-32 overflow-hidden">
+              <AnimatePresence mode="wait">
+                {/* Categorías */}
+                {activeTab === "categorias" && (
+                  <motion.div
+                    key="categorias"
+                    initial={{ opacity: 0, x: -40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 40 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    {/* Si no hay nada seleccionado, mostrar pestañas con Macro-Categorías y Marcas */}
+                    {!macroCategoriaSeleccionada &&
+                    !categoriaSeleccionada &&
+                    !marcaSeleccionada ? (
+                      <motion.div
+                        key="menu-principal"
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -30 }}
+                        transition={{ duration: 0.4, ease: "easeOut" }}
+                        className="px-3 mt-4"
+                      >
+                        {/* Pestañas Categorías / Marcas */}
+                        <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
+                          <button
+                            onClick={() => setSubTab("categorias")}
+                            className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                              subTab === "categorias"
+                                ? "bg-orange-500 text-white"
+                                : "text-zinc-600 hover:bg-zinc-100"
+                            }`}
+                          >
+                            CATEGORÍAS
+                          </button>
+                          <button
+                            onClick={() => setSubTab("marcas")}
+                            className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                              subTab === "marcas"
+                                ? "bg-orange-500 text-white"
+                                : "text-zinc-600 hover:bg-zinc-100"
+                            }`}
+                          >
+                            MARCAS
+                          </button>
+                        </div>
+
+                        {/* Grid de Macro-Categorías */}
+                        {subTab === "categorias" && (
+                          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                            {macroCategorias.map((macro) => (
+                              <div
+                                key={macro.id}
+                                onClick={async () => {
+                                  localStorage.setItem(
+                                    "scrollPos",
+                                    window.scrollY.toString()
+                                  );
+                                  if (window.scrollY > 100) {
+                                    window.scrollTo({
+                                      top: 0,
+                                      behavior: "instant",
+                                    });
+                                  }
+                                  setCategorias([]);
+                                  setMacroCategoriaSeleccionada(macro);
+
+                                  // Cargar categorías de esta macro-categoría
+                                  const { data, error } = await supabase
+                                    .from("categorias")
+                                    .select(
+                                      "id_categoria, nombre_categoria, img, orden"
+                                    )
+                                    .eq("macro_categoria_id", macro.id)
+                                    .order("orden", { ascending: true });
+
+                                  setCategorias(data || []);
+                                  requestAnimationFrame(() => {
+                                    window.scrollTo({
+                                      top: 0,
+                                      behavior: "instant",
+                                    });
+                                  });
+                                }}
+                                className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+                              >
+                                <div className="relative w-full h-40">
+                                  <SkeletonImage
+                                    src={macro.img || "/placeholder.jpg"}
+                                    alt={macro.nombre}
+                                    className="object-contain"
+                                  />
+                                </div>
+                                <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+                                  {macro.nombre}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         )}
-                      {/* Grid de Marcas */}
-                      {subTab === "marcas" && (
+
+                        {macroCategorias.length === 0 &&
+                          subTab === "categorias" && (
+                            <div className="flex items-center justify-center py-20">
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{
+                                  duration: 2,
+                                  repeat: Infinity,
+                                  ease: "linear",
+                                }}
+                                className="w-12 h-12 border-4 border-zinc-200 border-t-orange-500 rounded-full"
+                              />
+                            </div>
+                          )}
+                        {/* Grid de Marcas */}
+                        {subTab === "marcas" && (
+                          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                            {marcas.map((marca) => (
+                              <div
+                                key={marca.id}
+                                onClick={async () => {
+                                  localStorage.setItem(
+                                    "scrollPos",
+                                    window.scrollY.toString()
+                                  );
+                                  if (window.scrollY > 100) {
+                                    window.scrollTo({
+                                      top: 0,
+                                      behavior: "instant",
+                                    });
+                                  }
+                                  setArticulos([]);
+                                  setMarcaSeleccionada(marca);
+
+                                  const { data, error } = await supabase
+                                    .from("productos")
+                                    .select(
+                                      "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
+                                    )
+
+                                    .eq("marca_id", marca.id);
+
+                                  const productosNormalizados = (
+                                    data || []
+                                  ).map((producto) => ({
+                                    ...producto,
+                                    visible: producto.visible ?? true,
+                                  }));
+
+                                  setArticulos(
+                                    error ? [] : productosNormalizados
+                                  );
+                                  requestAnimationFrame(() => {
+                                    window.scrollTo({
+                                      top: 0,
+                                      behavior: "instant",
+                                    });
+                                  });
+                                }}
+                                className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+                              >
+                                <div className="relative w-full h-28 sm:h-36 md:h-40 overflow-hidden">
+                                  <SkeletonImage
+                                    src={marca.img || "/placeholder.jpg"}
+                                    alt={marca.nombre_marca}
+                                    className="object-contain object-center w-full h-full"
+                                  />
+                                </div>
+                                <div className="p-2 text-center font-semibold text-zinc-800 text-sm truncate">
+                                  {marca.nombre_marca}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    ) : macroCategoriaSeleccionada &&
+                      !categoriaSeleccionada &&
+                      !marcaSeleccionada ? (
+                      /* Mostrar subcategorías dentro de la categoría seleccionada */
+                      <motion.div
+                        key="categorias-en-macro"
+                        className="min-h-screen"
+                        initial={{ opacity: 0, x: 40 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -40 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        onDragEnd={(event, info) => {
+                          if (info.offset.x > 100) {
+                            setMacroCategoriaSeleccionada(null);
+                          }
+                        }}
+                      >
+                        <h2 className="text-xl font-bold text-zinc-800 mb-4">
+                          {macroCategoriaSeleccionada.nombre}
+                        </h2>
+
+                        {/* Grid de Categorías dentro de la macro */}
                         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-                          {marcas.map((marca) => (
+                          {categorias.map((cat) => (
                             <div
-                              key={marca.id}
+                              key={cat.id_categoria}
                               onClick={async () => {
                                 localStorage.setItem(
                                   "scrollPos",
@@ -6166,15 +6260,13 @@ return (
                                   });
                                 }
                                 setArticulos([]);
-                                setMarcaSeleccionada(marca);
+                                setCategoriaSeleccionada(cat);
 
                                 const { data, error } = await supabase
                                   .from("productos")
-                                  .select(
-                                    "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
-                                  )
+                                  .select("*")
 
-                                  .eq("marca_id", marca.id);
+                                  .eq("CATEGORIA_ID", cat.id_categoria);
 
                                 const productosNormalizados = (data || []).map(
                                   (producto) => ({
@@ -6195,631 +6287,566 @@ return (
                               }}
                               className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
                             >
-                              <div className="relative w-full h-28 sm:h-36 md:h-40 overflow-hidden">
+                              <div className="relative w-full h-40">
                                 <SkeletonImage
-                                  src={marca.img || "/placeholder.jpg"}
-                                  alt={marca.nombre_marca}
-                                  className="object-contain object-center w-full h-full"
+                                  src={cat.img || "/placeholder.jpg"}
+                                  alt={cat.nombre_categoria}
+                                  className="object-contain"
                                 />
                               </div>
-                              <div className="p-2 text-center font-semibold text-zinc-800 text-sm truncate">
-                                {marca.nombre_marca}
+                              <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+                                {cat.nombre_categoria}
                               </div>
                             </div>
                           ))}
                         </div>
-                      )}
-                    </motion.div>
-                  ) : macroCategoriaSeleccionada &&
-                    !categoriaSeleccionada &&
-                    !marcaSeleccionada ? (
-                    /* Mostrar subcategorías dentro de la categoría seleccionada */
-                    <motion.div
-                      key="categorias-en-macro"
-                      className="min-h-screen"
-                      initial={{ opacity: 0, x: 40 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -40 }}
-                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                      drag="x"
-                      dragConstraints={{ left: 0, right: 0 }}
-                      onDragEnd={(event, info) => {
-                        if (info.offset.x > 100) {
-                          setMacroCategoriaSeleccionada(null);
-                        }
-                      }}
-                    >
-                      <h2 className="text-xl font-bold text-zinc-800 mb-4">
-                        {macroCategoriaSeleccionada.nombre}
-                      </h2>
 
-                      {/* Grid de Categorías dentro de la macro */}
-                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-                        {categorias.map((cat) => (
-                          <div
-                            key={cat.id_categoria}
-                            onClick={async () => {
-                              localStorage.setItem(
-                                "scrollPos",
-                                window.scrollY.toString()
-                              );
-                              if (window.scrollY > 100) {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                              }
-                              setArticulos([]);
-                              setCategoriaSeleccionada(cat);
-
-                              const { data, error } = await supabase
-                                .from("productos")
-                                .select(
-                                  "*"
-                                )
-
-                                .eq("CATEGORIA_ID", cat.id_categoria);
-
-                              const productosNormalizados = (data || []).map(
-                                (producto) => ({
-                                  ...producto,
-                                  visible: producto.visible ?? true,
-                                })
-                              );
-
-                              setArticulos(error ? [] : productosNormalizados);
-                              requestAnimationFrame(() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                              });
-                            }}
-                            className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-                          >
-                            <div className="relative w-full h-40">
-                              <SkeletonImage
-                                src={cat.img || "/placeholder.jpg"}
-                                alt={cat.nombre_categoria}
-                                className="object-contain"
-                              />
-                            </div>
-                            <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
-                              {cat.nombre_categoria}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {categorias.length === 0 && (
-                        <p className="text-center text-zinc-500 py-10">
-                          No hay subcategorías en esta categoría.
-                        </p>
-                      )}
-                    </motion.div>
-                  ) : (
-                    /* Vista de productos (cuando hay categoría o marca seleccionada) */
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={
-                          categoriaSeleccionada?.id_categoria ||
-                          marcaSeleccionada?.id
-                        }
-                        initial={{ opacity: 0, x: 30 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -30 }}
-                        transition={{ duration: 0.25, ease: "easeOut" }}
-                        className="pb-20"
-                        drag="x"
-                        dragConstraints={{ left: 0, right: 0 }}
-                        onDragEnd={(event, info) => {
-                          if (info.offset.x > 100) {
-                            setCategoriaSeleccionada(null);
-                            setMarcaSeleccionada(null);
-                            const savedScroll =
-                              localStorage.getItem("scrollPos");
-                            if (savedScroll) {
-                              setTimeout(() => {
-                                window.scrollTo({
-                                  top: parseInt(savedScroll),
-                                  behavior: "instant",
-                                });
-                              }, 50);
-                            }
+                        {categorias.length === 0 && (
+                          <p className="text-center text-zinc-500 py-10">
+                            No hay subcategorías en esta categoría.
+                          </p>
+                        )}
+                      </motion.div>
+                    ) : (
+                      /* Vista de productos (cuando hay categoría o marca seleccionada) */
+                      <AnimatePresence mode="wait">
+                        <motion.div
+                          key={
+                            categoriaSeleccionada?.id_categoria ||
+                            marcaSeleccionada?.id
                           }
-                        }}
-                      >
-                        {/* Banner búsqueda */}
-                        <AnimatePresence>
-                          {searchTerm && (
-                            <motion.div
-                              initial={{ opacity: 0, y: -6 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -6 }}
-                              transition={{ duration: 0.2, ease: "easeOut" }}
-                              className="mb-4"
-                            >
-                              <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-2">
-                                <p className="text-sm text-orange-800">
-                                  Buscando:
-                                  <span className="font-semibold ml-1">
-                                    "{searchTerm}"
-                                  </span>
-                                  {articulosFiltrados.length > 0 && (
-                                    <span className="ml-2 text-orange-700">
-                                      ({articulosFiltrados.length} resultado
-                                      {articulosFiltrados.length !== 1
-                                        ? "s"
-                                        : ""}
-                                      )
-                                    </span>
-                                  )}
-                                </p>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                        <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
-                          <SkeletonImage
-                            src={
-                              categoriaSeleccionada?.img ||
-                              marcaSeleccionada?.img ||
-                              "/placeholder.jpg"
+                          initial={{ opacity: 0, x: 30 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -30 }}
+                          transition={{ duration: 0.25, ease: "easeOut" }}
+                          className="pb-20"
+                          drag="x"
+                          dragConstraints={{ left: 0, right: 0 }}
+                          onDragEnd={(event, info) => {
+                            if (info.offset.x > 100) {
+                              setCategoriaSeleccionada(null);
+                              setMarcaSeleccionada(null);
+                              const savedScroll =
+                                localStorage.getItem("scrollPos");
+                              if (savedScroll) {
+                                setTimeout(() => {
+                                  window.scrollTo({
+                                    top: parseInt(savedScroll),
+                                    behavior: "instant",
+                                  });
+                                }, 50);
+                              }
                             }
-                            alt={
-                              categoriaSeleccionada?.nombre_categoria ||
-                              marcaSeleccionada?.nombre_marca
-                            }
-                            className="object-contain"
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between mb-3">
-                          <h2 className="text-xl font-bold text-zinc-800">
-                            {categoriaSeleccionada?.nombre_categoria ||
-                              marcaSeleccionada?.nombre_marca}
-                          </h2>
-                        </div>
-
-                        {/* Grid productos */}
-                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 pb-10">
+                          }}
+                        >
+                          {/* Banner búsqueda */}
                           <AnimatePresence>
-                            {articulos
-                              .filter((a) => {
-                                if (!esAdmin && !a.visible) return false;
-                                return (
-                                  (a.TITULO &&
-                                    a.TITULO.toLowerCase().includes(
-                                      searchTerm.toLowerCase()
-                                    )) ||
-                                  (a.CODIGO &&
-                                    a.CODIGO.toLowerCase().includes(
-                                      searchTerm.toLowerCase()
-                                    ))
-                                );
-                              })
-                              .map((art) => (
-                                <motion.div
-                                  key={art.id}
-                                  initial={{ opacity: 0, y: 10 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  exit={{ opacity: 0, y: -10 }}
-                                  transition={{
-                                    duration: 0.2,
-                                    ease: "easeOut",
-                                  }}
-                                  onClick={() => {
-                                    const scrollY = window.scrollY;
-                                    localStorage.setItem(
-                                      "scrollProducto",
-                                      scrollY.toString()
-                                    );
-                                    setProductoSeleccionado(art);
-                                  }}
-                                  className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-                                >
-                                  <div className="relative w-full h-40 bg-white">
-                                    <SkeletonImage
-                                      src={art.IMAGEN || "/placeholder.jpg"}
-                                      alt={art.TITULO}
-                                      className="object-contain"
-                                    />
-                                    {/* Badges de Liquidación y Top Ventas */}
-                                    <div className="absolute top-2 right-2 flex flex-col gap-1">
-                                      {art.liquidacion && (
-                                        <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
-                                          LIQUIDACIÓN
-                                        </span>
+                            {searchTerm && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -6 }}
+                                transition={{ duration: 0.2, ease: "easeOut" }}
+                                className="mb-4"
+                              >
+                                <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-2">
+                                  <p className="text-sm text-orange-800">
+                                    Buscando:
+                                    <span className="font-semibold ml-1">
+                                      "{searchTerm}"
+                                    </span>
+                                    {articulosFiltrados.length > 0 && (
+                                      <span className="ml-2 text-orange-700">
+                                        ({articulosFiltrados.length} resultado
+                                        {articulosFiltrados.length !== 1
+                                          ? "s"
+                                          : ""}
+                                        )
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                          <div className="relative w-full h-70 rounded-xl overflow-hidden mb-3">
+                            <SkeletonImage
+                              src={
+                                categoriaSeleccionada?.img ||
+                                marcaSeleccionada?.img ||
+                                "/placeholder.jpg"
+                              }
+                              alt={
+                                categoriaSeleccionada?.nombre_categoria ||
+                                marcaSeleccionada?.nombre_marca
+                              }
+                              className="object-contain"
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between mb-3">
+                            <h2 className="text-xl font-bold text-zinc-800">
+                              {categoriaSeleccionada?.nombre_categoria ||
+                                marcaSeleccionada?.nombre_marca}
+                            </h2>
+                          </div>
+
+                          {/* Grid productos */}
+                          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 pb-10">
+                            <AnimatePresence>
+                              {articulos
+                                .filter((a) => {
+                                  if (!esAdmin && !a.visible) return false;
+                                  return (
+                                    (a.TITULO &&
+                                      a.TITULO.toLowerCase().includes(
+                                        searchTerm.toLowerCase()
+                                      )) ||
+                                    (a.CODIGO &&
+                                      a.CODIGO.toLowerCase().includes(
+                                        searchTerm.toLowerCase()
+                                      ))
+                                  );
+                                })
+                                .map((art) => (
+                                  <motion.div
+                                    key={art.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{
+                                      duration: 0.2,
+                                      ease: "easeOut",
+                                    }}
+                                    onClick={() => {
+                                      const scrollY = window.scrollY;
+                                      localStorage.setItem(
+                                        "scrollProducto",
+                                        scrollY.toString()
+                                      );
+                                      setProductoSeleccionado(art);
+                                    }}
+                                    className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+                                  >
+                                    <div className="relative w-full h-40 bg-white">
+                                      <SkeletonImage
+                                        src={art.IMAGEN || "/placeholder.jpg"}
+                                        alt={art.TITULO}
+                                        className="object-contain"
+                                      />
+                                      {/* Badges de Liquidación y Top Ventas */}
+                                      <div className="absolute top-2 right-2 flex flex-col gap-1">
+                                        {art.liquidacion && (
+                                          <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
+                                            LIQUIDACIÓN
+                                          </span>
+                                        )}
+                                        {art.top_ventas && (
+                                          <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
+                                            MAS VENDIDOS
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="p-2">
+                                      <p className="text-xs text-orange-500 font-medium">
+                                        {getNombreMarca(art.marca_id)}
+                                      </p>
+                                      <p className="text-sm font-semibold text-zinc-700 line-clamp-2">
+                                        {art.TITULO}
+                                      </p>
+                                      <p className="text-xs text-zinc-500 mt-1">
+                                        {art.CODIGO}
+                                      </p>
+
+                                      {!esAdmin && (
+                                        <p className="text-sm font-bold text-orange-500 mt-1">
+                                          $ {art.P_MAYOREO?.toFixed(2)}
+                                        </p>
                                       )}
-                                      {art.top_ventas && (
-                                        <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
-                                          MAS VENDIDOS
-                                        </span>
+
+                                      {/* Toggle (solo admin) */}
+                                      {esAdmin && (
+                                        <div
+                                          className="flex flex-col gap-2 mt-2"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          {/* Toggle Visible */}
+                                          <div className="flex items-center gap-2">
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={art.visible}
+                                                onChange={() =>
+                                                  toggleVisibilidad(
+                                                    art.id,
+                                                    art.visible
+                                                  )
+                                                }
+                                                className="sr-only peer"
+                                              />
+                                              <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                                            </label>
+                                            <span className="text-xs text-zinc-500">
+                                              {art.visible
+                                                ? "Visible"
+                                                : "Oculto"}
+                                            </span>
+                                          </div>
+
+                                          {/* Toggle Liquidación */}
+                                          <div className="flex items-center gap-2">
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={
+                                                  art.liquidacion ?? false
+                                                }
+                                                onChange={() =>
+                                                  toggleLiquidacion(
+                                                    art.id,
+                                                    art.liquidacion ?? false
+                                                  )
+                                                }
+                                                className="sr-only peer"
+                                              />
+                                              <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                                            </label>
+                                            <span className="text-xs text-zinc-500">
+                                              {art.liquidacion
+                                                ? "En Liquidación"
+                                                : "Liquidación"}
+                                            </span>
+                                          </div>
+
+                                          {/* Toggle Top Ventas */}
+                                          <div className="flex items-center gap-2">
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={
+                                                  art.top_ventas ?? false
+                                                }
+                                                onChange={() =>
+                                                  toggleTopVentas(
+                                                    art.id,
+                                                    art.top_ventas ?? false
+                                                  )
+                                                }
+                                                className="sr-only peer"
+                                              />
+                                              <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                                            </label>
+                                            <span className="text-xs text-zinc-500">
+                                              {art.top_ventas
+                                                ? "Top Ventas"
+                                                : "Top Ventas"}
+                                            </span>
+                                          </div>
+                                        </div>
                                       )}
                                     </div>
-                                  </div>
-                                  <div className="p-2">
-                                    <p className="text-xs text-orange-500 font-medium">
-                                      {getNombreMarca(art.marca_id)}
-                                    </p>
-                                    <p className="text-sm font-semibold text-zinc-700 line-clamp-2">
-                                      {art.TITULO}
-                                    </p>
-                                    <p className="text-xs text-zinc-500 mt-1">
-                                      {art.CODIGO}
-                                    </p>
+                                  </motion.div>
+                                ))}
+                            </AnimatePresence>
 
-                                    {!esAdmin && (
-                                      <p className="text-sm font-bold text-orange-500 mt-1">
-                                        $ {art.P_MAYOREO?.toFixed(2)}
-                                      </p>
-                                    )}
-
-                                    {/* Toggle (solo admin) */}
-                                    {esAdmin && (
-                                      <div
-                                        className="flex flex-col gap-2 mt-2"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        {/* Toggle Visible */}
-                                        <div className="flex items-center gap-2">
-                                          <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                              type="checkbox"
-                                              checked={art.visible}
-                                              onChange={() =>
-                                                toggleVisibilidad(
-                                                  art.id,
-                                                  art.visible
-                                                )
-                                              }
-                                              className="sr-only peer"
-                                            />
-                                            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-                                          </label>
-                                          <span className="text-xs text-zinc-500">
-                                            {art.visible ? "Visible" : "Oculto"}
-                                          </span>
-                                        </div>
-
-                                        {/* Toggle Liquidación */}
-                                        <div className="flex items-center gap-2">
-                                          <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                              type="checkbox"
-                                              checked={art.liquidacion ?? false}
-                                              onChange={() =>
-                                                toggleLiquidacion(
-                                                  art.id,
-                                                  art.liquidacion ?? false
-                                                )
-                                              }
-                                              className="sr-only peer"
-                                            />
-                                            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-                                          </label>
-                                          <span className="text-xs text-zinc-500">
-                                            {art.liquidacion
-                                              ? "En Liquidación"
-                                              : "Liquidación"}
-                                          </span>
-                                        </div>
-
-                                        {/* Toggle Top Ventas */}
-                                        <div className="flex items-center gap-2">
-                                          <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                              type="checkbox"
-                                              checked={art.top_ventas ?? false}
-                                              onChange={() =>
-                                                toggleTopVentas(
-                                                  art.id,
-                                                  art.top_ventas ?? false
-                                                )
-                                              }
-                                              className="sr-only peer"
-                                            />
-                                            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-                                          </label>
-                                          <span className="text-xs text-zinc-500">
-                                            {art.top_ventas
-                                              ? "Top Ventas"
-                                              : "Top Ventas"}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </motion.div>
-                              ))}
-                          </AnimatePresence>
-
-                          {articulos.filter((a) => {
-                            if (!esAdmin && !a.visible) return false;
-                            return (
-                              (a.TITULO &&
-                                a.TITULO.toLowerCase().includes(
-                                  searchTerm.toLowerCase()
-                                )) ||
-                              (a.CODIGO &&
-                                a.CODIGO.toLowerCase().includes(
-                                  searchTerm.toLowerCase()
-                                ))
-                            );
-                          }).length === 0 && (
-                            <motion.p
-                              className="text-center text-zinc-500 py-10 col-span-full"
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.2 }}
-                            >
-                              {searchTerm
-                                ? `No se encontraron productos que coincidan con "${searchTerm}"`
-                                : `No hay productos en esta ${
-                                    categoriaSeleccionada
-                                      ? "categoría"
-                                      : "marca"
-                                  }.`}
-                            </motion.p>
-                          )}
-                        </div>
-                      </motion.div>
-                    </AnimatePresence>
-                  )}
-                </motion.div>
-              )}
-
-              {/* Buscar */}
-              {activeTab === "buscar" && (
-                <motion.div
-                  key="buscar"
-                  initial={{ opacity: 0, x: -40 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 40 }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                >
-                  <div className="mt-4 px-4 pb-32">
-                    {/* Escáner de código de barras */}
-                    {scannerOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="mb-4 rounded-xl overflow-hidden border-2 border-orange-300 shadow-lg bg-white"
-                      >
-                        {/* Indicador de estado */}
-                        <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                            <span className="text-white text-sm font-medium">
-                              Escaneando código de barras...
-                            </span>
+                            {articulos.filter((a) => {
+                              if (!esAdmin && !a.visible) return false;
+                              return (
+                                (a.TITULO &&
+                                  a.TITULO.toLowerCase().includes(
+                                    searchTerm.toLowerCase()
+                                  )) ||
+                                (a.CODIGO &&
+                                  a.CODIGO.toLowerCase().includes(
+                                    searchTerm.toLowerCase()
+                                  ))
+                              );
+                            }).length === 0 && (
+                              <motion.p
+                                className="text-center text-zinc-500 py-10 col-span-full"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                {searchTerm
+                                  ? `No se encontraron productos que coincidan con "${searchTerm}"`
+                                  : `No hay productos en esta ${
+                                      categoriaSeleccionada
+                                        ? "categoría"
+                                        : "marca"
+                                    }.`}
+                              </motion.p>
+                            )}
                           </div>
-                          <button
-                            onClick={() => setScannerOpen(false)}
-                            className="text-white hover:bg-white/20 rounded-full p-1 transition"
-                          >
-                            <X size={18} />
-                          </button>
-                        </div>
+                        </motion.div>
+                      </AnimatePresence>
+                    )}
+                  </motion.div>
+                )}
 
-                        {/* Cámara del escáner */}
-                        <div className="relative bg-black">
-                          <BarcodeScannerComponent
-                            width="100%"
-                            height={280}
-                            onUpdate={async (err: any, result) => {
-                              if (result) {
-                                const codigo = result.getText();
+                {/* Buscar */}
+                {activeTab === "buscar" && (
+                  <motion.div
+                    key="buscar"
+                    initial={{ opacity: 0, x: -40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 40 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    <div className="mt-4 px-4 pb-32">
+                      {/* Escáner de código de barras */}
+                      {scannerOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="mb-4 rounded-xl overflow-hidden border-2 border-orange-300 shadow-lg bg-white"
+                        >
+                          {/* Indicador de estado */}
+                          <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                              <span className="text-white text-sm font-medium">
+                                Escaneando código de barras...
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => setScannerOpen(false)}
+                              className="text-white hover:bg-white/20 rounded-full p-1 transition"
+                            >
+                              <X size={18} />
+                            </button>
+                          </div>
 
-                                if (codigo) {
-                                  if ("vibrate" in navigator)
-                                    navigator.vibrate(100);
-                                  setSearchTerm(codigo);
-                                  setTimeout(() => setScannerOpen(false), 300);
+                          {/* Cámara del escáner */}
+                          <div className="relative bg-black">
+                            <BarcodeScannerComponent
+                              width="100%"
+                              height={280}
+                              onUpdate={async (err: any, result) => {
+                                if (result) {
+                                  const codigo = result.getText();
 
-                                  try {
-                                    // Buscar producto por código
-                                    const { data, error } = await supabase
-                                      .from("productos")
-                                      .select(
-                                        "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO"
-                                      )
-                                      .or(
-                                        `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%,C_PRODUCTO.ilike.%${codigo}%`
-                                      )
-                                      .limit(50);
+                                  if (codigo) {
+                                    if ("vibrate" in navigator)
+                                      navigator.vibrate(100);
+                                    setSearchTerm(codigo);
+                                    setTimeout(
+                                      () => setScannerOpen(false),
+                                      300
+                                    );
 
-                                    if (error) {
+                                    try {
+                                      // Buscar producto por código
+                                      const { data, error } = await supabase
+                                        .from("productos")
+                                        .select(
+                                          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO"
+                                        )
+                                        .or(
+                                          `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%,C_PRODUCTO.ilike.%${codigo}%`
+                                        )
+                                        .limit(50);
+
+                                      if (error) {
+                                        console.error(
+                                          "Error buscando por código:",
+                                          error.message
+                                        );
+                                        alert(
+                                          "Error al buscar el producto. Intenta de nuevo."
+                                        );
+                                        return;
+                                      }
+
+                                      // Normalizar visible
+                                      const productosNormalizados = (
+                                        data || []
+                                      ).map((producto) => ({
+                                        ...producto,
+                                        visible: producto.visible ?? true,
+                                      }));
+
+                                      setProductos(productosNormalizados);
+                                      setProductosMostrados(10);
+                                      if (productosNormalizados.length > 0) {
+                                        console.log(
+                                          ` ${productosNormalizados.length} producto(s) encontrado(s)`
+                                        );
+                                      } else {
+                                        alert(
+                                          `No se encontraron productos con el código: ${codigo}`
+                                        );
+                                      }
+                                    } catch (error) {
                                       console.error(
-                                        "Error buscando por código:",
-                                        error.message
+                                        "Error procesando código:",
+                                        error
                                       );
                                       alert(
-                                        "Error al buscar el producto. Intenta de nuevo."
-                                      );
-                                      return;
-                                    }
-
-                                    // Normalizar visible
-                                    const productosNormalizados = (
-                                      data || []
-                                    ).map((producto) => ({
-                                      ...producto,
-                                      visible: producto.visible ?? true,
-                                    }));
-
-                                    setProductos(productosNormalizados);
-                                    setProductosMostrados(10);
-                                    if (productosNormalizados.length > 0) {
-                                      console.log(
-                                        ` ${productosNormalizados.length} producto(s) encontrado(s)`
-                                      );
-                                    } else {
-                                      alert(
-                                        `No se encontraron productos con el código: ${codigo}`
+                                        "Ocurrió un error al procesar el código escaneado."
                                       );
                                     }
-                                  } catch (error) {
-                                    console.error(
-                                      "Error procesando código:",
-                                      error
-                                    );
-                                    alert(
-                                      "Ocurrió un error al procesar el código escaneado."
-                                    );
+                                  }
+                                } else if (err) {
+                                  if (
+                                    (err as Error)?.name !== "NotFoundException"
+                                  ) {
+                                    console.error("Error del escáner:", err);
                                   }
                                 }
-                              } else if (err) {
-                                if (
-                                  (err as Error)?.name !== "NotFoundException"
-                                ) {
-                                  console.error("Error del escáner:", err);
-                                }
-                              }
-                            }}
-                          />
+                              }}
+                            />
 
-                          {/* Overlay con guía de escaneo */}
-                          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                            <div className="border-2 border-white w-64 h-32 rounded-lg shadow-2xl">
-                              <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-orange-500"></div>
-                              <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-orange-500"></div>
-                              <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-orange-500"></div>
-                              <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-orange-500"></div>
+                            {/* Overlay con guía de escaneo */}
+                            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                              <div className="border-2 border-white w-64 h-32 rounded-lg shadow-2xl">
+                                <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-orange-500"></div>
+                                <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-orange-500"></div>
+                                <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-orange-500"></div>
+                                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-orange-500"></div>
+                              </div>
+                            </div>
+                            <div className="absolute bottom-4 left-0 right-0 text-center">
+                              <p className="text-white text-sm font-medium bg-black/60 backdrop-blur-sm inline-block px-4 py-2 rounded-full">
+                                Centra el código de barras en el marco
+                              </p>
                             </div>
                           </div>
-                          <div className="absolute bottom-4 left-0 right-0 text-center">
-                            <p className="text-white text-sm font-medium bg-black/60 backdrop-blur-sm inline-block px-4 py-2 rounded-full">
-                              Centra el código de barras en el marco
-                            </p>
-                          </div>
-                        </div>
 
-                        {/* Botones de acción */}
-                        <div className="flex gap-2 p-3 bg-zinc-50">
-                          <button
-                            onClick={() => setScannerOpen(false)}
-                            className="flex-1 bg-white border border-zinc-300 text-zinc-700 py-2.5 rounded-lg font-semibold hover:bg-zinc-50 transition flex items-center justify-center gap-2"
-                          >
-                            <X size={18} />
-                            Cancelar
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {/* Resultados */}
-                    <div className="mt-4 space-y-3">
-                      {productos
-  .filter((prod) => esAdmin || (prod.visible ?? true))
-  .slice(0, productosMostrados)
-  .map((prod) => (
-    <div
-      key={prod.id}
-      onClick={() => setProductoSeleccionado(prod)}
-      className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 cursor-pointer"
-    >
-      <div className="flex items-center gap-3">
-        <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100">
-          <Image
-            src={
-              prod.IMAGEN ||
-              "https://via.placeholder.com/150?text=Sin+imagen"
-            }
-            alt={prod.TITULO || "Imagen de producto"}
-            fill
-            className="object-contain"
-          />
-        </div>
-        <div>
-          <p className="font-semibold">{prod.TITULO}</p>
-          <p className="text-xs text-zinc-500">
-            Código: {prod.CODIGO}
-          </p>
-          {!esAdmin && (
-            <p className="text-xs text-orange-500 font-semibold">
-              ${prod.P_MAYOREO?.toFixed(2)}
-            </p>
-          )}
-        </div>
-      </div>
-      <span className="text-zinc-400">{">"}</span>
-    </div>
-  ))}
-
-  {productos.filter((prod) => esAdmin || (prod.visible ?? true)).length > productosMostrados && (
-  <button
-    onClick={() => setProductosMostrados(prev => prev + 10)}
-    className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition mt-4"
-  >
-    Ver más productos ({productos.filter((prod) => esAdmin || (prod.visible ?? true)).length - productosMostrados} restantes)
-  </button>
-)}
-
-                      {searchTerm && productos.length === 0 && (
-                        <p className="text-center text-zinc-500 py-10">
-                          No se encontraron resultados.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Carrito */}
-              {activeTab === "carrito" && (
-                <motion.div
-                  initial={{ opacity: 0, x: -40 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 40 }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                >
-                  <div className="mt-4 px-3 pb-24">
-                    {carrito.length === 0 ? (
-                      <p className="text-center text-zinc-500 mt-16">
-                        Tu carrito está vacío
-                      </p>
-                    ) : (
-                      <>
-                        {/* Productos */}
-                        <div className="space-y-3">
-                          {carrito.map((item) => (
-                            <div
-                              key={item.id}
-                              className="flex items-center justify-between border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
+                          {/* Botones de acción */}
+                          <div className="flex gap-2 p-3 bg-zinc-50">
+                            <button
+                              onClick={() => setScannerOpen(false)}
+                              className="flex-1 bg-white border border-zinc-300 text-zinc-700 py-2.5 rounded-lg font-semibold hover:bg-zinc-50 transition flex items-center justify-center gap-2"
                             >
-                              <div
-                                className="flex items-center gap-3 w-[70%] cursor-pointer"
-                                onClick={() => setProductoSeleccionado(item)} // abre vista producto
-                              >
-                                <div className="relative w-14 h-14 bg-zinc-100 rounded-md overflow-hidden">
+                              <X size={18} />
+                              Cancelar
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {/* Resultados */}
+                      <div className="mt-4 space-y-3">
+                        {productos
+                          .filter((prod) => esAdmin || (prod.visible ?? true))
+                          .slice(0, productosMostrados)
+                          .map((prod) => (
+                            <div
+                              key={prod.id}
+                              onClick={() => setProductoSeleccionado(prod)}
+                              className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 cursor-pointer"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100">
                                   <Image
-                                    src={item.IMAGEN || "/placeholder.jpg"}
-                                    alt={item.TITULO}
+                                    src={
+                                      prod.IMAGEN ||
+                                      "https://via.placeholder.com/150?text=Sin+imagen"
+                                    }
+                                    alt={prod.TITULO || "Imagen de producto"}
                                     fill
                                     className="object-contain"
                                   />
                                 </div>
-
-                                <div className="flex flex-col truncate">
-                                  <span className="text-[16px] font-semibold text-zinc-800 leading-snug truncate">
-                                    {item.TITULO}
-                                  </span>
-                                  <span className="text-[14px] text-zinc-500 mt-1">
-                                    {item.CODIGO}
-                                  </span>
-                                  <span className="text-[14px] text-zinc-500 mt-1">
-                                    {item.cantidad} × $
-                                    {item.P_MAYOREO.toFixed(2)}
-                                  </span>
+                                <div>
+                                  <p className="font-semibold">{prod.TITULO}</p>
+                                  <p className="text-xs text-zinc-500">
+                                    Código: {prod.CODIGO}
+                                  </p>
+                                  {!esAdmin && (
+                                    <p className="text-xs text-orange-500 font-semibold">
+                                      ${prod.P_MAYOREO?.toFixed(2)}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
+                              <span className="text-zinc-400">{">"}</span>
+                            </div>
+                          ))}
 
-                              {/* Botones cantidad */}
-                              <div className="flex items-center gap-2">
-                                {/*
+                        {productos.filter(
+                          (prod) => esAdmin || (prod.visible ?? true)
+                        ).length > productosMostrados && (
+                          <button
+                            onClick={() =>
+                              setProductosMostrados((prev) => prev + 10)
+                            }
+                            className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition mt-4"
+                          >
+                            Ver más productos (
+                            {productos.filter(
+                              (prod) => esAdmin || (prod.visible ?? true)
+                            ).length - productosMostrados}{" "}
+                            restantes)
+                          </button>
+                        )}
+
+                        {searchTerm && productos.length === 0 && (
+                          <p className="text-center text-zinc-500 py-10">
+                            No se encontraron resultados.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Carrito */}
+                {activeTab === "carrito" && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 40 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    <div className="mt-4 px-3 pb-24">
+                      {carrito.length === 0 ? (
+                        <p className="text-center text-zinc-500 mt-16">
+                          Tu carrito está vacío
+                        </p>
+                      ) : (
+                        <>
+                          {/* Productos */}
+                          <div className="space-y-3">
+                            {carrito.map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center justify-between border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
+                              >
+                                <div
+                                  className="flex items-center gap-3 w-[70%] cursor-pointer"
+                                  onClick={() => setProductoSeleccionado(item)} // abre vista producto
+                                >
+                                  <div className="relative w-14 h-14 bg-zinc-100 rounded-md overflow-hidden">
+                                    <Image
+                                      src={item.IMAGEN || "/placeholder.jpg"}
+                                      alt={item.TITULO}
+                                      fill
+                                      className="object-contain"
+                                    />
+                                  </div>
+
+                                  <div className="flex flex-col truncate">
+                                    <span className="text-[16px] font-semibold text-zinc-800 leading-snug truncate">
+                                      {item.TITULO}
+                                    </span>
+                                    <span className="text-[14px] text-zinc-500 mt-1">
+                                      {item.CODIGO}
+                                    </span>
+                                    <span className="text-[14px] text-zinc-500 mt-1">
+                                      {item.cantidad} × $
+                                      {item.P_MAYOREO.toFixed(2)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Botones cantidad */}
+                                <div className="flex items-center gap-2">
+                                  {/*
                             <button
                               onClick={() =>
                                 setCarrito((prev) =>
@@ -6865,144 +6892,150 @@ return (
                             </button>
  */}
 
-                                <button
-                                  onClick={() =>
-                                    setCarrito((prev) =>
-                                      prev
-                                        .map((p) =>
-                                          p.id === item.id
-                                            ? {
-                                                ...p,
-                                                cantidad: 0,
-                                                subtotal: 0,
-                                              }
-                                            : p
-                                        )
-                                        .filter((p) => p.cantidad > 0)
-                                    )
-                                  }
-                                  className="w-8 h-8 bg-orange-500 text-white rounded-md text-lg flex items-center justify-center"
-                                >
-                                  x
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Total */}
-                        <div className="mt-6 border-t border-zinc-300 pt-4 text-center">
-                          {/* Barra de progreso para pedido mínimo */}
-                          {(() => {
-                            const totalCarrito = carrito.reduce(
-                              (sum, p) => sum + p.subtotal,
-                              0
-                            );
-                            const minimoRequerido = 1000;
-                            const progreso = Math.min(
-                              (totalCarrito / minimoRequerido) * 100,
-                              100
-                            );
-                            const faltante = Math.max(
-                              minimoRequerido - totalCarrito,
-                              0
-                            );
-
-                            return (
-                              <div className="mb-4 bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
-                                <div className="flex justify-between items-center mb-2">
-                                  <span className="text-sm font-semibold text-zinc-700">
-                                    Pedido mínimo: $1,000.00
-                                  </span>
-                                  <span
-                                    className={`text-sm font-bold ${
-                                      totalCarrito >= minimoRequerido
-                                        ? "text-green-600"
-                                        : "text-orange-600"
-                                    }`}
+                                  <button
+                                    onClick={() =>
+                                      setCarrito((prev) =>
+                                        prev
+                                          .map((p) =>
+                                            p.id === item.id
+                                              ? {
+                                                  ...p,
+                                                  cantidad: 0,
+                                                  subtotal: 0,
+                                                }
+                                              : p
+                                          )
+                                          .filter((p) => p.cantidad > 0)
+                                      )
+                                    }
+                                    className="w-8 h-8 bg-orange-500 text-white rounded-md text-lg flex items-center justify-center"
                                   >
-                                    ${totalCarrito.toFixed(2)}
-                                  </span>
+                                    x
+                                  </button>
                                 </div>
+                              </div>
+                            ))}
+                          </div>
 
-                                {/* Barra de progreso */}
-                                <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
-                                  <motion.div
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${progreso}%` }}
-                                    transition={{
-                                      duration: 0.5,
-                                      ease: "easeOut",
-                                    }}
-                                    className={`h-full rounded-full transition-colors ${
-                                      progreso === 100
-                                        ? "bg-gradient-to-r from-green-500 to-green-600"
-                                        : "bg-gradient-to-r from-orange-500 to-orange-600"
-                                    }`}
-                                  />
-                                </div>
+                          {/* Total */}
+                          <div className="mt-6 border-t border-zinc-300 pt-4 text-center">
+                            {/* Barra de progreso para pedido mínimo */}
+                            {(() => {
+                              const totalCarrito = carrito.reduce(
+                                (sum, p) => sum + p.subtotal,
+                                0
+                              );
+                              const minimoRequerido = 1000;
+                              const progreso = Math.min(
+                                (totalCarrito / minimoRequerido) * 100,
+                                100
+                              );
+                              const faltante = Math.max(
+                                minimoRequerido - totalCarrito,
+                                0
+                              );
 
-                                {/* Mensaje de estado */}
-                                {totalCarrito >= minimoRequerido ? (
-                                  <div className="mt-2 flex items-center gap-2 text-green-600">
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      strokeWidth={2}
-                                      stroke="currentColor"
-                                      className="w-5 h-5"
+                              return (
+                                <div className="mb-4 bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
+                                  <div className="flex justify-between items-center mb-2">
+                                    <span className="text-sm font-semibold text-zinc-700">
+                                      Pedido mínimo: $1,000.00
+                                    </span>
+                                    <span
+                                      className={`text-sm font-bold ${
+                                        totalCarrito >= minimoRequerido
+                                          ? "text-green-600"
+                                          : "text-orange-600"
+                                      }`}
                                     >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                      />
-                                    </svg>
-                                    <span className="text-sm font-semibold">
-                                      ¡Pedido mínimo alcanzado!
+                                      ${totalCarrito.toFixed(2)}
                                     </span>
                                   </div>
-                                ) : (
-                                  <p className="mt-2 text-xs text-zinc-600">
-                                    Te faltan{" "}
-                                    <span className="font-bold text-orange-600">
-                                      ${faltante.toFixed(2)}
-                                    </span>{" "}
-                                    para realizar el pedido
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })()}
 
-                          <p className="text-[16px] font-bold text-zinc-900">
-                            Total: $
-                            {carrito
-                              .reduce((sum, p) => sum + p.subtotal, 0)
-                              .toFixed(2)}
-                          </p>
+                                  {/* Barra de progreso */}
+                                  <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
+                                    <motion.div
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${progreso}%` }}
+                                      transition={{
+                                        duration: 0.5,
+                                        ease: "easeOut",
+                                      }}
+                                      className={`h-full rounded-full transition-colors ${
+                                        progreso === 100
+                                          ? "bg-gradient-to-r from-green-500 to-green-600"
+                                          : "bg-gradient-to-r from-orange-500 to-orange-600"
+                                      }`}
+                                    />
+                                  </div>
 
-                          <button
-                            onClick={() => setMostrarModalPedido(true)}
-                            disabled={
-                              carrito.reduce((sum, p) => sum + p.subtotal, 0) <
-                              1000
-                            }
-                            className={`w-full mt-3 py-3 rounded-xl font-semibold text-[16px] shadow transition ${
-                              carrito.reduce((sum, p) => sum + p.subtotal, 0) >=
-                              1000
-                                ? "bg-orange-500 text-white hover:bg-orange-600"
-                                : "bg-zinc-300 text-zinc-500 cursor-not-allowed"
-                            }`}
-                          >
-                            {carrito.reduce((sum, p) => sum + p.subtotal, 0) >=
-                            1000
-                              ? "Confirmar pedido"
-                              : "Confirmar pedido"}
-                          </button>
-                        </div>
-                        {/* 
+                                  {/* Mensaje de estado */}
+                                  {totalCarrito >= minimoRequerido ? (
+                                    <div className="mt-2 flex items-center gap-2 text-green-600">
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        strokeWidth={2}
+                                        stroke="currentColor"
+                                        className="w-5 h-5"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                        />
+                                      </svg>
+                                      <span className="text-sm font-semibold">
+                                        ¡Ya puedes enviar tu pedido!
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <p className="mt-2 text-xs text-zinc-600">
+                                      Te faltan{" "}
+                                      <span className="font-bold text-orange-600">
+                                        ${faltante.toFixed(2)}
+                                      </span>{" "}
+                                      para realizar el pedido
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })()}
+
+                            <p className="text-[16px] font-bold text-zinc-900">
+                              Total: $
+                              {carrito
+                                .reduce((sum, p) => sum + p.subtotal, 0)
+                                .toFixed(2)}
+                            </p>
+
+                            <button
+                              onClick={() => setMostrarModalPedido(true)}
+                              disabled={
+                                carrito.reduce(
+                                  (sum, p) => sum + p.subtotal,
+                                  0
+                                ) < 1000
+                              }
+                              className={`w-full mt-3 py-3 rounded-xl font-semibold text-[16px] shadow transition ${
+                                carrito.reduce(
+                                  (sum, p) => sum + p.subtotal,
+                                  0
+                                ) >= 1000
+                                  ? "bg-orange-500 text-white hover:bg-orange-600"
+                                  : "bg-zinc-300 text-zinc-500 cursor-not-allowed"
+                              }`}
+                            >
+                              {carrito.reduce(
+                                (sum, p) => sum + p.subtotal,
+                                0
+                              ) >= 1000
+                                ? "Confirmar pedido"
+                                : "Confirmar pedido"}
+                            </button>
+                          </div>
+                          {/* 
 
                        seccion de costos desactivada por peticion del cliente
 
@@ -7015,714 +7048,771 @@ return (
                           Costo cubierto por Bodega Ferretera de Monterrey{" "}
                         </p>
                         */}
-                      </>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* perfil */}
-              {activeTab === "perfil" && (
-                <motion.div
-                  key="perfil"
-                  initial={{ opacity: 0, x: -40 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 40 }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                  className="px-6 py-6"
-                >
-                  {/* VISTA PRINCIPAL DEL PERFIL */}
-                  {vistaPerfil === "menu" && (
-                    <motion.div
-                      key="perfil-menu"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="flex flex-col items-center"
-                    >
-                      {/* Avatar */}
-                      <div className="w-28 h-28 rounded-full bg-orange-10 overflow-hidden flex items-center justify-center shadow">
-                        <Image
-                          src="/user-icon-2.jpg"
-                          alt="Avatar"
-                          width={100}
-                          height={100}
-                          className="object-contain"
-                        />
-                      </div>
-
-                      {/* Nombre */}
-                      <p className="text-xl font-bold text-zinc-900 mt-3">
-                        {cuenta?.cliente}
-                      </p>
-
-                      {/* Número de cuenta */}
-                      <p className="text-zinc-500 text-sm">
-                        {cuenta?.numero_cuenta}
-                      </p>
-
-                      {/* Teléfono */}
-                      <p className="text-zinc-500 text-sm mt-1">
-                        {cuenta?.numero_tel ?? "Sin teléfono"}
-                      </p>
-
-                      {/* OPCIONES DEL MENÚ */}
-                      <div className="w-full mt-8 space-y-3">
-                        {/* Historial de pedidos */}
-                        <MenuItem
-                          icon={<History size={20} />}
-                          label="Mis pedidos"
-                          onClick={() => {
-                            window.scrollTo({ top: 0, behavior: "instant" });
-                            setVistaPerfil("pedidos");
-                          }}
-                        />
-
-                        {esAdmin && (
-                          <MenuItem
-                            label="Actualizar base de datos"
-                            icon={<DatabaseBackup size={20} />}
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("actualizar-bd");
-                            }}
-                          />
-                        )}
-
-                        {esAdmin && (
-                          <MenuItem
-                            label="Agregar producto"
-                            icon={<PackagePlus size={20} />}
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("agregar-producto");
-                            }}
-                          />
-                        )}
-
-                        {esAdmin && (
-                          <>
-                            <MenuItem
-                              label="Gestionar Subcategorías"
-                              icon={<Boxes size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("gestionar-categorias");
-                              }}
-                            />
-                            <MenuItem
-                              label="Asignar Subcategorías"
-                              icon={<Box size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("asignar-categorias");
-                              }}
-                            />
-                          </>
-                        )}
-
-                        {esAdmin && (
-                          <MenuItem
-                            label="Gestionar Categorías"
-                            icon={<SquareStack size={20} />}
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("gestionar-macro-categorias");
-                            }}
-                          />
-                        )}
-
-                        {esAdmin && (
-                          <MenuItem
-                            label="Edicion de Categorias"
-                            icon={<FilePenLine size={20} />}
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("edicion-categorias");
-                            }}
-                          />
-                        )}
-
-                        {esAdmin && (
-                          <MenuItem
-                            label="Gestionar Marcas"
-                            icon={<Codesandbox size={20} />}
-                            onClick={() => {
-                              window.scrollTo({
-                                top: 0,
-                                behavior: "instant",
-                              });
-                              setVistaPerfil("gestionar-marcas");
-                            }}
-                          />
-                        )}
-
-                        {esAdmin && (
-                          <MenuItem
-                            label="Gestionar Cuentas"
-                            icon={<Users size={20} />}
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("gestionar-cuentas");
-                            }}
-                          />
-                        )}
-
-                        {!esAdmin && (
-                          <MenuItem
-                            label="Apoyo"
-                            icon={<FileQuestionMark size={20} />}
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("apoyo");
-                            }}
-                          />
-                        )}
-
-                        {/* Dirección */}
-                        <MenuItem
-                          label="Shipping Address"
-                          icon={<MapPinHouse size={20} />}
-                          onClick={() => {
-                            window.scrollTo({ top: 0, behavior: "instant" });
-                            setVistaPerfil("address");
-                          }}
-                        />
-
-                        {/* Configuración */}
-                        <MenuItem
-                          label="Configuración"
-                          icon={<Settings size={20} />}
-                          onClick={() => {
-                            window.scrollTo({ top: 0, behavior: "instant" });
-                            setVistaPerfil("settings");
-                          }}
-                        />
-
-                        {/* Logout */}
-                        <MenuItem
-                          label="Cerrar sesión"
-                          icon={<LogOut size={20} />}
-                          onClick={() => {
-                            setCuentaActiva(null);
-                            setCuenta(null);
-                          }}
-                          danger
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* APOYO */}
-                  {vistaPerfil === "apoyo" && (
-                    <motion.div
-                      key={vistaPerfil}
-                      className="min-h-screen"
-                      initial={{ opacity: 0, x: 40 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -40 }}
-                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                      drag="x"
-                      dragConstraints={{ left: 0, right: 0 }}
-                      onDragEnd={(event, info) => {
-                        if (info.offset.x > 100) {
-                          setVistaPerfil("menu");
-                        }
-                      }}
-                    >
-                      {/* Botón regresar */}
-                      <BackBtn onBack={() => setVistaPerfil("menu")} />
-
-                      <h2 className="text-xl font-bold text-zinc-900 mb-4">
-                        Apoyo
-                      </h2>
-
-                      {selectedApoyo ? (
-                        <ApoyoViewer
-                          selectedApoyo={selectedApoyo}
-                          setSelectedApoyo={setSelectedApoyo}
-                        />
-                      ) : (
-                        <div className="space-y-3">
-                          {apoyos.map((item, i) => (
-                            <motion.button
-                              key={i}
-                              onClick={() => setSelectedApoyo(item)}
-                              whileTap={{ scale: 0.97 }}
-                              className="w-full flex items-center justify-between rounded-xl border border-zinc-200 bg-white p-3 shadow-sm hover:bg-zinc-50 transition"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="relative w-14 h-14 rounded-md overflow-hidden bg-zinc-100">
-                                  <Image
-                                    src={item.imagen}
-                                    alt={item.titulo}
-                                    fill
-                                    className="object-cover"
-                                  />
-                                </div>
-                                <span className="font-semibold text-zinc-800 text-sm">
-                                  {item.titulo}
-                                </span>
-                              </div>
-                              <span className="text-zinc-400">{">"}</span>
-                            </motion.button>
-                          ))}
-                        </div>
+                        </>
                       )}
-                    </motion.div>
-                  )}
+                    </div>
+                  </motion.div>
+                )}
 
-                  {vistaPerfil === "edicion-categorias" && (
-                    <VistaEdicionCategorias
-                      setVistaPerfil={setVistaPerfil}
-                      supabase={supabase}
-                      categorias={categorias}
-                      setCategorias={setCategorias}
-                      macroCategorias={macroCategorias}
-                      setMacroCategorias={setMacroCategorias}
-                      cuenta={cuenta}
-                    />
-                  )}
-
-                  {/* HISTORIAL DE PEDIDOS */}
-                  {vistaPerfil === "pedidos" && (
-                    <HistorialPedidos
-                      cuenta={cuenta}
-                      setVistaPerfil={setVistaPerfil}
-                    />
-                  )}
-
-                  {vistaPerfil === "actualizar-bd" && (
-                    <ActualizarBDView setVistaPerfil={setVistaPerfil} />
-                  )}
-
-                  {vistaPerfil === "agregar-producto" && (
-                    <AgregarProductoView setVistaPerfil={setVistaPerfil} />
-                  )}
-
-                  {vistaPerfil === "gestionar-categorias" && (
-                    <GestionarCategoriasView setVistaPerfil={setVistaPerfil} />
-                  )}
-
-                  {vistaPerfil === "gestionar-marcas" && (
-                    <GestionarMarcasView setVistaPerfil={setVistaPerfil} />
-                  )}
-
-                  {vistaPerfil === "gestionar-macro-categorias" && (
-                    <GestionarMacroCategoriasView
-                      setVistaPerfil={setVistaPerfil}
-                    />
-                  )}
-
-                  {vistaPerfil === "asignar-categorias" && (
-                    <AsignarCategoriasView setVistaPerfil={setVistaPerfil} />
-                  )}
-
-                  {vistaPerfil === "gestionar-cuentas" && (
-                    <GestionarCuentasView setVistaPerfil={setVistaPerfil} />
-                  )}
-
-                  {/* CONFIGURACIÓN */}
-                  {vistaPerfil === "settings" && (
-                    <motion.div
-                      key="settings"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <BackBtn onBack={() => setVistaPerfil("menu")} />
-
-                      <h2 className="text-xl font-bold text-zinc-900 mb-4">
-                        Configuración
-                      </h2>
-
-                      <ConfigForm cuenta={cuenta} setCuenta={setCuenta} />
-                    </motion.div>
-                  )}
-
-                  {/* DIRECCIÓN */}
-                  {vistaPerfil === "address" && (
-                    <motion.div
-                      key="address"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <BackBtn onBack={() => setVistaPerfil("menu")} />
-
-                      <h2 className="text-xl font-bold text-zinc-900 mb-4">
-                        Dirección
-                      </h2>
-
-                      <AddressForm cuenta={cuenta} setCuenta={setCuenta} />
-                    </motion.div>
-                  )}
-                </motion.div>
-              )}
-
-              {/* Modal de Pedido Exitoso */}
-              {mostrarExito && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[999]">
-                  <div className="bg-white rounded-2xl w-[85%] max-w-sm p-6 shadow-2xl text-center animate-[pop_0.3s_ease-out]">
-                    {/* Icono de éxito */}
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
-                      <svg
-                        className="w-10 h-10 text-green-600"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        viewBox="0 0 24 24"
+                {/* perfil */}
+                {activeTab === "perfil" && (
+                  <motion.div
+                    key="perfil"
+                    initial={{ opacity: 0, x: -40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 40 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="px-6 py-6"
+                  >
+                    {/* VISTA PRINCIPAL DEL PERFIL */}
+                    {vistaPerfil === "menu" && (
+                      <motion.div
+                        key="perfil-menu"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="flex flex-col items-center"
                       >
-                        <path d="M5 13l4 4L19 7" />
-                      </svg>
+                        {/* Avatar */}
+                        <div className="w-28 h-28 rounded-full bg-orange-10 overflow-hidden flex items-center justify-center shadow">
+                          <Image
+                            src="/user-icon-2.jpg"
+                            alt="Avatar"
+                            width={100}
+                            height={100}
+                            className="object-contain"
+                          />
+                        </div>
+
+                        {/* Nombre */}
+                        <p className="text-xl font-bold text-zinc-900 mt-3">
+                          {cuenta?.cliente}
+                        </p>
+
+                        {/* Número de cuenta */}
+                        <p className="text-zinc-500 text-sm">
+                          {cuenta?.numero_cuenta}
+                        </p>
+
+                        {/* Teléfono */}
+                        <p className="text-zinc-500 text-sm mt-1">
+                          {cuenta?.numero_tel ?? "Sin teléfono"}
+                        </p>
+
+                        {/* OPCIONES DEL MENÚ */}
+                        <div className="w-full mt-8 space-y-3">
+                          {/* Historial de pedidos */}
+                          <MenuItem
+                            icon={<History size={20} />}
+                            label="Mis pedidos"
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("pedidos");
+                            }}
+                          />
+
+                          {esAdmin && (
+                            <MenuItem
+                              label="Actualizar base de datos"
+                              icon={<DatabaseBackup size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("actualizar-bd");
+                              }}
+                            />
+                          )}
+
+                          {esAdmin && (
+                            <MenuItem
+                              label="Agregar producto"
+                              icon={<PackagePlus size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("agregar-producto");
+                              }}
+                            />
+                          )}
+
+                          {esAdmin && (
+                            <>
+                              <MenuItem
+                                label="Gestionar Subcategorías"
+                                icon={<Boxes size={20} />}
+                                onClick={() => {
+                                  window.scrollTo({
+                                    top: 0,
+                                    behavior: "instant",
+                                  });
+                                  setVistaPerfil("gestionar-categorias");
+                                }}
+                              />
+                              <MenuItem
+                                label="Asignar Subcategorías"
+                                icon={<Box size={20} />}
+                                onClick={() => {
+                                  window.scrollTo({
+                                    top: 0,
+                                    behavior: "instant",
+                                  });
+                                  setVistaPerfil("asignar-categorias");
+                                }}
+                              />
+                            </>
+                          )}
+
+                          {esAdmin && (
+                            <MenuItem
+                              label="Gestionar Categorías"
+                              icon={<SquareStack size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("gestionar-macro-categorias");
+                              }}
+                            />
+                          )}
+
+                          {esAdmin && (
+                            <MenuItem
+                              label="Edicion de Categorias"
+                              icon={<FilePenLine size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("edicion-categorias");
+                              }}
+                            />
+                          )}
+
+                          {esAdmin && (
+                            <MenuItem
+                              label="Gestionar Marcas"
+                              icon={<Codesandbox size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("gestionar-marcas");
+                              }}
+                            />
+                          )}
+
+                          {esAdmin && (
+                            <MenuItem
+                              label="Gestionar Cuentas"
+                              icon={<Users size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("gestionar-cuentas");
+                              }}
+                            />
+                          )}
+
+                          {!esAdmin && (
+                            <MenuItem
+                              label="Apoyo"
+                              icon={<FileQuestionMark size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("apoyo");
+                              }}
+                            />
+                          )}
+
+                          {/* Dirección */}
+                          <MenuItem
+                            label="Shipping Address"
+                            icon={<MapPinHouse size={20} />}
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("address");
+                            }}
+                          />
+
+                          {/* Configuración */}
+                          <MenuItem
+                            label="Configuración"
+                            icon={<Settings size={20} />}
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("settings");
+                            }}
+                          />
+
+                          {/* Logout */}
+                          <MenuItem
+                            label="Cerrar sesión"
+                            icon={<LogOut size={20} />}
+                            onClick={() => {
+                              setCuentaActiva(null);
+                              setCuenta(null);
+                            }}
+                            danger
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* APOYO */}
+                    {vistaPerfil === "apoyo" && (
+                      <motion.div
+                        key={vistaPerfil}
+                        className="min-h-screen"
+                        initial={{ opacity: 0, x: 40 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -40 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        onDragEnd={(event, info) => {
+                          if (info.offset.x > 100) {
+                            setVistaPerfil("menu");
+                          }
+                        }}
+                      >
+                        {/* Botón regresar */}
+                        <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+                        <h2 className="text-xl font-bold text-zinc-900 mb-4">
+                          Apoyo
+                        </h2>
+
+                        {selectedApoyo ? (
+                          <ApoyoViewer
+                            selectedApoyo={selectedApoyo}
+                            setSelectedApoyo={setSelectedApoyo}
+                          />
+                        ) : (
+                          <div className="space-y-3">
+                            {apoyos.map((item, i) => (
+                              <motion.button
+                                key={i}
+                                onClick={() => setSelectedApoyo(item)}
+                                whileTap={{ scale: 0.97 }}
+                                className="w-full flex items-center justify-between rounded-xl border border-zinc-200 bg-white p-3 shadow-sm hover:bg-zinc-50 transition"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="relative w-14 h-14 rounded-md overflow-hidden bg-zinc-100">
+                                    <Image
+                                      src={item.imagen}
+                                      alt={item.titulo}
+                                      fill
+                                      className="object-cover"
+                                    />
+                                  </div>
+                                  <span className="font-semibold text-zinc-800 text-sm">
+                                    {item.titulo}
+                                  </span>
+                                </div>
+                                <span className="text-zinc-400">{">"}</span>
+                              </motion.button>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {vistaPerfil === "edicion-categorias" && (
+                      <VistaEdicionCategorias
+                        setVistaPerfil={setVistaPerfil}
+                        supabase={supabase}
+                        categorias={categorias}
+                        setCategorias={setCategorias}
+                        macroCategorias={macroCategorias}
+                        setMacroCategorias={setMacroCategorias}
+                        cuenta={cuenta}
+                      />
+                    )}
+
+                    {/* HISTORIAL DE PEDIDOS */}
+                    {vistaPerfil === "pedidos" && (
+                      <HistorialPedidos
+                        cuenta={cuenta}
+                        setVistaPerfil={setVistaPerfil}
+                      />
+                    )}
+
+                    {vistaPerfil === "actualizar-bd" && (
+                      <ActualizarBDView setVistaPerfil={setVistaPerfil} />
+                    )}
+
+                    {vistaPerfil === "agregar-producto" && (
+                      <AgregarProductoView setVistaPerfil={setVistaPerfil} />
+                    )}
+
+                    {vistaPerfil === "gestionar-categorias" && (
+                      <GestionarCategoriasView
+                        setVistaPerfil={setVistaPerfil}
+                      />
+                    )}
+
+                    {vistaPerfil === "gestionar-marcas" && (
+                      <GestionarMarcasView setVistaPerfil={setVistaPerfil} />
+                    )}
+
+                    {vistaPerfil === "gestionar-macro-categorias" && (
+                      <GestionarMacroCategoriasView
+                        setVistaPerfil={setVistaPerfil}
+                      />
+                    )}
+
+                    {vistaPerfil === "asignar-categorias" && (
+                      <AsignarCategoriasView setVistaPerfil={setVistaPerfil} />
+                    )}
+
+                    {vistaPerfil === "gestionar-cuentas" && (
+                      <GestionarCuentasView setVistaPerfil={setVistaPerfil} />
+                    )}
+
+                    {/* CONFIGURACIÓN */}
+                    {vistaPerfil === "settings" && (
+                      <motion.div
+                        key="settings"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+                        <h2 className="text-xl font-bold text-zinc-900 mb-4">
+                          Configuración
+                        </h2>
+
+                        <ConfigForm cuenta={cuenta} setCuenta={setCuenta} />
+                      </motion.div>
+                    )}
+
+                    {/* DIRECCIÓN */}
+                    {vistaPerfil === "address" && (
+                      <motion.div
+                        key="address"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+                        <h2 className="text-xl font-bold text-zinc-900 mb-4">
+                          Dirección
+                        </h2>
+
+                        <AddressForm cuenta={cuenta} setCuenta={setCuenta} />
+                      </motion.div>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* Modal de Pedido Exitoso */}
+                {mostrarExito && (
+                  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[999]">
+                    <div className="bg-white rounded-2xl w-[85%] max-w-sm p-6 shadow-2xl text-center animate-[pop_0.3s_ease-out]">
+                      {/* Icono de éxito */}
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+                        <svg
+                          className="w-10 h-10 text-green-600"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+
+                      <h2 className="text-xl font-bold text-zinc-800">
+                        ¡Pedido enviado!
+                      </h2>
+                      <p className="text-sm text-zinc-600 mt-1">
+                        Para mas detalles ve a Mis de pedidos.
+                      </p>
+
+                      {/* Botón */}
+                      <button
+                        onClick={() => setMostrarExito(false)}
+                        className="mt-5 bg-green-600 text-white px-5 py-2 rounded-xl w-full font-medium hover:bg-green-700 active:scale-[0.97] transition-all"
+                      >
+                        Aceptar
+                      </button>
                     </div>
 
-                    <h2 className="text-xl font-bold text-zinc-800">
-                      ¡Pedido enviado!
-                    </h2>
-                    <p className="text-sm text-zinc-600 mt-1">
-                      Para mas detalles ve a Mis de pedidos.
-                    </p>
-
-                    {/* Botón */}
-                    <button
-                      onClick={() => setMostrarExito(false)}
-                      className="mt-5 bg-green-600 text-white px-5 py-2 rounded-xl w-full font-medium hover:bg-green-700 active:scale-[0.97] transition-all"
-                    >
-                      Aceptar
-                    </button>
-                  </div>
-
-                  {/* Animación tipo pop */}
-                  <style>
-                    {`
+                    {/* Animación tipo pop */}
+                    <style>
+                      {`
         @keyframes pop {
           0% { transform: scale(0.7); opacity: 0; }
           100% { transform: scale(1); opacity: 1; }
         }
       `}
-                  </style>
-                </div>
-              )}
+                    </style>
+                  </div>
+                )}
 
-              {/* Modal de pedido */}
-              {mostrarModalPedido && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[999]">
-                  <div className="bg-white rounded-2xl w-[90%] max-w-md p-5 relative shadow-xl">
-                    {/* Cerrar */}
-                    <button
-                      onClick={() => setMostrarModalPedido(false)}
-                      className="absolute top-3 right-3 text-zinc-500 text-xl"
-                    >
-                      ×
-                    </button>
-
-                    <h2 className="text-center text-lg text-black font-semibold mb-4">
-                      Informacion de pedido
-                    </h2>
-
-                    {/* Información de la cuenta (solo lectura) */}
-                    <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
-                      <p className="text-xs text-zinc-500 mb-1">Ferretería</p>
-                      <p className="text-sm font-semibold text-zinc-700 mb-2">
-                        {cuenta?.ferreteria || "Sin ferretería registrada"}
-                      </p>
-                      <p className="text-xs text-zinc-500 mb-1">Cuenta</p>
-                      <p className="text-sm font-semibold text-zinc-700">
-                        {cuenta?.numero_cuenta}
-                      </p>
-                    </div>
-
-                    {/* Nombre del cliente */}
-                    <label className="block text-sm font-medium text-zinc-700">
-                      Nombre del Cliente{" "}
-                      <span className="text-zinc-400">Requerido</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={cliente}
-                      onChange={(e) => setCliente(e.target.value)}
-                      className="w-full border border-zinc-300 rounded-lg p-2 mt-1 mb-3 text-sm text-zinc-700"
-                    />
-
-                    {/* Enviar a domicilio */}
-                    <div className="flex items-center justify-between mt-2 mb-3">
-                      <label className="text-sm font-medium text-zinc-700">
-                        ¿Enviar a domicilio?
-                      </label>
-                      <input
-                        type="checkbox"
-                        checked={enviarDomicilio}
-                        onChange={(e) => setEnviarDomicilio(e.target.checked)}
-                        className="w-5 h-5 accent-orange-500"
-                      />
-                    </div>
-
-                    {/* Si se activa el toggle */}
-                    {enviarDomicilio ? (
-                      <>
-                        {cuenta?.direccion ? (
-                          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3">
-                            <p className="text-xs text-zinc-600 mb-1">
-                              Dirección guardada:
-                            </p>
-                            <p className="text-sm text-zinc-700">
-                              {cuenta.direccion}
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
-                            <p className="text-xs text-red-600">
-                              ⚠️ No hay dirección guardada. Por favor agrega una
-                              dirección en tu perfil.
-                            </p>
-                          </div>
-                        )}
-
-                        <p className="text-orange-600 text-[13px] font-semibold mt-1">
-                          TIEMPO DE ENTREGA 1 A 3 DÍAS HÁBILES (EL PEDIDO PUEDE
-                          ENVIARSE EL MISMO DÍA)
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-zinc-700 text-[13px] mt-2">
-                        Nos pondremos en contacto cuando su pedido esté listo
-                        para recoger en tienda (el pedido puede estar listo ese
-                        mismo día)
-                      </p>
-                    )}
-
-                    {/* Botones */}
-                    <div className="flex justify-between mt-6">
+                {/* Modal de pedido */}
+                {mostrarModalPedido && (
+                  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[999]">
+                    <div className="bg-white rounded-2xl w-[90%] max-w-md p-5 relative shadow-xl">
+                      {/* Cerrar */}
                       <button
                         onClick={() => setMostrarModalPedido(false)}
-                        className="flex-1 border border-zinc-300 py-2 rounded-lg mr-2 font-semibold text-zinc-600"
+                        className="absolute top-3 right-3 text-zinc-500 text-xl"
                       >
-                        Cancelar
+                        ×
                       </button>
-                      <button
-                        onClick={enviarPedido}
-                        disabled={
-                          enviando ||
-                          !cliente ||
-                          (enviarDomicilio && !cuenta?.direccion)
-                        }
-                        className={`flex-1 py-2 rounded-lg font-semibold text-white transition ${
-                          !cliente || (enviarDomicilio && !cuenta?.direccion)
-                            ? "bg-orange-300"
-                            : "bg-orange-500 hover:bg-orange-600"
-                        }`}
-                      >
-                        {enviando ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
-                            Enviando...
-                          </div>
-                        ) : (
-                          "Enviar"
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {/* UBICACIÓN */}
-              {activeTab === "ubicacion" && (
-                <motion.div
-                  key="ubicacion"
-                  initial={{ opacity: 0, x: -40 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 40 }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                >
-                  <div className="flex flex-col items-center justify-start p-4 space-y-4">
-                    <div className="w-full max-w-md rounded-xl overflow-hidden shadow-md">
-                      <Image
-                        src="/ubicacion.jpg"
-                        alt="Bodega Ferretera de Monterrey"
-                        width={800}
-                        height={400}
-                        className="object-cover w-full h-60"
-                      />
-                    </div>
+                      <h2 className="text-center text-lg text-black font-semibold mb-4">
+                        Informacion de pedido
+                      </h2>
 
-                    {/* WhatsApp */}
-                    <div className="w-full max-w-md bg-white rounded-xl shadow p-4">
-                      <h3 className="text-lg font-bold text-zinc-800 mb-1">
-                        WhatsApp
-                      </h3>
-                      <button
-                        onClick={() =>
-                          window.open(
-                            "https://wa.me/5218682340531?text=Hola,%20quiero%20más%20información.",
-                            "_blank"
-                          )
-                        }
-                        className="text-green-600 font-semibold text-lg underline"
-                      >
-                        +5218682340531
-                      </button>
-                    </div>
-
-                    {/* Mapa */}
-                    <div className="w-full max-w-md bg-white rounded-xl shadow p-4">
-                      <h3 className="text-lg font-bold text-zinc-800 mb-2">
-                        Ubicación
-                      </h3>
-
-                      {/* Contenedor que desactiva clicks por defecto */}
-                      <div
-                        className="rounded-lg overflow-hidden h-64 relative group"
-                        onClick={(e) => {
-                          const iframe =
-                            e.currentTarget.querySelector("iframe");
-                          iframe?.classList.add("pointer-events-auto");
-                        }}
-                        onMouseLeave={(e) => {
-                          const iframe =
-                            e.currentTarget.querySelector("iframe");
-                          iframe?.classList.remove("pointer-events-auto");
-                        }}
-                      >
-                        <iframe
-                          src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3590.137662708991!2d-97.48887909999999!3d25.864946200000002!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x866f94db9af16fcf%3A0xcf4adf236af1625a!2sFerreter%C3%ADa%20Bodega%20Ferretera%20de%20Monterrey!5e0!3m2!1ses-419!2smx!4v1761939402856!5m2!1ses-419!2smx"
-                          width="100%"
-                          height="100%"
-                          allowFullScreen
-                          loading="lazy"
-                          className="border-0 pointer-events-none"
-                        ></iframe>
+                      {/* Información de la cuenta (solo lectura) */}
+                      <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
+                        <p className="text-xs text-zinc-500 mb-1">Ferretería</p>
+                        <p className="text-sm font-semibold text-zinc-700 mb-2">
+                          {cuenta?.ferreteria || "Sin ferretería registrada"}
+                        </p>
+                        <p className="text-xs text-zinc-500 mb-1">Cuenta</p>
+                        <p className="text-sm font-semibold text-zinc-700">
+                          {cuenta?.numero_cuenta}
+                        </p>
                       </div>
 
-                      <p className="text-center mt-2 text-sm text-orange-600">
-                        <a
-                          href="https://maps.app.goo.gl/EX1wLpNtVPvtEjcx7"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline"
+                      {/* Nombre del cliente */}
+                      <label className="block text-sm font-medium text-zinc-700">
+                        Nombre del Cliente{" "}
+                        <span className="text-zinc-400">Requerido</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={cliente}
+                        onChange={(e) => setCliente(e.target.value)}
+                        className="w-full border border-zinc-300 rounded-lg p-2 mt-1 mb-3 text-sm text-zinc-700"
+                      />
+
+                      {/* Enviar a domicilio */}
+                      <div className="flex items-center justify-between mt-2 mb-3">
+                        <label className="text-sm font-medium text-zinc-700">
+                          ¿Enviar a domicilio?
+                        </label>
+                        <input
+                          type="checkbox"
+                          checked={enviarDomicilio}
+                          onChange={(e) => setEnviarDomicilio(e.target.checked)}
+                          className="w-5 h-5 accent-orange-500"
+                        />
+                      </div>
+
+                      {/* Si se activa el toggle */}
+                      {enviarDomicilio ? (
+                        <>
+                          {cuenta?.direccion ? (
+                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3">
+                              <p className="text-xs text-zinc-600 mb-1">
+                                Dirección guardada:
+                              </p>
+                              <p className="text-sm text-zinc-700">
+                                {cuenta.direccion}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                              <p className="text-xs text-red-600">
+                                ⚠️ No hay dirección guardada. Por favor agrega
+                                una dirección en tu perfil.
+                              </p>
+                            </div>
+                          )}
+
+                          <p className="text-orange-600 text-[13px] font-semibold mt-1">
+                            TIEMPO DE ENTREGA 1 A 3 DÍAS HÁBILES (EL PEDIDO
+                            PUEDE ENVIARSE EL MISMO DÍA)
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-zinc-700 text-[13px] mt-2">
+                          Nos pondremos en contacto cuando su pedido esté listo
+                          para recoger en tienda (el pedido puede estar listo
+                          ese mismo día)
+                        </p>
+                      )}
+
+                      {/* Botones */}
+                      <div className="flex justify-between mt-6">
+                        <button
+                          onClick={() => setMostrarModalPedido(false)}
+                          className="flex-1 border border-zinc-300 py-2 rounded-lg mr-2 font-semibold text-zinc-600"
                         >
-                          Abrir en Google Maps
-                        </a>
-                      </p>
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={enviarPedido}
+                          disabled={
+                            enviando ||
+                            !cliente ||
+                            (enviarDomicilio && !cuenta?.direccion)
+                          }
+                          className={`flex-1 py-2 rounded-lg font-semibold text-white transition ${
+                            !cliente || (enviarDomicilio && !cuenta?.direccion)
+                              ? "bg-orange-300"
+                              : "bg-orange-500 hover:bg-orange-600"
+                          }`}
+                        >
+                          {enviando ? (
+                            <div className="flex items-center justify-center gap-2">
+                              <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                              Enviando...
+                            </div>
+                          ) : (
+                            "Enviar"
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </main>
+                )}
 
-          {/* Barra de navegación */}
-          <nav
-            className="
-    fixed bottom-0 left-0 z-50
-    flex w-full items-center justify-around
-    border-t border-zinc-200 bg-white 
-    p-3 pb-12 pt-5  
-    text-zinc-700 shadow-md
-  "
-          >
-            <button
-              onClick={() => {
-                if (activeTab === "categorias") {
-                  // Si ya estamos en categorías, regresar nivel por nivel
-                  if (categoriaSeleccionada || marcaSeleccionada) {
-                    setCategoriaSeleccionada(null);
-                    setMarcaSeleccionada(null);
-                  } else if (macroCategoriaSeleccionada) {
-                    setMacroCategoriaSeleccionada(null);
+                {/* UBICACIÓN */}
+                {activeTab === "ubicacion" && (
+                  <motion.div
+                    key="ubicacion"
+                    initial={{ opacity: 0, x: -40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 40 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    <div className="flex flex-col items-center justify-start p-4 space-y-4">
+                      <div className="w-full max-w-md rounded-xl overflow-hidden shadow-md">
+                        <Image
+                          src="/ubicacion.jpg"
+                          alt="Bodega Ferretera de Monterrey"
+                          width={800}
+                          height={400}
+                          className="object-cover w-full h-60"
+                        />
+                      </div>
+
+                      {/* WhatsApp */}
+                      <div className="w-full max-w-md bg-white rounded-xl shadow p-4">
+                        <h3 className="text-lg font-bold text-zinc-800 mb-1">
+                          WhatsApp
+                        </h3>
+                        <button
+                          onClick={() =>
+                            window.open(
+                              "https://wa.me/5218682340531?text=Hola,%20quiero%20más%20información.",
+                              "_blank"
+                            )
+                          }
+                          className="text-green-600 font-semibold text-lg underline"
+                        >
+                          +5218682340531
+                        </button>
+                      </div>
+
+                      {/* Mapa */}
+                      <div className="w-full max-w-md bg-white rounded-xl shadow p-4">
+                        <h3 className="text-lg font-bold text-zinc-800 mb-2">
+                          Ubicación
+                        </h3>
+
+                        {/* Contenedor que desactiva clicks por defecto */}
+                        <div
+                          className="rounded-lg overflow-hidden h-64 relative group"
+                          onClick={(e) => {
+                            const iframe =
+                              e.currentTarget.querySelector("iframe");
+                            iframe?.classList.add("pointer-events-auto");
+                          }}
+                          onMouseLeave={(e) => {
+                            const iframe =
+                              e.currentTarget.querySelector("iframe");
+                            iframe?.classList.remove("pointer-events-auto");
+                          }}
+                        >
+                          <iframe
+                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3590.137662708991!2d-97.48887909999999!3d25.864946200000002!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x866f94db9af16fcf%3A0xcf4adf236af1625a!2sFerreter%C3%ADa%20Bodega%20Ferretera%20de%20Monterrey!5e0!3m2!1ses-419!2smx!4v1761939402856!5m2!1ses-419!2smx"
+                            width="100%"
+                            height="100%"
+                            allowFullScreen
+                            loading="lazy"
+                            className="border-0 pointer-events-none"
+                          ></iframe>
+                        </div>
+
+                        <p className="text-center mt-2 text-sm text-orange-600">
+                          <a
+                            href="https://maps.app.goo.gl/EX1wLpNtVPvtEjcx7"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline"
+                          >
+                            Abrir en Google Maps
+                          </a>
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </main>
+
+            {/* Barra de navegación */}
+         <nav className=" fixed bottom-0 left-0 z-50 flex w-full items-center justify-around border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md " >
+              <button
+                onClick={() => {
+                  if (activeTab === "categorias") {
+                    // Si ya estamos en categorías, regresar nivel por nivel
+                    if (categoriaSeleccionada || marcaSeleccionada) {
+                      setCategoriaSeleccionada(null);
+                      setMarcaSeleccionada(null);
+                    } else if (macroCategoriaSeleccionada) {
+                      setMacroCategoriaSeleccionada(null);
+                    } else {
+                      window.scrollTo({ top: 0, behavior: "instant" });
+                    }
                   } else {
-                    window.scrollTo({ top: 0, behavior: "instant" });
+                    setActiveTab("categorias");
                   }
-                } else {
-                  setActiveTab("categorias");
-                }
-              }}
-              className={`flex flex-col items-center text-xs ${
-                activeTab === "categorias"
-                  ? "text-orange-500"
-                  : "hover:text-orange-500"
-              }`}
-            >
-              <Hammer size={20} />
-              CATEGORÍAS
-            </button>
+                }}
+                className={`flex flex-col items-center text-xs ${
+                  activeTab === "categorias"
+                    ? "text-orange-500"
+                    : "hover:text-orange-500"
+                }`}
+              >
+                <Hammer size={20} />
+                CATEGORÍAS
+              </button>
 
-            <button
-              onClick={() => {
-                window.scrollTo({ top: 0, behavior: "instant" });
-                setActiveTab("buscar");
-              }}
-              className={`flex flex-col items-center text-xs ${
-                activeTab === "buscar"
-                  ? "text-orange-500"
-                  : "hover:text-orange-500"
-              }`}
-            >
-              <Search size={20} />
-              BUSCAR
-            </button>
-
-            <button
-              onClick={() => setActiveTab("carrito")}
-              className={`flex flex-col items-center text-xs ${
-                activeTab === "carrito"
-                  ? "text-orange-500"
-                  : "hover:text-orange-500"
-              }`}
-            >
-              <ShoppingCart size={20} />
-              CARRITO
-            </button>
-
-            <button
-              onClick={() => {
-                if (activeTab === "perfil") {
-                  // Si ya estamos en perfil y hay una vista activa, regresar al menú
-                  if (vistaPerfil !== "menu") {
-                    setVistaPerfil("menu");
-                  } else {
-                    window.scrollTo({ top: 0, behavior: "instant" });
-                  }
-                } else {
+              <button
+                onClick={() => {
                   window.scrollTo({ top: 0, behavior: "instant" });
-                  setActiveTab("perfil");
-                }
-              }}
-              className={`flex flex-col items-center text-xs ${
-                activeTab === "perfil"
-                  ? "text-orange-500"
-                  : "hover:text-orange-500"
-              }`}
-            >
-              <User size={20} />
-              PERFIL
-            </button>
+                  setActiveTab("buscar");
+                }}
+                className={`flex flex-col items-center text-xs ${
+                  activeTab === "buscar"
+                    ? "text-orange-500"
+                    : "hover:text-orange-500"
+                }`}
+              >
+                <Search size={20} />
+                BUSCAR
+              </button>
 
-            <button
-              onClick={() => {
-                window.scrollTo({ top: 0, behavior: "instant" });
-                setActiveTab("ubicacion");
-              }}
-              className={`flex flex-col items-center text-xs ${
-                activeTab === "ubicacion"
-                  ? "text-orange-500"
-                  : "hover:text-orange-500"
-              }`}
-            >
-              <MapPin size={20} />
-              UBICACIÓN
-            </button>
-          </nav>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </>
-);
+              <div className="w-16" />
+
+              <button
+  onClick={() => setActiveTab("carrito")}
+  className="
+    absolute
+    left-1/2 -translate-x-1/2
+    -top-8
+    flex flex-col items-center
+    text-xs
+    z-50
+  "
+>
+  <div
+  className={`
+    relative flex items-center justify-center
+    w-16 h-16 rounded-full
+    border-1 border-zinc-200
+    transition-all duration-300
+    ${
+      activeTab === "carrito"
+        ? "bg-orange-500 text-white shadow-2xl scale-110"
+        : "bg-white text-zinc-700 shadow-xl"
+    }
+  `}
+>
+    <ShoppingCart size={26} />
+
+    {/* Contador */}
+    {carrito.length > 0 && (
+      <span
+        className="
+          absolute -top-1 -right-1
+          min-w-[24px] h-6 px-1.5
+          rounded-full
+          flex items-center justify-center
+          text-xs font-bold
+          bg-orange-500 text-white
+          shadow-md
+        "
+      >
+        {carrito.length}
+      </span>
+    )}
+  </div>
+
+  <span
+    className={`mt-1 transition-colors ${
+      activeTab === "carrito"
+        ? "text-orange-500 font-semibold"
+        : "text-zinc-700"
+    }`}
+  >
+    CARRITO
+  </span>
+</button>
+
+              <button
+                onClick={() => {
+                  if (activeTab === "perfil") {
+                    // Si ya estamos en perfil y hay una vista activa, regresar al menú
+                    if (vistaPerfil !== "menu") {
+                      setVistaPerfil("menu");
+                    } else {
+                      window.scrollTo({ top: 0, behavior: "instant" });
+                    }
+                  } else {
+                    window.scrollTo({ top: 0, behavior: "instant" });
+                    setActiveTab("perfil");
+                  }
+                }}
+                className={`flex flex-col items-center text-xs ${
+                  activeTab === "perfil"
+                    ? "text-orange-500"
+                    : "hover:text-orange-500"
+                }`}
+              >
+                <User size={20} />
+                PERFIL
+              </button>
+
+              <button
+                onClick={() => {
+                  window.scrollTo({ top: 0, behavior: "instant" });
+                  setActiveTab("ubicacion");
+                }}
+                className={`flex flex-col items-center text-xs ${
+                  activeTab === "ubicacion"
+                    ? "text-orange-500"
+                    : "hover:text-orange-500"
+                }`}
+              >
+                <MapPin size={20} />
+                UBICACIÓN
+              </button>
+            </nav>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
 }
