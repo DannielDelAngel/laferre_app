@@ -35,6 +35,8 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { createPortal } from "react-dom";
 import InstallPWA from "@/app/InstallPWA";
+import ContadorEntrega from "@/app/ContadorEntrega";
+
 
 const SkeletonImage = ({ src, alt, className }: any) => {
   const [loaded, setLoaded] = useState(false);
@@ -61,10 +63,12 @@ interface Cuenta {
   numero_cuenta: string;
   cliente?: string;
   numero_tel?: string;
+  entrega_mismo_dia?: boolean;
   [key: string]: any;
 }
 
 export default function HomePage() {
+  
   const [cuentaActiva, setCuentaActiva] = useState<string | null>(null);
   const [numCuentaInput, setNumCuentaInput] = useState("");
   const [errorLogin, setErrorLogin] = useState("");
@@ -128,6 +132,7 @@ export default function HomePage() {
     "catalogo"
   );
   const [productosMostrados, setProductosMostrados] = useState(10);
+  
 
   const buscarStateRef = useRef<{
     categoria: any;
@@ -140,6 +145,7 @@ export default function HomePage() {
     searchTerm: "",
     productos: [],
   });
+
 
   useEffect(() => {
     if (activeTab !== "buscar") {
@@ -1781,6 +1787,7 @@ export default function HomePage() {
     const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
     const [errorEliminar, setErrorEliminar] = useState("");
     const [eliminando, setEliminando] = useState(false);
+    const [entregaMismoDia, setEntregaMismoDia] = useState(false);
 
     useEffect(() => {
       cargarCuentas();
@@ -1827,6 +1834,7 @@ export default function HomePage() {
             ferreteria: ferreteria.trim() || null,
             direccion: direccion.trim() || null,
             numero_tel: numeroTel.trim() || null,
+            entrega_mismo_dia: false,
           },
         ]);
 
@@ -1871,6 +1879,7 @@ export default function HomePage() {
             ferreteria: ferreteria.trim() || null,
             direccion: direccion.trim() || null,
             numero_tel: numeroTel.trim() || null,
+            entrega_mismo_dia: entregaMismoDia,
           })
           .eq("id", cuentaSeleccionada.id);
 
@@ -1937,6 +1946,7 @@ export default function HomePage() {
       setDireccion(cuentaItem.direccion || "");
       setNumeroTel(cuentaItem.numero_tel ? String(cuentaItem.numero_tel) : "");
       setModoVista("editar");
+      setEntregaMismoDia(cuentaItem.entrega_mismo_dia || false);
     };
 
     return (
@@ -2199,6 +2209,24 @@ export default function HomePage() {
                   placeholder="Número de teléfono"
                   className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
+              </div>
+
+              <div className="mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={entregaMismoDia}
+                    onChange={(e) => setEntregaMismoDia(e.target.checked)}
+                    className="w-5 h-5 accent-orange-500"
+                  />
+                  <span className="text-sm font-medium text-zinc-700">
+                    Entrega el mismo día (antes de 10 AM)
+                  </span>
+                </label>
+                <p className="text-xs text-zinc-500 mt-1 ml-7">
+                  Si está activo, el cliente verá un contador para pedidos antes
+                  de las 10 AM
+                </p>
               </div>
 
               {mensaje && (
@@ -3348,14 +3376,14 @@ export default function HomePage() {
           {/* Categoría */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-zinc-700 mb-2">
-              Categoría
+              Subcategoría
             </label>
             <select
               value={categoriaId}
               onChange={(e) => setCategoriaId(e.target.value)}
               className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
             >
-              <option value="">Seleccionar categoría</option>
+              <option value="">Seleccionar Subcategoría</option>
               {categoriasAdmin.map((cat) => (
                 <option key={cat.id_categoria} value={String(cat.id_categoria)}>
                   {cat.nombre_categoria}
@@ -6584,6 +6612,7 @@ export default function HomePage() {
                     )}
                   </motion.div>
                 )}
+                
 
                 {/* Buscar */}
                 {activeTab === "buscar" && (
@@ -6729,7 +6758,6 @@ export default function HomePage() {
                         </motion.div>
                       )}
 
-                      
                       {/* Resultados */}
                       <div className="mt-4 space-y-3">
                         {productos
@@ -6811,64 +6839,95 @@ export default function HomePage() {
                         </p>
                       ) : (
                         <>
+
+                        {/* Contador de entrega mismo día */}
+                            {cuenta?.entrega_mismo_dia && (
+                              <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <svg
+                                    className="w-5 h-5 text-blue-600"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                    />
+                                  </svg>
+                                  <span className="font-semibold text-blue-900">
+                                    Entrega el mismo día
+                                  </span>
+                                </div>
+                                
+                        <ContadorEntrega />
+                   
+                              </div>
+                            )}
+
                           {/* Productos */}
-<div className="space-y-3">
-  {carrito.map((item) => (
-    <div
-      key={item.id}
-      className="flex items-center gap-3 border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
-    >
-      {/* Imagen */}
-      <div
-        className="relative w-16 h-16 bg-zinc-100 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
-        onClick={() => setProductoSeleccionado(item)}
-      >
-        <Image
-          src={item.IMAGEN || "/placeholder.jpg"}
-          alt={item.TITULO}
-          fill
-          className="object-contain"
-        />
-      </div>
+                          <div className="space-y-3">
+                            {carrito.map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center gap-3 border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
+                              >
+                                {/* Imagen */}
+                                <div
+                                  className="relative w-16 h-16 bg-zinc-100 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
+                                  onClick={() => setProductoSeleccionado(item)}
+                                >
+                                  <Image
+                                    src={item.IMAGEN || "/placeholder.jpg"}
+                                    alt={item.TITULO}
+                                    fill
+                                    className="object-contain"
+                                  />
+                                </div>
 
-      {/* Información del producto */}
-      <div
-        className="flex-1 min-w-0 cursor-pointer"
-        onClick={() => setProductoSeleccionado(item)}
-      >
-        <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
-          {item.TITULO}
-        </p>
-        <p className="text-xs text-zinc-500 mt-1">
-          Código: {item.CODIGO}
-        </p>
-        <div className="flex items-center gap-2 mt-1">
-          <p className="text-xs text-zinc-600">
-            {item.cantidad} × ${item.P_MAYOREO.toFixed(2)}
-          </p>
-          <span className="text-xs text-zinc-400">|</span>
-          <p className="text-sm font-bold text-orange-500">
-            ${item.subtotal.toFixed(2)}
-          </p>
-        </div>
-      </div>
+                                {/* Información del producto */}
+                                <div
+                                  className="flex-1 min-w-0 cursor-pointer"
+                                  onClick={() => setProductoSeleccionado(item)}
+                                >
+                                  <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
+                                    {item.TITULO}
+                                  </p>
+                                  <p className="text-xs text-zinc-500 mt-1">
+                                    Código: {item.CODIGO}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <p className="text-xs text-zinc-600">
+                                      {item.cantidad} × $
+                                      {item.P_MAYOREO.toFixed(2)}
+                                    </p>
+                                    <span className="text-xs text-zinc-400">
+                                      |
+                                    </span>
+                                    <p className="text-sm font-bold text-orange-500">
+                                      ${item.subtotal.toFixed(2)}
+                                    </p>
+                                  </div>
+                                </div>
 
-      {/* Botón eliminar */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setCarrito((prev) =>
-            prev.filter((p) => p.id !== item.id)
-          );
-        }}
-        className="w-9 h-9 bg-orange-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
-        aria-label="Eliminar producto"
-      >
-        <X size={18} />
-      </button>
-    </div>
-  ))}
-</div>
+                                {/* Botón eliminar */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCarrito((prev) =>
+                                      prev.filter((p) => p.id !== item.id)
+                                    );
+                                  }}
+                                  className="w-9 h-9 bg-orange-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
+                                  aria-label="Eliminar producto"
+                                >
+                                  <X size={18} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
 
                           {/* Total */}
                           <div className="mt-6 border-t border-zinc-300 pt-4 text-center">
@@ -6963,6 +7022,7 @@ export default function HomePage() {
                                 .toFixed(2)}
                             </p>
 
+                            
                             <button
                               onClick={() => setMostrarModalPedido(true)}
                               disabled={
@@ -7135,7 +7195,7 @@ export default function HomePage() {
 
                           {esAdmin && (
                             <MenuItem
-                              label="Edicion de Categorias"
+                              label="Edicion de Categorías y Subcategorías"
                               icon={<FilePenLine size={20} />}
                               onClick={() => {
                                 window.scrollTo({
@@ -7625,7 +7685,7 @@ export default function HomePage() {
             </main>
 
             {/* Barra de navegación */}
-         <nav className=" fixed bottom-0 left-0 z-50 flex w-full items-center justify-around border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md " >
+            <nav className=" fixed bottom-0 left-0 z-50 flex w-full items-center justify-around border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md ">
               <button
                 onClick={() => {
                   if (activeTab === "categorias") {
@@ -7670,8 +7730,8 @@ export default function HomePage() {
               <div className="w-16" />
 
               <button
-  onClick={() => setActiveTab("carrito")}
-  className="
+                onClick={() => setActiveTab("carrito")}
+                className="
     absolute
     left-1/2 -translate-x-1/2
     -top-8
@@ -7679,9 +7739,9 @@ export default function HomePage() {
     text-xs
     z-50
   "
->
-  <div
-  className={`
+              >
+                <div
+                  className={`
     relative flex items-center justify-center
     w-16 h-16 rounded-full
     border-1 border-zinc-200
@@ -7692,37 +7752,41 @@ export default function HomePage() {
         : "bg-white text-zinc-700 shadow-xl"
     }
   `}
->
-    <ShoppingCart size={26} />
+                >
+                  <ShoppingCart size={26} />
 
-   {/* Contador de artículos */}
-{carrito.reduce((sum, item) => sum + item.cantidad, 0) > 0 && (
-  <span className={`
+                  {/* Contador de artículos */}
+                  {carrito.reduce((sum, item) => sum + item.cantidad, 0) >
+                    0 && (
+                    <span
+                      className={`
     absolute -top-1 -right-1
     min-w-[24px] h-6 px-1.5 rounded-full
     flex items-center justify-center
     text-xs font-bold
     transition-all duration-300
-    ${activeTab === "carrito"
-      ? "bg-white text-orange-500 shadow-md"
-      : "bg-orange-500 text-white shadow-md"
-    }
-  `}>
-    {carrito.reduce((sum, item) => sum + item.cantidad, 0)}
-  </span>
-)}
-  </div>
-
-  <span
-    className={`mt-1 transition-colors ${
+    ${
       activeTab === "carrito"
-        ? "text-orange-500 font-semibold"
-        : "text-zinc-700"
-    }`}
-  >
-    CARRITO
-  </span>
-</button>
+        ? "bg-white text-orange-500 shadow-md"
+        : "bg-orange-500 text-white shadow-md"
+    }
+  `}
+                    >
+                      {carrito.reduce((sum, item) => sum + item.cantidad, 0)}
+                    </span>
+                  )}
+                </div>
+
+                <span
+                  className={`mt-1 transition-colors ${
+                    activeTab === "carrito"
+                      ? "text-orange-500 font-semibold"
+                      : "text-zinc-700"
+                  }`}
+                >
+                  CARRITO
+                </span>
+              </button>
 
               <button
                 onClick={() => {
