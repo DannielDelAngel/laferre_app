@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff",
+  themeColor: "#f97316", 
 };
 
 export default function RootLayout({
@@ -38,7 +38,7 @@ export default function RootLayout({
         />
 
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#ff6900" />
+        <meta name="theme-color" content="#f97316" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta

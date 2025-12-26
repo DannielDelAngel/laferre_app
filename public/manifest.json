@@ -6,8 +6,8 @@
   "scope": "/",
   "display": "standalone",
   
+  "theme_color": "#f97316",
   "background_color": "#ffffff",
-  "theme_color": "#ffffff",
   "orientation": "portrait-primary",
 
   "id": "bodega-ferretera-monterrey",

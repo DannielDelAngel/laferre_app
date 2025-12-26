@@ -6729,6 +6729,7 @@ export default function HomePage() {
                         </motion.div>
                       )}
 
+                      
                       {/* Resultados */}
                       <div className="mt-4 space-y-3">
                         {productos
@@ -6811,111 +6812,63 @@ export default function HomePage() {
                       ) : (
                         <>
                           {/* Productos */}
-                          <div className="space-y-3">
-                            {carrito.map((item) => (
-                              <div
-                                key={item.id}
-                                className="flex items-center justify-between border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
-                              >
-                                <div
-                                  className="flex items-center gap-3 w-[70%] cursor-pointer"
-                                  onClick={() => setProductoSeleccionado(item)} // abre vista producto
-                                >
-                                  <div className="relative w-14 h-14 bg-zinc-100 rounded-md overflow-hidden">
-                                    <Image
-                                      src={item.IMAGEN || "/placeholder.jpg"}
-                                      alt={item.TITULO}
-                                      fill
-                                      className="object-contain"
-                                    />
-                                  </div>
+<div className="space-y-3">
+  {carrito.map((item) => (
+    <div
+      key={item.id}
+      className="flex items-center gap-3 border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
+    >
+      {/* Imagen */}
+      <div
+        className="relative w-16 h-16 bg-zinc-100 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
+        onClick={() => setProductoSeleccionado(item)}
+      >
+        <Image
+          src={item.IMAGEN || "/placeholder.jpg"}
+          alt={item.TITULO}
+          fill
+          className="object-contain"
+        />
+      </div>
 
-                                  <div className="flex flex-col truncate">
-                                    <span className="text-[16px] font-semibold text-zinc-800 leading-snug truncate">
-                                      {item.TITULO}
-                                    </span>
-                                    <span className="text-[14px] text-zinc-500 mt-1">
-                                      {item.CODIGO}
-                                    </span>
-                                    <span className="text-[14px] text-zinc-500 mt-1">
-                                      {item.cantidad} × $
-                                      {item.P_MAYOREO.toFixed(2)}
-                                    </span>
-                                  </div>
-                                </div>
+      {/* Información del producto */}
+      <div
+        className="flex-1 min-w-0 cursor-pointer"
+        onClick={() => setProductoSeleccionado(item)}
+      >
+        <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
+          {item.TITULO}
+        </p>
+        <p className="text-xs text-zinc-500 mt-1">
+          Código: {item.CODIGO}
+        </p>
+        <div className="flex items-center gap-2 mt-1">
+          <p className="text-xs text-zinc-600">
+            {item.cantidad} × ${item.P_MAYOREO.toFixed(2)}
+          </p>
+          <span className="text-xs text-zinc-400">|</span>
+          <p className="text-sm font-bold text-orange-500">
+            ${item.subtotal.toFixed(2)}
+          </p>
+        </div>
+      </div>
 
-                                {/* Botones cantidad */}
-                                <div className="flex items-center gap-2">
-                                  {/*
-                            <button
-                              onClick={() =>
-                                setCarrito((prev) =>
-                                  prev
-                                    .map((p) =>
-                                      p.id === item.id
-                                        ? {
-                                            ...p,
-                                            cantidad: p.cantidad - 1,
-                                            subtotal:
-                                              (p.cantidad - 1) * p.P_MAYOREO,
-                                          }
-                                        : p
-                                    )
-                                    .filter((p) => p.cantidad > 0)
-                                )
-                              }
-                              className="w-8 h-8 border text-black border-zinc-400 rounded-md text-lg flex items-center justify-center"
-                            >
-                              −
-                            </button>
-                            <span className="text-[14px] text-black font-semibold w-6 text-center">
-                              {item.cantidad}
-                            </span>
-                            <button
-                              onClick={() =>
-                                setCarrito((prev) =>
-                                  prev.map((p) =>
-                                    p.id === item.id
-                                      ? {
-                                          ...p,
-                                          cantidad: p.cantidad + 1,
-                                          subtotal:
-                                            (p.cantidad + 1) * p.P_MAYOREO,
-                                        }
-                                      : p
-                                  )
-                                )
-                              }
-                              className="w-8 h-8 bg-orange-500 text-white rounded-md text-lg flex items-center justify-center"
-                            >
-                              +
-                            </button>
- */}
-
-                                  <button
-                                    onClick={() =>
-                                      setCarrito((prev) =>
-                                        prev
-                                          .map((p) =>
-                                            p.id === item.id
-                                              ? {
-                                                  ...p,
-                                                  cantidad: 0,
-                                                  subtotal: 0,
-                                                }
-                                              : p
-                                          )
-                                          .filter((p) => p.cantidad > 0)
-                                      )
-                                    }
-                                    className="w-8 h-8 bg-orange-500 text-white rounded-md text-lg flex items-center justify-center"
-                                  >
-                                    x
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+      {/* Botón eliminar */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setCarrito((prev) =>
+            prev.filter((p) => p.id !== item.id)
+          );
+        }}
+        className="w-9 h-9 bg-orange-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
+        aria-label="Eliminar producto"
+      >
+        <X size={18} />
+      </button>
+    </div>
+  ))}
+</div>
 
                           {/* Total */}
                           <div className="mt-6 border-t border-zinc-300 pt-4 text-center">
@@ -7742,22 +7695,22 @@ export default function HomePage() {
 >
     <ShoppingCart size={26} />
 
-    {/* Contador */}
-    {carrito.length > 0 && (
-      <span
-        className="
-          absolute -top-1 -right-1
-          min-w-[24px] h-6 px-1.5
-          rounded-full
-          flex items-center justify-center
-          text-xs font-bold
-          bg-orange-500 text-white
-          shadow-md
-        "
-      >
-        {carrito.length}
-      </span>
-    )}
+   {/* Contador de artículos */}
+{carrito.reduce((sum, item) => sum + item.cantidad, 0) > 0 && (
+  <span className={`
+    absolute -top-1 -right-1
+    min-w-[24px] h-6 px-1.5 rounded-full
+    flex items-center justify-center
+    text-xs font-bold
+    transition-all duration-300
+    ${activeTab === "carrito"
+      ? "bg-white text-orange-500 shadow-md"
+      : "bg-orange-500 text-white shadow-md"
+    }
+  `}>
+    {carrito.reduce((sum, item) => sum + item.cantidad, 0)}
+  </span>
+)}
   </div>
 
   <span
