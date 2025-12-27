@@ -15,7 +15,7 @@ import {
   MapPinHouse,
   FileQuestionMark,
   LogOut,
-  Settings,
+  UserCog,
   EyeOff,
   Eye,
   DatabaseBackup,
@@ -36,7 +36,6 @@ import "jspdf-autotable";
 import { createPortal } from "react-dom";
 import InstallPWA from "@/app/InstallPWA";
 import ContadorEntrega from "@/app/ContadorEntrega";
-
 
 const SkeletonImage = ({ src, alt, className }: any) => {
   const [loaded, setLoaded] = useState(false);
@@ -68,7 +67,6 @@ interface Cuenta {
 }
 
 export default function HomePage() {
-  
   const [cuentaActiva, setCuentaActiva] = useState<string | null>(null);
   const [numCuentaInput, setNumCuentaInput] = useState("");
   const [errorLogin, setErrorLogin] = useState("");
@@ -80,17 +78,13 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState("categorias");
   const [searchTerm, setSearchTerm] = useState("");
   const [categorias, setCategorias] = useState<any[]>([]);
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<
-    any | null
-  >(null);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<any | null>(null);
   const [articulos, setArticulos] = useState<any[]>([]);
   const [scrollPos, setScrollPos] = useState(0);
   const scrollRef = useRef(null);
   const [productos, setProductos] = useState<any[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [productoSeleccionado, setProductoSeleccionado] = useState<any | null>(
-    null
-  );
+  const [productoSeleccionado, setProductoSeleccionado] = useState<any | null>(null);
   const [carrito, setCarrito] = useState<any[]>([]);
   const [mostrarModalPedido, setMostrarModalPedido] = useState(false);
   const [enviarDomicilio, setEnviarDomicilio] = useState(false);
@@ -99,40 +93,29 @@ export default function HomePage() {
   const [direccion, setDireccion] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [mensajeExito, setMensajeExito] = useState("");
-
   const [numeroCuenta, setNumeroCuenta] = useState("");
   const [errorCuenta, setErrorCuenta] = useState(""); //error si no existe
-
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState(null);
   const [itemsPedido, setItemsPedido] = useState([]);
   const [cargandoItems, setCargandoItems] = useState(false);
   const [actualizacionReciente, setActualizacionReciente] = useState(false);
-
   const esAdmin = cuenta?.numero_cuenta === "Admin01";
   const [mostrar, setMostrar] = useState(false);
-
   const [subTab, setSubTab] = useState("categorias"); // categorias | marcas
   const [marcas, setMarcas] = useState<any[]>([]);
   const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
-
   const [mostrarModalCategoria, setMostrarModalCategoria] = useState(false);
   const [mostrarModalMarca, setMostrarModalMarca] = useState(false);
-  const [modoEdicionCatMarca, setModoEdicionCatMarca] = useState<
-    "agregar" | "eliminar"
-  >("agregar");
+  const [modoEdicionCatMarca, setModoEdicionCatMarca] = useState<"agregar" | "eliminar">("agregar");
   const [itemSeleccionado, setItemSeleccionado] = useState<any>(null);
-
   const [macroCategorias, setMacroCategorias] = useState<any[]>([]);
-  const [macroCategoriaSeleccionada, setMacroCategoriaSeleccionada] = useState<
-    any | null
-  >(null);
-  const [origenProducto, setOrigenProducto] = useState<"catalogo" | "carrito">(
-    "catalogo"
-  );
+  const [macroCategoriaSeleccionada, setMacroCategoriaSeleccionada] = useState< any | null>(null);
+  const [origenProducto, setOrigenProducto] = useState<"catalogo" | "carrito">("catalogo");
   const [productosMostrados, setProductosMostrados] = useState(10);
-  
+  const [mostrarModalSaldoPendiente, setMostrarModalSaldoPendiente] =useState(false);
+  const [documentosPendientesModal, setDocumentosPendientesModal] = useState<any[]>([]);
 
   const buscarStateRef = useRef<{
     categoria: any;
@@ -145,7 +128,6 @@ export default function HomePage() {
     searchTerm: "",
     productos: [],
   });
-
 
   useEffect(() => {
     if (activeTab !== "buscar") {
@@ -1788,6 +1770,64 @@ export default function HomePage() {
     const [errorEliminar, setErrorEliminar] = useState("");
     const [eliminando, setEliminando] = useState(false);
     const [entregaMismoDia, setEntregaMismoDia] = useState(false);
+    const [horarios, setHorarios] = useState<any[]>([
+      {
+        dia: 0,
+        nombre: "Domingo",
+        hora_inicio: "",
+        hora_fin: "",
+        cerrado: true,
+      },
+      {
+        dia: 1,
+        nombre: "Lunes",
+        hora_inicio: "",
+        hora_fin: "",
+        cerrado: false,
+      },
+      {
+        dia: 2,
+        nombre: "Martes",
+        hora_inicio: "",
+        hora_fin: "",
+        cerrado: false,
+      },
+      {
+        dia: 3,
+        nombre: "Miércoles",
+        hora_inicio: "",
+        hora_fin: "",
+        cerrado: false,
+      },
+      {
+        dia: 4,
+        nombre: "Jueves",
+        hora_inicio: "",
+        hora_fin: "",
+        cerrado: false,
+      },
+      {
+        dia: 5,
+        nombre: "Viernes",
+        hora_inicio: "",
+        hora_fin: "",
+        cerrado: false,
+      },
+      {
+        dia: 6,
+        nombre: "Sábado",
+        hora_inicio: "",
+        hora_fin: "",
+        cerrado: false,
+      },
+    ]);
+    const [tieneSaldoPendiente, setTieneSaldoPendiente] = useState(false);
+    const [documentosPendientes, setDocumentosPendientes] = useState<any[]>([]);
+    const [nuevoDocumento, setNuevoDocumento] = useState({
+      tipo: "nota",
+      numero: "",
+      monto: "",
+    });
 
     useEffect(() => {
       cargarCuentas();
@@ -1814,6 +1854,60 @@ export default function HomePage() {
       setNumeroTel("");
       setMensaje("");
       setCuentaSeleccionada(null);
+      setTieneSaldoPendiente(false);
+      setDocumentosPendientes([]);
+      setNuevoDocumento({ tipo: "nota", numero: "", monto: "" });
+      setHorarios([
+        {
+          dia: 0,
+          nombre: "Domingo",
+          hora_inicio: "",
+          hora_fin: "",
+          cerrado: true,
+        },
+        {
+          dia: 1,
+          nombre: "Lunes",
+          hora_inicio: "",
+          hora_fin: "",
+          cerrado: false,
+        },
+        {
+          dia: 2,
+          nombre: "Martes",
+          hora_inicio: "",
+          hora_fin: "",
+          cerrado: false,
+        },
+        {
+          dia: 3,
+          nombre: "Miércoles",
+          hora_inicio: "",
+          hora_fin: "",
+          cerrado: false,
+        },
+        {
+          dia: 4,
+          nombre: "Jueves",
+          hora_inicio: "",
+          hora_fin: "",
+          cerrado: false,
+        },
+        {
+          dia: 5,
+          nombre: "Viernes",
+          hora_inicio: "",
+          hora_fin: "",
+          cerrado: false,
+        },
+        {
+          dia: 6,
+          nombre: "Sábado",
+          hora_inicio: "",
+          hora_fin: "",
+          cerrado: false,
+        },
+      ]);
     };
 
     const agregarCuenta = async () => {
@@ -1871,6 +1965,7 @@ export default function HomePage() {
       setMensaje("");
 
       try {
+        // Actualizar información de la cuenta
         const { error } = await supabase
           .from("cuentas")
           .update({
@@ -1880,6 +1975,7 @@ export default function HomePage() {
             direccion: direccion.trim() || null,
             numero_tel: numeroTel.trim() || null,
             entrega_mismo_dia: entregaMismoDia,
+            tiene_saldo_pendiente: tieneSaldoPendiente,
           })
           .eq("id", cuentaSeleccionada.id);
 
@@ -1889,15 +1985,96 @@ export default function HomePage() {
           } else {
             setMensaje("Error al actualizar la cuenta");
           }
-        } else {
-          setMensaje("Cuenta actualizada correctamente");
-          await cargarCuentas();
-          setTimeout(() => {
-            limpiarFormulario();
-            setModoVista("lista");
-          }, 1500);
+          setGuardando(false);
+          return;
         }
+
+        // Actualizar horarios (código existente)
+        const { error: deleteError } = await supabase
+          .from("horarios_recepcion")
+          .delete()
+          .eq("cuenta_id", cuentaSeleccionada.id);
+
+        if (deleteError) {
+          console.error("Error eliminando horarios:", deleteError);
+        }
+
+        const horariosParaInsertar = horarios
+          .filter((h) => !h.cerrado && h.hora_inicio && h.hora_fin)
+          .map((h) => ({
+            cuenta_id: cuentaSeleccionada.id,
+            dia_semana: h.dia,
+            hora_inicio: h.hora_inicio,
+            hora_fin: h.hora_fin,
+            cerrado: false,
+          }));
+
+        if (horariosParaInsertar.length > 0) {
+          const { error: insertError } = await supabase
+            .from("horarios_recepcion")
+            .insert(horariosParaInsertar);
+
+          if (insertError) {
+            console.error("Error insertando horarios:", insertError);
+          }
+        }
+
+        const diasCerrados = horarios
+          .filter((h) => h.cerrado)
+          .map((h) => ({
+            cuenta_id: cuentaSeleccionada.id,
+            dia_semana: h.dia,
+            hora_inicio: null,
+            hora_fin: null,
+            cerrado: true,
+          }));
+
+        if (diasCerrados.length > 0) {
+          await supabase.from("horarios_recepcion").insert(diasCerrados);
+        }
+
+        // Gestionar documentos pendientes
+        if (tieneSaldoPendiente) {
+          // Eliminar documentos anteriores
+          await supabase
+            .from("documentos_pendientes")
+            .delete()
+            .eq("cuenta_id", cuentaSeleccionada.id);
+
+          // Insertar nuevos documentos
+          if (documentosPendientes.length > 0) {
+            const docsParaInsertar = documentosPendientes.map((doc) => ({
+              cuenta_id: cuentaSeleccionada.id,
+              tipo_documento: doc.tipo_documento,
+              numero_documento: doc.numero_documento,
+              monto: parseFloat(doc.monto),
+              pagado: false,
+            }));
+
+            const { error: docsError } = await supabase
+              .from("documentos_pendientes")
+              .insert(docsParaInsertar);
+
+            if (docsError) {
+              console.error("Error insertando documentos:", docsError);
+            }
+          }
+        } else {
+          // Si ya no tiene saldo pendiente, eliminar todos los documentos
+          await supabase
+            .from("documentos_pendientes")
+            .delete()
+            .eq("cuenta_id", cuentaSeleccionada.id);
+        }
+
+        setMensaje("Cuenta actualizada correctamente");
+        await cargarCuentas();
+        setTimeout(() => {
+          limpiarFormulario();
+          setModoVista("lista");
+        }, 1500);
       } catch (err) {
+        console.error("Error en editarCuenta:", err);
         setMensaje("Ocurrió un error inesperado");
       } finally {
         setGuardando(false);
@@ -1938,15 +2115,159 @@ export default function HomePage() {
       }
     };
 
-    const abrirEdicion = (cuentaItem: any) => {
+    const abrirEdicion = async (cuentaItem: any) => {
       setCuentaSeleccionada(cuentaItem);
       setNumeroCuenta(cuentaItem.numero_cuenta);
       setCliente(cuentaItem.cliente || "");
       setFerreteria(cuentaItem.ferreteria || "");
       setDireccion(cuentaItem.direccion || "");
       setNumeroTel(cuentaItem.numero_tel ? String(cuentaItem.numero_tel) : "");
-      setModoVista("editar");
       setEntregaMismoDia(cuentaItem.entrega_mismo_dia || false);
+      setModoVista("editar");
+      setTieneSaldoPendiente(cuentaItem.tiene_saldo_pendiente || false);
+
+      // Cargar horarios de la base de datos
+      try {
+        const { data: horariosData, error } = await supabase
+          .from("horarios_recepcion")
+          .select("*")
+          .eq("cuenta_id", cuentaItem.id)
+          .order("dia_semana", { ascending: true });
+
+        if (error) {
+          console.error("Error cargando horarios:", error);
+        }
+
+        if (horariosData && horariosData.length > 0) {
+          const horariosMap = new Map(
+            horariosData.map((h: any) => [h.dia_semana, h])
+          );
+          setHorarios([
+            {
+              dia: 0,
+              nombre: "Domingo",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: true,
+              ...horariosMap.get(0),
+            },
+            {
+              dia: 1,
+              nombre: "Lunes",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: false,
+              ...horariosMap.get(1),
+            },
+            {
+              dia: 2,
+              nombre: "Martes",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: false,
+              ...horariosMap.get(2),
+            },
+            {
+              dia: 3,
+              nombre: "Miércoles",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: false,
+              ...horariosMap.get(3),
+            },
+            {
+              dia: 4,
+              nombre: "Jueves",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: false,
+              ...horariosMap.get(4),
+            },
+            {
+              dia: 5,
+              nombre: "Viernes",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: false,
+              ...horariosMap.get(5),
+            },
+            {
+              dia: 6,
+              nombre: "Sábado",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: false,
+              ...horariosMap.get(6),
+            },
+          ]);
+        } else {
+          // Si no hay horarios, usar valores por defecto
+          setHorarios([
+            {
+              dia: 0,
+              nombre: "Domingo",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: true,
+            },
+            {
+              dia: 1,
+              nombre: "Lunes",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: false,
+            },
+            {
+              dia: 2,
+              nombre: "Martes",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: false,
+            },
+            {
+              dia: 3,
+              nombre: "Miércoles",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: false,
+            },
+            {
+              dia: 4,
+              nombre: "Jueves",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: false,
+            },
+            {
+              dia: 5,
+              nombre: "Viernes",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: false,
+            },
+            {
+              dia: 6,
+              nombre: "Sábado",
+              hora_inicio: "",
+              hora_fin: "",
+              cerrado: false,
+            },
+          ]);
+        }
+
+        const { data: docsData, error: docsError } = await supabase
+          .from("documentos_pendientes")
+          .select("*")
+          .eq("cuenta_id", cuentaItem.id)
+          .eq("pagado", false)
+          .order("created_at", { ascending: false });
+
+        if (!docsError && docsData) {
+          setDocumentosPendientes(docsData);
+        }
+      } catch (error) {
+        console.error("Error en abrirEdicion:", error);
+      }
     };
 
     return (
@@ -2198,6 +2519,96 @@ export default function HomePage() {
                 />
               </div>
 
+              {/* Sección de Horarios de Recepción - Solo si entrega_mismo_dia está activo */}
+
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-zinc-700 mb-3">
+                  Horarios de Recepción de Pedidos
+                </label>
+                <p className="text-xs text-zinc-500 mb-3">
+                  Define los horarios en los que esta cuenta puede recibir
+                  pedidos\
+                </p>
+
+                <div className="space-y-2">
+                  {horarios.map((horario, index) => (
+                    <div
+                      key={horario.dia}
+                      className="bg-white border border-zinc-200 rounded-lg p-3"
+                    >
+                      {/* Encabezado del día */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-zinc-800 text-sm">
+                          {horario.nombre}
+                        </span>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <span className="text-xs text-zinc-500">Cerrado</span>
+                          <input
+                            type="checkbox"
+                            checked={horario.cerrado}
+                            onChange={(e) => {
+                              const nuevosHorarios = [...horarios];
+                              nuevosHorarios[index].cerrado = e.target.checked;
+                              if (e.target.checked) {
+                                nuevosHorarios[index].hora_inicio = "";
+                                nuevosHorarios[index].hora_fin = "";
+                              }
+                              setHorarios(nuevosHorarios);
+                            }}
+                            className="w-4 h-4 accent-orange-500"
+                          />
+                        </label>
+                      </div>
+
+                      {/* Inputs de horarios */}
+                      {!horario.cerrado && (
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <label className="block text-xs text-zinc-500 mb-1">
+                              Apertura
+                            </label>
+                            <input
+                              type="time"
+                              value={horario.hora_inicio}
+                              onChange={(e) => {
+                                const nuevosHorarios = [...horarios];
+                                nuevosHorarios[index].hora_inicio =
+                                  e.target.value;
+                                setHorarios(nuevosHorarios);
+                              }}
+                              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            />
+                          </div>
+                          <span className="text-zinc-400 mt-5">-</span>
+                          <div className="flex-1">
+                            <label className="block text-xs text-zinc-500 mb-1">
+                              Cierre
+                            </label>
+                            <input
+                              type="time"
+                              value={horario.hora_fin}
+                              onChange={(e) => {
+                                const nuevosHorarios = [...horarios];
+                                nuevosHorarios[index].hora_fin = e.target.value;
+                                setHorarios(nuevosHorarios);
+                              }}
+                              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Mensaje de cerrado */}
+                      {horario.cerrado && (
+                        <p className="text-xs text-zinc-400 italic">
+                          No se reciben pedidos este día
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-zinc-700 mb-2">
                   Teléfono
@@ -2228,6 +2639,226 @@ export default function HomePage() {
                   de las 10 AM
                 </p>
               </div>
+              {/* Toggle de Saldo Pendiente */}
+              <div className="mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={tieneSaldoPendiente}
+                    onChange={(e) => setTieneSaldoPendiente(e.target.checked)}
+                    className="w-5 h-5 accent-orange-500"
+                  />
+                  <span className="text-sm font-medium text-zinc-700">
+                    Tiene saldo pendiente de pago
+                  </span>
+                </label>
+                <p className="text-xs text-zinc-500 mt-1 ml-7">
+                  Al activar, la cuenta no podrá realizar pedidos hasta liquidar
+                </p>
+              </div>
+
+              {/* Gestión de Documentos Pendientes */}
+              {tieneSaldoPendiente && (
+                <div className="mb-4 border-2 border-red-200 rounded-xl p-4 bg-red-50">
+                  <h4 className="text-sm font-bold text-red-800 mb-3">
+                    Documentos Pendientes de Pago
+                  </h4>
+
+                  {/* Lista de documentos existentes */}
+                  {documentosPendientes.length > 0 && (
+                    <div className="space-y-2 mb-4">
+                      {documentosPendientes.map((doc, index) => (
+                        <div
+                          key={doc.id || index}
+                          className="flex items-center justify-between bg-white rounded-lg p-3 border border-red-300"
+                        >
+                          <div className="flex-1">
+                            <span className="inline-block px-2 py-1 rounded text-xs font-semibold mr-2 bg-red-100 text-red-800">
+                              {doc.tipo_documento.toUpperCase()}
+                            </span>
+                            <span className="text-sm font-medium text-zinc-800">
+                              #{doc.numero_documento}
+                            </span>
+                            <p className="text-xs text-zinc-600 mt-1">
+                              Monto: ${parseFloat(doc.monto).toFixed(2)}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setDocumentosPendientes((prev) =>
+                                prev.filter((d) => d.id !== doc.id)
+                              );
+                            }}
+                            className="text-red-600 hover:text-red-800 transition"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Total */}
+                      <div className="bg-red-100 rounded-lg p-3 border-2 border-red-400">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-bold text-red-900">
+                            Total Adeudo:
+                          </span>
+                          <span className="text-lg font-bold text-red-900">
+                            $
+                            {documentosPendientes
+                              .reduce(
+                                (sum, doc) => sum + parseFloat(doc.monto),
+                                0
+                              )
+                              .toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Formulario para agregar nuevo documento */}
+                  <div className="bg-white rounded-lg p-3 border border-red-300">
+                    <p className="text-xs font-semibold text-zinc-700 mb-2">
+                      Agregar documento pendiente
+                    </p>
+
+                    <div className="space-y-2">
+                      {/* Tipo de documento */}
+                      <div>
+                        <label className="block text-xs text-zinc-600 mb-1">
+                          Tipo de documento
+                        </label>
+                        <select
+                          value={nuevoDocumento.tipo}
+                          onChange={(e) =>
+                            setNuevoDocumento((prev) => ({
+                              ...prev,
+                              tipo: e.target.value,
+                            }))
+                          }
+                          className="w-full border border-zinc-300 rounded-lg px-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        >
+                          <option value="nota">Nota</option>
+                          <option value="factura">Factura</option>
+                        </select>
+                      </div>
+
+                      {/* Número de documento */}
+                      <div>
+                        <label className="block text-xs text-zinc-600 mb-1">
+                          Número de documento
+                        </label>
+                        <input
+                          type="text"
+                          value={nuevoDocumento.numero}
+                          onChange={(e) =>
+                            setNuevoDocumento((prev) => ({
+                              ...prev,
+                              numero: e.target.value,
+                            }))
+                          }
+                          placeholder="Ej: 12345"
+                          className="w-full border border-zinc-300 rounded-lg px-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        />
+                      </div>
+
+                      {/* Monto */}
+                      <div>
+                        <label className="block text-xs text-zinc-600 mb-1">
+                          Monto
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-2 top-2 text-zinc-500 text-sm">
+                            $
+                          </span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={nuevoDocumento.monto}
+                            onChange={(e) =>
+                              setNuevoDocumento((prev) => ({
+                                ...prev,
+                                monto: e.target.value,
+                              }))
+                            }
+                            placeholder="0.00"
+                            className="w-full border border-zinc-300 rounded-lg pl-6 pr-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Botón agregar */}
+                      <button
+                        onClick={() => {
+                          if (!nuevoDocumento.numero || !nuevoDocumento.monto) {
+                            alert("Por favor completa todos los campos");
+                            return;
+                          }
+
+                          setDocumentosPendientes((prev) => [
+                            ...prev,
+                            {
+                              id: Date.now(), // ID temporal
+                              tipo_documento: nuevoDocumento.tipo,
+                              numero_documento: nuevoDocumento.numero,
+                              monto: nuevoDocumento.monto,
+                              pagado: false,
+                            },
+                          ]);
+
+                          // Limpiar formulario
+                          setNuevoDocumento({
+                            tipo: "nota",
+                            numero: "",
+                            monto: "",
+                          });
+                        }}
+                        className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                          className="w-4 h-4"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 4.5v15m7.5-7.5h-15"
+                          />
+                        </svg>
+                        Agregar Documento
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Advertencia */}
+                  <div className="mt-3 bg-yellow-50 border border-yellow-300 rounded-lg p-3">
+                    <div className="flex gap-2">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                        stroke="currentColor"
+                        className="w-5 h-5 text-yellow-600 flex-shrink-0"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                        />
+                      </svg>
+                      <p className="text-xs text-yellow-800">
+                        Esta cuenta no podrá realizar pedidos hasta que se
+                        liquiden todos los documentos pendientes
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {mensaje && (
                 <div
@@ -3467,6 +4098,23 @@ export default function HomePage() {
         return;
       }
 
+      // saldo pendiente
+      if (cuenta.tiene_saldo_pendiente) {
+        const { data: docsPendientes, error: docsError } = await supabase
+          .from("documentos_pendientes")
+          .select("*")
+          .eq("cuenta_id", cuenta.id)
+          .eq("pagado", false);
+
+        if (!docsError && docsPendientes && docsPendientes.length > 0) {
+          setDocumentosPendientesModal(docsPendientes);
+          setMostrarModalSaldoPendiente(true);
+          setMostrarModalPedido(false);
+          setEnviando(false);
+          return;
+        }
+      }
+
       // Calcular el total
       const total = carrito.reduce(
         (sum, p) =>
@@ -3981,19 +4629,20 @@ export default function HomePage() {
           .from("pedidos")
           .select(
             `
-          id, 
-          total, 
-          created_at,
-          cuenta_id,
-          pdf_url,
-          estado,
-          cuentas (
-            numero_cuenta,
-            cliente,
-            ferreteria,
-            numero_tel
-          )
-        `
+    id, 
+    total, 
+    created_at,
+    cuenta_id,
+    pdf_url,
+    estado,
+    cuentas (
+      numero_cuenta,
+      cliente,
+      ferreteria,
+      numero_tel,
+      entrega_mismo_dia
+    )
+  `
           )
           .order("created_at", { ascending: false });
 
@@ -4028,19 +4677,20 @@ export default function HomePage() {
                 .from("pedidos")
                 .select(
                   `
-                id, 
-                total, 
-                created_at,
-                cuenta_id,
-                pdf_url,
-                estado,
-                cuentas (
-                  numero_cuenta,
-                  cliente,
-                  ferreteria,
-                  numero_tel
-                )
-              `
+    id, 
+    total, 
+    created_at,
+    cuenta_id,
+    pdf_url,
+    estado,
+    cuentas (
+      numero_cuenta,
+      cliente,
+      ferreteria,
+      numero_tel,
+      entrega_mismo_dia
+    )
+  `
                 )
                 .eq("id", payload.new.id)
                 .single();
@@ -4065,19 +4715,20 @@ export default function HomePage() {
                 .from("pedidos")
                 .select(
                   `
-                id, 
-                total, 
-                created_at,
-                cuenta_id,
-                pdf_url,
-                estado,
-                cuentas (
-                  numero_cuenta,
-                  cliente,
-                  ferreteria,
-                  numero_tel
-                )
-              `
+    id, 
+    total, 
+    created_at,
+    cuenta_id,
+    pdf_url,
+    estado,
+    cuentas (
+      numero_cuenta,
+      cliente,
+      ferreteria,
+      numero_tel,
+      entrega_mismo_dia
+    )
+  `
                 )
                 .eq("id", payload.new.id)
                 .single();
@@ -4169,6 +4820,79 @@ export default function HomePage() {
           {!esAdmin && (
             <div className="mb-4">
               <BadgeEstado estado={pedidoSeleccionado.estado} />
+            </div>
+          )}
+
+          {/* Información de tiempo de entrega */}
+          {esAdmin && (
+            <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <svg
+                  className="w-5 h-5 text-zinc-600"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <span className="font-semibold text-zinc-800">
+                  Tipo de entrega
+                </span>
+              </div>
+
+              {(() => {
+                const fechaPedido = new Date(pedidoSeleccionado.created_at);
+                const horaPedido = fechaPedido.getHours();
+
+                // Obtener info de la cuenta del pedido (viene en pedidoSeleccionado.cuentas)
+                const tieneEntregaMismoDia =
+                  pedidoSeleccionado.cuentas?.entrega_mismo_dia || false;
+
+                if (tieneEntregaMismoDia) {
+                  if (horaPedido < 10) {
+                    return (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <p className="text-sm text-green-800">
+                          <span className="font-bold">
+                            Entrega el mismo día
+                          </span>
+                          <br />
+                          <span className="text-xs">
+                            Pedido realizado antes de las 10 AM
+                          </span>
+                        </p>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="text-sm text-blue-800">
+                          <span className="font-bold">1 a 3 días hábiles</span>
+                          <br />
+                          <span className="text-xs">
+                            Pedido realizado después de las 10 AM
+                          </span>
+                        </p>
+                      </div>
+                    );
+                  }
+                } else {
+                  return (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                      <p className="text-sm text-orange-800">
+                        <span className="font-bold">1 a 3 días hábiles</span>
+                        <br />
+                        <span className="text-xs">Entrega estándar</span>
+                      </p>
+                    </div>
+                  );
+                }
+              })()}
             </div>
           )}
 
@@ -4452,123 +5176,89 @@ export default function HomePage() {
     }
   };
 
-  // formulario de direccion de envio
+  const HorariosDisplay = ({ cuentaId }: { cuentaId: number }) => {
+    const [horarios, setHorarios] = useState<any[]>([]);
+    const [cargando, setCargando] = useState(true);
 
-  const AddressForm = ({ cuenta, setCuenta }: any) => {
-    const [direccion, setDireccion] = useState(cuenta?.direccion || "");
-    const [guardando, setGuardando] = useState(false);
-    const [mensaje, setMensaje] = useState("");
+    const diasSemana = [
+      { dia: 0, nombre: "Domingo" },
+      { dia: 1, nombre: "Lunes" },
+      { dia: 2, nombre: "Martes" },
+      { dia: 3, nombre: "Miércoles" },
+      { dia: 4, nombre: "Jueves" },
+      { dia: 5, nombre: "Viernes" },
+      { dia: 6, nombre: "Sábado" },
+    ];
 
-    const guardarDireccion = async () => {
-      setGuardando(true);
-      setMensaje("");
+    useEffect(() => {
+      const cargarHorarios = async () => {
+        if (!cuentaId) return;
 
-      const { data, error } = await supabase
-        .from("cuentas")
-        .update({
-          direccion,
-        })
-        .eq("numero_cuenta", cuenta.numero_cuenta)
-        .select()
-        .single();
+        setCargando(true);
+        const { data, error } = await supabase
+          .from("horarios_recepcion")
+          .select("*")
+          .eq("cuenta_id", cuentaId)
+          .order("dia_semana", { ascending: true });
 
-      if (error) {
-        setMensaje("Error al guardar dirección");
-      } else {
-        setMensaje("Dirección actualizada");
-        setCuenta(data);
-      }
+        if (!error && data) {
+          setHorarios(data);
+        }
+        setCargando(false);
+      };
 
-      setGuardando(false);
-    };
+      cargarHorarios();
+    }, [cuentaId]);
+
+    if (cargando) {
+      return (
+        <div className="flex justify-center py-4">
+          <div className="animate-spin h-6 w-6 border-2 border-zinc-300 border-t-orange-500 rounded-full"></div>
+        </div>
+      );
+    }
+
+    if (horarios.length === 0) {
+      return (
+        <p className="text-xs text-zinc-500 italic">
+          No hay horarios de recepción configurados
+        </p>
+      );
+    }
 
     return (
-      <motion.div
-        key={vistaPerfil}
-        className="min-h-screen"
-        initial={{ opacity: 0, x: 40 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -40 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
-        drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
-        onDragEnd={(event, info) => {
-          if (info.offset.x > 100) {
-            setVistaPerfil("menu");
-          }
-        }}
-      >
-        <div className="space-y-4 mt-3">
-          <label className="font-medium text-zinc-700">Dirección</label>
-          <textarea
-            className="w-full border text-zinc-500 border-zinc-300 rounded-xl px-4 py-2 mt-1"
-            rows={3}
-            value={direccion}
-            onChange={(e) => setDireccion(e.target.value)}
-          />
+      <div className="space-y-2">
+        {diasSemana.map((dia) => {
+          const horario = horarios.find((h) => h.dia_semana === dia.dia);
 
-          <button
-            onClick={guardarDireccion}
-            disabled={guardando}
-            className="w-full mt-3 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition"
-          >
-            {guardando ? "Guardando..." : "Guardar dirección"}
-          </button>
-
-          {mensaje && (
-            <p className="text-center text-sm mt-2 text-zinc-700">{mensaje}</p>
-          )}
-        </div>
-      </motion.div>
+          return (
+            <div
+              key={dia.dia}
+              className="flex items-center justify-between py-2 border-b border-zinc-200 last:border-b-0"
+            >
+              <span className="text-sm font-medium text-zinc-700">
+                {dia.nombre}
+              </span>
+              {horario && !horario.cerrado ? (
+                <span className="text-xs text-zinc-600">
+                  {horario.hora_inicio} - {horario.hora_fin}
+                </span>
+              ) : (
+                <span className="text-xs text-zinc-400 italic">Cerrado</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     );
   };
 
-  // formulario de configuracion de cuenta
+  // visualizacion personal de la cuenta
 
   const ConfigForm = ({ cuenta, setCuenta }: any) => {
-    const [cliente, setCliente] = useState(cuenta?.cliente || "");
-    const [ferreteria, setFerreteria] = useState(cuenta?.ferreteria || "");
-    const [numero_tel, setTelefono] = useState(cuenta?.numero_tel || "");
-    const [guardando, setGuardando] = useState(false);
-    const [mensaje, setMensaje] = useState("");
-
-    const guardarCambios = async () => {
-      setGuardando(true);
-      setMensaje("");
-
-      if (!cuenta?.numero_cuenta) {
-        setMensaje("Error: número de cuenta no cargado.");
-        setGuardando(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("cuentas")
-        .update({
-          cliente,
-          ferreteria,
-          numero_tel,
-        })
-        .eq("numero_cuenta", cuenta.numero_cuenta)
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Supabase error:", error.message);
-        setMensaje("Error al guardar");
-        setGuardando(false);
-      } else {
-        setMensaje("Cambios guardados");
-        setCuenta(data); // Actualiza el estado global
-        localStorage.setItem("cuenta_user", JSON.stringify(data));
-      }
-
-      setGuardando(false);
-    };
-
     return (
       <motion.div
-        key={vistaPerfil}
+        key="settings"
         className="min-h-screen"
         initial={{ opacity: 0, x: 40 }}
         animate={{ opacity: 1, x: 0 }}
@@ -4582,55 +5272,76 @@ export default function HomePage() {
           }
         }}
       >
-        <div className="space-y-4 mt-3">
-          <div>
-            <label className="font-medium text-zinc-700">
+        <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+        <div className="space-y-4">
+          <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
+            <label className="block text-xs font-semibold text-zinc-500 mb-1">
               Nombre del cliente
             </label>
-            <input
-              className="w-full border text-zinc-500 border-zinc-300 rounded-xl px-4 py-2 mt-1"
-              value={cliente}
-              onChange={(e) => setCliente(e.target.value)}
-            />
+            <p className="text-sm text-zinc-700">
+              {cuenta?.cliente || "No especificado"}
+            </p>
           </div>
 
-          <div>
-            <label className="font-medium text-zinc-700">
+          <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
+            <label className="block text-xs font-semibold text-zinc-500 mb-1">
               Nombre de ferretería
             </label>
-            <input
-              className="w-full border text-zinc-500 border-zinc-300 rounded-xl px-4 py-2 mt-1"
-              value={ferreteria}
-              onChange={(e) => setFerreteria(e.target.value)}
-            />
+            <p className="text-sm text-zinc-700">
+              {cuenta?.ferreteria || "No especificado"}
+            </p>
           </div>
 
-          <div>
-            <label className="font-medium text-zinc-700">Teléfono</label>
-            <input
-              className="w-full border text-zinc-500 border-zinc-300 rounded-xl px-4 py-2 mt-1"
-              value={numero_tel}
-              onChange={(e) => setTelefono(e.target.value)}
-            />
+          <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
+            <label className="block text-xs font-semibold text-zinc-500 mb-2">
+              Dirección
+            </label>
+            <p className="text-sm text-zinc-700 whitespace-pre-wrap">
+              {cuenta?.direccion || "No hay dirección registrada"}
+            </p>
           </div>
 
-          <button
-            onClick={guardarCambios}
-            disabled={guardando}
-            className="w-full mt-3 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition"
-          >
-            {guardando ? "Guardando..." : "Guardar cambios"}
-          </button>
+          <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
+            <label className="block text-xs font-semibold text-zinc-500 mb-1">
+              Teléfono
+            </label>
+            <p className="text-sm text-zinc-700">
+              {cuenta?.numero_tel || "No especificado"}
+            </p>
+          </div>
 
-          {mensaje && (
-            <p className="text-center text-sm mt-2 text-zinc-700">{mensaje}</p>
-          )}
+          {/* Horarios de recepción */}
+
+          <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
+            <label className="block text-xs font-semibold text-zinc-500 mb-3">
+              Horarios de Recepción
+            </label>
+            <HorariosDisplay cuentaId={cuenta?.id} />
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+            <svg
+              className="w-12 h-12 mx-auto text-blue-500 mb-2"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <p className="text-sm text-blue-800">
+              Esta información solo puede ser modificada por el administrador
+            </p>
+          </div>
         </div>
       </motion.div>
     );
   };
-
-  // Vista de detalle de producto
 
   const VistaProducto = ({ producto, onBack }: any) => {
     // Determinar si viene del carrito
@@ -6612,7 +7323,6 @@ export default function HomePage() {
                     )}
                   </motion.div>
                 )}
-                
 
                 {/* Buscar */}
                 {activeTab === "buscar" && (
@@ -6839,33 +7549,10 @@ export default function HomePage() {
                         </p>
                       ) : (
                         <>
-
-                        {/* Contador de entrega mismo día */}
-                            {cuenta?.entrega_mismo_dia && (
-                              <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <svg
-                                    className="w-5 h-5 text-blue-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth={2}
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                                    />
-                                  </svg>
-                                  <span className="font-semibold text-blue-900">
-                                    Entrega el mismo día
-                                  </span>
-                                </div>
-                                
-                        <ContadorEntrega />
-                   
-                              </div>
-                            )}
+                          {/* Contador de entrega mismo día */}
+                          <ContadorEntrega
+                            entregaMismoDia={cuenta?.entrega_mismo_dia}
+                          />
 
                           {/* Productos */}
                           <div className="space-y-3">
@@ -7022,7 +7709,6 @@ export default function HomePage() {
                                 .toFixed(2)}
                             </p>
 
-                            
                             <button
                               onClick={() => setMostrarModalPedido(true)}
                               disabled={
@@ -7195,7 +7881,7 @@ export default function HomePage() {
 
                           {esAdmin && (
                             <MenuItem
-                              label="Edicion de Categorías y Subcategorías"
+                              label="Edición de Categorías y Subcategorías"
                               icon={<FilePenLine size={20} />}
                               onClick={() => {
                                 window.scrollTo({
@@ -7249,7 +7935,7 @@ export default function HomePage() {
                             />
                           )}
 
-                          {/* Dirección */}
+                          {/* Dirección 
                           <MenuItem
                             label="Shipping Address"
                             icon={<MapPinHouse size={20} />}
@@ -7257,12 +7943,12 @@ export default function HomePage() {
                               window.scrollTo({ top: 0, behavior: "instant" });
                               setVistaPerfil("address");
                             }}
-                          />
+                          />*/}
 
-                          {/* Configuración */}
+                          {/* personal info  */}
                           <MenuItem
-                            label="Configuración"
-                            icon={<Settings size={20} />}
+                            label="Informacion Personal"
+                            icon={<UserCog size={20} />}
                             onClick={() => {
                               window.scrollTo({ top: 0, behavior: "instant" });
                               setVistaPerfil("settings");
@@ -7405,28 +8091,10 @@ export default function HomePage() {
                         <BackBtn onBack={() => setVistaPerfil("menu")} />
 
                         <h2 className="text-xl font-bold text-zinc-900 mb-4">
-                          Configuración
+                          Informacion Personal
                         </h2>
 
                         <ConfigForm cuenta={cuenta} setCuenta={setCuenta} />
-                      </motion.div>
-                    )}
-
-                    {/* DIRECCIÓN */}
-                    {vistaPerfil === "address" && (
-                      <motion.div
-                        key="address"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <BackBtn onBack={() => setVistaPerfil("menu")} />
-
-                        <h2 className="text-xl font-bold text-zinc-900 mb-4">
-                          Dirección
-                        </h2>
-
-                        <AddressForm cuenta={cuenta} setCuenta={setCuenta} />
                       </motion.div>
                     )}
                   </motion.div>
@@ -7474,6 +8142,102 @@ export default function HomePage() {
         }
       `}
                     </style>
+                  </div>
+                )}
+
+                {/* Modal de Saldo Pendiente */}
+                {mostrarModalSaldoPendiente && (
+                  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="bg-white rounded-2xl w-[90%] max-w-md p-6 shadow-2xl"
+                    >
+                      {/* Icono de advertencia */}
+                      <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                          className="w-8 h-8 text-red-600"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                          />
+                        </svg>
+                      </div>
+
+                      <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
+                        Saldo Pendiente
+                      </h3>
+
+                      <p className="text-sm text-zinc-600 text-center mb-4">
+                        Favor de realizar pago para poder enviar pedido.
+                      </p>
+
+                      {/* Lista de documentos */}
+                      <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-4 max-h-60 overflow-y-auto">
+                        <div className="space-y-2">
+                          {documentosPendientesModal.map((doc, index) => (
+                            <div
+                              key={doc.id || index}
+                              className="flex items-center justify-between bg-white rounded-lg p-3 border border-red-300"
+                            >
+                              <div>
+                                <span className="inline-block px-2 py-1 rounded text-xs font-semibold mr-2 bg-red-100 text-red-800">
+                                  {doc.tipo_documento.toUpperCase()}
+                                </span>
+                                <span className="text-sm font-medium text-zinc-800">
+                                  #{doc.numero_documento}
+                                </span>
+                              </div>
+                              <span className="text-sm font-bold text-red-600">
+                                ${parseFloat(doc.monto).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Total */}
+                        <div className="mt-3 pt-3 border-t-2 border-red-400">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-bold text-red-900">
+                              Total Adeudo:
+                            </span>
+                            <span className="text-lg font-bold text-red-900">
+                              $
+                              {documentosPendientesModal
+                                .reduce(
+                                  (sum, doc) => sum + parseFloat(doc.monto),
+                                  0
+                                )
+                                .toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      {/*
+                      <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3 mb-4">
+                        <p className="text-xs text-yellow-800 text-center">
+                          Por favor realiza el pago de estos documentos para
+                          poder enviar tu pedido
+                        </p>
+                      </div>*/}
+
+                      <button
+                        onClick={() => {
+                          setMostrarModalSaldoPendiente(false);
+                          setDocumentosPendientesModal([]);
+                        }}
+                        className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition"
+                      >
+                        Entendido
+                      </button>
+                    </motion.div>
                   </div>
                 )}
 
