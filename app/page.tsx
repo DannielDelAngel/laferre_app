@@ -36,6 +36,7 @@ import "jspdf-autotable";
 import { createPortal } from "react-dom";
 import InstallPWA from "@/app/InstallPWA";
 import ContadorEntrega from "@/app/ContadorEntrega";
+import { div } from "framer-motion/client";
 
 const SkeletonImage = ({ src, alt, className }: any) => {
   const [loaded, setLoaded] = useState(false);
@@ -78,13 +79,17 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState("categorias");
   const [searchTerm, setSearchTerm] = useState("");
   const [categorias, setCategorias] = useState<any[]>([]);
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<any | null>(null);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<
+    any | null
+  >(null);
   const [articulos, setArticulos] = useState<any[]>([]);
   const [scrollPos, setScrollPos] = useState(0);
   const scrollRef = useRef(null);
   const [productos, setProductos] = useState<any[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [productoSeleccionado, setProductoSeleccionado] = useState<any | null>(null);
+  const [productoSeleccionado, setProductoSeleccionado] = useState<any | null>(
+    null
+  );
   const [carrito, setCarrito] = useState<any[]>([]);
   const [mostrarModalPedido, setMostrarModalPedido] = useState(false);
   const [enviarDomicilio, setEnviarDomicilio] = useState(false);
@@ -108,14 +113,25 @@ export default function HomePage() {
   const [marcaSeleccionada, setMarcaSeleccionada] = useState<any | null>(null);
   const [mostrarModalCategoria, setMostrarModalCategoria] = useState(false);
   const [mostrarModalMarca, setMostrarModalMarca] = useState(false);
-  const [modoEdicionCatMarca, setModoEdicionCatMarca] = useState<"agregar" | "eliminar">("agregar");
+  const [modoEdicionCatMarca, setModoEdicionCatMarca] = useState<
+    "agregar" | "eliminar"
+  >("agregar");
   const [itemSeleccionado, setItemSeleccionado] = useState<any>(null);
   const [macroCategorias, setMacroCategorias] = useState<any[]>([]);
-  const [macroCategoriaSeleccionada, setMacroCategoriaSeleccionada] = useState< any | null>(null);
-  const [origenProducto, setOrigenProducto] = useState<"catalogo" | "carrito">("catalogo");
+  const [macroCategoriaSeleccionada, setMacroCategoriaSeleccionada] = useState<
+    any | null
+  >(null);
+  const [origenProducto, setOrigenProducto] = useState<"catalogo" | "carrito">(
+    "catalogo"
+  );
   const [productosMostrados, setProductosMostrados] = useState(10);
-  const [mostrarModalSaldoPendiente, setMostrarModalSaldoPendiente] =useState(false);
-  const [documentosPendientesModal, setDocumentosPendientesModal] = useState<any[]>([]);
+  const [mostrarModalSaldoPendiente, setMostrarModalSaldoPendiente] =
+    useState(false);
+  const [documentosPendientesModal, setDocumentosPendientesModal] = useState<
+    any[]
+  >([]);
+  const [pedidoCompleto, setPedidoCompleto] = useState(false);
+  const [ocultarBarra, setOcultarBarra] = useState(false);
 
   const buscarStateRef = useRef<{
     categoria: any;
@@ -128,6 +144,23 @@ export default function HomePage() {
     searchTerm: "",
     productos: [],
   });
+
+  useEffect(() => {
+    const totalCarrito = carrito.reduce((sum, p) => sum + p.subtotal, 0);
+
+    if (totalCarrito >= 1000 && !pedidoCompleto) {
+      setPedidoCompleto(true);
+
+      // Esperar 10 segundos y ocultar la barra con animación
+      setTimeout(() => {
+        setOcultarBarra(true);
+      }, 5000);
+    } else if (totalCarrito < 1000) {
+      // Resetear estados cuando baja del mínimo
+      setPedidoCompleto(false);
+      setOcultarBarra(false);
+    }
+  }, [carrito, pedidoCompleto]);
 
   useEffect(() => {
     if (activeTab !== "buscar") {
@@ -2393,7 +2426,7 @@ export default function HomePage() {
                   type="text"
                   value={ferreteria}
                   onChange={(e) => setFerreteria(e.target.value)}
-                  placeholder="Nombre de la ferretería"
+                  placeholder="Nombre del negocio"
                   className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
@@ -2501,7 +2534,7 @@ export default function HomePage() {
                   type="text"
                   value={ferreteria}
                   onChange={(e) => setFerreteria(e.target.value)}
-                  placeholder="Nombre de la ferretería"
+                  placeholder="Nombre del negocio"
                   className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
@@ -6334,8 +6367,8 @@ export default function HomePage() {
             transition={{ duration: 0.5, ease: "easeInOut" }}
             className="flex min-h-screen flex-col  bg-white font-sans"
           >
-            <header className="p-6 pt-3 text-center bg-orange-500 sticky top-0 z-50 border-zinc-200">
-              <AnimatePresence>
+            <header className="p-6 pt-6 bg-orange-500 sticky top-0 z-50 border-zinc-200">
+              {/* <AnimatePresence>
                 <motion.div
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -6343,7 +6376,7 @@ export default function HomePage() {
                   transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                   className="flex items-center justify-center gap-3 mb-4"
                 >
-                  {/*
+                  
                   <div className="relative w-30 h-20">
                     <Image
                       src="/logo-bfm.jpg"
@@ -6355,8 +6388,22 @@ export default function HomePage() {
                   <h1 className="text-2xl font-bold text-zinc-900">
                     BODEGA FERRETERA DE MONTERREY
                   </h1>
-                  */}
+                  
                 </motion.div>
+              </AnimatePresence>*/}
+
+              <AnimatePresence>
+                {activeTab === "carrito" && cuenta?.entrega_mismo_dia && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    className="absolute top-3 px-3 left-0 right-0 z-10"
+                  >
+                    <ContadorEntrega entregaMismoDia />
+                  </motion.div>
+                )}
               </AnimatePresence>
 
               <div className="max-w-2xl mx-auto">
@@ -7476,7 +7523,14 @@ export default function HomePage() {
                           .map((prod) => (
                             <div
                               key={prod.id}
-                              onClick={() => setProductoSeleccionado(prod)}
+                              onClick={() => {
+                                const scrollY = window.scrollY;
+                                localStorage.setItem(
+                                  "scrollProducto",
+                                  scrollY.toString()
+                                );
+                                setProductoSeleccionado(prod);
+                              }}
                               className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 cursor-pointer"
                             >
                               <div className="flex items-center gap-3">
@@ -7542,18 +7596,13 @@ export default function HomePage() {
                     exit={{ opacity: 0, x: 40 }}
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                   >
-                    <div className="mt-4 px-3 pb-24">
+                    <div className="mt-4 px-3 pb-40">
                       {carrito.length === 0 ? (
                         <p className="text-center text-zinc-500 mt-16">
                           Tu carrito está vacío
                         </p>
                       ) : (
                         <>
-                          {/* Contador de entrega mismo día */}
-                          <ContadorEntrega
-                            entregaMismoDia={cuenta?.entrega_mismo_dia}
-                          />
-
                           {/* Productos */}
                           <div className="space-y-3">
                             {carrito.map((item) => (
@@ -7617,136 +7666,116 @@ export default function HomePage() {
                           </div>
 
                           {/* Total */}
-                          <div className="mt-6 border-t border-zinc-300 pt-4 text-center">
-                            {/* Barra de progreso para pedido mínimo */}
-                            {(() => {
-                              const totalCarrito = carrito.reduce(
-                                (sum, p) => sum + p.subtotal,
-                                0
-                              );
-                              const minimoRequerido = 1000;
-                              const progreso = Math.min(
-                                (totalCarrito / minimoRequerido) * 100,
-                                100
-                              );
-                              const faltante = Math.max(
-                                minimoRequerido - totalCarrito,
-                                0
-                              );
 
-                              return (
-                                <div className="mb-4 bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
-                                  <div className="flex justify-between items-center mb-2">
-                                    <span className="text-sm font-semibold text-zinc-700">
-                                      Pedido mínimo: $1,000.00
-                                    </span>
-                                    <span
-                                      className={`text-sm font-bold ${
+                          {/* Barra de progreso*/}
+                          <AnimatePresence>
+                            {!ocultarBarra &&
+                              (() => {
+                                const totalCarrito = carrito.reduce(
+                                  (sum, p) => sum + p.subtotal,
+                                  0
+                                );
+                                const minimoRequerido = 1000;
+                                const progreso = Math.min(
+                                  (totalCarrito / minimoRequerido) * 100,
+                                  100
+                                );
+                                const faltante = Math.max(
+                                  minimoRequerido - totalCarrito,
+                                  0
+                                );
+
+                                return (
+                                  <motion.div
+                                    key="barra-progreso"
+                                    initial={{ opacity: 0, x: -100 }}
+                                    animate={{
+                                      opacity: 1,
+                                      x: 0,
+                                      scale:
                                         totalCarrito >= minimoRequerido
-                                          ? "text-green-600"
-                                          : "text-orange-600"
-                                      }`}
-                                    >
-                                      ${totalCarrito.toFixed(2)}
-                                    </span>
-                                  </div>
-
-                                  {/* Barra de progreso */}
-                                  <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
-                                    <motion.div
-                                      initial={{ width: 0 }}
-                                      animate={{ width: `${progreso}%` }}
-                                      transition={{
-                                        duration: 0.5,
-                                        ease: "easeOut",
-                                      }}
-                                      className={`h-full rounded-full transition-colors ${
-                                        progreso === 100
-                                          ? "bg-gradient-to-r from-green-500 to-green-600"
-                                          : "bg-gradient-to-r from-orange-500 to-orange-600"
-                                      }`}
-                                    />
-                                  </div>
-
-                                  {/* Mensaje de estado */}
-                                  {totalCarrito >= minimoRequerido ? (
-                                    <div className="mt-2 flex items-center gap-2 text-green-600">
-                                      <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        strokeWidth={2}
-                                        stroke="currentColor"
-                                        className="w-5 h-5"
+                                          ? [1, 1.02, 1]
+                                          : 1,
+                                    }}
+                                    exit={{ opacity: 0, x: 100 }}
+                                    transition={{
+                                      x: { duration: 0.4, ease: "easeInOut" },
+                                      opacity: { duration: 0.3 },
+                                      scale: {
+                                        duration: 0.6,
+                                        repeat:
+                                          totalCarrito >= minimoRequerido
+                                            ? Infinity
+                                            : 0,
+                                        repeatDelay: 0.3,
+                                      },
+                                    }}
+                                    className="mb-4 mt-4 bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"
+                                  >
+                                    <div className="flex justify-between items-center mb-2">
+                                      <span className="text-sm font-semibold text-zinc-700">
+                                        Pedido mínimo: $1,000.00
+                                      </span>
+                                      <span
+                                        className={`text-sm font-bold ${
+                                          totalCarrito >= minimoRequerido
+                                            ? "text-green-600"
+                                            : "text-orange-600"
+                                        }`}
                                       >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                        />
-                                      </svg>
-                                      <span className="text-sm font-semibold">
-                                        ¡Ya puedes enviar tu pedido!
+                                        ${totalCarrito.toFixed(2)}
                                       </span>
                                     </div>
-                                  ) : (
-                                    <p className="mt-2 text-xs text-zinc-600">
-                                      Te faltan{" "}
-                                      <span className="font-bold text-orange-600">
-                                        ${faltante.toFixed(2)}
-                                      </span>{" "}
-                                      para realizar el pedido
-                                    </p>
-                                  )}
-                                </div>
-                              );
-                            })()}
 
-                            <p className="text-[16px] font-bold text-zinc-900">
-                              Total: $
-                              {carrito
-                                .reduce((sum, p) => sum + p.subtotal, 0)
-                                .toFixed(2)}
-                            </p>
+                                    <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
+                                      <motion.div
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${progreso}%` }}
+                                        transition={{
+                                          duration: 0.5,
+                                          ease: "easeOut",
+                                        }}
+                                        className={`h-full rounded-full transition-colors ${
+                                          progreso === 100
+                                            ? "bg-gradient-to-r from-green-500 to-green-600"
+                                            : "bg-gradient-to-r from-orange-500 to-orange-600"
+                                        }`}
+                                      />
+                                    </div>
 
-                            <button
-                              onClick={() => setMostrarModalPedido(true)}
-                              disabled={
-                                carrito.reduce(
-                                  (sum, p) => sum + p.subtotal,
-                                  0
-                                ) < 1000
-                              }
-                              className={`w-full mt-3 py-3 rounded-xl font-semibold text-[16px] shadow transition ${
-                                carrito.reduce(
-                                  (sum, p) => sum + p.subtotal,
-                                  0
-                                ) >= 1000
-                                  ? "bg-orange-500 text-white hover:bg-orange-600"
-                                  : "bg-zinc-300 text-zinc-500 cursor-not-allowed"
-                              }`}
-                            >
-                              {carrito.reduce(
-                                (sum, p) => sum + p.subtotal,
-                                0
-                              ) >= 1000
-                                ? "Confirmar pedido"
-                                : "Confirmar pedido"}
-                            </button>
-                          </div>
-                          {/* 
-
-                       seccion de costos desactivada por peticion del cliente
-
-                        <p className="text-orange-600 font-semibold text-sm mt-3">
-                          {" "}
-                          COSTO DE USO DE APLICACIÓN = $50.00 POR ENVÍO{" "}
-                        </p>
-                        <p className="text-zinc-500 text-sm">
-                          {" "}
-                          Costo cubierto por Bodega Ferretera de Monterrey{" "}
-                        </p>
-                        */}
+                                    {totalCarrito >= minimoRequerido ? (
+                                      <div className="mt-2 flex items-center gap-2 text-green-600">
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          strokeWidth={2}
+                                          stroke="currentColor"
+                                          className="w-5 h-5"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                          />
+                                        </svg>
+                                        <span className="text-sm font-semibold">
+                                          ¡Ya puedes enviar tu pedido!
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <p className="mt-2 text-xs text-zinc-600">
+                                        Te faltan{" "}
+                                        <span className="font-bold text-orange-600">
+                                          ${faltante.toFixed(2)}
+                                        </span>{" "}
+                                        para realizar el pedido
+                                      </p>
+                                    )}
+                                  </motion.div>
+                                );
+                              })()}
+                          </AnimatePresence>
                         </>
                       )}
                     </div>
@@ -8264,22 +8293,16 @@ export default function HomePage() {
                           {cuenta?.ferreteria || "Sin ferretería registrada"}
                         </p>
                         <p className="text-xs text-zinc-500 mb-1">Cuenta</p>
-                        <p className="text-sm font-semibold text-zinc-700">
+                        <p className="text-sm font-semibold text-zinc-700 mb-2">
                           {cuenta?.numero_cuenta}
                         </p>
+                        <p className="text-xs text-zinc-500 mb-1">
+                          Nombre del Cliente
+                        </p>
+                        <p className="text-sm font-semibold text-zinc-700">
+                          {cuenta?.cliente}
+                        </p>
                       </div>
-
-                      {/* Nombre del cliente */}
-                      <label className="block text-sm font-medium text-zinc-700">
-                        Nombre del Cliente{" "}
-                        <span className="text-zinc-400">Requerido</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={cliente}
-                        onChange={(e) => setCliente(e.target.value)}
-                        className="w-full border border-zinc-300 rounded-lg p-2 mt-1 mb-3 text-sm text-zinc-700"
-                      />
 
                       {/* Enviar a domicilio */}
                       <div className="flex items-center justify-between mt-2 mb-3">
@@ -8448,149 +8471,162 @@ export default function HomePage() {
               </AnimatePresence>
             </main>
 
-            {/* Barra de navegación */}
-            <nav className=" fixed bottom-0 left-0 z-50 flex w-full items-center justify-around border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md ">
-              <button
-                onClick={() => {
-                  if (activeTab === "categorias") {
-                    // Si ya estamos en categorías, regresar nivel por nivel
-                    if (categoriaSeleccionada || marcaSeleccionada) {
-                      setCategoriaSeleccionada(null);
-                      setMarcaSeleccionada(null);
-                    } else if (macroCategoriaSeleccionada) {
-                      setMacroCategoriaSeleccionada(null);
-                    } else {
-                      window.scrollTo({ top: 0, behavior: "instant" });
-                    }
-                  } else {
-                    setActiveTab("categorias");
-                  }
-                }}
-                className={`flex flex-col items-center text-xs ${
-                  activeTab === "categorias"
-                    ? "text-orange-500"
-                    : "hover:text-orange-500"
-                }`}
-              >
-                <Hammer size={20} />
-                CATEGORÍAS
-              </button>
-
-              <button
-                onClick={() => {
-                  window.scrollTo({ top: 0, behavior: "instant" });
-                  setActiveTab("buscar");
-                }}
-                className={`flex flex-col items-center text-xs ${
-                  activeTab === "buscar"
-                    ? "text-orange-500"
-                    : "hover:text-orange-500"
-                }`}
-              >
-                <Search size={20} />
-                BUSCAR
-              </button>
-
-              <div className="w-16" />
-
-              <button
-                onClick={() => setActiveTab("carrito")}
-                className="
-    absolute
-    left-1/2 -translate-x-1/2
-    -top-8
-    flex flex-col items-center
-    text-xs
-    z-50
-  "
-              >
-                <div
-                  className={`
-    relative flex items-center justify-center
-    w-16 h-16 rounded-full
-    border-1 border-zinc-200
-    transition-all duration-300
-    ${
-      activeTab === "carrito"
-        ? "bg-orange-500 text-white shadow-2xl scale-110"
-        : "bg-white text-zinc-700 shadow-xl"
-    }
-  `}
+            {/* BOTÓN DE CONFIRMAR PEDIDO */}
+            <AnimatePresence>
+              {activeTab === "carrito" && carrito.length > 0 && (
+                <motion.div
+                  initial={{ y: 100, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 100, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  className="fixed bottom-[90px] left-0 right-0 px-4 z-40"
                 >
-                  <ShoppingCart size={26} />
-
-                  {/* Contador de artículos */}
-                  {carrito.reduce((sum, item) => sum + item.cantidad, 0) >
-                    0 && (
-                    <span
-                      className={`
-    absolute -top-1 -right-1
-    min-w-[24px] h-6 px-1.5 rounded-full
-    flex items-center justify-center
-    text-xs font-bold
-    transition-all duration-300
-    ${
-      activeTab === "carrito"
-        ? "bg-white text-orange-500 shadow-md"
-        : "bg-orange-500 text-white shadow-md"
-    }
-  `}
-                    >
-                      {carrito.reduce((sum, item) => sum + item.cantidad, 0)}
+                  <button
+                    onClick={() => setMostrarModalPedido(true)}
+                    disabled={
+                      carrito.reduce((sum, p) => sum + p.subtotal, 0) < 1000
+                    }
+                    className={`w-full py-4 mb-5 rounded-xl font-semibold text-[16px] shadow-2xl transition flex items-center justify-between px-6 ${
+                      carrito.reduce((sum, p) => sum + p.subtotal, 0) >= 1000
+                        ? "bg-orange-500 text-white hover:bg-orange-600"
+                        : "bg-zinc-300 text-zinc-500 cursor-not-allowed"
+                    }`}
+                  >
+                    <span>Confirmar pedido</span>
+                    <span className="text-lg font-bold">
+                      Total: $
+                      {carrito
+                        .reduce((sum, p) => sum + p.subtotal, 0)
+                        .toFixed(2)}
                     </span>
-                  )}
-                </div>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-                <span
-                  className={`mt-1 transition-colors ${
-                    activeTab === "carrito"
-                      ? "text-orange-500 font-semibold"
-                      : "text-zinc-700"
-                  }`}
-                >
-                  CARRITO
-                </span>
-              </button>
+            {/* Barra de navegación*/}
+<nav className="fixed bottom-0 left-0 z-50 grid w-full grid-cols-5 items-center border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md">
+  
+  {/* 1. BOTÓN CATEGORÍAS */}
+  <button
+    onClick={() => {
+      if (activeTab === "categorias") {
+        if (categoriaSeleccionada || marcaSeleccionada) {
+          setCategoriaSeleccionada(null);
+          setMarcaSeleccionada(null);
+        } else if (macroCategoriaSeleccionada) {
+          setMacroCategoriaSeleccionada(null);
+        } else {
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }
+      } else {
+        setActiveTab("categorias");
+      }
+    }}
+    className={`flex flex-col items-center text-[10px] sm:text-xs ${
+      activeTab === "categorias" ? "text-orange-500" : "hover:text-orange-500"
+    }`}
+  >
+    <Hammer size={20} />
+    <span className="mt-1">CATEGORÍAS</span>
+  </button>
 
-              <button
-                onClick={() => {
-                  if (activeTab === "perfil") {
-                    // Si ya estamos en perfil y hay una vista activa, regresar al menú
-                    if (vistaPerfil !== "menu") {
-                      setVistaPerfil("menu");
-                    } else {
-                      window.scrollTo({ top: 0, behavior: "instant" });
-                    }
-                  } else {
-                    window.scrollTo({ top: 0, behavior: "instant" });
-                    setActiveTab("perfil");
-                  }
-                }}
-                className={`flex flex-col items-center text-xs ${
-                  activeTab === "perfil"
-                    ? "text-orange-500"
-                    : "hover:text-orange-500"
-                }`}
-              >
-                <User size={20} />
-                PERFIL
-              </button>
+  {/* 2. BOTÓN BUSCAR */}
+  <button
+    onClick={() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      setActiveTab("buscar");
+    }}
+    className={`flex flex-col items-center text-[10px] sm:text-xs${
+      activeTab === "buscar" ? "text-orange-500" : "hover:text-orange-500"
+    }`}
+  >
+    <Search size={20} />
+    <span className="mt-1">BUSCAR</span>
+  </button>
 
-              <button
-                onClick={() => {
-                  window.scrollTo({ top: 0, behavior: "instant" });
-                  setActiveTab("ubicacion");
-                }}
-                className={`flex flex-col items-center text-xs ${
-                  activeTab === "ubicacion"
-                    ? "text-orange-500"
-                    : "hover:text-orange-500"
-                }`}
-              >
-                <MapPin size={20} />
-                UBICACIÓN
-              </button>
-            </nav>
+  {/* 3. BOTÓN CARRITO (COLUMNA CENTRAL) */}
+  <div className="relative flex justify-center">
+    <button
+      onClick={() => setActiveTab("carrito")}
+      className={`
+        absolute
+        flex flex-col items-center
+        text-xs
+        z-50
+        transition-all duration-300
+        ml-1
+        ${activeTab === "carrito" ? "-top-5" : "-top-17"} 
+      `}
+    >
+      <div
+        className={`
+          relative flex items-center justify-center
+          transition-all duration-300
+          ${
+            activeTab === "carrito"
+              ? "w-5 h-5 bg-transparent border-none shadow-none" 
+              : "w-16 h-16 rounded-full border-1 border-zinc-200 bg-white text-zinc-700 shadow-xl"
+          }
+        `}
+      >
+        <ShoppingCart 
+          size={activeTab === "carrito" ? 20 : 26} 
+          className={`transition-all duration-300 ${
+            activeTab === "carrito" ? "text-orange-500" : "text-zinc-700"
+          }`}
+        />
+
+        {activeTab !== "carrito" && carrito.reduce((sum, item) => sum + item.cantidad, 0) > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center text-xs font-bold bg-orange-500 text-white shadow-md">
+            {carrito.reduce((sum, item) => sum + item.cantidad, 0)}
+          </span>
+        )}
+      </div>
+      <span className={`mt-1 transition-all duration-300 ${
+        activeTab === "carrito" ? "text-orange-500 font-semibold" : "text-zinc-700"
+      }`}>
+        CARRITO
+      </span>
+    </button>
+  </div>
+
+  {/* 4. BOTÓN PERFIL */}
+  <button
+    onClick={() => {
+      if (activeTab === "perfil") {
+        if (vistaPerfil !== "menu") {
+          setVistaPerfil("menu");
+        } else {
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }
+      } else {
+        window.scrollTo({ top: 0, behavior: "instant" });
+        setActiveTab("perfil");
+      }
+    }}
+    className={`flex flex-col items-center text-xs ${
+      activeTab === "perfil" ? "text-orange-500" : "hover:text-orange-500"
+    }`}
+  >
+    <User size={20} />
+    <span>PERFIL</span>
+  </button>
+
+  {/* 5. BOTÓN UBICACIÓN */}
+  <button
+    onClick={() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      setActiveTab("ubicacion");
+    }}
+    className={`flex flex-col items-center text-xs ${
+      activeTab === "ubicacion" ? "text-orange-500" : "hover:text-orange-500"
+    }`}
+  >
+    <MapPin size={20} />
+    <span>UBICACIÓN</span>
+  </button>
+</nav>
           </motion.div>
         )}
       </AnimatePresence>
