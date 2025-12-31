@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
 import {
   SquareStack,
@@ -11,8 +11,9 @@ import {
   Hammer,
   X,
   User,
+  Star,
   History,
-  MapPinHouse,
+  Menu,
   FileQuestionMark,
   LogOut,
   UserCog,
@@ -66,6 +67,940 @@ interface Cuenta {
   entrega_mismo_dia?: boolean;
   [key: string]: any;
 }
+
+ const VistaProducto = ({
+  producto,
+  onBack,
+  esAdmin,
+  carrito,
+  setCarrito,
+  cuenta,
+  supabase,
+  marcas,
+  esFavorito,
+  toggleFavorito,
+  categoriasAdmin,
+}: any) => {
+
+  const [esFavoritoLocal, setEsFavoritoLocal] = useState(
+    esFavorito ? esFavorito(producto.id) : false
+  );
+
+  // Función para obtener el nombre de la marca
+  const getNombreMarca = (id: number) => {
+    if (!id || !marcas) return "Sin marca";
+    const marca = marcas.find((m: any) => m.id === id);
+    return marca ? marca.nombre_marca : "Sin marca";
+  };
+
+  const handleToggleFavorito = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setEsFavoritoLocal(!esFavoritoLocal);
+    if (toggleFavorito) toggleFavorito(producto);
+  };
+
+  const itemEnCarrito = carrito.find((p: any) => p.id === producto.id);
+  const esDesdeCarrito = !!itemEnCarrito;
+
+  const [cantidad, setCantidad] = useState(
+    esDesdeCarrito ? itemEnCarrito.cantidad.toString() : "1"
+  );
+
+  // Estados para edición
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [titulo, setTitulo] = useState(producto.TITULO || "");
+  const [descripcion, setDescripcion] = useState(producto.DESCRIPCION || "");
+  const [categoriaId, setCategoriaId] = useState(
+    producto.CATEGORIA_ID ? String(producto.CATEGORIA_ID) : ""
+  );
+  const [marcaId, setMarcaId] = useState(
+    producto.marca_id ? String(producto.marca_id) : ""
+  );
+
+    const [imagenAmpliada, setImagenAmpliada] = useState(false);
+    const [scale, setScale] = useState(1);
+    const [posicion, setPosicion] = useState({ x: 0, y: 0 });
+    const [imagenFile, setImagenFile] = useState<File | null>(null);
+    const [imagenPreview, setImagenPreview] = useState(producto.IMAGEN || "");
+    const [guardando, setGuardando] = useState(false);
+    const [mensaje, setMensaje] = useState("");
+    const [mostrarModalEliminar, setMostrarModalEliminar] = useState(false);
+    const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
+    const [errorEliminar, setErrorEliminar] = useState("");
+    const [eliminando, setEliminando] = useState(false);
+
+    const handleChange = (e: any) => {
+      const value = e.target.value;
+
+      if (value === "") {
+        setCantidad("");
+        return;
+      }
+
+      const num = parseInt(value, 10);
+      if (!isNaN(num) && num >= 1) {
+        setCantidad(num.toString());
+      }
+    };
+
+    const handleBlur = () => {
+      if (cantidad === "" || parseInt(cantidad) < 1) {
+        setCantidad("1");
+      }
+    };
+
+    const handleAdd = (): void =>
+      setCantidad((c: string): string =>
+        c === "" ? "1" : (parseInt(c, 10) + 1).toString()
+      );
+
+    const handleSubtract = (): void =>
+      setCantidad((c: string): string => {
+        if (c === "" || parseInt(c, 10) <= 1) return "1";
+        return (parseInt(c, 10) - 1).toString();
+      });
+
+    // FUNCIÓN PARA AGREGAR O MODIFICAR EN CARRITO
+    const agregarOModificarCarrito = () => {
+      const cant = parseInt(cantidad) || 1;
+
+      if (esDesdeCarrito) {
+        // Modificar cantidad existente
+        setCarrito((prev: any[]) => {
+          return prev.map((p) =>
+            p.id === producto.id
+              ? {
+                  ...p,
+                  cantidad: cant,
+                  subtotal: cant * p.P_MAYOREO,
+                }
+              : p
+          );
+        });
+      } else {
+        // Agregar nuevo o sumar cantidad
+        setCarrito((prev: any[]) => {
+          const existe = prev.find((p) => p.id === producto.id);
+          if (existe) {
+            return prev.map((p) =>
+              p.id === producto.id
+                ? {
+                    ...p,
+                    cantidad: p.cantidad + cant,
+                    subtotal: (p.cantidad + cant) * p.P_MAYOREO,
+                  }
+                : p
+            );
+          } else {
+            return [
+              ...prev,
+              {
+                ...producto,
+                cantidad: cant,
+                subtotal: cant * producto.P_MAYOREO,
+              },
+            ];
+          }
+        });
+      }
+
+      onBack();
+    };
+
+    // FUNCIÓN PARA ELIMINAR DEL CARRITO
+    const eliminarDelCarrito = () => {
+      setCarrito((prev: any[]) => prev.filter((p) => p.id !== producto.id));
+      onBack();
+    };
+
+    const handleImagenChange = async (
+      e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      // Validaciones
+      if (!file.type.startsWith("image/")) {
+        setMensaje("Por favor selecciona una imagen válida.");
+        return;
+      }
+
+      if (file.size > 800 * 1024) {
+        setMensaje("La imagen no debe superar los 800 KB");
+        return;
+      }
+
+      // Eliminar imagen vieja si existe
+      if (producto.IMAGEN) {
+        const nombreArchivoViejo = producto.IMAGEN.split("/").pop();
+        await supabase.storage
+          .from("imagenes_productos")
+          .remove([nombreArchivoViejo]);
+      }
+
+      // Guardar archivo para subir luego
+      setImagenFile(file);
+
+      // Vista previa inmediata
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagenPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    };
+
+    const guardarCambios = async () => {
+      if (!esAdmin) return;
+
+      setGuardando(true);
+      setMensaje("");
+
+      try {
+        let urlImagen = producto.IMAGEN;
+
+        if (imagenFile) {
+          const timestamp = Date.now();
+          const extension = imagenFile.name.split(".").pop();
+          const nombreArchivo = `producto_${producto.id}_${timestamp}.${extension}`;
+          const { data: uploadData, error: uploadError } =
+            await supabase.storage
+              .from("imagenes_productos")
+              .upload(nombreArchivo, imagenFile, {
+                cacheControl: "public, max-age=31536000",
+                upsert: true,
+              });
+
+          if (uploadError) {
+            console.error("Error subiendo imagen:", uploadError);
+            setMensaje("Error al subir la imagen");
+            setGuardando(false);
+            return;
+          }
+
+          const {
+            data: { publicUrl },
+          } = supabase.storage
+            .from("imagenes_productos")
+            .getPublicUrl(nombreArchivo);
+
+          urlImagen = publicUrl;
+        }
+
+        const { error: updateError } = await supabase
+          .from("productos")
+          .update({
+            TITULO: titulo,
+            DESCRIPCION: descripcion,
+            CATEGORIA_ID: parseInt(categoriaId),
+            marca_id: marcaId ? parseInt(marcaId) : null,
+            IMAGEN: urlImagen,
+          })
+          .eq("id", producto.id);
+
+        if (updateError) {
+          console.error("Error actualizando producto:", updateError);
+          setMensaje("Error al guardar los cambios");
+        } else {
+          setMensaje("Producto actualizado correctamente");
+          setModoEdicion(false);
+
+          producto.TITULO = titulo;
+          producto.DESCRIPCION = descripcion;
+          producto.CATEGORIA_ID = parseInt(categoriaId);
+          producto.marca_id = marcaId ? parseInt(marcaId) : null;
+          producto.IMAGEN = urlImagen;
+          setImagenFile(null);
+
+          setTimeout(() => {
+            setMensaje("");
+          }, 3000);
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        setMensaje("Ocurrió un error inesperado");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    const eliminarProducto = async () => {
+      if (!esAdmin) return;
+
+      setEliminando(true);
+      setErrorEliminar("");
+
+      if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
+        setErrorEliminar("Número de cuenta incorrecto");
+        setEliminando(false);
+        return;
+      }
+
+      try {
+        if (producto.IMAGEN && producto.IMAGEN.includes("imagenes_productos")) {
+          const urlParts = producto.IMAGEN.split("/");
+          const nombreArchivo = urlParts[urlParts.length - 1];
+
+          const { error: deleteImageError } = await supabase.storage
+            .from("imagenes_productos")
+            .remove([nombreArchivo]);
+
+          if (deleteImageError) {
+            console.error("Error eliminando imagen:", deleteImageError);
+          }
+        }
+        const { error: deleteError } = await supabase
+          .from("productos")
+          .delete()
+          .eq("id", producto.id);
+
+        if (deleteError) {
+          console.error("Error eliminando producto:", deleteError);
+          setErrorEliminar("Error al eliminar el producto");
+          setEliminando(false);
+          return;
+        }
+
+        setMostrarModalEliminar(false);
+        setMensaje("Producto eliminado correctamente");
+
+        setTimeout(() => {
+          onBack();
+        }, 1000);
+      } catch (error) {
+        console.error("Error:", error);
+        setErrorEliminar("Ocurrió un error inesperado");
+      } finally {
+        setEliminando(false);
+      }
+    };
+
+    const cantidadNum = parseInt(cantidad) || 1;
+
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={producto.id}
+          className="min-h-screen fixed inset-0 z-50 text-zinc-900"
+          style={{ backgroundColor: "#fff" }}
+        >
+          <div className="absolute inset-0 bg-white" />
+          <motion.div
+            initial={{ x: 120 }}
+            animate={{ x: 0 }}
+            exit={{ x: 120 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            onDragEnd={(event, info) => {
+              if (info.offset.x > 100 && !modoEdicion) onBack();
+            }}
+            className="relative w-full h-full overflow-y-auto"
+          >
+            {/* Botón regresar */}
+            <button
+              onClick={onBack}
+              className="absolute top-9 left-7 bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow transition text-xl z-10"
+            >
+              ←
+            </button>
+
+             {/* Favorito */}
+          {!esAdmin && !modoEdicion && (
+            <motion.button
+              onClick={handleToggleFavorito}
+              whileTap={{ scale: 0.85 }}
+              className="absolute top-9 right-7 bg-white hover:bg-orange-50 text-orange-500 rounded-full p-3 shadow transition z-10"
+            >
+              <AnimatePresence mode="wait">
+                {esFavoritoLocal ? (
+                  <motion.svg
+                    key="filled"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="w-6 h-6"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z"
+                      clipRule="evenodd"
+                    />
+                  </motion.svg>
+                ) : (
+                  <motion.svg
+                    key="outline"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="w-6 h-6"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"
+                    />
+                  </motion.svg>
+                )}
+              </AnimatePresence>
+            </motion.button>
+          )}
+
+
+            {/* Botón editar (solo admin y no desde carrito) */}
+            {esAdmin && !modoEdicion && !esDesdeCarrito && (
+              <button
+                onClick={() => setModoEdicion(true)}
+                className="absolute top-9 right-7 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-3 shadow transition z-10"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-5 h-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+                  />
+                </svg>
+              </button>
+            )}
+
+            {/* MODO EDICIÓN (ADMIN) */}
+            {modoEdicion && esAdmin ? (
+              <div className="px-6 py-20">
+                <h2 className="text-xl font-bold text-zinc-900 mb-6">
+                  Editar Producto
+                </h2>
+
+                {/* Imagen */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Imagen
+                  </label>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-zinc-300">
+                      <Image
+                        src={imagenPreview || "/placeholder.jpg"}
+                        alt="Preview"
+                        fill
+                        className="object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImagenChange}
+                      className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                    />
+                  </div>
+                </div>
+
+                {/* Título */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Título
+                  </label>
+                  <input
+                    type="text"
+                    value={titulo}
+                    onChange={(e) => setTitulo(e.target.value)}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                  />
+                </div>
+
+                {/* Descripción */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Descripción
+                  </label>
+                  <textarea
+                    value={descripcion}
+                    onChange={(e) => setDescripcion(e.target.value)}
+                    rows={3}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                  />
+                </div>
+
+                {/* Código */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Código (no editable)
+                  </label>
+                  <input
+                    type="text"
+                    value={producto.CODIGO}
+                    disabled
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
+                  />
+                </div>
+
+                {/* Precio */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Precio (no editable)
+                  </label>
+                  <input
+                    type="text"
+                    value={`$${producto.P_MAYOREO?.toFixed(2)}`}
+                    disabled
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
+                  />
+                </div>
+
+                {/* Categoría */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Categoría
+                  </label>
+                  <select
+                    value={categoriaId}
+                    onChange={(e) => setCategoriaId(e.target.value)}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                  >
+                    <option value="">Seleccionar categoría</option>
+                    {categoriasAdmin.map((cat: any) => (
+                      <option
+                        key={cat.id_categoria}
+                        value={String(cat.id_categoria)}
+                      >
+                        {cat.nombre_categoria}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Marca */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Marca
+                  </label>
+                  <select
+                    value={marcaId}
+                    onChange={(e) => setMarcaId(e.target.value)}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                  >
+                    <option value="">Sin marca</option>
+                    {marcas.map((marca: any) => (
+                      <option key={marca.id} value={marca.id}>
+                        {marca.nombre_marca}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+
+                {/* Mensaje */}
+                {mensaje && (
+                  <div
+                    className={`mb-4 p-3 rounded-lg text-sm ${
+                      mensaje.includes("Error")
+                        ? "bg-red-50 text-red-700 border border-red-200"
+                        : "bg-green-50 text-green-700 border border-green-200"
+                    }`}
+                  >
+                    {mensaje}
+                  </div>
+                )}
+
+                {/* Botones */}
+                <div className="space-y-3">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setModoEdicion(false);
+                        setTitulo(producto.TITULO || "");
+                        setDescripcion(producto.DESCRIPCION || "");
+                        setCategoriaId(
+                          producto.CATEGORIA_ID
+                            ? String(producto.CATEGORIA_ID)
+                            : ""
+                        );
+                        setMarcaId(
+                          producto.marca_id ? String(producto.marca_id) : ""
+                        );
+                        setImagenFile(null);
+                        setImagenPreview(producto.IMAGEN || "");
+                        setMensaje("");
+                      }}
+                      disabled={guardando}
+                      className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={guardarCambios}
+                      disabled={guardando || !titulo}
+                      className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {guardando ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                          Guardando...
+                        </span>
+                      ) : (
+                        "Guardar Cambios"
+                      )}
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => setMostrarModalEliminar(true)}
+                    disabled={guardando}
+                    className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-5 h-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                      />
+                    </svg>
+                    Eliminar Producto
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // MODO VISTA NORMAL
+              <>
+                {/* Badge si es desde carrito */}
+                {esDesdeCarrito && (
+                  <div className="absolute top-20 right-7 bg-orange-500 text-white text-xs px-3 py-1 rounded-full font-semibold z-10">
+                    En carrito
+                  </div>
+                )}
+
+                {/* Imagen */}
+                <div
+                  className="flex justify-center mb-3 pt-20 cursor-pointer"
+                  onClick={() => setImagenAmpliada(true)}
+                >
+                  <div className="relative w-60 h-60">
+                    <SkeletonImage
+                      src={producto.IMAGEN || "/placeholder.jpg"}
+                      alt={producto.TITULO}
+                      className="object-contain"
+                    />
+                  </div>
+                </div>
+
+                {/* Detalles */}
+                <h2 className="text-center text-[20px] font-bold text-zinc-900 leading-snug px-2">
+                  {producto.TITULO}
+                </h2>
+
+                {/* Descripción / Información Adicional */}
+                {producto.DESCRIPCION && (
+                  <div className="mt-5 px-4">
+                    <h3 className="text-sm font-semibold text-zinc-900 mb-2">
+                      Información Adicional
+                    </h3>
+                    <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200">
+                      {producto.DESCRIPCION}
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-4 text-sm text-zinc-700 px-2">
+                  <div className="flex justify-between py-2">
+                    <span className="font-medium">Código</span>
+                    <span>{producto.CODIGO}</span>
+                  </div>
+
+                  <div className="flex justify-between py-2">
+                    <span className="font-medium">Marca</span>
+                    <span className="text-orange-500 font-semibold">
+                      {getNombreMarca(producto.marca_id)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between py-2">
+                    <span className="font-medium">Precio</span>
+                    <span>${producto.P_MAYOREO?.toLocaleString("en-US", {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      })}</span>
+                  </div>
+
+                  {!esAdmin && (
+                    <div className="flex justify-between py-2">
+                      <span className="font-medium">Total de artículo</span>
+                      <span>
+                        ${(cantidadNum * producto.P_MAYOREO).toLocaleString("en-US", {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-5 px-4">
+                  <div className="flex justify-between items-center gap-3">
+                    {/* Botón restar */}
+                    <button
+                      onClick={handleSubtract}
+                      className="w-12 h-12 border text-black border-zinc-400 rounded-xl text-2xl"
+                    >
+                      −
+                    </button>
+
+                    {/* Input editable */}
+                    <input
+                      type="number"
+                      min="1"
+                      value={cantidad}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      className="w-20 text-center border border-zinc-400 rounded-xl text-lg font-semibold text-black py-2"
+                    />
+
+                    {/* Botón sumar */}
+                    <button
+                      onClick={handleAdd}
+                      className="w-12 h-12 bg-orange-500 text-white rounded-xl text-2xl"
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  {/* Botón principal */}
+                  <button
+                    onClick={agregarOModificarCarrito}
+                    className="w-full mt-5 bg-orange-500 text-white py-3 rounded-xl font-bold shadow hover:bg-orange-600 transition"
+                  >
+                    {esDesdeCarrito
+                      ? "Modificar cantidad"
+                      : "Agregar al carrito"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Modal de Imagen Ampliada con Zoom */}
+            {imagenAmpliada && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black z-[9999] flex items-center justify-center"
+                onClick={() => {
+                  if (scale === 1) {
+                    setImagenAmpliada(false);
+                    setScale(1);
+                    setPosicion({ x: 0, y: 0 });
+                  }
+                }}
+              >
+                {/* Botón cerrar */}
+                <button
+                  onClick={() => {
+                    setImagenAmpliada(false);
+                    setScale(1);
+                    setPosicion({ x: 0, y: 0 });
+                  }}
+                  className="absolute top-4 right-4 z-[10000] bg-gray-800 text-white rounded-full p-3 hover:bg-white/30 transition"
+                >
+                  <X size={24} />
+                </button>
+
+                {/* Controles de zoom */}
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-4 bg-gray-800 rounded-full px-6 py-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setScale(Math.max(1, scale - 0.5));
+                      if (scale - 0.5 <= 1) {
+                        setPosicion({ x: 0, y: 0 });
+                      }
+                    }}
+                    disabled={scale <= 1}
+                    className="text-white text-2xl font-bold disabled:opacity-30"
+                  >
+                    −
+                  </button>
+                  <span className="text-white font-semibold min-w-[60px] text-center">
+                    {Math.round(scale * 100)}%
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setScale(Math.min(4, scale + 0.5));
+                    }}
+                    disabled={scale >= 4}
+                    className="text-white text-2xl font-bold disabled:opacity-30"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Imagen con zoom y drag */}
+                <motion.div
+                  className="relative w-full h-full flex items-center justify-center overflow-hidden touch-none"
+                  drag={scale > 1}
+                  dragConstraints={{
+                    left: scale > 1 ? -((scale - 1) * 200) : 0,
+                    right: scale > 1 ? (scale - 1) * 200 : 0,
+                    top: scale > 1 ? -((scale - 1) * 200) : 0,
+                    bottom: scale > 1 ? (scale - 1) * 200 : 0,
+                  }}
+                  dragElastic={0.1}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    if (scale > 1) {
+                      setScale(1);
+                      setPosicion({ x: 0, y: 0 });
+                    } else {
+                      setScale(2);
+                    }
+                  }}
+                  style={{
+                    scale: scale,
+                    x: posicion.x,
+                    y: posicion.y,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Image
+                    src={producto.IMAGEN || "/placeholder.jpg"}
+                    alt={producto.TITULO}
+                    fill
+                    className="object-contain select-none pointer-events-none"
+                    draggable={false}
+                  />
+                </motion.div>
+
+                {/* Indicador de ayuda */}
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-gray-700 text-white text-sm px-4 py-2 rounded-full shadow-md">
+                  {scale === 1
+                    ? "Toca para cerrar • Doble toca para zoom"
+                    : "Arrastra para mover • Doble toca para alejar"}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Modal de Confirmación para Eliminar */}
+            {mostrarModalEliminar && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-white rounded-2xl w-[90%] max-w-md p-6 shadow-2xl"
+                >
+                  <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-8 h-8 text-red-600"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
+                    ¿Eliminar Producto?
+                  </h3>
+
+                  <p className="text-sm text-zinc-600 text-center mb-6">
+                    Esta acción no se puede deshacer. El producto y su imagen
+                    serán eliminados permanentemente.
+                  </p>
+
+                  <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
+                    <p className="text-xs text-zinc-500 mb-1">
+                      Producto a eliminar:
+                    </p>
+                    <p className="text-sm font-semibold text-zinc-900">
+                      {producto.TITULO}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-1">
+                      Código: {producto.CODIGO}
+                    </p>
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                      Confirma tu número de cuenta para continuar
+                    </label>
+                    <input
+                      type="text"
+                      value={numeroCuentaConfirm}
+                      onChange={(e) => {
+                        setNumeroCuentaConfirm(e.target.value);
+                        setErrorEliminar("");
+                      }}
+                      placeholder="Ingresa tu número de cuenta"
+                      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      disabled={eliminando}
+                    />
+                    {errorEliminar && (
+                      <p className="text-red-500 text-sm mt-2">
+                        {errorEliminar}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setMostrarModalEliminar(false);
+                        setNumeroCuentaConfirm("");
+                        setErrorEliminar("");
+                      }}
+                      disabled={eliminando}
+                      className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={eliminarProducto}
+                      disabled={eliminando || !numeroCuentaConfirm}
+                      className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {eliminando ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                          Eliminando...
+                        </span>
+                      ) : (
+                        "Eliminar"
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  };
 
 export default function HomePage() {
   const [cuentaActiva, setCuentaActiva] = useState<string | null>(null);
@@ -132,6 +1067,48 @@ export default function HomePage() {
   >([]);
   const [pedidoCompleto, setPedidoCompleto] = useState(false);
   const [ocultarBarra, setOcultarBarra] = useState(false);
+  const [favoritos, setFavoritos] = useState<any[]>([]);
+
+  // Cargar favoritos desde localStorage
+  useEffect(() => {
+    if (cuenta?.numero_cuenta) {
+      const saved = localStorage.getItem(`favoritos_${cuenta.numero_cuenta}`);
+      if (saved) {
+        setFavoritos(JSON.parse(saved));
+      }
+    }
+  }, [cuenta]);
+
+  // Guardar favoritos en localStorage
+  useEffect(() => {
+    if (cuenta?.numero_cuenta) {
+      localStorage.setItem(
+        `favoritos_${cuenta.numero_cuenta}`,
+        JSON.stringify(favoritos)
+      );
+    }
+  }, [favoritos, cuenta]);
+
+  const toggleFavorito = (producto: any) => {
+    const esFavorito = favoritos.some((fav) => fav.id === producto.id);
+    let nuevosFavoritos;
+
+    if (esFavorito) {
+      nuevosFavoritos = favoritos.filter((fav) => fav.id !== producto.id);
+    } else {
+      nuevosFavoritos = [...favoritos, producto];
+    }
+
+    setFavoritos(nuevosFavoritos);
+    localStorage.setItem("favoritos", JSON.stringify(nuevosFavoritos));
+  };
+
+  const esFavorito = useCallback(
+    (productoId: number) => {
+      return favoritos.some((p) => p.id === productoId);
+    },
+    [favoritos]
+  );
 
   const buscarStateRef = useRef<{
     categoria: any;
@@ -162,16 +1139,27 @@ export default function HomePage() {
     }
   }, [carrito, pedidoCompleto]);
 
-  useEffect(() => {
-    if (activeTab !== "buscar") {
-      buscarStateRef.current = {
-        categoria: categoriaSeleccionada,
-        marca: marcaSeleccionada,
-        searchTerm,
-        productos,
-      };
-    }
-  }, [activeTab]);
+ useEffect(() => {
+  if (activeTab !== "buscar") {
+    buscarStateRef.current = {
+      categoria: categoriaSeleccionada,
+      marca: marcaSeleccionada,
+      searchTerm,
+      productos,
+    };
+  }
+  
+  localStorage.setItem("scrollPos", window.scrollY.toString());
+  const savedScroll = localStorage.getItem("scrollPos");
+  if (savedScroll) {
+    setTimeout(() => {
+      window.scrollTo({
+        top: parseInt(savedScroll),
+        behavior: "instant",
+      });
+    }, 50);
+  }
+}, [activeTab]);
 
   useEffect(() => {
     if (activeTab === "buscar") {
@@ -4836,8 +5824,34 @@ export default function HomePage() {
             }
           }}
         >
-          <BackBtn onBack={() => setPedidoSeleccionado(null)} />
 
+<BackBtn 
+  onBack={() => {
+    setProductoSeleccionado(null);
+    
+    // Restaurar scroll según de dónde venga
+    const scrollFavoritos = localStorage.getItem("scrollFavoritos");
+    const scrollCarrito = localStorage.getItem("scrollCarrito");
+    const scrollProducto = localStorage.getItem("scrollProducto");
+    
+    if (scrollFavoritos) {
+      setTimeout(() => {
+        window.scrollTo({ top: parseInt(scrollFavoritos), behavior: "instant" });
+        localStorage.removeItem("scrollFavoritos");
+      }, 50);
+    } else if (scrollCarrito) {
+      setTimeout(() => {
+        window.scrollTo({ top: parseInt(scrollCarrito), behavior: "instant" });
+        localStorage.removeItem("scrollCarrito");
+      }, 50);
+    } else if (scrollProducto) {
+      setTimeout(() => {
+        window.scrollTo({ top: parseInt(scrollProducto), behavior: "instant" });
+        localStorage.removeItem("scrollProducto");
+      }, 50);
+    }
+  }} 
+/>
           <h2 className="text-xl font-bold text-zinc-900 mb-2">
             Detalle del Pedido
           </h2>
@@ -5319,7 +6333,7 @@ export default function HomePage() {
 
           <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
             <label className="block text-xs font-semibold text-zinc-500 mb-1">
-              Nombre de ferretería
+              Nombre del negocio 
             </label>
             <p className="text-sm text-zinc-700">
               {cuenta?.ferreteria || "No especificado"}
@@ -5376,850 +6390,6 @@ export default function HomePage() {
     );
   };
 
-  const VistaProducto = ({ producto, onBack }: any) => {
-    // Determinar si viene del carrito
-    const itemEnCarrito = carrito.find((p) => p.id === producto.id);
-    const esDesdeCarrito = !!itemEnCarrito;
-
-    const [cantidad, setCantidad] = useState(
-      esDesdeCarrito ? itemEnCarrito.cantidad.toString() : "1"
-    );
-    const [modoEdicion, setModoEdicion] = useState(false);
-    const [titulo, setTitulo] = useState(producto.TITULO || "");
-    const [descripcion, setDescripcion] = useState(producto.DESCRIPCION || "");
-    const [categoriaId, setCategoriaId] = useState(
-      producto.CATEGORIA_ID ? String(producto.CATEGORIA_ID) : ""
-    );
-    const [marcaId, setMarcaId] = useState(
-      producto.marca_id ? String(producto.marca_id) : ""
-    );
-    const [imagenAmpliada, setImagenAmpliada] = useState(false);
-    const [scale, setScale] = useState(1);
-    const [posicion, setPosicion] = useState({ x: 0, y: 0 });
-    const [imagenFile, setImagenFile] = useState<File | null>(null);
-    const [imagenPreview, setImagenPreview] = useState(producto.IMAGEN || "");
-    const [guardando, setGuardando] = useState(false);
-    const [mensaje, setMensaje] = useState("");
-    const [mostrarModalEliminar, setMostrarModalEliminar] = useState(false);
-    const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
-    const [errorEliminar, setErrorEliminar] = useState("");
-    const [eliminando, setEliminando] = useState(false);
-
-    const handleChange = (e: any) => {
-      const value = e.target.value;
-
-      if (value === "") {
-        setCantidad("");
-        return;
-      }
-
-      const num = parseInt(value, 10);
-      if (!isNaN(num) && num >= 1) {
-        setCantidad(num.toString());
-      }
-    };
-
-    const handleBlur = () => {
-      if (cantidad === "" || parseInt(cantidad) < 1) {
-        setCantidad("1");
-      }
-    };
-
-    const handleAdd = (): void =>
-      setCantidad((c: string): string =>
-        c === "" ? "1" : (parseInt(c, 10) + 1).toString()
-      );
-
-    const handleSubtract = (): void =>
-      setCantidad((c: string): string => {
-        if (c === "" || parseInt(c, 10) <= 1) return "1";
-        return (parseInt(c, 10) - 1).toString();
-      });
-
-    // FUNCIÓN PARA AGREGAR O MODIFICAR EN CARRITO
-    const agregarOModificarCarrito = () => {
-      const cant = parseInt(cantidad) || 1;
-
-      if (esDesdeCarrito) {
-        // Modificar cantidad existente
-        setCarrito((prev: any[]) => {
-          return prev.map((p) =>
-            p.id === producto.id
-              ? {
-                  ...p,
-                  cantidad: cant,
-                  subtotal: cant * p.P_MAYOREO,
-                }
-              : p
-          );
-        });
-      } else {
-        // Agregar nuevo o sumar cantidad
-        setCarrito((prev: any[]) => {
-          const existe = prev.find((p) => p.id === producto.id);
-          if (existe) {
-            return prev.map((p) =>
-              p.id === producto.id
-                ? {
-                    ...p,
-                    cantidad: p.cantidad + cant,
-                    subtotal: (p.cantidad + cant) * p.P_MAYOREO,
-                  }
-                : p
-            );
-          } else {
-            return [
-              ...prev,
-              {
-                ...producto,
-                cantidad: cant,
-                subtotal: cant * producto.P_MAYOREO,
-              },
-            ];
-          }
-        });
-      }
-
-      onBack();
-    };
-
-    // FUNCIÓN PARA ELIMINAR DEL CARRITO
-    const eliminarDelCarrito = () => {
-      setCarrito((prev: any[]) => prev.filter((p) => p.id !== producto.id));
-      onBack();
-    };
-
-    const handleImagenChange = async (
-      e: React.ChangeEvent<HTMLInputElement>
-    ) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      // Validaciones
-      if (!file.type.startsWith("image/")) {
-        setMensaje("Por favor selecciona una imagen válida.");
-        return;
-      }
-
-      if (file.size > 800 * 1024) {
-        setMensaje("La imagen no debe superar los 800 KB");
-        return;
-      }
-
-      // Eliminar imagen vieja si existe
-      if (producto.IMAGEN) {
-        const nombreArchivoViejo = producto.IMAGEN.split("/").pop();
-        await supabase.storage
-          .from("imagenes_productos")
-          .remove([nombreArchivoViejo]);
-      }
-
-      // Guardar archivo para subir luego
-      setImagenFile(file);
-
-      // Vista previa inmediata
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagenPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    };
-
-    const guardarCambios = async () => {
-      if (!esAdmin) return;
-
-      setGuardando(true);
-      setMensaje("");
-
-      try {
-        let urlImagen = producto.IMAGEN;
-
-        if (imagenFile) {
-          const timestamp = Date.now();
-          const extension = imagenFile.name.split(".").pop();
-          const nombreArchivo = `producto_${producto.id}_${timestamp}.${extension}`;
-          const { data: uploadData, error: uploadError } =
-            await supabase.storage
-              .from("imagenes_productos")
-              .upload(nombreArchivo, imagenFile, {
-                cacheControl: "public, max-age=31536000",
-                upsert: true,
-              });
-
-          if (uploadError) {
-            console.error("Error subiendo imagen:", uploadError);
-            setMensaje("Error al subir la imagen");
-            setGuardando(false);
-            return;
-          }
-
-          const {
-            data: { publicUrl },
-          } = supabase.storage
-            .from("imagenes_productos")
-            .getPublicUrl(nombreArchivo);
-
-          urlImagen = publicUrl;
-        }
-
-        const { error: updateError } = await supabase
-          .from("productos")
-          .update({
-            TITULO: titulo,
-            DESCRIPCION: descripcion,
-            CATEGORIA_ID: parseInt(categoriaId),
-            marca_id: marcaId ? parseInt(marcaId) : null,
-            IMAGEN: urlImagen,
-          })
-          .eq("id", producto.id);
-
-        if (updateError) {
-          console.error("Error actualizando producto:", updateError);
-          setMensaje("Error al guardar los cambios");
-        } else {
-          setMensaje("Producto actualizado correctamente");
-          setModoEdicion(false);
-
-          producto.TITULO = titulo;
-          producto.DESCRIPCION = descripcion;
-          producto.CATEGORIA_ID = parseInt(categoriaId);
-          producto.marca_id = marcaId ? parseInt(marcaId) : null;
-          producto.IMAGEN = urlImagen;
-          setImagenFile(null);
-
-          setTimeout(() => {
-            setMensaje("");
-          }, 3000);
-        }
-      } catch (error) {
-        console.error("Error:", error);
-        setMensaje("Ocurrió un error inesperado");
-      } finally {
-        setGuardando(false);
-      }
-    };
-
-    const eliminarProducto = async () => {
-      if (!esAdmin) return;
-
-      setEliminando(true);
-      setErrorEliminar("");
-
-      if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
-        setErrorEliminar("Número de cuenta incorrecto");
-        setEliminando(false);
-        return;
-      }
-
-      try {
-        if (producto.IMAGEN && producto.IMAGEN.includes("imagenes_productos")) {
-          const urlParts = producto.IMAGEN.split("/");
-          const nombreArchivo = urlParts[urlParts.length - 1];
-
-          const { error: deleteImageError } = await supabase.storage
-            .from("imagenes_productos")
-            .remove([nombreArchivo]);
-
-          if (deleteImageError) {
-            console.error("Error eliminando imagen:", deleteImageError);
-          }
-        }
-        const { error: deleteError } = await supabase
-          .from("productos")
-          .delete()
-          .eq("id", producto.id);
-
-        if (deleteError) {
-          console.error("Error eliminando producto:", deleteError);
-          setErrorEliminar("Error al eliminar el producto");
-          setEliminando(false);
-          return;
-        }
-
-        setMostrarModalEliminar(false);
-        setMensaje("Producto eliminado correctamente");
-
-        setTimeout(() => {
-          onBack();
-        }, 1000);
-      } catch (error) {
-        console.error("Error:", error);
-        setErrorEliminar("Ocurrió un error inesperado");
-      } finally {
-        setEliminando(false);
-      }
-    };
-
-    const cantidadNum = parseInt(cantidad) || 1;
-
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={producto.id}
-          className="min-h-screen fixed inset-0 z-50 text-zinc-900"
-          style={{ backgroundColor: "#fff" }}
-        >
-          <div className="absolute inset-0 bg-white" />
-          <motion.div
-            initial={{ x: 120 }}
-            animate={{ x: 0 }}
-            exit={{ x: 120 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            onDragEnd={(event, info) => {
-              if (info.offset.x > 100 && !modoEdicion) onBack();
-            }}
-            className="relative w-full h-full overflow-y-auto"
-          >
-            {/* Botón regresar */}
-            <button
-              onClick={onBack}
-              className="absolute top-9 left-7 bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow transition text-xl z-10"
-            >
-              ←
-            </button>
-
-            {/* Botón editar (solo admin y no desde carrito) */}
-            {esAdmin && !modoEdicion && !esDesdeCarrito && (
-              <button
-                onClick={() => setModoEdicion(true)}
-                className="absolute top-9 right-7 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-3 shadow transition z-10"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                  className="w-5 h-5"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
-                  />
-                </svg>
-              </button>
-            )}
-
-            {/* MODO EDICIÓN (ADMIN) */}
-            {modoEdicion && esAdmin ? (
-              <div className="px-6 py-20">
-                <h2 className="text-xl font-bold text-zinc-900 mb-6">
-                  Editar Producto
-                </h2>
-
-                {/* Imagen */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Imagen
-                  </label>
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-zinc-300">
-                      <Image
-                        src={imagenPreview || "/placeholder.jpg"}
-                        alt="Preview"
-                        fill
-                        className="object-contain"
-                        loading="lazy"
-                      />
-                    </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImagenChange}
-                      className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
-                    />
-                  </div>
-                </div>
-
-                {/* Título */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Título
-                  </label>
-                  <input
-                    type="text"
-                    value={titulo}
-                    onChange={(e) => setTitulo(e.target.value)}
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-                  />
-                </div>
-
-                {/* Descripción */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Descripción
-                  </label>
-                  <textarea
-                    value={descripcion}
-                    onChange={(e) => setDescripcion(e.target.value)}
-                    rows={3}
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-                  />
-                </div>
-
-                {/* Código */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Código (no editable)
-                  </label>
-                  <input
-                    type="text"
-                    value={producto.CODIGO}
-                    disabled
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
-                  />
-                </div>
-
-                {/* Precio */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Precio (no editable)
-                  </label>
-                  <input
-                    type="text"
-                    value={`$${producto.P_MAYOREO?.toFixed(2)}`}
-                    disabled
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
-                  />
-                </div>
-
-                {/* Categoría */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Categoría
-                  </label>
-                  <select
-                    value={categoriaId}
-                    onChange={(e) => setCategoriaId(e.target.value)}
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-                  >
-                    <option value="">Seleccionar categoría</option>
-                    {categoriasAdmin.map((cat) => (
-                      <option
-                        key={cat.id_categoria}
-                        value={String(cat.id_categoria)}
-                      >
-                        {cat.nombre_categoria}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Marca */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Marca
-                  </label>
-                  <select
-                    value={marcaId}
-                    onChange={(e) => setMarcaId(e.target.value)}
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-                  >
-                    <option value="">Sin marca</option>
-                    {marcas.map((marca) => (
-                      <option key={marca.id} value={marca.id}>
-                        {marca.nombre_marca}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Mensaje */}
-                {mensaje && (
-                  <div
-                    className={`mb-4 p-3 rounded-lg text-sm ${
-                      mensaje.includes("Error")
-                        ? "bg-red-50 text-red-700 border border-red-200"
-                        : "bg-green-50 text-green-700 border border-green-200"
-                    }`}
-                  >
-                    {mensaje}
-                  </div>
-                )}
-
-                {/* Botones */}
-                <div className="space-y-3">
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        setModoEdicion(false);
-                        setTitulo(producto.TITULO || "");
-                        setDescripcion(producto.DESCRIPCION || "");
-                        setCategoriaId(
-                          producto.CATEGORIA_ID
-                            ? String(producto.CATEGORIA_ID)
-                            : ""
-                        );
-                        setMarcaId(
-                          producto.marca_id ? String(producto.marca_id) : ""
-                        );
-                        setImagenFile(null);
-                        setImagenPreview(producto.IMAGEN || "");
-                        setMensaje("");
-                      }}
-                      disabled={guardando}
-                      className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={guardarCambios}
-                      disabled={guardando || !titulo}
-                      className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {guardando ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                          Guardando...
-                        </span>
-                      ) : (
-                        "Guardar Cambios"
-                      )}
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={() => setMostrarModalEliminar(true)}
-                    disabled={guardando}
-                    className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={2}
-                      stroke="currentColor"
-                      className="w-5 h-5"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-                      />
-                    </svg>
-                    Eliminar Producto
-                  </button>
-                </div>
-              </div>
-            ) : (
-              // MODO VISTA NORMAL
-              <>
-                {/* Badge si es desde carrito */}
-                {esDesdeCarrito && (
-                  <div className="absolute top-20 right-7 bg-orange-500 text-white text-xs px-3 py-1 rounded-full font-semibold z-10">
-                    En carrito
-                  </div>
-                )}
-
-                {/* Imagen */}
-                <div
-                  className="flex justify-center mb-3 pt-20 cursor-pointer"
-                  onClick={() => setImagenAmpliada(true)}
-                >
-                  <div className="relative w-60 h-60">
-                    <SkeletonImage
-                      src={producto.IMAGEN || "/placeholder.jpg"}
-                      alt={producto.TITULO}
-                      className="object-contain"
-                    />
-                  </div>
-                </div>
-
-                {/* Detalles */}
-                <h2 className="text-center text-[20px] font-bold text-zinc-900 leading-snug px-2">
-                  {producto.TITULO}
-                </h2>
-
-                {/* Descripción / Información Adicional */}
-                {producto.DESCRIPCION && (
-                  <div className="mt-5 px-4">
-                    <h3 className="text-sm font-semibold text-zinc-900 mb-2">
-                      Información Adicional
-                    </h3>
-                    <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200">
-                      {producto.DESCRIPCION}
-                    </p>
-                  </div>
-                )}
-
-                <div className="mt-4 text-sm text-zinc-700 px-2">
-                  <div className="flex justify-between py-2">
-                    <span className="font-medium">Código</span>
-                    <span>{producto.CODIGO}</span>
-                  </div>
-
-                  <div className="flex justify-between py-2">
-                    <span className="font-medium">Marca</span>
-                    <span className="text-orange-500 font-semibold">
-                      {getNombreMarca(producto.marca_id)}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between py-2">
-                    <span className="font-medium">Precio</span>
-                    <span>${producto.P_MAYOREO?.toFixed(2)}</span>
-                  </div>
-
-                  {!esAdmin && (
-                    <div className="flex justify-between py-2">
-                      <span className="font-medium">Total de artículo</span>
-                      <span>
-                        ${(cantidadNum * producto.P_MAYOREO).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-5 px-4">
-                  <div className="flex justify-between items-center gap-3">
-                    {/* Botón restar */}
-                    <button
-                      onClick={handleSubtract}
-                      className="w-12 h-12 border text-black border-zinc-400 rounded-xl text-2xl"
-                    >
-                      −
-                    </button>
-
-                    {/* Input editable */}
-                    <input
-                      type="number"
-                      min="1"
-                      value={cantidad}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      className="w-20 text-center border border-zinc-400 rounded-xl text-lg font-semibold text-black py-2"
-                    />
-
-                    {/* Botón sumar */}
-                    <button
-                      onClick={handleAdd}
-                      className="w-12 h-12 bg-orange-500 text-white rounded-xl text-2xl"
-                    >
-                      +
-                    </button>
-                  </div>
-
-                  {/* Botón principal */}
-                  <button
-                    onClick={agregarOModificarCarrito}
-                    className="w-full mt-5 bg-orange-500 text-white py-3 rounded-xl font-bold shadow hover:bg-orange-600 transition"
-                  >
-                    {esDesdeCarrito
-                      ? "Modificar cantidad"
-                      : "Agregar al carrito"}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Modal de Imagen Ampliada con Zoom */}
-            {imagenAmpliada && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black z-[9999] flex items-center justify-center"
-                onClick={() => {
-                  if (scale === 1) {
-                    setImagenAmpliada(false);
-                    setScale(1);
-                    setPosicion({ x: 0, y: 0 });
-                  }
-                }}
-              >
-                {/* Botón cerrar */}
-                <button
-                  onClick={() => {
-                    setImagenAmpliada(false);
-                    setScale(1);
-                    setPosicion({ x: 0, y: 0 });
-                  }}
-                  className="absolute top-4 right-4 z-[10000] bg-gray-800 text-white rounded-full p-3 hover:bg-white/30 transition"
-                >
-                  <X size={24} />
-                </button>
-
-                {/* Controles de zoom */}
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-4 bg-gray-800 rounded-full px-6 py-3">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setScale(Math.max(1, scale - 0.5));
-                      if (scale - 0.5 <= 1) {
-                        setPosicion({ x: 0, y: 0 });
-                      }
-                    }}
-                    disabled={scale <= 1}
-                    className="text-white text-2xl font-bold disabled:opacity-30"
-                  >
-                    −
-                  </button>
-                  <span className="text-white font-semibold min-w-[60px] text-center">
-                    {Math.round(scale * 100)}%
-                  </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setScale(Math.min(4, scale + 0.5));
-                    }}
-                    disabled={scale >= 4}
-                    className="text-white text-2xl font-bold disabled:opacity-30"
-                  >
-                    +
-                  </button>
-                </div>
-
-                {/* Imagen con zoom y drag */}
-                <motion.div
-                  className="relative w-full h-full flex items-center justify-center overflow-hidden touch-none"
-                  drag={scale > 1}
-                  dragConstraints={{
-                    left: scale > 1 ? -((scale - 1) * 200) : 0,
-                    right: scale > 1 ? (scale - 1) * 200 : 0,
-                    top: scale > 1 ? -((scale - 1) * 200) : 0,
-                    bottom: scale > 1 ? (scale - 1) * 200 : 0,
-                  }}
-                  dragElastic={0.1}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    if (scale > 1) {
-                      setScale(1);
-                      setPosicion({ x: 0, y: 0 });
-                    } else {
-                      setScale(2);
-                    }
-                  }}
-                  style={{
-                    scale: scale,
-                    x: posicion.x,
-                    y: posicion.y,
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Image
-                    src={producto.IMAGEN || "/placeholder.jpg"}
-                    alt={producto.TITULO}
-                    fill
-                    className="object-contain select-none pointer-events-none"
-                    draggable={false}
-                  />
-                </motion.div>
-
-                {/* Indicador de ayuda */}
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-gray-700 text-white text-sm px-4 py-2 rounded-full shadow-md">
-                  {scale === 1
-                    ? "Toca para cerrar • Doble toca para zoom"
-                    : "Arrastra para mover • Doble toca para alejar"}
-                </div>
-              </motion.div>
-            )}
-
-            {/* Modal de Confirmación para Eliminar */}
-            {mostrarModalEliminar && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-white rounded-2xl w-[90%] max-w-md p-6 shadow-2xl"
-                >
-                  <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={2}
-                      stroke="currentColor"
-                      className="w-8 h-8 text-red-600"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
-                    ¿Eliminar Producto?
-                  </h3>
-
-                  <p className="text-sm text-zinc-600 text-center mb-6">
-                    Esta acción no se puede deshacer. El producto y su imagen
-                    serán eliminados permanentemente.
-                  </p>
-
-                  <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
-                    <p className="text-xs text-zinc-500 mb-1">
-                      Producto a eliminar:
-                    </p>
-                    <p className="text-sm font-semibold text-zinc-900">
-                      {producto.TITULO}
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-1">
-                      Código: {producto.CODIGO}
-                    </p>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-semibold text-zinc-700 mb-2">
-                      Confirma tu número de cuenta para continuar
-                    </label>
-                    <input
-                      type="text"
-                      value={numeroCuentaConfirm}
-                      onChange={(e) => {
-                        setNumeroCuentaConfirm(e.target.value);
-                        setErrorEliminar("");
-                      }}
-                      placeholder="Ingresa tu número de cuenta"
-                      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-                      disabled={eliminando}
-                    />
-                    {errorEliminar && (
-                      <p className="text-red-500 text-sm mt-2">
-                        {errorEliminar}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        setMostrarModalEliminar(false);
-                        setNumeroCuentaConfirm("");
-                        setErrorEliminar("");
-                      }}
-                      disabled={eliminando}
-                      className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={eliminarProducto}
-                      disabled={eliminando || !numeroCuentaConfirm}
-                      className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {eliminando ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                          Eliminando...
-                        </span>
-                      ) : (
-                        "Eliminar"
-                      )}
-                    </button>
-                  </div>
-                </motion.div>
-              </div>
-            )}
-          </motion.div>
-        </motion.div>
-      </AnimatePresence>
-    );
-  };
-
   //aqui termina vista producto
   const getNombreMarca = (marcaId: number) => {
     if (!marcaId) return "Sin marca";
@@ -6231,20 +6401,28 @@ export default function HomePage() {
   if (productoSeleccionado) {
     return (
       <VistaProducto
-        producto={productoSeleccionado}
-        onBack={() => {
-          setProductoSeleccionado(null);
-
-          const savedScroll = localStorage.getItem("scrollProducto");
-          if (savedScroll) {
-            setTimeout(() => {
-              window.scrollTo({
-                top: parseInt(savedScroll),
-                behavior: "instant",
-              });
-            }, 50);
-          }
-        }}
+      producto={productoSeleccionado}
+      onBack={() => {
+        setProductoSeleccionado(null);
+        const savedScroll = localStorage.getItem("scrollProducto");
+        if (savedScroll) {
+          setTimeout(() => {
+            window.scrollTo({
+              top: parseInt(savedScroll),
+              behavior: "instant",
+            });
+          }, 50);
+        }
+      }}
+        esAdmin={esAdmin}
+        carrito={carrito}
+        setCarrito={setCarrito}
+        cuenta={cuenta}
+        supabase={supabase}
+        marcas={marcas}
+        esFavorito={esFavorito}
+        toggleFavorito={toggleFavorito}
+        categoriasAdmin={categoriasAdmin}
       />
     );
   }
@@ -6393,7 +6571,7 @@ export default function HomePage() {
               </AnimatePresence>*/}
 
               <AnimatePresence>
-                {activeTab === "carrito" && cuenta?.entrega_mismo_dia && (
+                {activeTab === "carrito" && cuenta && (
                   <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -6401,7 +6579,9 @@ export default function HomePage() {
                     transition={{ duration: 0.3, ease: "easeOut" }}
                     className="absolute top-3 px-3 left-0 right-0 z-10"
                   >
-                    <ContadorEntrega entregaMismoDia />
+                    <ContadorEntrega
+                      entregaMismoDia={cuenta.entrega_mismo_dia}
+                    />
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -7195,23 +7375,20 @@ export default function HomePage() {
                                   );
                                 })
                                 .map((art) => (
-                                  <motion.div
-                                    key={art.id}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    transition={{
-                                      duration: 0.2,
-                                      ease: "easeOut",
-                                    }}
-                                    onClick={() => {
-                                      const scrollY = window.scrollY;
-                                      localStorage.setItem(
-                                        "scrollProducto",
-                                        scrollY.toString()
-                                      );
-                                      setProductoSeleccionado(art);
-                                    }}
+  <motion.div
+    key={art.id}
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -10 }}
+    transition={{
+      duration: 0.2,
+      ease: "easeOut",
+    }}
+    onClick={() => {
+      const scrollY = window.scrollY;
+      localStorage.setItem("scrollProducto", scrollY.toString());
+      setProductoSeleccionado(art);
+    }}
                                     className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
                                   >
                                     <div className="relative w-full h-40 bg-white">
@@ -7247,7 +7424,14 @@ export default function HomePage() {
 
                                       {!esAdmin && (
                                         <p className="text-sm font-bold text-orange-500 mt-1">
-                                          $ {art.P_MAYOREO?.toFixed(2)}
+                                          ${" "}
+                                          {art.P_MAYOREO?.toLocaleString(
+                                            "en-US",
+                                            {
+                                              minimumFractionDigits: 2,
+                                              maximumFractionDigits: 2,
+                                            }
+                                          )}
                                         </p>
                                       )}
 
@@ -7523,14 +7707,11 @@ export default function HomePage() {
                           .map((prod) => (
                             <div
                               key={prod.id}
-                              onClick={() => {
-                                const scrollY = window.scrollY;
-                                localStorage.setItem(
-                                  "scrollProducto",
-                                  scrollY.toString()
-                                );
-                                setProductoSeleccionado(prod);
-                              }}
+ onClick={() => {
+  const scrollY = window.scrollY;
+  localStorage.setItem("scrollProducto", scrollY.toString());  
+  setProductoSeleccionado(prod);
+}}
                               className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 cursor-pointer"
                             >
                               <div className="flex items-center gap-3">
@@ -7613,7 +7794,10 @@ export default function HomePage() {
                                 {/* Imagen */}
                                 <div
                                   className="relative w-16 h-16 bg-zinc-100 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
-                                  onClick={() => setProductoSeleccionado(item)}
+                                  onClick={() => {
+   localStorage.setItem("scrollProducto", scrollY.toString());
+  setProductoSeleccionado(item);
+}}
                                 >
                                   <Image
                                     src={item.IMAGEN || "/placeholder.jpg"}
@@ -7626,7 +7810,10 @@ export default function HomePage() {
                                 {/* Información del producto */}
                                 <div
                                   className="flex-1 min-w-0 cursor-pointer"
-                                  onClick={() => setProductoSeleccionado(item)}
+                                  onClick={() => {
+   localStorage.setItem("scrollProducto", scrollY.toString());
+  setProductoSeleccionado(item);
+}}
                                 >
                                   <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
                                     {item.TITULO}
@@ -7637,13 +7824,20 @@ export default function HomePage() {
                                   <div className="flex items-center gap-2 mt-1">
                                     <p className="text-xs text-zinc-600">
                                       {item.cantidad} × $
-                                      {item.P_MAYOREO.toFixed(2)}
+                                      {item.P_MAYOREO.toLocaleString("en-US", {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      })}
                                     </p>
                                     <span className="text-xs text-zinc-400">
                                       |
                                     </span>
                                     <p className="text-sm font-bold text-orange-500">
-                                      ${item.subtotal.toFixed(2)}
+                                      $
+                                      {item.subtotal.toLocaleString("en-US", {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      })}
                                     </p>
                                   </div>
                                 </div>
@@ -7723,7 +7917,11 @@ export default function HomePage() {
                                             : "text-orange-600"
                                         }`}
                                       >
-                                        ${totalCarrito.toFixed(2)}
+                                        $
+                                        {totalCarrito.toLocaleString("en-US", {
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        })}
                                       </span>
                                     </div>
 
@@ -7950,6 +8148,30 @@ export default function HomePage() {
                             />
                           )}
 
+                          {/* personal info  */}
+                          <MenuItem
+                            label="Informacion Personal"
+                            icon={<UserCog size={20} />}
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("settings");
+                            }}
+                          />
+
+                          {/* Ubicación */}
+                          {!esAdmin && (
+                            <MenuItem
+                              icon={<MapPin size={20} />}
+                              label="Ubicación de tienda"
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("ubicacion");
+                              }}
+                            />
+                          )}
                           {!esAdmin && (
                             <MenuItem
                               label="Apoyo"
@@ -7973,16 +8195,6 @@ export default function HomePage() {
                               setVistaPerfil("address");
                             }}
                           />*/}
-
-                          {/* personal info  */}
-                          <MenuItem
-                            label="Informacion Personal"
-                            icon={<UserCog size={20} />}
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("settings");
-                            }}
-                          />
 
                           {/* Logout */}
                           <MenuItem
@@ -8054,6 +8266,102 @@ export default function HomePage() {
                             ))}
                           </div>
                         )}
+                      </motion.div>
+                    )}
+
+                    {/* ubicacion */}
+                    {vistaPerfil === "ubicacion" && (
+                      <motion.div
+                        key="ubicacion-perfil"
+                        className="min-h-screen"
+                        initial={{ opacity: 0, x: 40 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -40 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        onDragEnd={(event, info) => {
+                          if (info.offset.x > 100) {
+                            setVistaPerfil("menu");
+                          }
+                        }}
+                      >
+                        <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+                        <h2 className="text-xl font-bold text-zinc-900 mb-4">
+                          Ubicación de la Tienda
+                        </h2>
+
+                        <div className="flex flex-col items-center justify-start space-y-4">
+                          <div className="w-full rounded-xl overflow-hidden shadow-md">
+                            <Image
+                              src="/ubicacion.jpg"
+                              alt="Bodega Ferretera de Monterrey"
+                              width={800}
+                              height={400}
+                              className="object-cover w-full h-60"
+                            />
+                          </div>
+
+                          {/* WhatsApp */}
+                          <div className="w-full bg-white rounded-xl shadow p-4">
+                            <h3 className="text-lg font-bold text-zinc-800 mb-1">
+                              WhatsApp
+                            </h3>
+                            <button
+                              onClick={() =>
+                                window.open(
+                                  "https://wa.me/5218682340531?text=Hola,%20quiero%20más%20información.",
+                                  "_blank"
+                                )
+                              }
+                              className="text-green-600 font-semibold text-lg underline"
+                            >
+                              +5218682340531
+                            </button>
+                          </div>
+
+                          {/* Mapa */}
+                          <div className="w-full bg-white rounded-xl shadow p-4">
+                            <h3 className="text-lg font-bold text-zinc-800 mb-2">
+                              Ubicación
+                            </h3>
+
+                            <div
+                              className="rounded-lg overflow-hidden h-64 relative group"
+                              onClick={(e) => {
+                                const iframe =
+                                  e.currentTarget.querySelector("iframe");
+                                iframe?.classList.add("pointer-events-auto");
+                              }}
+                              onMouseLeave={(e) => {
+                                const iframe =
+                                  e.currentTarget.querySelector("iframe");
+                                iframe?.classList.remove("pointer-events-auto");
+                              }}
+                            >
+                              <iframe
+                                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3590.137662708991!2d-97.48887909999999!3d25.864946200000002!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x866f94db9af16fcf%3A0xcf4adf236af1625a!2sFerreter%C3%ADa%20Bodega%20Ferretera%20de%20Monterrey!5e0!3m2!1ses-419!2smx!4v1761939402856!5m2!1ses-419!2smx"
+                                width="100%"
+                                height="100%"
+                                allowFullScreen
+                                loading="lazy"
+                                className="border-0 pointer-events-none"
+                              ></iframe>
+                            </div>
+
+                            <p className="text-center mt-2 text-sm text-orange-600">
+                              <a
+                                href="https://maps.app.goo.gl/EX1wLpNtVPvtEjcx7"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline font-semibold"
+                              >
+                                Abrir en Google Maps
+                              </a>
+                            </p>
+                          </div>
+                        </div>
                       </motion.div>
                     )}
 
@@ -8332,8 +8640,8 @@ export default function HomePage() {
                           ) : (
                             <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
                               <p className="text-xs text-red-600">
-                                ⚠️ No hay dirección guardada. Por favor agrega
-                                una dirección en tu perfil.
+                                ⚠️ No hay dirección guardada. Por favor de
+                                informar a Bodega Ferretera de Monterrey.
                               </p>
                             </div>
                           )}
@@ -8363,11 +8671,12 @@ export default function HomePage() {
                           onClick={enviarPedido}
                           disabled={
                             enviando ||
-                            !cliente ||
+                            !cuenta?.cliente ||
                             (enviarDomicilio && !cuenta?.direccion)
                           }
                           className={`flex-1 py-2 rounded-lg font-semibold text-white transition ${
-                            !cliente || (enviarDomicilio && !cuenta?.direccion)
+                            !cuenta?.cliente ||
+                            (enviarDomicilio && !cuenta?.direccion)
                               ? "bg-orange-300"
                               : "bg-orange-500 hover:bg-orange-600"
                           }`}
@@ -8386,7 +8695,7 @@ export default function HomePage() {
                   </div>
                 )}
 
-                {/* UBICACIÓN */}
+                {/* Favoritos */}
                 {activeTab === "ubicacion" && (
                   <motion.div
                     key="ubicacion"
@@ -8395,76 +8704,79 @@ export default function HomePage() {
                     exit={{ opacity: 0, x: 40 }}
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                   >
-                    <div className="flex flex-col items-center justify-start p-4 space-y-4">
-                      <div className="w-full max-w-md rounded-xl overflow-hidden shadow-md">
-                        <Image
-                          src="/ubicacion.jpg"
-                          alt="Bodega Ferretera de Monterrey"
-                          width={800}
-                          height={400}
-                          className="object-cover w-full h-60"
-                        />
-                      </div>
+                    <div className="mt-4 px-3 pb-32">
+                      <h2 className="text-2xl text-center font-bold text-zinc-900 mb-4">
+                        Mis Favoritos
+                      </h2>
 
-                      {/* WhatsApp */}
-                      <div className="w-full max-w-md bg-white rounded-xl shadow p-4">
-                        <h3 className="text-lg font-bold text-zinc-800 mb-1">
-                          WhatsApp
-                        </h3>
-                        <button
-                          onClick={() =>
-                            window.open(
-                              "https://wa.me/5218682340531?text=Hola,%20quiero%20más%20información.",
-                              "_blank"
-                            )
-                          }
-                          className="text-green-600 font-semibold text-lg underline"
-                        >
-                          +5218682340531
-                        </button>
-                      </div>
+                      {favoritos.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-20">
+                          <Star className="w-16 h-16 text-orange-500" />
 
-                      {/* Mapa */}
-                      <div className="w-full max-w-md bg-white rounded-xl shadow p-4">
-                        <h3 className="text-lg font-bold text-zinc-800 mb-2">
-                          Ubicación
-                        </h3>
-
-                        {/* Contenedor que desactiva clicks por defecto */}
-                        <div
-                          className="rounded-lg overflow-hidden h-64 relative group"
-                          onClick={(e) => {
-                            const iframe =
-                              e.currentTarget.querySelector("iframe");
-                            iframe?.classList.add("pointer-events-auto");
-                          }}
-                          onMouseLeave={(e) => {
-                            const iframe =
-                              e.currentTarget.querySelector("iframe");
-                            iframe?.classList.remove("pointer-events-auto");
-                          }}
-                        >
-                          <iframe
-                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3590.137662708991!2d-97.48887909999999!3d25.864946200000002!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x866f94db9af16fcf%3A0xcf4adf236af1625a!2sFerreter%C3%ADa%20Bodega%20Ferretera%20de%20Monterrey!5e0!3m2!1ses-419!2smx!4v1761939402856!5m2!1ses-419!2smx"
-                            width="100%"
-                            height="100%"
-                            allowFullScreen
-                            loading="lazy"
-                            className="border-0 pointer-events-none"
-                          ></iframe>
+                          <p className="text-center text-zinc-500 text-lg">
+                            No tienes favoritos aún
+                          </p>
+                          <p className="text-center text-zinc-400 text-sm mt-2">
+                            Agrega productos tocando la estrella dentro de cada producto
+                          </p>
                         </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                          {favoritos.map((prod) => (
+                            <motion.div
+                              key={prod.id}
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.9 }}
+                              transition={{ duration: 0.2 }}
+                              className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer relative"
+                            >
+                              {/* Botón eliminar de favoritos */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
 
-                        <p className="text-center mt-2 text-sm text-orange-600">
-                          <a
-                            href="https://maps.app.goo.gl/EX1wLpNtVPvtEjcx7"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline"
-                          >
-                            Abrir en Google Maps
-                          </a>
-                        </p>
-                      </div>
+                                  toggleFavorito(prod);
+                                }}
+                                className="absolute top-2 right-2 z-10 bg-white/90 hover:bg-red-500 text-red-500 hover:text-white rounded-full p-2 shadow-md transition"
+                              >
+                                <X size={16} />
+                              </button>
+
+                              <div
+                                onClick={() => {
+  const scrollY = window.scrollY;
+       localStorage.setItem("scrollProducto", scrollY.toString());
+  setProductoSeleccionado(prod);
+}}
+                              >
+                                <div className="relative w-full h-40 bg-white">
+                                  <Image
+                                    src={prod.IMAGEN || "/placeholder.jpg"}
+                                    alt={prod.TITULO}
+                                    fill
+                                    className="object-contain"
+                                  />
+                                </div>
+                                <div className="p-2">
+                                  <p className="text-xs text-orange-500 font-medium">
+                                    {getNombreMarca(prod.marca_id)}
+                                  </p>
+                                  <p className="text-sm font-semibold text-zinc-700 line-clamp-2">
+                                    {prod.TITULO}
+                                  </p>
+                                  <p className="text-xs text-zinc-500 mt-1">
+                                    {prod.CODIGO}
+                                  </p>
+                                  <p className="text-sm font-bold text-orange-500 mt-1">
+                                    $ {prod.P_MAYOREO?.toFixed(2)}
+                                  </p>
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -8497,7 +8809,10 @@ export default function HomePage() {
                       Total: $
                       {carrito
                         .reduce((sum, p) => sum + p.subtotal, 0)
-                        .toFixed(2)}
+                        .toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
                     </span>
                   </button>
                 </motion.div>
@@ -8505,128 +8820,147 @@ export default function HomePage() {
             </AnimatePresence>
 
             {/* Barra de navegación*/}
-<nav className="fixed bottom-0 left-0 z-50 grid w-full grid-cols-5 items-center border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md">
-  
-  {/* 1. BOTÓN CATEGORÍAS */}
-  <button
-    onClick={() => {
-      if (activeTab === "categorias") {
-        if (categoriaSeleccionada || marcaSeleccionada) {
-          setCategoriaSeleccionada(null);
-          setMarcaSeleccionada(null);
-        } else if (macroCategoriaSeleccionada) {
-          setMacroCategoriaSeleccionada(null);
-        } else {
-          window.scrollTo({ top: 0, behavior: "instant" });
-        }
-      } else {
-        setActiveTab("categorias");
-      }
-    }}
-    className={`flex flex-col items-center text-[10px] sm:text-xs ${
-      activeTab === "categorias" ? "text-orange-500" : "hover:text-orange-500"
-    }`}
-  >
-    <Hammer size={20} />
-    <span className="mt-1">CATEGORÍAS</span>
-  </button>
+            <nav className="fixed bottom-0 left-0 z-50 grid w-full grid-cols-5 items-center border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md">
+              {/* 1. BOTÓN CATEGORÍAS */}
+              <button
+                onClick={() => {
+                  if (activeTab === "categorias") {
+                    if (categoriaSeleccionada || marcaSeleccionada) {
+                      setCategoriaSeleccionada(null);
+                      setMarcaSeleccionada(null);
+                    } else if (macroCategoriaSeleccionada) {
+                      setMacroCategoriaSeleccionada(null);
+                    } else {
+                      window.scrollTo({ top: 0, behavior: "instant" });
+                    }
+                  } else {
+                    setActiveTab("categorias");
+                  }
+                }}
+                className={`flex flex-col items-center text-[10px] sm:text-xs ${
+                  activeTab === "categorias"
+                    ? "text-orange-500"
+                    : "hover:text-orange-500"
+                }`}
+              >
+                <Hammer size={20} />
+                <span className="mt-1">CATEGORÍAS</span>
+              </button>
 
-  {/* 2. BOTÓN BUSCAR */}
-  <button
-    onClick={() => {
-      window.scrollTo({ top: 0, behavior: "instant" });
-      setActiveTab("buscar");
-    }}
-    className={`flex flex-col items-center text-[10px] sm:text-xs${
-      activeTab === "buscar" ? "text-orange-500" : "hover:text-orange-500"
-    }`}
-  >
-    <Search size={20} />
-    <span className="mt-1">BUSCAR</span>
-  </button>
+              {/* 2. BOTÓN BUSCAR */}
+              <button
+                onClick={() => {
+                  window.scrollTo({ top: 0, behavior: "instant" });
+                  setActiveTab("buscar");
+                }}
+                className={`flex flex-col items-center text-[10px] sm:text-xs ${
+                  activeTab === "buscar"
+                    ? "text-orange-500"
+                    : "hover:text-orange-500"
+                }`}
+              >
+                <Search size={20} />
+                <span className="mt-1">BUSCAR</span>
+              </button>
 
-  {/* 3. BOTÓN CARRITO (COLUMNA CENTRAL) */}
-  <div className="relative flex justify-center">
-    <button
-      onClick={() => setActiveTab("carrito")}
-      className={`
+              {/* 3. BOTÓN CARRITO */}
+              <div className="relative flex justify-center">
+                <button
+  onClick={() => {
+    localStorage.setItem("scrollPos", window.scrollY.toString());
+    setActiveTab("carrito");
+  }}
+                  className={`
         absolute
-        flex flex-col items-center
-        text-xs
+        flex flex-col items-center text-[10px] sm:text-xs
         z-50
         transition-all duration-300
-        ml-1
         ${activeTab === "carrito" ? "-top-5" : "-top-17"} 
       `}
-    >
-      <div
-        className={`
+                >
+                  <div
+                    className={`
           relative flex items-center justify-center
           transition-all duration-300
           ${
             activeTab === "carrito"
-              ? "w-5 h-5 bg-transparent border-none shadow-none" 
+              ? "w-5 h-5 bg-transparent border-none shadow-none"
               : "w-16 h-16 rounded-full border-1 border-zinc-200 bg-white text-zinc-700 shadow-xl"
           }
         `}
-      >
-        <ShoppingCart 
-          size={activeTab === "carrito" ? 20 : 26} 
-          className={`transition-all duration-300 ${
-            activeTab === "carrito" ? "text-orange-500" : "text-zinc-700"
-          }`}
-        />
+                  >
+                    <ShoppingCart
+                      size={activeTab === "carrito" ? 20 : 26}
+                      className={`transition-all duration-300 ${
+                        activeTab === "carrito"
+                          ? "text-orange-500"
+                          : "text-zinc-700"
+                      }`}
+                    />
 
-        {activeTab !== "carrito" && carrito.reduce((sum, item) => sum + item.cantidad, 0) > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center text-xs font-bold bg-orange-500 text-white shadow-md">
-            {carrito.reduce((sum, item) => sum + item.cantidad, 0)}
-          </span>
-        )}
-      </div>
-      <span className={`mt-1 transition-all duration-300 ${
-        activeTab === "carrito" ? "text-orange-500 font-semibold" : "text-zinc-700"
-      }`}>
-        CARRITO
-      </span>
-    </button>
-  </div>
+                    {activeTab !== "carrito" &&
+                      carrito.reduce((sum, item) => sum + item.cantidad, 0) >
+                        0 && (
+                        <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center text-xs font-bold bg-orange-500 text-white shadow-md">
+                          {carrito.reduce(
+                            (sum, item) => sum + item.cantidad,
+                            0
+                          )}
+                        </span>
+                      )}
+                  </div>
+                  <span
+                    className={`mt-1 transition-all duration-300 ${
+                      activeTab === "carrito"
+                        ? "text-orange-500 font-semibold"
+                        : "text-zinc-700"
+                    }`}
+                  >
+                    CARRITO
+                  </span>
+                </button>
+              </div>
 
-  {/* 4. BOTÓN PERFIL */}
-  <button
-    onClick={() => {
-      if (activeTab === "perfil") {
-        if (vistaPerfil !== "menu") {
-          setVistaPerfil("menu");
-        } else {
-          window.scrollTo({ top: 0, behavior: "instant" });
-        }
-      } else {
-        window.scrollTo({ top: 0, behavior: "instant" });
-        setActiveTab("perfil");
-      }
-    }}
-    className={`flex flex-col items-center text-xs ${
-      activeTab === "perfil" ? "text-orange-500" : "hover:text-orange-500"
-    }`}
-  >
-    <User size={20} />
-    <span>PERFIL</span>
-  </button>
+              {/* 4. BOTÓN UBICACIÓN */}
+              <button
+  onClick={() => {
+    localStorage.setItem("scrollPos", window.scrollY.toString());
+    setActiveTab("ubicacion");
+  }}
+                className={`flex flex-col items-center text-[10px] sm:text-xs ${
+                  activeTab === "ubicacion"
+                    ? "text-orange-500"
+                    : "hover:text-orange-500"
+                }`}
+              >
+                <Star size={20} />
+                <span className="mt-1">FAVORITOS</span>
+              </button>
 
-  {/* 5. BOTÓN UBICACIÓN */}
-  <button
-    onClick={() => {
-      window.scrollTo({ top: 0, behavior: "instant" });
-      setActiveTab("ubicacion");
-    }}
-    className={`flex flex-col items-center text-xs ${
-      activeTab === "ubicacion" ? "text-orange-500" : "hover:text-orange-500"
-    }`}
-  >
-    <MapPin size={20} />
-    <span>UBICACIÓN</span>
-  </button>
-</nav>
+              {/* 5. BOTÓN PERFIL */}
+              <button
+                onClick={() => {
+                  if (activeTab === "perfil") {
+                    if (vistaPerfil !== "menu") {
+                      setVistaPerfil("menu");
+                    } else {
+                      window.scrollTo({ top: 0, behavior: "instant" });
+                    }
+                  } else {
+                    window.scrollTo({ top: 0, behavior: "instant" });
+                    setActiveTab("perfil");
+                  }
+                }}
+                className={`flex flex-col items-center text-[10px] sm:text-xs ${
+                  activeTab === "perfil"
+                    ? "text-orange-500"
+                    : "hover:text-orange-500"
+                }`}
+              >
+                <Menu size={20} />
+                <span className="mt-1">MAS</span>
+              </button>
+            </nav>
           </motion.div>
         )}
       </AnimatePresence>
