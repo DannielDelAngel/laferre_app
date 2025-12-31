@@ -129,6 +129,27 @@ interface Cuenta {
     const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
     const [errorEliminar, setErrorEliminar] = useState("");
     const [eliminando, setEliminando] = useState(false);
+    const [imagenesProducto, setImagenesProducto] = useState<string[]>([producto.IMAGEN]);
+const [imagenActualIndex, setImagenActualIndex] = useState(0);
+const [imagenesAdicionalesFiles, setImagenesAdicionalesFiles] = useState<File[]>([]);
+const [imagenesAdicionalesDB, setImagenesAdicionalesDB] = useState<any[]>([]);
+    
+useEffect(() => {
+  const cargarImagenesAdicionales = async () => {
+    const { data } = await supabase
+      .from('imagenes_producto')
+      .select('*')
+      .eq('producto_id', producto.id)
+      .order('orden', { ascending: true });
+    
+    if (data && data.length > 0) {
+      setImagenesAdicionalesDB(data);
+      setImagenesProducto([producto.IMAGEN, ...data.map((img: any) => img.url)]);
+    }
+  };
+  
+  cargarImagenesAdicionales();
+}, [producto.id]);
 
     const handleChange = (e: any) => {
       const value = e.target.value;
@@ -250,6 +271,41 @@ interface Cuenta {
       reader.readAsDataURL(file);
     };
 
+    const eliminarImagenAdicional = async (imagenId: number, url: string) => {
+  try {
+    // Eliminar del storage
+    const urlParts = url.split('/');
+    const nombreArchivo = urlParts[urlParts.length - 1];
+    await supabase.storage
+      .from('imagenes_productos')
+      .remove([nombreArchivo]);
+
+    // Eliminar de la base de datos
+    const { error } = await supabase
+      .from('imagenes_producto')
+      .delete()
+      .eq('id', imagenId);
+
+    if (!error) {
+      // Actualizar estados locales
+      const nuevasImagenesDB = imagenesAdicionalesDB.filter(img => img.id !== imagenId);
+      setImagenesAdicionalesDB(nuevasImagenesDB);
+      setImagenesProducto([producto.IMAGEN, ...nuevasImagenesDB.map((img: any) => img.url)]);
+      
+      // Si la imagen eliminada era la actual, volver a la primera
+      if (imagenActualIndex > 0 && imagenActualIndex >= nuevasImagenesDB.length + 1) {
+        setImagenActualIndex(0);
+      }
+      
+      setMensaje('Imagen eliminada correctamente');
+      setTimeout(() => setMensaje(''), 2000);
+    }
+  } catch (error) {
+    console.error('Error eliminando imagen:', error);
+    setMensaje('Error al eliminar la imagen');
+  }
+};
+
     const guardarCambios = async () => {
       if (!esAdmin) return;
 
@@ -316,6 +372,37 @@ interface Cuenta {
             setMensaje("");
           }, 3000);
         }
+
+        // Subir imágenes adicionales si hay
+if (imagenesAdicionalesFiles.length > 0) {
+  for (let i = 0; i < imagenesAdicionalesFiles.length; i++) {
+    const file = imagenesAdicionalesFiles[i];
+    const timestamp = Date.now();
+    const extension = file.name.split('.').pop();
+    const nombreArchivo = `producto_${producto.id}_adicional_${i}_${timestamp}.${extension}`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from('imagenes_productos')
+      .upload(nombreArchivo, file, {
+        cacheControl: 'public, max-age=31536000',
+        upsert: true,
+      });
+    
+    if (!uploadError) {
+      const { data: { publicUrl } } = supabase.storage
+        .from('imagenes_productos')
+        .getPublicUrl(nombreArchivo);
+      
+      await supabase.from('imagenes_producto').insert({
+        producto_id: producto.id,
+        url: publicUrl,
+        orden: i + 1
+      });
+    }
+  }
+  
+  setImagenesAdicionalesFiles([]);
+}
       } catch (error) {
         console.error("Error:", error);
         setMensaje("Ocurrió un error inesperado");
@@ -349,6 +436,22 @@ interface Cuenta {
             console.error("Error eliminando imagen:", deleteImageError);
           }
         }
+
+        // Eliminar imágenes adicionales del storage
+const { data: imagenesAdicionales } = await supabase
+  .from('imagenes_producto')
+  .select('url')
+  .eq('producto_id', producto.id);
+
+if (imagenesAdicionales) {
+  for (const img of imagenesAdicionales) {
+    const urlParts = img.url.split('/');
+    const nombreArchivo = urlParts[urlParts.length - 1];
+    await supabase.storage
+      .from('imagenes_productos')
+      .remove([nombreArchivo]);
+  }
+}
         const { error: deleteError } = await supabase
           .from("productos")
           .delete()
@@ -508,6 +611,70 @@ interface Cuenta {
                     />
                   </div>
                 </div>
+               <div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Imágenes Adicionales (opcional - máximo 4)
+  </label>
+
+  
+  {/* Mostrar imágenes existentes */}
+  {imagenesAdicionalesDB.length > 0 && (
+    <div className="mb-3">
+      <p className="text-xs text-zinc-600 mb-2">Imágenes actuales:</p>
+      <div className="grid grid-cols-2 gap-2">
+        {imagenesAdicionalesDB.map((img, index) => (
+          <div key={img.id} className="relative border rounded-lg p-2">
+            <div className="relative w-full h-24 mb-1">
+              <Image
+                src={img.url}
+                alt={`Adicional ${index + 1}`}
+                fill
+                className="object-contain rounded"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => eliminarImagenAdicional(img.id, img.url)}
+              className="w-full bg-red-500 hover:bg-red-600 text-white text-xs py-1 rounded"
+            >
+              Eliminar
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+  
+  {/* Input para agregar nuevas */}
+  {imagenesAdicionalesDB.length + imagenesAdicionalesFiles.length < 4 && (
+    <>
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={(e) => {
+          const files = Array.from(e.target.files || []);
+          const totalImagenes = imagenesAdicionalesDB.length + files.length;
+          if (totalImagenes > 4) {
+            setMensaje("Máximo 4 imágenes adicionales en total");
+            return;
+          }
+          setImagenesAdicionalesFiles(files);
+        }}
+        className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+      />
+      {imagenesAdicionalesFiles.length > 0 && (
+        <p className="text-xs text-zinc-500 mt-1">
+          {imagenesAdicionalesFiles.length} imagen(es) nueva(s) para agregar
+        </p>
+      )}
+    </>
+  )}
+  
+  <p className="text-xs text-zinc-400 mt-1">
+    Total: {imagenesAdicionalesDB.length + imagenesAdicionalesFiles.length} de 4
+  </p>
+</div>
 
                 {/* Título */}
                 <div className="mb-4">
@@ -691,18 +858,61 @@ interface Cuenta {
                 )}
 
                 {/* Imagen */}
-                <div
-                  className="flex justify-center mb-3 pt-20 cursor-pointer"
-                  onClick={() => setImagenAmpliada(true)}
-                >
-                  <div className="relative w-60 h-60">
-                    <SkeletonImage
-                      src={producto.IMAGEN || "/placeholder.jpg"}
-                      alt={producto.TITULO}
-                      className="object-contain"
-                    />
-                  </div>
-                </div>
+                {/* Imagen con carrusel si hay adicionales */}
+<div className="relative">
+ <div
+  className="flex justify-center mb-3 pt-20 cursor-pointer"
+  onClick={() => {
+    if (!modoEdicion) setImagenAmpliada(true);
+  }}
+>
+    <div className="relative w-60 h-60">
+      <SkeletonImage
+        src={imagenesProducto[imagenActualIndex] || "/placeholder.jpg"}
+        alt={producto.TITULO}
+        className="object-contain"
+      />
+    </div>
+  </div>
+  
+  {/* Controles del carrusel - solo si hay más de 1 imagen */}
+  {imagenesProducto.length > 1 && (
+    <>
+      <button
+        onClick={() => setImagenActualIndex(prev => 
+          prev > 0 ? prev - 1 : imagenesProducto.length - 1
+        )}
+        className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg z-10"
+      >
+        <ChevronLeft size={20} className="text-orange-500" />
+      </button>
+      
+      <button
+        onClick={() => setImagenActualIndex(prev => 
+          prev < imagenesProducto.length - 1 ? prev + 1 : 0
+        )}
+        className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg z-10"
+      >
+        <ChevronLeft size={20} className="rotate-180 text-orange-500" />
+      </button>
+      
+      {/* Indicadores de página */}
+      <div className="flex justify-center gap-2 mt-2">
+        {imagenesProducto.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => setImagenActualIndex(idx)}
+            className={`w-2 h-2 rounded-full transition-all ${
+              idx === imagenActualIndex 
+                ? 'bg-orange-500 w-6' 
+                : 'bg-zinc-300'
+            }`}
+          />
+        ))}
+      </div>
+    </>
+  )}
+</div>
 
                 {/* Detalles */}
                 <h2 className="text-center text-[20px] font-bold text-zinc-900 leading-snug px-2">
@@ -882,12 +1092,12 @@ interface Cuenta {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Image
-                    src={producto.IMAGEN || "/placeholder.jpg"}
-                    alt={producto.TITULO}
-                    fill
-                    className="object-contain select-none pointer-events-none"
-                    draggable={false}
-                  />
+      src={imagenesProducto[imagenActualIndex] || "/placeholder.jpg"}
+      alt={producto.TITULO}
+      fill
+      className="object-contain select-none pointer-events-none"
+      draggable={false}
+    />
                 </motion.div>
 
                 {/* Indicador de ayuda */}
@@ -4786,6 +4996,7 @@ export default function HomePage() {
     const [imagenPreview, setImagenPreview] = useState("");
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState("");
+    const [imagenesAdicionalesFiles, setImagenesAdicionalesFiles] = useState<File[]>([]);
 
     const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -4859,7 +5070,7 @@ export default function HomePage() {
         }
 
         // Insertar producto en la base de datos
-        const { error: insertError } = await supabase.from("productos").insert([
+        const { data: productoInsertado, error: insertError } = await supabase.from("productos").insert([
           {
             TITULO: titulo,
             DESCRIPCION: descripcion,
@@ -4870,8 +5081,36 @@ export default function HomePage() {
             IMAGEN: urlImagen,
             visible: true,
           },
-        ]);
+        ]).select().single();
 
+// Subir imágenes adicionales si hay
+if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
+  for (let i = 0; i < imagenesAdicionalesFiles.length; i++) {
+    const file = imagenesAdicionalesFiles[i];
+    const timestamp = Date.now();
+    const extension = file.name.split('.').pop();
+    const nombreArchivo = `producto_${productoInsertado.id}_adicional_${i}_${timestamp}.${extension}`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from('imagenes_productos')
+      .upload(nombreArchivo, file, {
+        cacheControl: 'public, max-age=31536000',
+        upsert: true,
+      });
+    
+    if (!uploadError) {
+      const { data: { publicUrl } } = supabase.storage
+        .from('imagenes_productos')
+        .getPublicUrl(nombreArchivo);
+      
+      await supabase.from('imagenes_producto').insert({
+        producto_id: productoInsertado.id,
+        url: publicUrl,
+        orden: i + 1
+      });
+    }
+  }
+}
         if (insertError) {
           console.error("Error agregando producto:", insertError);
 
@@ -4882,7 +5121,9 @@ export default function HomePage() {
             setMensaje("Error al agregar el producto");
           }
         } else {
+          
           setMensaje("Producto agregado correctamente");
+
 
           // Limpiar formulario
           setTimeout(() => {
@@ -4964,6 +5205,43 @@ export default function HomePage() {
               />
             </div>
           </div>
+
+          {/* AGREGAR ESTA SECCIÓN COMPLETA AQUÍ */}
+<div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Imágenes Adicionales (opcional - máximo 4)
+  </label>
+  
+  {/* Input para agregar nuevas */}
+  {imagenesAdicionalesFiles.length < 4 && (
+    <>
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={(e) => {
+          const files = Array.from(e.target.files || []);
+          const totalImagenes = files.length;
+          if (totalImagenes > 4) {
+            setMensaje("Máximo 4 imágenes adicionales");
+            return;
+          }
+          setImagenesAdicionalesFiles(files);
+        }}
+        className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+      />
+      {imagenesAdicionalesFiles.length > 0 && (
+        <p className="text-xs text-zinc-500 mt-1">
+          {imagenesAdicionalesFiles.length} imagen(es) seleccionada(s)
+        </p>
+      )}
+    </>
+  )}
+  
+  <p className="text-xs text-zinc-400 mt-1">
+    Total: {imagenesAdicionalesFiles.length} de 4
+  </p>
+</div>
 
           {/* Título */}
           <div className="mb-4">
@@ -5827,29 +6105,7 @@ export default function HomePage() {
 
 <BackBtn 
   onBack={() => {
-    setProductoSeleccionado(null);
-    
-    // Restaurar scroll según de dónde venga
-    const scrollFavoritos = localStorage.getItem("scrollFavoritos");
-    const scrollCarrito = localStorage.getItem("scrollCarrito");
-    const scrollProducto = localStorage.getItem("scrollProducto");
-    
-    if (scrollFavoritos) {
-      setTimeout(() => {
-        window.scrollTo({ top: parseInt(scrollFavoritos), behavior: "instant" });
-        localStorage.removeItem("scrollFavoritos");
-      }, 50);
-    } else if (scrollCarrito) {
-      setTimeout(() => {
-        window.scrollTo({ top: parseInt(scrollCarrito), behavior: "instant" });
-        localStorage.removeItem("scrollCarrito");
-      }, 50);
-    } else if (scrollProducto) {
-      setTimeout(() => {
-        window.scrollTo({ top: parseInt(scrollProducto), behavior: "instant" });
-        localStorage.removeItem("scrollProducto");
-      }, 50);
-    }
+    setPedidoSeleccionado(null);
   }} 
 />
           <h2 className="text-xl font-bold text-zinc-900 mb-2">
@@ -8068,7 +8324,7 @@ export default function HomePage() {
                           {esAdmin && (
                             <>
                               <MenuItem
-                                label="Gestionar Subcategorías"
+                                label="Agregar o Eliminar Subcategorías"
                                 icon={<Boxes size={20} />}
                                 onClick={() => {
                                   window.scrollTo({
@@ -8119,10 +8375,11 @@ export default function HomePage() {
                               }}
                             />
                           )}
+                          
 
                           {esAdmin && (
                             <MenuItem
-                              label="Gestionar Marcas"
+                              label="Agregar o Eliminar Marcas"
                               icon={<Codesandbox size={20} />}
                               onClick={() => {
                                 window.scrollTo({
