@@ -10,7 +10,7 @@ import {
   MapPin,
   Hammer,
   X,
-  User,
+  Megaphone,
   Star,
   History,
   Menu,
@@ -68,7 +68,7 @@ interface Cuenta {
   [key: string]: any;
 }
 
- const VistaProducto = ({
+const VistaProducto = ({
   producto,
   onBack,
   esAdmin,
@@ -81,7 +81,6 @@ interface Cuenta {
   toggleFavorito,
   categoriasAdmin,
 }: any) => {
-
   const [esFavoritoLocal, setEsFavoritoLocal] = useState(
     esFavorito ? esFavorito(producto.id) : false
   );
@@ -118,397 +117,473 @@ interface Cuenta {
     producto.marca_id ? String(producto.marca_id) : ""
   );
 
-    const [imagenAmpliada, setImagenAmpliada] = useState(false);
-    const [scale, setScale] = useState(1);
-    const [posicion, setPosicion] = useState({ x: 0, y: 0 });
-    const [imagenFile, setImagenFile] = useState<File | null>(null);
-    const [imagenPreview, setImagenPreview] = useState(producto.IMAGEN || "");
-    const [guardando, setGuardando] = useState(false);
-    const [mensaje, setMensaje] = useState("");
-    const [mostrarModalEliminar, setMostrarModalEliminar] = useState(false);
-    const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
-    const [errorEliminar, setErrorEliminar] = useState("");
-    const [eliminando, setEliminando] = useState(false);
-    const [imagenesProducto, setImagenesProducto] = useState<string[]>([producto.IMAGEN]);
-const [imagenActualIndex, setImagenActualIndex] = useState(0);
-const [imagenesAdicionalesFiles, setImagenesAdicionalesFiles] = useState<File[]>([]);
-const [imagenesAdicionalesDB, setImagenesAdicionalesDB] = useState<any[]>([]);
-    
-useEffect(() => {
-  const cargarImagenesAdicionales = async () => {
-    const { data } = await supabase
-      .from('imagenes_producto')
-      .select('*')
-      .eq('producto_id', producto.id)
-      .order('orden', { ascending: true });
-    
-    if (data && data.length > 0) {
-      setImagenesAdicionalesDB(data);
-      setImagenesProducto([producto.IMAGEN, ...data.map((img: any) => img.url)]);
+  const [imagenAmpliada, setImagenAmpliada] = useState(false);
+  const [scale, setScale] = useState(1);
+  const [posicion, setPosicion] = useState({ x: 0, y: 0 });
+  const [imagenFile, setImagenFile] = useState<File | null>(null);
+  const [imagenPreview, setImagenPreview] = useState(producto.IMAGEN || "");
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+  const [mostrarModalEliminar, setMostrarModalEliminar] = useState(false);
+  const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
+  const [errorEliminar, setErrorEliminar] = useState("");
+  const [eliminando, setEliminando] = useState(false);
+  const [imagenesProducto, setImagenesProducto] = useState<string[]>([
+    producto.IMAGEN,
+  ]);
+  const [imagenActualIndex, setImagenActualIndex] = useState(0);
+  const [imagenesAdicionalesFiles, setImagenesAdicionalesFiles] = useState<
+    File[]
+  >([]);
+  const [imagenesAdicionalesDB, setImagenesAdicionalesDB] = useState<any[]>([]);
+  const [visible, setVisible] = useState(producto.visible ?? true);
+const [liquidacion, setLiquidacion] = useState(producto.liquidacion ?? false);
+const [topVentas, setTopVentas] = useState(producto.top_ventas ?? false);
+const [actualizandoToggle, setActualizandoToggle] = useState(false);
+
+const handleToggleVisible = async () => {
+  setActualizandoToggle(true);
+  try {
+    const nuevoValor = !visible;
+    const { error } = await supabase
+      .from('productos')
+      .update({ visible: nuevoValor })
+      .eq('id', producto.id);
+
+    if (!error) {
+      setVisible(nuevoValor);
+      producto.visible = nuevoValor;
+    }
+  } catch (error) {
+    console.error('Error actualizando visibilidad:', error);
+  } finally {
+    setActualizandoToggle(false);
+  }
+};
+
+const handleToggleLiquidacion = async () => {
+  setActualizandoToggle(true);
+  try {
+    const nuevoValor = !liquidacion;
+    const { error } = await supabase
+      .from('productos')
+      .update({ liquidacion: nuevoValor })
+      .eq('id', producto.id);
+
+    if (!error) {
+      setLiquidacion(nuevoValor);
+      producto.liquidacion = nuevoValor;
+    }
+  } catch (error) {
+    console.error('Error actualizando liquidación:', error);
+  } finally {
+    setActualizandoToggle(false);
+  }
+};
+
+const handleToggleTopVentas = async () => {
+  setActualizandoToggle(true);
+  try {
+    const nuevoValor = !topVentas;
+    const { error } = await supabase
+      .from('productos')
+      .update({ top_ventas: nuevoValor })
+      .eq('id', producto.id);
+
+    if (!error) {
+      setTopVentas(nuevoValor);
+      producto.top_ventas = nuevoValor;
+    }
+  } catch (error) {
+    console.error('Error actualizando top ventas:', error);
+  } finally {
+    setActualizandoToggle(false);
+  }
+};
+
+  useEffect(() => {
+    const cargarImagenesAdicionales = async () => {
+      const { data } = await supabase
+        .from("imagenes_producto")
+        .select("*")
+        .eq("producto_id", producto.id)
+        .order("orden", { ascending: true });
+
+      if (data && data.length > 0) {
+        setImagenesAdicionalesDB(data);
+        setImagenesProducto([
+          producto.IMAGEN,
+          ...data.map((img: any) => img.url),
+        ]);
+      }
+    };
+
+    cargarImagenesAdicionales();
+  }, [producto.id]);
+
+  const handleChange = (e: any) => {
+    const value = e.target.value;
+
+    if (value === "") {
+      setCantidad("");
+      return;
+    }
+
+    const num = parseInt(value, 10);
+    if (!isNaN(num) && num >= 1) {
+      setCantidad(num.toString());
     }
   };
-  
-  cargarImagenesAdicionales();
-}, [producto.id]);
 
-    const handleChange = (e: any) => {
-      const value = e.target.value;
+  const handleBlur = () => {
+    if (cantidad === "" || parseInt(cantidad) < 1) {
+      setCantidad("1");
+    }
+  };
 
-      if (value === "") {
-        setCantidad("");
-        return;
-      }
+  const handleAdd = (): void =>
+    setCantidad((c: string): string =>
+      c === "" ? "1" : (parseInt(c, 10) + 1).toString()
+    );
 
-      const num = parseInt(value, 10);
-      if (!isNaN(num) && num >= 1) {
-        setCantidad(num.toString());
-      }
-    };
+  const handleSubtract = (): void =>
+    setCantidad((c: string): string => {
+      if (c === "" || parseInt(c, 10) <= 1) return "1";
+      return (parseInt(c, 10) - 1).toString();
+    });
 
-    const handleBlur = () => {
-      if (cantidad === "" || parseInt(cantidad) < 1) {
-        setCantidad("1");
-      }
-    };
+  // FUNCIÓN PARA AGREGAR O MODIFICAR EN CARRITO
+  const agregarOModificarCarrito = () => {
+    const cant = parseInt(cantidad) || 1;
 
-    const handleAdd = (): void =>
-      setCantidad((c: string): string =>
-        c === "" ? "1" : (parseInt(c, 10) + 1).toString()
-      );
-
-    const handleSubtract = (): void =>
-      setCantidad((c: string): string => {
-        if (c === "" || parseInt(c, 10) <= 1) return "1";
-        return (parseInt(c, 10) - 1).toString();
+    if (esDesdeCarrito) {
+      // Modificar cantidad existente
+      setCarrito((prev: any[]) => {
+        return prev.map((p) =>
+          p.id === producto.id
+            ? {
+                ...p,
+                cantidad: cant,
+                subtotal: cant * p.P_MAYOREO,
+              }
+            : p
+        );
       });
-
-    // FUNCIÓN PARA AGREGAR O MODIFICAR EN CARRITO
-    const agregarOModificarCarrito = () => {
-      const cant = parseInt(cantidad) || 1;
-
-      if (esDesdeCarrito) {
-        // Modificar cantidad existente
-        setCarrito((prev: any[]) => {
+    } else {
+      // Agregar nuevo o sumar cantidad
+      setCarrito((prev: any[]) => {
+        const existe = prev.find((p) => p.id === producto.id);
+        if (existe) {
           return prev.map((p) =>
             p.id === producto.id
               ? {
                   ...p,
-                  cantidad: cant,
-                  subtotal: cant * p.P_MAYOREO,
+                  cantidad: p.cantidad + cant,
+                  subtotal: (p.cantidad + cant) * p.P_MAYOREO,
                 }
               : p
           );
-        });
-      } else {
-        // Agregar nuevo o sumar cantidad
-        setCarrito((prev: any[]) => {
-          const existe = prev.find((p) => p.id === producto.id);
-          if (existe) {
-            return prev.map((p) =>
-              p.id === producto.id
-                ? {
-                    ...p,
-                    cantidad: p.cantidad + cant,
-                    subtotal: (p.cantidad + cant) * p.P_MAYOREO,
-                  }
-                : p
-            );
-          } else {
-            return [
-              ...prev,
-              {
-                ...producto,
-                cantidad: cant,
-                subtotal: cant * producto.P_MAYOREO,
-              },
-            ];
-          }
-        });
-      }
-
-      onBack();
-    };
-
-    // FUNCIÓN PARA ELIMINAR DEL CARRITO
-    const eliminarDelCarrito = () => {
-      setCarrito((prev: any[]) => prev.filter((p) => p.id !== producto.id));
-      onBack();
-    };
-
-    const handleImagenChange = async (
-      e: React.ChangeEvent<HTMLInputElement>
-    ) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      // Validaciones
-      if (!file.type.startsWith("image/")) {
-        setMensaje("Por favor selecciona una imagen válida.");
-        return;
-      }
-
-      if (file.size > 800 * 1024) {
-        setMensaje("La imagen no debe superar los 800 KB");
-        return;
-      }
-
-      // Eliminar imagen vieja si existe
-      if (producto.IMAGEN) {
-        const nombreArchivoViejo = producto.IMAGEN.split("/").pop();
-        await supabase.storage
-          .from("imagenes_productos")
-          .remove([nombreArchivoViejo]);
-      }
-
-      // Guardar archivo para subir luego
-      setImagenFile(file);
-
-      // Vista previa inmediata
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagenPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    };
-
-    const eliminarImagenAdicional = async (imagenId: number, url: string) => {
-  try {
-    // Eliminar del storage
-    const urlParts = url.split('/');
-    const nombreArchivo = urlParts[urlParts.length - 1];
-    await supabase.storage
-      .from('imagenes_productos')
-      .remove([nombreArchivo]);
-
-    // Eliminar de la base de datos
-    const { error } = await supabase
-      .from('imagenes_producto')
-      .delete()
-      .eq('id', imagenId);
-
-    if (!error) {
-      // Actualizar estados locales
-      const nuevasImagenesDB = imagenesAdicionalesDB.filter(img => img.id !== imagenId);
-      setImagenesAdicionalesDB(nuevasImagenesDB);
-      setImagenesProducto([producto.IMAGEN, ...nuevasImagenesDB.map((img: any) => img.url)]);
-      
-      // Si la imagen eliminada era la actual, volver a la primera
-      if (imagenActualIndex > 0 && imagenActualIndex >= nuevasImagenesDB.length + 1) {
-        setImagenActualIndex(0);
-      }
-      
-      setMensaje('Imagen eliminada correctamente');
-      setTimeout(() => setMensaje(''), 2000);
-    }
-  } catch (error) {
-    console.error('Error eliminando imagen:', error);
-    setMensaje('Error al eliminar la imagen');
-  }
-};
-
-    const guardarCambios = async () => {
-      if (!esAdmin) return;
-
-      setGuardando(true);
-      setMensaje("");
-
-      try {
-        let urlImagen = producto.IMAGEN;
-
-        if (imagenFile) {
-          const timestamp = Date.now();
-          const extension = imagenFile.name.split(".").pop();
-          const nombreArchivo = `producto_${producto.id}_${timestamp}.${extension}`;
-          const { data: uploadData, error: uploadError } =
-            await supabase.storage
-              .from("imagenes_productos")
-              .upload(nombreArchivo, imagenFile, {
-                cacheControl: "public, max-age=31536000",
-                upsert: true,
-              });
-
-          if (uploadError) {
-            console.error("Error subiendo imagen:", uploadError);
-            setMensaje("Error al subir la imagen");
-            setGuardando(false);
-            return;
-          }
-
-          const {
-            data: { publicUrl },
-          } = supabase.storage
-            .from("imagenes_productos")
-            .getPublicUrl(nombreArchivo);
-
-          urlImagen = publicUrl;
-        }
-
-        const { error: updateError } = await supabase
-          .from("productos")
-          .update({
-            TITULO: titulo,
-            DESCRIPCION: descripcion,
-            CATEGORIA_ID: parseInt(categoriaId),
-            marca_id: marcaId ? parseInt(marcaId) : null,
-            IMAGEN: urlImagen,
-          })
-          .eq("id", producto.id);
-
-        if (updateError) {
-          console.error("Error actualizando producto:", updateError);
-          setMensaje("Error al guardar los cambios");
         } else {
-          setMensaje("Producto actualizado correctamente");
-          setModoEdicion(false);
-
-          producto.TITULO = titulo;
-          producto.DESCRIPCION = descripcion;
-          producto.CATEGORIA_ID = parseInt(categoriaId);
-          producto.marca_id = marcaId ? parseInt(marcaId) : null;
-          producto.IMAGEN = urlImagen;
-          setImagenFile(null);
-
-          setTimeout(() => {
-            setMensaje("");
-          }, 3000);
+          return [
+            ...prev,
+            {
+              ...producto,
+              cantidad: cant,
+              subtotal: cant * producto.P_MAYOREO,
+            },
+          ];
         }
-
-        // Subir imágenes adicionales si hay
-if (imagenesAdicionalesFiles.length > 0) {
-  for (let i = 0; i < imagenesAdicionalesFiles.length; i++) {
-    const file = imagenesAdicionalesFiles[i];
-    const timestamp = Date.now();
-    const extension = file.name.split('.').pop();
-    const nombreArchivo = `producto_${producto.id}_adicional_${i}_${timestamp}.${extension}`;
-    
-    const { error: uploadError } = await supabase.storage
-      .from('imagenes_productos')
-      .upload(nombreArchivo, file, {
-        cacheControl: 'public, max-age=31536000',
-        upsert: true,
-      });
-    
-    if (!uploadError) {
-      const { data: { publicUrl } } = supabase.storage
-        .from('imagenes_productos')
-        .getPublicUrl(nombreArchivo);
-      
-      await supabase.from('imagenes_producto').insert({
-        producto_id: producto.id,
-        url: publicUrl,
-        orden: i + 1
       });
     }
-  }
-  
-  setImagenesAdicionalesFiles([]);
-}
-      } catch (error) {
-        console.error("Error:", error);
-        setMensaje("Ocurrió un error inesperado");
-      } finally {
-        setGuardando(false);
-      }
+
+    onBack();
+  };
+
+  // FUNCIÓN PARA ELIMINAR DEL CARRITO
+  const eliminarDelCarrito = () => {
+    setCarrito((prev: any[]) => prev.filter((p) => p.id !== producto.id));
+    onBack();
+  };
+
+  const handleImagenChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validaciones
+    if (!file.type.startsWith("image/")) {
+      setMensaje("Por favor selecciona una imagen válida.");
+      return;
+    }
+
+    if (file.size > 800 * 1024) {
+      setMensaje("La imagen no debe superar los 800 KB");
+      return;
+    }
+
+    // Eliminar imagen vieja si existe
+    if (producto.IMAGEN) {
+      const nombreArchivoViejo = producto.IMAGEN.split("/").pop();
+      await supabase.storage
+        .from("imagenes_productos")
+        .remove([nombreArchivoViejo]);
+    }
+
+    // Guardar archivo para subir luego
+    setImagenFile(file);
+
+    // Vista previa inmediata
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagenPreview(reader.result as string);
     };
+    reader.readAsDataURL(file);
+  };
 
-    const eliminarProducto = async () => {
-      if (!esAdmin) return;
+  const eliminarImagenAdicional = async (imagenId: number, url: string) => {
+    try {
+      // Eliminar del storage
+      const urlParts = url.split("/");
+      const nombreArchivo = urlParts[urlParts.length - 1];
+      await supabase.storage.from("imagenes_productos").remove([nombreArchivo]);
 
-      setEliminando(true);
-      setErrorEliminar("");
+      // Eliminar de la base de datos
+      const { error } = await supabase
+        .from("imagenes_producto")
+        .delete()
+        .eq("id", imagenId);
 
-      if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
-        setErrorEliminar("Número de cuenta incorrecto");
-        setEliminando(false);
-        return;
-      }
+      if (!error) {
+        // Actualizar estados locales
+        const nuevasImagenesDB = imagenesAdicionalesDB.filter(
+          (img) => img.id !== imagenId
+        );
+        setImagenesAdicionalesDB(nuevasImagenesDB);
+        setImagenesProducto([
+          producto.IMAGEN,
+          ...nuevasImagenesDB.map((img: any) => img.url),
+        ]);
 
-      try {
-        if (producto.IMAGEN && producto.IMAGEN.includes("imagenes_productos")) {
-          const urlParts = producto.IMAGEN.split("/");
-          const nombreArchivo = urlParts[urlParts.length - 1];
-
-          const { error: deleteImageError } = await supabase.storage
-            .from("imagenes_productos")
-            .remove([nombreArchivo]);
-
-          if (deleteImageError) {
-            console.error("Error eliminando imagen:", deleteImageError);
-          }
+        // Si la imagen eliminada era la actual, volver a la primera
+        if (
+          imagenActualIndex > 0 &&
+          imagenActualIndex >= nuevasImagenesDB.length + 1
+        ) {
+          setImagenActualIndex(0);
         }
 
-        // Eliminar imágenes adicionales del storage
-const { data: imagenesAdicionales } = await supabase
-  .from('imagenes_producto')
-  .select('url')
-  .eq('producto_id', producto.id);
+        setMensaje("Imagen eliminada correctamente");
+        setTimeout(() => setMensaje(""), 2000);
+      }
+    } catch (error) {
+      console.error("Error eliminando imagen:", error);
+      setMensaje("Error al eliminar la imagen");
+    }
+  };
 
-if (imagenesAdicionales) {
-  for (const img of imagenesAdicionales) {
-    const urlParts = img.url.split('/');
-    const nombreArchivo = urlParts[urlParts.length - 1];
-    await supabase.storage
-      .from('imagenes_productos')
-      .remove([nombreArchivo]);
-  }
-}
-        const { error: deleteError } = await supabase
-          .from("productos")
-          .delete()
-          .eq("id", producto.id);
+  const guardarCambios = async () => {
+    if (!esAdmin) return;
 
-        if (deleteError) {
-          console.error("Error eliminando producto:", deleteError);
-          setErrorEliminar("Error al eliminar el producto");
-          setEliminando(false);
+    setGuardando(true);
+    setMensaje("");
+
+    try {
+      let urlImagen = producto.IMAGEN;
+
+      if (imagenFile) {
+        const timestamp = Date.now();
+        const extension = imagenFile.name.split(".").pop();
+        const nombreArchivo = `producto_${producto.id}_${timestamp}.${extension}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("imagenes_productos")
+          .upload(nombreArchivo, imagenFile, {
+            cacheControl: "public, max-age=31536000",
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error("Error subiendo imagen:", uploadError);
+          setMensaje("Error al subir la imagen");
+          setGuardando(false);
           return;
         }
 
-        setMostrarModalEliminar(false);
-        setMensaje("Producto eliminado correctamente");
+        const {
+          data: { publicUrl },
+        } = supabase.storage
+          .from("imagenes_productos")
+          .getPublicUrl(nombreArchivo);
+
+        urlImagen = publicUrl;
+      }
+
+      const { error: updateError } = await supabase
+        .from("productos")
+        .update({
+          TITULO: titulo,
+          DESCRIPCION: descripcion,
+          CATEGORIA_ID: parseInt(categoriaId),
+          marca_id: marcaId ? parseInt(marcaId) : null,
+          IMAGEN: urlImagen,
+        })
+        .eq("id", producto.id);
+
+      if (updateError) {
+        console.error("Error actualizando producto:", updateError);
+        setMensaje("Error al guardar los cambios");
+      } else {
+        setMensaje("Producto actualizado correctamente");
+        setModoEdicion(false);
+
+        producto.TITULO = titulo;
+        producto.DESCRIPCION = descripcion;
+        producto.CATEGORIA_ID = parseInt(categoriaId);
+        producto.marca_id = marcaId ? parseInt(marcaId) : null;
+        producto.IMAGEN = urlImagen;
+        setImagenFile(null);
 
         setTimeout(() => {
-          onBack();
-        }, 1000);
-      } catch (error) {
-        console.error("Error:", error);
-        setErrorEliminar("Ocurrió un error inesperado");
-      } finally {
-        setEliminando(false);
+          setMensaje("");
+        }, 3000);
       }
-    };
 
-    const cantidadNum = parseInt(cantidad) || 1;
+      // Subir imágenes adicionales si hay
+      if (imagenesAdicionalesFiles.length > 0) {
+        for (let i = 0; i < imagenesAdicionalesFiles.length; i++) {
+          const file = imagenesAdicionalesFiles[i];
+          const timestamp = Date.now();
+          const extension = file.name.split(".").pop();
+          const nombreArchivo = `producto_${producto.id}_adicional_${i}_${timestamp}.${extension}`;
 
-    return (
-      <AnimatePresence mode="wait">
+          const { error: uploadError } = await supabase.storage
+            .from("imagenes_productos")
+            .upload(nombreArchivo, file, {
+              cacheControl: "public, max-age=31536000",
+              upsert: true,
+            });
+
+          if (!uploadError) {
+            const {
+              data: { publicUrl },
+            } = supabase.storage
+              .from("imagenes_productos")
+              .getPublicUrl(nombreArchivo);
+
+            await supabase.from("imagenes_producto").insert({
+              producto_id: producto.id,
+              url: publicUrl,
+              orden: i + 1,
+            });
+          }
+        }
+
+        setImagenesAdicionalesFiles([]);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setMensaje("Ocurrió un error inesperado");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const eliminarProducto = async () => {
+    if (!esAdmin) return;
+
+    setEliminando(true);
+    setErrorEliminar("");
+
+    if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
+      setErrorEliminar("Número de cuenta incorrecto");
+      setEliminando(false);
+      return;
+    }
+
+    try {
+      if (producto.IMAGEN && producto.IMAGEN.includes("imagenes_productos")) {
+        const urlParts = producto.IMAGEN.split("/");
+        const nombreArchivo = urlParts[urlParts.length - 1];
+
+        const { error: deleteImageError } = await supabase.storage
+          .from("imagenes_productos")
+          .remove([nombreArchivo]);
+
+        if (deleteImageError) {
+          console.error("Error eliminando imagen:", deleteImageError);
+        }
+      }
+
+      // Eliminar imágenes adicionales del storage
+      const { data: imagenesAdicionales } = await supabase
+        .from("imagenes_producto")
+        .select("url")
+        .eq("producto_id", producto.id);
+
+      if (imagenesAdicionales) {
+        for (const img of imagenesAdicionales) {
+          const urlParts = img.url.split("/");
+          const nombreArchivo = urlParts[urlParts.length - 1];
+          await supabase.storage
+            .from("imagenes_productos")
+            .remove([nombreArchivo]);
+        }
+      }
+      const { error: deleteError } = await supabase
+        .from("productos")
+        .delete()
+        .eq("id", producto.id);
+
+      if (deleteError) {
+        console.error("Error eliminando producto:", deleteError);
+        setErrorEliminar("Error al eliminar el producto");
+        setEliminando(false);
+        return;
+      }
+
+      setMostrarModalEliminar(false);
+      setMensaje("Producto eliminado correctamente");
+
+      setTimeout(() => {
+        onBack();
+      }, 1000);
+    } catch (error) {
+      console.error("Error:", error);
+      setErrorEliminar("Ocurrió un error inesperado");
+    } finally {
+      setEliminando(false);
+    }
+  };
+
+  const cantidadNum = parseInt(cantidad) || 1;
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={producto.id}
+        className="min-h-screen fixed inset-0 z-50 text-zinc-900"
+        style={{ backgroundColor: "#fff" }}
+      >
+        <div className="absolute inset-0 bg-white" />
         <motion.div
-          key={producto.id}
-          className="min-h-screen fixed inset-0 z-50 text-zinc-900"
-          style={{ backgroundColor: "#fff" }}
+          initial={{ x: 120 }}
+          animate={{ x: 0 }}
+          exit={{ x: 120 }}
+          transition={{ duration: 0.35, ease: "easeInOut" }}
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          onDragEnd={(event, info) => {
+            if (info.offset.x > 100 && !modoEdicion) onBack();
+          }}
+          className="relative w-full h-full overflow-y-auto"
         >
-          <div className="absolute inset-0 bg-white" />
-          <motion.div
-            initial={{ x: 120 }}
-            animate={{ x: 0 }}
-            exit={{ x: 120 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            onDragEnd={(event, info) => {
-              if (info.offset.x > 100 && !modoEdicion) onBack();
-            }}
-            className="relative w-full h-full overflow-y-auto"
+          {/* Botón regresar */}
+          <button
+            onClick={onBack}
+            className="absolute top-9 left-7 bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow transition text-xl z-10"
           >
-            {/* Botón regresar */}
-            <button
-              onClick={onBack}
-              className="absolute top-9 left-7 bg-transparent hover:bg-white/20 text-orange-500 rounded-full p-4 shadow transition text-xl z-10"
-            >
-              ←
-            </button>
+            ←
+          </button>
 
-             {/* Favorito */}
+          {/* Favorito */}
           {!esAdmin && !modoEdicion && (
             <motion.button
               onClick={handleToggleFavorito}
@@ -557,660 +632,822 @@ if (imagenesAdicionales) {
             </motion.button>
           )}
 
-
-            {/* Botón editar (solo admin y no desde carrito) */}
-            {esAdmin && !modoEdicion && !esDesdeCarrito && (
-              <button
-                onClick={() => setModoEdicion(true)}
-                className="absolute top-9 right-7 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-3 shadow transition z-10"
+          {/* Botón editar (solo admin y no desde carrito) */}
+          {esAdmin && !modoEdicion && !esDesdeCarrito && (
+            <button
+              onClick={() => setModoEdicion(true)}
+              className="absolute top-9 right-7 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-3 shadow transition z-10"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                className="w-5 h-5"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                  className="w-5 h-5"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+                />
+              </svg>
+            </button>
+          )}
+
+          {/* MODO EDICIÓN (ADMIN) */}
+          {modoEdicion && esAdmin ? (
+            <div className="px-6 py-20">
+              <h2 className="text-xl font-bold text-zinc-900 mb-6">
+                Editar Producto
+              </h2>
+
+              {/* Imagen */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Imagen
+                </label>
+                <div className="flex flex-col items-center gap-3">
+                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-zinc-300">
+                    <Image
+                      src={imagenPreview || "/placeholder.jpg"}
+                      alt="Preview"
+                      fill
+                      className="object-contain"
+                      loading="lazy"
+                    />
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImagenChange}
+                    className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
                   />
-                </svg>
-              </button>
-            )}
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Imágenes Adicionales (opcional - máximo 4)
+                </label>
 
-            {/* MODO EDICIÓN (ADMIN) */}
-            {modoEdicion && esAdmin ? (
-              <div className="px-6 py-20">
-                <h2 className="text-xl font-bold text-zinc-900 mb-6">
-                  Editar Producto
-                </h2>
-
-                {/* Imagen */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Imagen
-                  </label>
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-zinc-300">
-                      <Image
-                        src={imagenPreview || "/placeholder.jpg"}
-                        alt="Preview"
-                        fill
-                        className="object-contain"
-                        loading="lazy"
-                      />
+                {/* Mostrar imágenes existentes */}
+                {imagenesAdicionalesDB.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-xs text-zinc-600 mb-2">
+                      Imágenes actuales:
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {imagenesAdicionalesDB.map((img, index) => (
+                        <div
+                          key={img.id}
+                          className="relative border rounded-lg p-2"
+                        >
+                          <div className="relative w-full h-24 mb-1">
+                            <Image
+                              src={img.url}
+                              alt={`Adicional ${index + 1}`}
+                              fill
+                              className="object-contain rounded"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              eliminarImagenAdicional(img.id, img.url)
+                            }
+                            className="w-full bg-red-500 hover:bg-red-600 text-white text-xs py-1 rounded"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Input para agregar nuevas */}
+                {imagenesAdicionalesDB.length +
+                  imagenesAdicionalesFiles.length <
+                  4 && (
+                  <>
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={handleImagenChange}
-                      className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        const totalImagenes =
+                          imagenesAdicionalesDB.length + files.length;
+                        if (totalImagenes > 4) {
+                          setMensaje("Máximo 4 imágenes adicionales en total");
+                          return;
+                        }
+                        setImagenesAdicionalesFiles(files);
+                      }}
+                      className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                    {imagenesAdicionalesFiles.length > 0 && (
+                      <p className="text-xs text-zinc-500 mt-1">
+                        {imagenesAdicionalesFiles.length} imagen(es) nueva(s)
+                        para agregar
+                      </p>
+                    )}
+                  </>
+                )}
+
+                <p className="text-xs text-zinc-400 mt-1">
+                  Total:{" "}
+                  {imagenesAdicionalesDB.length +
+                    imagenesAdicionalesFiles.length}{" "}
+                  de 4
+                </p>
+              </div>
+
+              {/* Título */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Título
+                </label>
+                <input
+                  type="text"
+                  value={titulo}
+                  onChange={(e) => setTitulo(e.target.value)}
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                />
+              </div>
+
+              {/* Descripción */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Descripción
+                </label>
+                <textarea
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  rows={3}
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                />
+              </div>
+
+              {/* Código */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Código (no editable)
+                </label>
+                <input
+                  type="text"
+                  value={producto.CODIGO}
+                  disabled
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
+                />
+              </div>
+
+              {/* Precio */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Precio (no editable)
+                </label>
+                <input
+                  type="text"
+                  value={`$${producto.P_MAYOREO?.toFixed(2)}`}
+                  disabled
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
+                />
+              </div>
+
+              {/* Categoría */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Categoría
+                </label>
+                <select
+                  value={categoriaId}
+                  onChange={(e) => setCategoriaId(e.target.value)}
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                >
+                  <option value="">Seleccionar categoría</option>
+                  {categoriasAdmin.map((cat: any) => (
+                    <option
+                      key={cat.id_categoria}
+                      value={String(cat.id_categoria)}
+                    >
+                      {cat.nombre_categoria}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Marca */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Marca
+                </label>
+                <select
+                  value={marcaId}
+                  onChange={(e) => setMarcaId(e.target.value)}
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                >
+                  <option value="">Sin marca</option>
+                  {marcas.map((marca: any) => (
+                    <option key={marca.id} value={marca.id}>
+                      {marca.nombre_marca}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Mensaje */}
+              {mensaje && (
+                <div
+                  className={`mb-4 p-3 rounded-lg text-sm ${
+                    mensaje.includes("Error")
+                      ? "bg-red-50 text-red-700 border border-red-200"
+                      : "bg-green-50 text-green-700 border border-green-200"
+                  }`}
+                >
+                  {mensaje}
+                </div>
+              )}
+
+              {/* Botones */}
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setModoEdicion(false);
+                      setTitulo(producto.TITULO || "");
+                      setDescripcion(producto.DESCRIPCION || "");
+                      setCategoriaId(
+                        producto.CATEGORIA_ID
+                          ? String(producto.CATEGORIA_ID)
+                          : ""
+                      );
+                      setMarcaId(
+                        producto.marca_id ? String(producto.marca_id) : ""
+                      );
+                      setImagenFile(null);
+                      setImagenPreview(producto.IMAGEN || "");
+                      setMensaje("");
+                    }}
+                    disabled={guardando}
+                    className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={guardarCambios}
+                    disabled={guardando || !titulo}
+                    className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {guardando ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                        Guardando...
+                      </span>
+                    ) : (
+                      "Guardar Cambios"
+                    )}
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setMostrarModalEliminar(true)}
+                  disabled={guardando}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="w-5 h-5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                    />
+                  </svg>
+                  Eliminar Producto
+                </button>
+              </div>
+            </div>
+          ) : (
+            // MODO VISTA NORMAL
+            <>
+              {/* Badge si es desde carrito */}
+              {esDesdeCarrito && (
+                <div className="absolute top-20 right-7 bg-orange-500 text-white text-xs px-3 py-1 rounded-full font-semibold z-10">
+                  En carrito
+                </div>
+              )}
+
+              {/* Imagen */}
+              {/* Imagen con carrusel si hay adicionales */}
+              <div className="relative">
+                <div
+                  className="flex justify-center mb-3 pt-20 cursor-pointer"
+                  onClick={() => {
+                    if (!modoEdicion) setImagenAmpliada(true);
+                  }}
+                >
+                  <div className="relative w-60 h-60">
+                    <SkeletonImage
+                      src={
+                        imagenesProducto[imagenActualIndex] ||
+                        "/placeholder.jpg"
+                      }
+                      alt={producto.TITULO}
+                      className="object-contain"
                     />
                   </div>
                 </div>
-               <div className="mb-4">
-  <label className="block text-sm font-medium text-zinc-700 mb-2">
-    Imágenes Adicionales (opcional - máximo 4)
-  </label>
 
-  
-  {/* Mostrar imágenes existentes */}
-  {imagenesAdicionalesDB.length > 0 && (
-    <div className="mb-3">
-      <p className="text-xs text-zinc-600 mb-2">Imágenes actuales:</p>
-      <div className="grid grid-cols-2 gap-2">
-        {imagenesAdicionalesDB.map((img, index) => (
-          <div key={img.id} className="relative border rounded-lg p-2">
-            <div className="relative w-full h-24 mb-1">
-              <Image
-                src={img.url}
-                alt={`Adicional ${index + 1}`}
-                fill
-                className="object-contain rounded"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => eliminarImagenAdicional(img.id, img.url)}
-              className="w-full bg-red-500 hover:bg-red-600 text-white text-xs py-1 rounded"
-            >
-              Eliminar
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  )}
-  
-  {/* Input para agregar nuevas */}
-  {imagenesAdicionalesDB.length + imagenesAdicionalesFiles.length < 4 && (
-    <>
-      <input
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={(e) => {
-          const files = Array.from(e.target.files || []);
-          const totalImagenes = imagenesAdicionalesDB.length + files.length;
-          if (totalImagenes > 4) {
-            setMensaje("Máximo 4 imágenes adicionales en total");
-            return;
-          }
-          setImagenesAdicionalesFiles(files);
-        }}
-        className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-      />
-      {imagenesAdicionalesFiles.length > 0 && (
-        <p className="text-xs text-zinc-500 mt-1">
-          {imagenesAdicionalesFiles.length} imagen(es) nueva(s) para agregar
-        </p>
-      )}
-    </>
-  )}
-  
-  <p className="text-xs text-zinc-400 mt-1">
-    Total: {imagenesAdicionalesDB.length + imagenesAdicionalesFiles.length} de 4
-  </p>
-</div>
-
-                {/* Título */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Título
-                  </label>
-                  <input
-                    type="text"
-                    value={titulo}
-                    onChange={(e) => setTitulo(e.target.value)}
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-                  />
-                </div>
-
-                {/* Descripción */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Descripción
-                  </label>
-                  <textarea
-                    value={descripcion}
-                    onChange={(e) => setDescripcion(e.target.value)}
-                    rows={3}
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-                  />
-                </div>
-
-                {/* Código */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Código (no editable)
-                  </label>
-                  <input
-                    type="text"
-                    value={producto.CODIGO}
-                    disabled
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
-                  />
-                </div>
-
-                {/* Precio */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Precio (no editable)
-                  </label>
-                  <input
-                    type="text"
-                    value={`$${producto.P_MAYOREO?.toFixed(2)}`}
-                    disabled
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
-                  />
-                </div>
-
-                {/* Categoría */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Categoría
-                  </label>
-                  <select
-                    value={categoriaId}
-                    onChange={(e) => setCategoriaId(e.target.value)}
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-                  >
-                    <option value="">Seleccionar categoría</option>
-                    {categoriasAdmin.map((cat: any) => (
-                      <option
-                        key={cat.id_categoria}
-                        value={String(cat.id_categoria)}
-                      >
-                        {cat.nombre_categoria}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Marca */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-zinc-700 mb-2">
-                    Marca
-                  </label>
-                  <select
-                    value={marcaId}
-                    onChange={(e) => setMarcaId(e.target.value)}
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-                  >
-                    <option value="">Sin marca</option>
-                    {marcas.map((marca: any) => (
-                      <option key={marca.id} value={marca.id}>
-                        {marca.nombre_marca}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-
-                {/* Mensaje */}
-                {mensaje && (
-                  <div
-                    className={`mb-4 p-3 rounded-lg text-sm ${
-                      mensaje.includes("Error")
-                        ? "bg-red-50 text-red-700 border border-red-200"
-                        : "bg-green-50 text-green-700 border border-green-200"
-                    }`}
-                  >
-                    {mensaje}
-                  </div>
-                )}
-
-                {/* Botones */}
-                <div className="space-y-3">
-                  <div className="flex gap-3">
+                {/* Controles del carrusel - solo si hay más de 1 imagen */}
+                {imagenesProducto.length > 1 && (
+                  <>
                     <button
-                      onClick={() => {
-                        setModoEdicion(false);
-                        setTitulo(producto.TITULO || "");
-                        setDescripcion(producto.DESCRIPCION || "");
-                        setCategoriaId(
-                          producto.CATEGORIA_ID
-                            ? String(producto.CATEGORIA_ID)
-                            : ""
-                        );
-                        setMarcaId(
-                          producto.marca_id ? String(producto.marca_id) : ""
-                        );
-                        setImagenFile(null);
-                        setImagenPreview(producto.IMAGEN || "");
-                        setMensaje("");
-                      }}
-                      disabled={guardando}
-                      className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                      onClick={() =>
+                        setImagenActualIndex((prev) =>
+                          prev > 0 ? prev - 1 : imagenesProducto.length - 1
+                        )
+                      }
+                      className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg z-10"
                     >
-                      Cancelar
+                      <ChevronLeft size={20} className="text-orange-500" />
                     </button>
-                    <button
-                      onClick={guardarCambios}
-                      disabled={guardando || !titulo}
-                      className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {guardando ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                          Guardando...
-                        </span>
-                      ) : (
-                        "Guardar Cambios"
-                      )}
-                    </button>
-                  </div>
 
-                  <button
-                    onClick={() => setMostrarModalEliminar(true)}
-                    disabled={guardando}
-                    className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={2}
-                      stroke="currentColor"
-                      className="w-5 h-5"
+                    <button
+                      onClick={() =>
+                        setImagenActualIndex((prev) =>
+                          prev < imagenesProducto.length - 1 ? prev + 1 : 0
+                        )
+                      }
+                      className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg z-10"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                      <ChevronLeft
+                        size={20}
+                        className="rotate-180 text-orange-500"
                       />
-                    </svg>
-                    Eliminar Producto
-                  </button>
-                </div>
-              </div>
-            ) : (
-              // MODO VISTA NORMAL
-              <>
-                {/* Badge si es desde carrito */}
-                {esDesdeCarrito && (
-                  <div className="absolute top-20 right-7 bg-orange-500 text-white text-xs px-3 py-1 rounded-full font-semibold z-10">
-                    En carrito
-                  </div>
-                )}
+                    </button>
 
-                {/* Imagen */}
-                {/* Imagen con carrusel si hay adicionales */}
-<div className="relative">
- <div
-  className="flex justify-center mb-3 pt-20 cursor-pointer"
-  onClick={() => {
-    if (!modoEdicion) setImagenAmpliada(true);
-  }}
->
-    <div className="relative w-60 h-60">
-      <SkeletonImage
-        src={imagenesProducto[imagenActualIndex] || "/placeholder.jpg"}
-        alt={producto.TITULO}
-        className="object-contain"
-      />
+                    {/* Indicadores de página */}
+                    <div className="flex justify-center gap-2 mt-2">
+                      {imagenesProducto.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setImagenActualIndex(idx)}
+                          className={`w-2 h-2 rounded-full transition-all ${
+                            idx === imagenActualIndex
+                              ? "bg-orange-500 w-6"
+                              : "bg-zinc-300"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Detalles */}
+              <h2 className="text-center text-[20px] font-bold text-zinc-900 leading-snug px-2">
+                {producto.TITULO}
+              </h2>
+
+              {/* Descripción / Información Adicional */}
+              {producto.DESCRIPCION && (
+                <div className="mt-5 px-4">
+                  <h3 className="text-sm font-semibold text-zinc-900 mb-2">
+                    Información Adicional
+                  </h3>
+                  <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200">
+                    {producto.DESCRIPCION}
+                  </p>
+                </div>
+              )}
+
+              {/* Información Adicional */}
+{producto.DESCRIPCION && (
+  <div className="mt-5 px-4">
+    <h3 className="text-sm font-semibold text-zinc-900 mb-2">
+      Información Adicional
+    </h3>
+    <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200">
+      {producto.DESCRIPCION}
+    </p>
+  </div>
+)}
+
+{/* Toggles de Admin */}
+{esAdmin && !modoEdicion && (
+  <div className="mt-5 px-4">
+    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+      <h3 className="text-sm font-bold text-blue-900 mb-3">
+        Configuración del Producto
+      </h3>
+      
+      {/* Toggle Visible */}
+      <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-blue-200">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+            visible ? 'bg-blue-100' : 'bg-gray-100'
+          }`}>
+            {visible ? (
+              <Eye size={20} className="text-blue-600" />
+            ) : (
+              <EyeOff size={20} className="text-gray-600" />
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-zinc-800">
+              {visible ? 'Producto Visible' : 'Producto Oculto'}
+            </p>
+            <p className="text-xs text-zinc-500">
+              {visible ? 'Los clientes pueden ver este producto' : 'Solo visible para administradores'}
+            </p>
+          </div>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={visible}
+            onChange={handleToggleVisible}
+            disabled={actualizandoToggle}
+            className="sr-only peer"
+          />
+          <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full disabled:opacity-50"></div>
+        </label>
+      </div>
+
+      {/* Toggle Liquidación */}
+      <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+            liquidacion ? 'bg-red-100' : 'bg-gray-100'
+          }`}>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              className={`w-5 h-5 ${liquidacion ? 'text-red-600' : 'text-gray-600'}`}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-zinc-800">
+              {liquidacion ? 'En Liquidación' : 'Venta Regular'}
+            </p>
+            <p className="text-xs text-zinc-500">
+              {liquidacion ? 'Producto marcado como liquidación' : 'Sin liquidacion'}
+            </p>
+          </div>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={liquidacion}
+            onChange={handleToggleLiquidacion}
+            disabled={actualizandoToggle}
+            className="sr-only peer"
+          />
+          <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full disabled:opacity-50"></div>
+        </label>
+      </div>
+
+      {/* Toggle Top Ventas */}
+      <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+            topVentas ? 'bg-green-100' : 'bg-gray-100'
+          }`}>
+            <Star size={20} className={topVentas ? 'text-green-600 fill-green-600' : 'text-gray-600'} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-zinc-800">
+              {topVentas ? 'Producto Destacado' : 'Producto Regular'}
+            </p>
+            <p className="text-xs text-zinc-500">
+              {topVentas ? 'Marcado como más vendido' : 'Sin destacar especialmente'}
+            </p>
+          </div>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={topVentas}
+            onChange={handleToggleTopVentas}
+            disabled={actualizandoToggle}
+            className="sr-only peer"
+          />
+          <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full disabled:opacity-50"></div>
+        </label>
+      </div>
+
+      {actualizandoToggle && (
+        <div className="flex items-center justify-center gap-2 text-blue-600 text-xs">
+          <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+          <span>Actualizando...</span>
+        </div>
+      )}
     </div>
   </div>
-  
-  {/* Controles del carrusel - solo si hay más de 1 imagen */}
-  {imagenesProducto.length > 1 && (
-    <>
-      <button
-        onClick={() => setImagenActualIndex(prev => 
-          prev > 0 ? prev - 1 : imagenesProducto.length - 1
-        )}
-        className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg z-10"
-      >
-        <ChevronLeft size={20} className="text-orange-500" />
-      </button>
-      
-      <button
-        onClick={() => setImagenActualIndex(prev => 
-          prev < imagenesProducto.length - 1 ? prev + 1 : 0
-        )}
-        className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg z-10"
-      >
-        <ChevronLeft size={20} className="rotate-180 text-orange-500" />
-      </button>
-      
-      {/* Indicadores de página */}
-      <div className="flex justify-center gap-2 mt-2">
-        {imagenesProducto.map((_, idx) => (
-          <button
-            key={idx}
-            onClick={() => setImagenActualIndex(idx)}
-            className={`w-2 h-2 rounded-full transition-all ${
-              idx === imagenActualIndex 
-                ? 'bg-orange-500 w-6' 
-                : 'bg-zinc-300'
-            }`}
-          />
-        ))}
-      </div>
-    </>
-  )}
-</div>
+)}
 
-                {/* Detalles */}
-                <h2 className="text-center text-[20px] font-bold text-zinc-900 leading-snug px-2">
-                  {producto.TITULO}
-                </h2>
 
-                {/* Descripción / Información Adicional */}
-                {producto.DESCRIPCION && (
-                  <div className="mt-5 px-4">
-                    <h3 className="text-sm font-semibold text-zinc-900 mb-2">
-                      Información Adicional
-                    </h3>
-                    <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200">
-                      {producto.DESCRIPCION}
-                    </p>
-                  </div>
-                )}
 
-                <div className="mt-4 text-sm text-zinc-700 px-2">
+              <div className="mt-4 text-sm text-zinc-700 px-2">
+                <div className="flex justify-between py-2">
+                  <span className="font-medium">Código</span>
+                  <span>{producto.CODIGO}</span>
+                </div>
+
+                <div className="flex justify-between py-2">
+                  <span className="font-medium">Marca</span>
+                  <span className="text-orange-500 font-semibold">
+                    {getNombreMarca(producto.marca_id)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between py-2">
+                  <span className="font-medium">Precio</span>
+                  <span>
+                    $
+                    {producto.P_MAYOREO?.toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+
+                {!esAdmin && (
                   <div className="flex justify-between py-2">
-                    <span className="font-medium">Código</span>
-                    <span>{producto.CODIGO}</span>
-                  </div>
-
-                  <div className="flex justify-between py-2">
-                    <span className="font-medium">Marca</span>
-                    <span className="text-orange-500 font-semibold">
-                      {getNombreMarca(producto.marca_id)}
+                    <span className="font-medium">Total de artículo</span>
+                    <span>
+                      $
+                      {(cantidadNum * producto.P_MAYOREO).toLocaleString(
+                        "en-US",
+                        {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }
+                      )}
                     </span>
                   </div>
+                )}
+              </div>
 
-                  <div className="flex justify-between py-2">
-                    <span className="font-medium">Precio</span>
-                    <span>${producto.P_MAYOREO?.toLocaleString("en-US", {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                      })}</span>
-                  </div>
-
-                  {!esAdmin && (
-                    <div className="flex justify-between py-2">
-                      <span className="font-medium">Total de artículo</span>
-                      <span>
-                        ${(cantidadNum * producto.P_MAYOREO).toLocaleString("en-US", {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                      })}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-5 px-4">
-                  <div className="flex justify-between items-center gap-3">
-                    {/* Botón restar */}
-                    <button
-                      onClick={handleSubtract}
-                      className="w-12 h-12 border text-black border-zinc-400 rounded-xl text-2xl"
-                    >
-                      −
-                    </button>
-
-                    {/* Input editable */}
-                    <input
-                      type="number"
-                      min="1"
-                      value={cantidad}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      className="w-20 text-center border border-zinc-400 rounded-xl text-lg font-semibold text-black py-2"
-                    />
-
-                    {/* Botón sumar */}
-                    <button
-                      onClick={handleAdd}
-                      className="w-12 h-12 bg-orange-500 text-white rounded-xl text-2xl"
-                    >
-                      +
-                    </button>
-                  </div>
-
-                  {/* Botón principal */}
+              <div className="mt-5 px-4">
+                <div className="flex justify-between items-center gap-3">
+                  {/* Botón restar */}
                   <button
-                    onClick={agregarOModificarCarrito}
-                    className="w-full mt-5 bg-orange-500 text-white py-3 rounded-xl font-bold shadow hover:bg-orange-600 transition"
-                  >
-                    {esDesdeCarrito
-                      ? "Modificar cantidad"
-                      : "Agregar al carrito"}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Modal de Imagen Ampliada con Zoom */}
-            {imagenAmpliada && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black z-[9999] flex items-center justify-center"
-                onClick={() => {
-                  if (scale === 1) {
-                    setImagenAmpliada(false);
-                    setScale(1);
-                    setPosicion({ x: 0, y: 0 });
-                  }
-                }}
-              >
-                {/* Botón cerrar */}
-                <button
-                  onClick={() => {
-                    setImagenAmpliada(false);
-                    setScale(1);
-                    setPosicion({ x: 0, y: 0 });
-                  }}
-                  className="absolute top-4 right-4 z-[10000] bg-gray-800 text-white rounded-full p-3 hover:bg-white/30 transition"
-                >
-                  <X size={24} />
-                </button>
-
-                {/* Controles de zoom */}
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-4 bg-gray-800 rounded-full px-6 py-3">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setScale(Math.max(1, scale - 0.5));
-                      if (scale - 0.5 <= 1) {
-                        setPosicion({ x: 0, y: 0 });
-                      }
-                    }}
-                    disabled={scale <= 1}
-                    className="text-white text-2xl font-bold disabled:opacity-30"
+                    onClick={handleSubtract}
+                    className="w-12 h-12 border text-black border-zinc-400 rounded-xl text-2xl"
                   >
                     −
                   </button>
-                  <span className="text-white font-semibold min-w-[60px] text-center">
-                    {Math.round(scale * 100)}%
-                  </span>
+
+                  {/* Input editable */}
+                  <input
+                    type="number"
+                    min="1"
+                    value={cantidad}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    className="w-20 text-center border border-zinc-400 rounded-xl text-lg font-semibold text-black py-2"
+                  />
+
+                  {/* Botón sumar */}
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setScale(Math.min(4, scale + 0.5));
-                    }}
-                    disabled={scale >= 4}
-                    className="text-white text-2xl font-bold disabled:opacity-30"
+                    onClick={handleAdd}
+                    className="w-12 h-12 bg-orange-500 text-white rounded-xl text-2xl"
                   >
                     +
                   </button>
                 </div>
 
-                {/* Imagen con zoom y drag */}
-                <motion.div
-                  className="relative w-full h-full flex items-center justify-center overflow-hidden touch-none"
-                  drag={scale > 1}
-                  dragConstraints={{
-                    left: scale > 1 ? -((scale - 1) * 200) : 0,
-                    right: scale > 1 ? (scale - 1) * 200 : 0,
-                    top: scale > 1 ? -((scale - 1) * 200) : 0,
-                    bottom: scale > 1 ? (scale - 1) * 200 : 0,
-                  }}
-                  dragElastic={0.1}
-                  onDoubleClick={(e) => {
+                {/* Botón principal */}
+                <button
+                  onClick={agregarOModificarCarrito}
+                  className="w-full mt-5 bg-orange-500 text-white py-3 rounded-xl font-bold shadow hover:bg-orange-600 transition"
+                >
+                  {esDesdeCarrito ? "Modificar cantidad" : "Agregar al carrito"}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Modal de Imagen Ampliada con Zoom */}
+          {imagenAmpliada && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black z-[9999] flex items-center justify-center"
+              onClick={() => {
+                if (scale === 1) {
+                  setImagenAmpliada(false);
+                  setScale(1);
+                  setPosicion({ x: 0, y: 0 });
+                }
+              }}
+            >
+              {/* Botón cerrar */}
+              <button
+                onClick={() => {
+                  setImagenAmpliada(false);
+                  setScale(1);
+                  setPosicion({ x: 0, y: 0 });
+                }}
+                className="absolute top-4 right-4 z-[10000] bg-gray-800 text-white rounded-full p-3 hover:bg-white/30 transition"
+              >
+                <X size={24} />
+              </button>
+
+              {/* Controles de zoom */}
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-4 bg-gray-800 rounded-full px-6 py-3">
+                <button
+                  onClick={(e) => {
                     e.stopPropagation();
-                    if (scale > 1) {
-                      setScale(1);
+                    setScale(Math.max(1, scale - 0.5));
+                    if (scale - 0.5 <= 1) {
                       setPosicion({ x: 0, y: 0 });
-                    } else {
-                      setScale(2);
                     }
                   }}
-                  style={{
-                    scale: scale,
-                    x: posicion.x,
-                    y: posicion.y,
-                  }}
-                  onClick={(e) => e.stopPropagation()}
+                  disabled={scale <= 1}
+                  className="text-white text-2xl font-bold disabled:opacity-30"
                 >
-                  <Image
-      src={imagenesProducto[imagenActualIndex] || "/placeholder.jpg"}
-      alt={producto.TITULO}
-      fill
-      className="object-contain select-none pointer-events-none"
-      draggable={false}
-    />
-                </motion.div>
+                  −
+                </button>
+                <span className="text-white font-semibold min-w-[60px] text-center">
+                  {Math.round(scale * 100)}%
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setScale(Math.min(4, scale + 0.5));
+                  }}
+                  disabled={scale >= 4}
+                  className="text-white text-2xl font-bold disabled:opacity-30"
+                >
+                  +
+                </button>
+              </div>
 
-                {/* Indicador de ayuda */}
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-gray-700 text-white text-sm px-4 py-2 rounded-full shadow-md">
-                  {scale === 1
-                    ? "Toca para cerrar • Doble toca para zoom"
-                    : "Arrastra para mover • Doble toca para alejar"}
+              {/* Imagen con zoom y drag */}
+              <motion.div
+                className="relative w-full h-full flex items-center justify-center overflow-hidden touch-none"
+                drag={scale > 1}
+                dragConstraints={{
+                  left: scale > 1 ? -((scale - 1) * 200) : 0,
+                  right: scale > 1 ? (scale - 1) * 200 : 0,
+                  top: scale > 1 ? -((scale - 1) * 200) : 0,
+                  bottom: scale > 1 ? (scale - 1) * 200 : 0,
+                }}
+                dragElastic={0.1}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  if (scale > 1) {
+                    setScale(1);
+                    setPosicion({ x: 0, y: 0 });
+                  } else {
+                    setScale(2);
+                  }
+                }}
+                style={{
+                  scale: scale,
+                  x: posicion.x,
+                  y: posicion.y,
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Image
+                  src={
+                    imagenesProducto[imagenActualIndex] || "/placeholder.jpg"
+                  }
+                  alt={producto.TITULO}
+                  fill
+                  className="object-contain select-none pointer-events-none"
+                  draggable={false}
+                />
+              </motion.div>
+
+              {/* Indicador de ayuda */}
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-gray-700 text-white text-sm px-4 py-2 rounded-full shadow-md">
+                {scale === 1
+                  ? "Toca para cerrar • Doble toca para zoom"
+                  : "Arrastra para mover • Doble toca para alejar"}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Modal de Confirmación para Eliminar */}
+          {mostrarModalEliminar && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-2xl w-[90%] max-w-md p-6 shadow-2xl"
+              >
+                <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="w-8 h-8 text-red-600"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
+                  ¿Eliminar Producto?
+                </h3>
+
+                <p className="text-sm text-zinc-600 text-center mb-6">
+                  Esta acción no se puede deshacer. El producto y su imagen
+                  serán eliminados permanentemente.
+                </p>
+
+                <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
+                  <p className="text-xs text-zinc-500 mb-1">
+                    Producto a eliminar:
+                  </p>
+                  <p className="text-sm font-semibold text-zinc-900">
+                    {producto.TITULO}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Código: {producto.CODIGO}
+                  </p>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                    Confirma tu número de cuenta para continuar
+                  </label>
+                  <input
+                    type="text"
+                    value={numeroCuentaConfirm}
+                    onChange={(e) => {
+                      setNumeroCuentaConfirm(e.target.value);
+                      setErrorEliminar("");
+                    }}
+                    placeholder="Ingresa tu número de cuenta"
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    disabled={eliminando}
+                  />
+                  {errorEliminar && (
+                    <p className="text-red-500 text-sm mt-2">{errorEliminar}</p>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setMostrarModalEliminar(false);
+                      setNumeroCuentaConfirm("");
+                      setErrorEliminar("");
+                    }}
+                    disabled={eliminando}
+                    className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={eliminarProducto}
+                    disabled={eliminando || !numeroCuentaConfirm}
+                    className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {eliminando ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                        Eliminando...
+                      </span>
+                    ) : (
+                      "Eliminar"
+                    )}
+                  </button>
                 </div>
               </motion.div>
-            )}
-
-            {/* Modal de Confirmación para Eliminar */}
-            {mostrarModalEliminar && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-white rounded-2xl w-[90%] max-w-md p-6 shadow-2xl"
-                >
-                  <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={2}
-                      stroke="currentColor"
-                      className="w-8 h-8 text-red-600"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
-                    ¿Eliminar Producto?
-                  </h3>
-
-                  <p className="text-sm text-zinc-600 text-center mb-6">
-                    Esta acción no se puede deshacer. El producto y su imagen
-                    serán eliminados permanentemente.
-                  </p>
-
-                  <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
-                    <p className="text-xs text-zinc-500 mb-1">
-                      Producto a eliminar:
-                    </p>
-                    <p className="text-sm font-semibold text-zinc-900">
-                      {producto.TITULO}
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-1">
-                      Código: {producto.CODIGO}
-                    </p>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-semibold text-zinc-700 mb-2">
-                      Confirma tu número de cuenta para continuar
-                    </label>
-                    <input
-                      type="text"
-                      value={numeroCuentaConfirm}
-                      onChange={(e) => {
-                        setNumeroCuentaConfirm(e.target.value);
-                        setErrorEliminar("");
-                      }}
-                      placeholder="Ingresa tu número de cuenta"
-                      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-                      disabled={eliminando}
-                    />
-                    {errorEliminar && (
-                      <p className="text-red-500 text-sm mt-2">
-                        {errorEliminar}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        setMostrarModalEliminar(false);
-                        setNumeroCuentaConfirm("");
-                        setErrorEliminar("");
-                      }}
-                      disabled={eliminando}
-                      className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={eliminarProducto}
-                      disabled={eliminando || !numeroCuentaConfirm}
-                      className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {eliminando ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                          Eliminando...
-                        </span>
-                      ) : (
-                        "Eliminar"
-                      )}
-                    </button>
-                  </div>
-                </motion.div>
-              </div>
-            )}
-          </motion.div>
+            </div>
+          )}
         </motion.div>
-      </AnimatePresence>
-    );
-  };
+      </motion.div>
+    </AnimatePresence>
+  );
+};
 
 export default function HomePage() {
   const [cuentaActiva, setCuentaActiva] = useState<string | null>(null);
@@ -1278,6 +1515,90 @@ export default function HomePage() {
   const [pedidoCompleto, setPedidoCompleto] = useState(false);
   const [ocultarBarra, setOcultarBarra] = useState(false);
   const [favoritos, setFavoritos] = useState<any[]>([]);
+  const [bannerAnuncio, setBannerAnuncio] = useState<any>(null);
+const [cargandoBanner, setCargandoBanner] = useState(true);
+const [pullStartY, setPullStartY] = useState(0);
+const [pullDistance, setPullDistance] = useState(0);
+const [isPulling, setIsPulling] = useState(false);
+const [isRefreshing, setIsRefreshing] = useState(false);
+
+const handleTouchStart = (e: React.TouchEvent) => {
+  if (window.scrollY === 0) {
+    setPullStartY(e.touches[0].clientY);
+    setIsPulling(true);
+  }
+};
+
+const handleTouchMove = (e: React.TouchEvent) => {
+  if (!isPulling || window.scrollY > 0) return;
+  
+  const currentY = e.touches[0].clientY;
+  const distance = currentY - pullStartY;
+  
+  if (distance > 0) {
+    setPullDistance(Math.min(distance, 150)); 
+  }
+};
+
+const handleTouchEnd = async () => {
+  if (pullDistance > 80 && !isRefreshing) {
+    setIsRefreshing(true);
+    
+    // Vibración si está disponible
+    if ('vibrate' in navigator) {
+      navigator.vibrate(50);
+    }
+    
+    // Recargar la página
+    setTimeout(() => {
+      window.location.reload();
+    }, 300);
+  }
+  
+  setIsPulling(false);
+  setPullDistance(0);
+};
+
+ /// Lógica de Banner en tiempo real 
+  useEffect(() => {
+    const fetchBanner = async () => {
+      const { data, error } = await supabase
+        .from("banner_anuncios")
+        .select("*")
+        .eq("activo", true)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error al cargar banner:", error);
+      } else {
+        setBannerAnuncio(data);
+      }
+      setCargandoBanner(false);
+    };
+
+    fetchBanner();
+
+    const channel = supabase
+      .channel("cambios-banner-anuncios") // Canal único
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "banner_anuncios",
+        },
+        (payload) => {
+          console.log("Cambio en banner detectado:", payload);
+          fetchBanner();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
 
   // Cargar favoritos desde localStorage
   useEffect(() => {
@@ -1349,27 +1670,27 @@ export default function HomePage() {
     }
   }, [carrito, pedidoCompleto]);
 
- useEffect(() => {
-  if (activeTab !== "buscar") {
-    buscarStateRef.current = {
-      categoria: categoriaSeleccionada,
-      marca: marcaSeleccionada,
-      searchTerm,
-      productos,
-    };
-  }
-  
-  localStorage.setItem("scrollPos", window.scrollY.toString());
-  const savedScroll = localStorage.getItem("scrollPos");
-  if (savedScroll) {
-    setTimeout(() => {
-      window.scrollTo({
-        top: parseInt(savedScroll),
-        behavior: "instant",
-      });
-    }, 50);
-  }
-}, [activeTab]);
+  useEffect(() => {
+    if (activeTab !== "buscar") {
+      buscarStateRef.current = {
+        categoria: categoriaSeleccionada,
+        marca: marcaSeleccionada,
+        searchTerm,
+        productos,
+      };
+    }
+
+    localStorage.setItem("scrollPos", window.scrollY.toString());
+    const savedScroll = localStorage.getItem("scrollPos");
+    if (savedScroll) {
+      setTimeout(() => {
+        window.scrollTo({
+          top: parseInt(savedScroll),
+          behavior: "instant",
+        });
+      }, 50);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === "buscar") {
@@ -2981,6 +3302,393 @@ export default function HomePage() {
       </motion.div>
     );
   };
+
+  const GestionarBannerView = ({ setVistaPerfil }: any) => {
+  const [banners, setBanners] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [modoVista, setModoVista] = useState<'lista' | 'agregar' | 'editar'>('lista');
+  const [bannerSeleccionado, setBannerSeleccionado] = useState<any>(null);
+  const [titulo, setTitulo] = useState('');
+  const [mensaje, setMensaje] = useState('');
+  const [color, setColor] = useState('blue');
+  const [guardando, setGuardando] = useState(false);
+  const [mensajeInfo, setMensajeInfo] = useState('');
+
+  const coloresDisponibles = [
+    { valor: 'blue', nombre: 'Azul (Info)', clase: 'bg-blue-50 border-blue-200 text-blue-800' },
+    { valor: 'yellow', nombre: 'Amarillo (Advertencia)', clase: 'bg-yellow-50 border-yellow-200 text-yellow-800' },
+    { valor: 'red', nombre: 'Rojo (Importante)', clase: 'bg-red-50 border-red-200 text-red-800' },
+    { valor: 'green', nombre: 'Verde (Éxito)', clase: 'bg-green-50 border-green-200 text-green-800' },
+  ];
+
+  useEffect(() => {
+    cargarBanners();
+}, []);
+
+  const cargarBanners = async () => {
+    setCargando(true);
+    const { data, error } = await supabase
+      .from('banner_anuncios')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setBanners(data);
+    }
+    setCargando(false);
+  };
+
+  const limpiarFormulario = () => {
+    setTitulo('');
+    setMensaje('');
+    setColor('blue');
+    setMensajeInfo('');
+    setBannerSeleccionado(null);
+  };
+
+  const agregarBanner = async () => {
+    setGuardando(true);
+    setMensajeInfo('');
+
+    if (!titulo.trim() || !mensaje.trim()) {
+      setMensajeInfo('Por favor completa todos los campos');
+      setGuardando(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('banner_anuncios').insert([
+        {
+          titulo: titulo.trim(),
+          mensaje: mensaje.trim(),
+          color: color,
+          activo: false,
+        },
+      ]);
+
+      if (error) {
+        setMensajeInfo('Error al agregar el banner');
+      } else {
+        setMensajeInfo('Banner agregado correctamente');
+        await cargarBanners();
+        setTimeout(() => {
+          limpiarFormulario();
+          setModoVista('lista');
+        }, 1500);
+      }
+    } catch (error) {
+      setMensajeInfo('Ocurrió un error inesperado');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const editarBanner = async () => {
+    if (!bannerSeleccionado) return;
+
+    setGuardando(true);
+    setMensajeInfo('');
+
+    if (!titulo.trim() || !mensaje.trim()) {
+      setMensajeInfo('Por favor completa todos los campos');
+      setGuardando(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('banner_anuncios')
+        .update({
+          titulo: titulo.trim(),
+          mensaje: mensaje.trim(),
+          color: color,
+        })
+        .eq('id', bannerSeleccionado.id);
+
+      if (error) {
+        setMensajeInfo('Error al actualizar el banner');
+      } else {
+        setMensajeInfo('Banner actualizado correctamente');
+        await cargarBanners();
+        setTimeout(() => {
+          limpiarFormulario();
+          setModoVista('lista');
+        }, 1500);
+      }
+    } catch (error) {
+      setMensajeInfo('Ocurrió un error inesperado');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const toggleActivo = async (bannerId: number, activoActual: boolean) => {
+    try {
+      // Si se va a activar este banner, desactivar todos los demás
+      if (!activoActual) {
+        await supabase
+          .from('banner_anuncios')
+          .update({ activo: false })
+          .neq('id', bannerId);
+      }
+
+      const { error } = await supabase
+        .from('banner_anuncios')
+        .update({ activo: !activoActual })
+        .eq('id', bannerId);
+
+      if (!error) {
+        await cargarBanners();
+      }
+    } catch (error) {
+      console.error('Error al cambiar estado:', error);
+    }
+  };
+
+  const eliminarBanner = async (bannerId: number) => {
+    if (!confirm('¿Estás seguro de eliminar este banner?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('banner_anuncios')
+        .delete()
+        .eq('id', bannerId);
+
+      if (!error) {
+        await cargarBanners();
+      }
+    } catch (error) {
+      console.error('Error al eliminar:', error);
+    }
+  };
+
+  const abrirEdicion = (banner: any) => {
+    setBannerSeleccionado(banner);
+    setTitulo(banner.titulo);
+    setMensaje(banner.mensaje);
+    setColor(banner.color);
+    setModoVista('editar');
+  };
+
+  const getClaseColor = (colorValue: string) => {
+    const colorObj = coloresDisponibles.find(c => c.valor === colorValue);
+    return colorObj?.clase || 'bg-blue-50 border-blue-200 text-blue-800';
+  };
+
+  return (
+    <motion.div
+      key="gestionar-banner"
+      className="min-h-screen"
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -40 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+    >
+      <div className="px-6 py-6">
+        <BackBtn
+          onBack={() => {
+            if (modoVista !== 'lista') {
+              limpiarFormulario();
+              setModoVista('lista');
+            } else {
+              setVistaPerfil('menu');
+            }
+          }}
+        />
+
+        <h2 className="text-xl font-bold text-zinc-900 mb-6">
+          Gestionar Banner de Anuncios
+        </h2>
+
+        {/* VISTA LISTA */}
+        {modoVista === 'lista' && (
+          <>
+            <button
+              onClick={() => setModoVista('agregar')}
+              className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition mb-4"
+            >
+              + Agregar Nuevo Anuncio
+            </button>
+
+            {cargando ? (
+              <div className="flex justify-center py-10">
+                <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {banners.map((banner) => (
+                  <div
+                    key={banner.id}
+                    className="bg-white border border-zinc-200 rounded-xl p-4 shadow-sm"
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <p className="font-bold text-zinc-900 text-lg">{banner.titulo}</p>
+                        <p className="text-sm text-zinc-600 mt-1">{banner.mensaje}</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer ml-3">
+                        <input
+                          type="checkbox"
+                          checked={banner.activo}
+                          onChange={() => toggleActivo(banner.id, banner.activo)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                      </label>
+                    </div>
+
+                    <div className={`p-2 rounded-lg mb-3 ${getClaseColor(banner.color)}`}>
+                      <p className="text-xs font-semibold">Vista previa</p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => abrirEdicion(banner)}
+                        className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => eliminarBanner(banner.id)}
+                        className="flex-1 bg-red-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-red-600 transition"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {banners.length === 0 && (
+                  <p className="text-center text-zinc-500 py-10">
+                    No hay banners registrados
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* VISTA AGREGAR/EDITAR */}
+        {(modoVista === 'agregar' || modoVista === 'editar') && (
+          <>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Título <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value)}
+                placeholder="Ej: Cierre por día festivo"
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Mensaje <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={mensaje}
+                onChange={(e) => setMensaje(e.target.value)}
+                placeholder="Descripción del anuncio"
+                rows={3}
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Color del Banner
+              </label>
+              <select
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                {coloresDisponibles.map((c) => (
+                  <option key={c.valor} value={c.valor}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Vista previa */}
+            {titulo || mensaje ? (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Vista Previa
+                </label>
+                <div className={`rounded-xl p-4 border-2 ${getClaseColor(color)}`}>
+                  <div className="flex items-start gap-3">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-6 h-6 flex-shrink-0"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"
+                      />
+                    </svg>
+                    <div>
+                      <p className="font-bold text-sm">{titulo || 'Título del anuncio'}</p>
+                      <p className="text-xs mt-1">{mensaje || 'Mensaje del anuncio'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {mensajeInfo && (
+              <div
+                className={`mb-4 p-3 rounded-lg text-sm ${
+                  mensajeInfo.includes('Error')
+                    ? 'bg-red-50 text-red-700 border border-red-200'
+                    : 'bg-green-50 text-green-700 border border-green-200'
+                }`}
+              >
+                {mensajeInfo}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  limpiarFormulario();
+                  setModoVista('lista');
+                }}
+                disabled={guardando}
+                className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={modoVista === 'agregar' ? agregarBanner : editarBanner}
+                disabled={guardando || !titulo || !mensaje}
+                className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {guardando ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                    Guardando...
+                  </span>
+                ) : (
+                  modoVista === 'agregar' ? 'Agregar Banner' : 'Guardar Cambios'
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </motion.div>
+  );
+};
 
   const GestionarCuentasView = ({ setVistaPerfil }: any) => {
     const [cuentas, setCuentas] = useState<any[]>([]);
@@ -4996,7 +5704,9 @@ export default function HomePage() {
     const [imagenPreview, setImagenPreview] = useState("");
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState("");
-    const [imagenesAdicionalesFiles, setImagenesAdicionalesFiles] = useState<File[]>([]);
+    const [imagenesAdicionalesFiles, setImagenesAdicionalesFiles] = useState<
+      File[]
+    >([]);
 
     const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -5070,47 +5780,53 @@ export default function HomePage() {
         }
 
         // Insertar producto en la base de datos
-        const { data: productoInsertado, error: insertError } = await supabase.from("productos").insert([
-          {
-            TITULO: titulo,
-            DESCRIPCION: descripcion,
-            CODIGO: codigo,
-            P_MAYOREO: parseFloat(precio),
-            CATEGORIA_ID: parseInt(categoriaId),
-            marca_id: marcaId ? parseInt(marcaId) : null,
-            IMAGEN: urlImagen,
-            visible: true,
-          },
-        ]).select().single();
+        const { data: productoInsertado, error: insertError } = await supabase
+          .from("productos")
+          .insert([
+            {
+              TITULO: titulo,
+              DESCRIPCION: descripcion,
+              CODIGO: codigo,
+              P_MAYOREO: parseFloat(precio),
+              CATEGORIA_ID: parseInt(categoriaId),
+              marca_id: marcaId ? parseInt(marcaId) : null,
+              IMAGEN: urlImagen,
+              visible: true,
+            },
+          ])
+          .select()
+          .single();
 
-// Subir imágenes adicionales si hay
-if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
-  for (let i = 0; i < imagenesAdicionalesFiles.length; i++) {
-    const file = imagenesAdicionalesFiles[i];
-    const timestamp = Date.now();
-    const extension = file.name.split('.').pop();
-    const nombreArchivo = `producto_${productoInsertado.id}_adicional_${i}_${timestamp}.${extension}`;
-    
-    const { error: uploadError } = await supabase.storage
-      .from('imagenes_productos')
-      .upload(nombreArchivo, file, {
-        cacheControl: 'public, max-age=31536000',
-        upsert: true,
-      });
-    
-    if (!uploadError) {
-      const { data: { publicUrl } } = supabase.storage
-        .from('imagenes_productos')
-        .getPublicUrl(nombreArchivo);
-      
-      await supabase.from('imagenes_producto').insert({
-        producto_id: productoInsertado.id,
-        url: publicUrl,
-        orden: i + 1
-      });
-    }
-  }
-}
+        // Subir imágenes adicionales si hay
+        if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
+          for (let i = 0; i < imagenesAdicionalesFiles.length; i++) {
+            const file = imagenesAdicionalesFiles[i];
+            const timestamp = Date.now();
+            const extension = file.name.split(".").pop();
+            const nombreArchivo = `producto_${productoInsertado.id}_adicional_${i}_${timestamp}.${extension}`;
+
+            const { error: uploadError } = await supabase.storage
+              .from("imagenes_productos")
+              .upload(nombreArchivo, file, {
+                cacheControl: "public, max-age=31536000",
+                upsert: true,
+              });
+
+            if (!uploadError) {
+              const {
+                data: { publicUrl },
+              } = supabase.storage
+                .from("imagenes_productos")
+                .getPublicUrl(nombreArchivo);
+
+              await supabase.from("imagenes_producto").insert({
+                producto_id: productoInsertado.id,
+                url: publicUrl,
+                orden: i + 1,
+              });
+            }
+          }
+        }
         if (insertError) {
           console.error("Error agregando producto:", insertError);
 
@@ -5121,9 +5837,7 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
             setMensaje("Error al agregar el producto");
           }
         } else {
-          
           setMensaje("Producto agregado correctamente");
-
 
           // Limpiar formulario
           setTimeout(() => {
@@ -5207,41 +5921,41 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
           </div>
 
           {/* AGREGAR ESTA SECCIÓN COMPLETA AQUÍ */}
-<div className="mb-4">
-  <label className="block text-sm font-medium text-zinc-700 mb-2">
-    Imágenes Adicionales (opcional - máximo 4)
-  </label>
-  
-  {/* Input para agregar nuevas */}
-  {imagenesAdicionalesFiles.length < 4 && (
-    <>
-      <input
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={(e) => {
-          const files = Array.from(e.target.files || []);
-          const totalImagenes = files.length;
-          if (totalImagenes > 4) {
-            setMensaje("Máximo 4 imágenes adicionales");
-            return;
-          }
-          setImagenesAdicionalesFiles(files);
-        }}
-        className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-      />
-      {imagenesAdicionalesFiles.length > 0 && (
-        <p className="text-xs text-zinc-500 mt-1">
-          {imagenesAdicionalesFiles.length} imagen(es) seleccionada(s)
-        </p>
-      )}
-    </>
-  )}
-  
-  <p className="text-xs text-zinc-400 mt-1">
-    Total: {imagenesAdicionalesFiles.length} de 4
-  </p>
-</div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Imágenes Adicionales (opcional - máximo 4)
+            </label>
+
+            {/* Input para agregar nuevas */}
+            {imagenesAdicionalesFiles.length < 4 && (
+              <>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    const totalImagenes = files.length;
+                    if (totalImagenes > 4) {
+                      setMensaje("Máximo 4 imágenes adicionales");
+                      return;
+                    }
+                    setImagenesAdicionalesFiles(files);
+                  }}
+                  className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                {imagenesAdicionalesFiles.length > 0 && (
+                  <p className="text-xs text-zinc-500 mt-1">
+                    {imagenesAdicionalesFiles.length} imagen(es) seleccionada(s)
+                  </p>
+                )}
+              </>
+            )}
+
+            <p className="text-xs text-zinc-400 mt-1">
+              Total: {imagenesAdicionalesFiles.length} de 4
+            </p>
+          </div>
 
           {/* Título */}
           <div className="mb-4">
@@ -5491,7 +6205,7 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
         // Cotización y Fecha (lado derecho)
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
-        doc.text("Cotización", 165, 10);
+        doc.text("Pedido", 165, 10);
         doc.setFontSize(10);
         doc.text(numeroCotizacion.toString(), 170, 16);
 
@@ -5534,8 +6248,14 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
         p.CODIGO || "",
         p.cantidad,
         p.TITULO,
-        `$ ${p.P_MAYOREO.toFixed(2)}`,
-        `$ ${p.subtotal.toFixed(2)}`,
+        `$ ${p.P_MAYOREO.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`,
+        `$ ${p.subtotal.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`,
       ]);
 
       autoTableModule.default(docEnvio, {
@@ -5602,9 +6322,17 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
       docEnvio.line(145, yTotales + 8, 196, yTotales + 8);
       docEnvio.setFontSize(9);
       docEnvio.text("TOTAL NETO:", 145, yTotales + 13);
-      docEnvio.text(`$ ${totalConIVA.toFixed(2)}`, 195, yTotales + 13, {
-        align: "right",
-      });
+      docEnvio.text(
+        `$ ${totalConIVA.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`,
+        195,
+        yTotales + 13,
+        {
+          align: "right",
+        }
+      );
 
       // Pie de página con fecha/hora y número de página
       const pageCount2 = (docEnvio as any).getNumberOfPages();
@@ -5696,7 +6424,10 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
       docCliente.setFontSize(9);
       docCliente.text("TOTAL NETO:", 145, yTotalesCliente + 13);
       docCliente.text(
-        `$ ${totalConIVA.toFixed(2)}`,
+        `$ ${totalConIVA.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`,
         195,
         yTotalesCliente + 13,
         { align: "right" }
@@ -5919,6 +6650,70 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
     const [cargandoPDF, setCargandoPDF] = useState(false);
     const [cuentaPedido, setCuentaPedido] = useState<any>(null);
     const [actualizacionReciente, setActualizacionReciente] = useState(false);
+    const [mostrarModalEliminar, setMostrarModalEliminar] = useState(false);
+    const [pedidoAEliminar, setPedidoAEliminar] = useState<any>(null);
+    const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
+    const [errorEliminar, setErrorEliminar] = useState("");
+    const [eliminando, setEliminando] = useState(false);
+
+    const eliminarPedido = async () => {
+      if (!pedidoAEliminar) return;
+
+      setEliminando(true);
+      setErrorEliminar("");
+
+      if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
+        setErrorEliminar("Número de cuenta incorrecto");
+        setEliminando(false);
+        return;
+      }
+
+      try {
+        // Eliminar el PDF del storage si existe
+        if (
+          pedidoAEliminar.pdf_url &&
+          pedidoAEliminar.pdf_url.includes("pedidos-pdf")
+        ) {
+          const urlParts = pedidoAEliminar.pdf_url.split("/");
+          const nombreArchivo = urlParts[urlParts.length - 1];
+
+          const { error: deleteFileError } = await supabase.storage
+            .from("pedidos-pdf")
+            .remove([nombreArchivo]);
+
+          if (deleteFileError) {
+            console.error("Error eliminando PDF:", deleteFileError);
+          }
+        }
+
+        // Eliminar el pedido
+        const { error: deletePedidoError } = await supabase
+          .from("pedidos")
+          .delete()
+          .eq("id", pedidoAEliminar.id);
+
+        if (deletePedidoError) {
+          setErrorEliminar("Error al eliminar el pedido");
+          console.error(deletePedidoError);
+        } else {
+          // Actualizar la lista local
+          setPedidos((prev) => prev.filter((p) => p.id !== pedidoAEliminar.id));
+
+          if (pedidoSeleccionado?.id === pedidoAEliminar.id) {
+            setPedidoSeleccionado(null);
+          }
+
+          setMostrarModalEliminar(false);
+          setPedidoAEliminar(null);
+          setNumeroCuentaConfirm("");
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        setErrorEliminar("Ocurrió un error inesperado");
+      } finally {
+        setEliminando(false);
+      }
+    };
 
     useEffect(() => {
       const fetchPedidos = async () => {
@@ -6102,12 +6897,11 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
             }
           }}
         >
-
-<BackBtn 
-  onBack={() => {
-    setPedidoSeleccionado(null);
-  }} 
-/>
+          <BackBtn
+            onBack={() => {
+              setPedidoSeleccionado(null);
+            }}
+          />
           <h2 className="text-xl font-bold text-zinc-900 mb-2">
             Detalle del Pedido
           </h2>
@@ -6297,6 +7091,31 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                   </>
                 )}
               </button>
+              {esAdmin && (
+                <button
+                  onClick={() => {
+                    setPedidoAEliminar(pedidoSeleccionado);
+                    setMostrarModalEliminar(true);
+                  }}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold shadow-sm transition flex items-center justify-center gap-2 mt-3"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="w-5 h-5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                    />
+                  </svg>
+                  Eliminar Pedido
+                </button>
+              )}
             </div>
           ) : (
             <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 text-center">
@@ -6317,6 +7136,103 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
               <p className="text-zinc-500 text-sm">
                 PDF no disponible para este pedido
               </p>
+            </div>
+          )}
+          {/* Modal de Confirmación para Eliminar */}
+          {mostrarModalEliminar && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-2xl w-[90%] max-w-md p-6 shadow-2xl"
+              >
+                <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="w-8 h-8 text-red-600"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                    />
+                  </svg>
+                </div>
+
+                <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
+                  ¿Eliminar Pedido?
+                </h3>
+
+                <p className="text-sm text-zinc-600 text-center mb-6">
+                  Esta acción no se puede deshacer. El pedido y su PDF serán
+                  eliminados permanentemente.
+                </p>
+
+                <div className="bg-zinc-50 rounded-lg p-3 mb-4 border border-zinc-200">
+                  <p className="text-xs text-zinc-500 mb-1">
+                    Pedido a eliminar:
+                  </p>
+                  <p className="text-sm font-semibold text-zinc-900">
+                    Pedido #{pedidoAEliminar?.id}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Total: ${pedidoAEliminar?.total?.toFixed(2)}
+                  </p>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                    Confirma número de cuenta:
+                  </label>
+                  <input
+                    type="password"
+                    value={numeroCuentaConfirm}
+                    onChange={(e) => {
+                      setNumeroCuentaConfirm(e.target.value);
+                      setErrorEliminar("");
+                    }}
+                    placeholder="Ingresa tu número de cuenta"
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    disabled={eliminando}
+                  />
+                  {errorEliminar && (
+                    <p className="text-red-500 text-sm mt-2">{errorEliminar}</p>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setMostrarModalEliminar(false);
+                      setPedidoAEliminar(null);
+                      setNumeroCuentaConfirm("");
+                      setErrorEliminar("");
+                    }}
+                    disabled={eliminando}
+                    className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={eliminarPedido}
+                    disabled={eliminando || !numeroCuentaConfirm}
+                    className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {eliminando ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                        Eliminando...
+                      </span>
+                    ) : (
+                      "Eliminar"
+                    )}
+                  </button>
+                </div>
+              </motion.div>
             </div>
           )}
         </motion.div>
@@ -6589,7 +7505,7 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
 
           <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
             <label className="block text-xs font-semibold text-zinc-500 mb-1">
-              Nombre del negocio 
+              Nombre del negocio
             </label>
             <p className="text-sm text-zinc-700">
               {cuenta?.ferreteria || "No especificado"}
@@ -6657,19 +7573,19 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
   if (productoSeleccionado) {
     return (
       <VistaProducto
-      producto={productoSeleccionado}
-      onBack={() => {
-        setProductoSeleccionado(null);
-        const savedScroll = localStorage.getItem("scrollProducto");
-        if (savedScroll) {
-          setTimeout(() => {
-            window.scrollTo({
-              top: parseInt(savedScroll),
-              behavior: "instant",
-            });
-          }, 50);
-        }
-      }}
+        producto={productoSeleccionado}
+        onBack={() => {
+          setProductoSeleccionado(null);
+          const savedScroll = localStorage.getItem("scrollProducto");
+          if (savedScroll) {
+            setTimeout(() => {
+              window.scrollTo({
+                top: parseInt(savedScroll),
+                behavior: "instant",
+              });
+            }, 50);
+          }
+        }}
         esAdmin={esAdmin}
         carrito={carrito}
         setCarrito={setCarrito}
@@ -6833,7 +7749,7 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.3, ease: "easeOut" }}
-                    className="absolute top-3 px-3 left-0 right-0 z-10"
+                    className="absolute top-5 px-3 left-0 right-0 z-10"
                   >
                     <ContadorEntrega
                       entregaMismoDia={cuenta.entrega_mismo_dia}
@@ -6841,6 +7757,28 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              <AnimatePresence>
+  {activeTab === "ubicacion" && (
+    <motion.div
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="absolute top-7 px-3 left-0 right-0 z-10"
+    >
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-6 py-2 flex items-center justify-center gap-2 shadow-sm">
+  <Star size={15} className="text-yellow-800" />
+
+  <span className="text-sm font-semibold text-yellow-800">
+    Mis favoritos
+  </span>
+</div>
+
+    </motion.div>
+  )}
+</AnimatePresence>
+
 
               <div className="max-w-2xl mx-auto">
                 <AnimatePresence mode="wait">
@@ -7276,6 +8214,69 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                     exit={{ opacity: 0, x: 40 }}
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                   >
+                    {/* Banner de anuncio */}
+<AnimatePresence>
+  {!cargandoBanner && bannerAnuncio && (
+    <motion.div
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
+      className="px-6 mb-4"
+    >
+      <div className={`rounded-xl p-4 border-2 shadow-sm ${
+        bannerAnuncio.color === 'blue' ? 'bg-blue-50 border-blue-200' :
+        bannerAnuncio.color === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
+        bannerAnuncio.color === 'red' ? 'bg-red-50 border-red-200' :
+        bannerAnuncio.color === 'green' ? 'bg-green-50 border-green-200' :
+        'bg-blue-50 border-blue-200'
+      }`}>
+        <div className="flex items-start gap-3">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+            className={`w-6 h-6 flex-shrink-0 ${
+              bannerAnuncio.color === 'blue' ? 'text-blue-600' :
+              bannerAnuncio.color === 'yellow' ? 'text-yellow-600' :
+              bannerAnuncio.color === 'red' ? 'text-red-600' :
+              bannerAnuncio.color === 'green' ? 'text-green-600' :
+              'text-blue-600'
+            }`}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"
+            />
+          </svg>
+          <div className="flex-1">
+            <p className={`font-bold text-sm ${
+              bannerAnuncio.color === 'blue' ? 'text-blue-900' :
+              bannerAnuncio.color === 'yellow' ? 'text-yellow-900' :
+              bannerAnuncio.color === 'red' ? 'text-red-900' :
+              bannerAnuncio.color === 'green' ? 'text-green-900' :
+              'text-blue-900'
+            }`}>
+              {bannerAnuncio.titulo}
+            </p>
+            <p className={`text-xs mt-1 ${
+              bannerAnuncio.color === 'blue' ? 'text-blue-800' :
+              bannerAnuncio.color === 'yellow' ? 'text-yellow-800' :
+              bannerAnuncio.color === 'red' ? 'text-red-800' :
+              bannerAnuncio.color === 'green' ? 'text-green-800' :
+              'text-blue-800'
+            }`}>
+              {bannerAnuncio.mensaje}
+            </p>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  )}
+</AnimatePresence>
                     {/* Si no hay nada seleccionado, mostrar pestañas con Macro-Categorías y Marcas */}
                     {!macroCategoriaSeleccionada &&
                     !categoriaSeleccionada &&
@@ -7631,20 +8632,23 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                                   );
                                 })
                                 .map((art) => (
-  <motion.div
-    key={art.id}
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -10 }}
-    transition={{
-      duration: 0.2,
-      ease: "easeOut",
-    }}
-    onClick={() => {
-      const scrollY = window.scrollY;
-      localStorage.setItem("scrollProducto", scrollY.toString());
-      setProductoSeleccionado(art);
-    }}
+                                  <motion.div
+                                    key={art.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{
+                                      duration: 0.2,
+                                      ease: "easeOut",
+                                    }}
+                                    onClick={() => {
+                                      const scrollY = window.scrollY;
+                                      localStorage.setItem(
+                                        "scrollProducto",
+                                        scrollY.toString()
+                                      );
+                                      setProductoSeleccionado(art);
+                                    }}
                                     className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
                                   >
                                     <div className="relative w-full h-40 bg-white">
@@ -7963,11 +8967,14 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                           .map((prod) => (
                             <div
                               key={prod.id}
- onClick={() => {
-  const scrollY = window.scrollY;
-  localStorage.setItem("scrollProducto", scrollY.toString());  
-  setProductoSeleccionado(prod);
-}}
+                              onClick={() => {
+                                const scrollY = window.scrollY;
+                                localStorage.setItem(
+                                  "scrollProducto",
+                                  scrollY.toString()
+                                );
+                                setProductoSeleccionado(prod);
+                              }}
                               className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 cursor-pointer"
                             >
                               <div className="flex items-center gap-3">
@@ -8033,7 +9040,7 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                     exit={{ opacity: 0, x: 40 }}
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                   >
-                    <div className="mt-4 px-3 pb-40">
+                    <div className="mt-4 px-3 pb-13">
                       {carrito.length === 0 ? (
                         <p className="text-center text-zinc-500 mt-16">
                           Tu carrito está vacío
@@ -8051,9 +9058,12 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                                 <div
                                   className="relative w-16 h-16 bg-zinc-100 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
                                   onClick={() => {
-   localStorage.setItem("scrollProducto", scrollY.toString());
-  setProductoSeleccionado(item);
-}}
+                                    localStorage.setItem(
+                                      "scrollProducto",
+                                      scrollY.toString()
+                                    );
+                                    setProductoSeleccionado(item);
+                                  }}
                                 >
                                   <Image
                                     src={item.IMAGEN || "/placeholder.jpg"}
@@ -8067,9 +9077,12 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                                 <div
                                   className="flex-1 min-w-0 cursor-pointer"
                                   onClick={() => {
-   localStorage.setItem("scrollProducto", scrollY.toString());
-  setProductoSeleccionado(item);
-}}
+                                    localStorage.setItem(
+                                      "scrollProducto",
+                                      scrollY.toString()
+                                    );
+                                    setProductoSeleccionado(item);
+                                  }}
                                 >
                                   <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
                                     {item.TITULO}
@@ -8375,7 +9388,6 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                               }}
                             />
                           )}
-                          
 
                           {esAdmin && (
                             <MenuItem
@@ -8404,6 +9416,17 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                               }}
                             />
                           )}
+
+                          {esAdmin && (
+  <MenuItem
+    label="Gestionar Banner de Anuncios"
+    icon={<Megaphone size={20}/>}
+    onClick={() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      setVistaPerfil("gestionar-banner");
+    }}
+  />
+)}
 
                           {/* personal info  */}
                           <MenuItem
@@ -8578,6 +9601,27 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                             </button>
                           </div>
 
+                          {/* Horarios */}
+<div className="w-full bg-white rounded-xl shadow p-4">
+  <h3 className="text-lg font-bold text-zinc-800 mb-3 flex items-center gap-2">
+    
+    Horarios de Atención
+    
+  </h3>
+
+  <div className="space-y-2 text-sm text-zinc-700">
+    <div className="flex justify-between">
+      <span>Lunes – Sábado</span>
+      <span className="font-semibold">8:00 AM – 6:00 PM</span>
+    </div>
+    <div className="flex justify-between text-zinc-400">
+      <span>Domingo</span>
+      <span className="font-semibold">Cerrado</span>
+    </div>
+  </div>
+</div> 
+
+
                           {/* Mapa */}
                           <div className="w-full bg-white rounded-xl shadow p-4">
                             <h3 className="text-lg font-bold text-zinc-800 mb-2">
@@ -8673,6 +9717,10 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                     {vistaPerfil === "gestionar-cuentas" && (
                       <GestionarCuentasView setVistaPerfil={setVistaPerfil} />
                     )}
+
+                    {vistaPerfil === "gestionar-banner" && (
+  <GestionarBannerView setVistaPerfil={setVistaPerfil} />
+)}
 
                     {/* CONFIGURACIÓN */}
                     {vistaPerfil === "settings" && (
@@ -8837,8 +9885,27 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
 
                 {/* Modal de pedido */}
                 {mostrarModalPedido && (
-                  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[999]">
-                    <div className="bg-white rounded-2xl w-[90%] max-w-md p-5 relative shadow-xl">
+                 <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/40 flex items-center justify-center z-[999] backdrop-blur-sm"
+            onClick={() => setMostrarModalPedido(false)} 
+          >
+                   <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{
+                type: "spring",
+                damping: 25,
+                stiffness: 300,
+                duration: 0.3,
+              }}
+              onClick={(e) => e.stopPropagation()} 
+              className="bg-white rounded-2xl w-[90%] max-w-md p-5 relative shadow-2xl overflow-hidden"
+            >
                       {/* Cerrar */}
                       <button
                         onClick={() => setMostrarModalPedido(false)}
@@ -8870,86 +9937,79 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                       </div>
 
                       {/* Enviar a domicilio */}
-                      <div className="flex items-center justify-between mt-2 mb-3">
-                        <label className="text-sm font-medium text-zinc-700">
-                          ¿Enviar a domicilio?
-                        </label>
-                        <input
-                          type="checkbox"
-                          checked={enviarDomicilio}
-                          onChange={(e) => setEnviarDomicilio(e.target.checked)}
-                          className="w-5 h-5 accent-orange-500"
-                        />
-                      </div>
+        <div className="flex items-center justify-between mt-2 mb-3">
+          <label className="text-sm font-medium text-zinc-700">
+            ¿Enviar a domicilio?
+          </label>
+          <input
+            type="checkbox"
+            checked={enviarDomicilio}
+            onChange={(e) => setEnviarDomicilio(e.target.checked)}
+            className="w-5 h-5 accent-orange-500"
+          />
+        </div>
 
-                      {/* Si se activa el toggle */}
-                      {enviarDomicilio ? (
-                        <>
-                          {cuenta?.direccion ? (
-                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3">
-                              <p className="text-xs text-zinc-600 mb-1">
-                                Dirección guardada:
-                              </p>
-                              <p className="text-sm text-zinc-700">
-                                {cuenta.direccion}
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
-                              <p className="text-xs text-red-600">
-                                ⚠️ No hay dirección guardada. Por favor de
-                                informar a Bodega Ferretera de Monterrey.
-                              </p>
-                            </div>
-                          )}
-
-                          <p className="text-orange-600 text-[13px] font-semibold mt-1">
-                            TIEMPO DE ENTREGA 1 A 3 DÍAS HÁBILES (EL PEDIDO
+         {/* Si se activa el toggle */}
+        <motion.div >
+          {enviarDomicilio ? (
+            <motion.div
+              key="domicilio-info"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-2"
+            >
+              {cuenta?.direccion ? (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                  <p className="text-xs text-zinc-600 mb-1">Dirección:</p>
+                  <p className="text-sm text-zinc-700">{cuenta.direccion}</p>
+                </div>
+              ) : (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-xs text-red-600">⚠️ No hay dirección guardada. Por favor de
+                                informar a Bodega Ferretera de Monterrey.</p>
+                </div>
+              )}
+              <p className="text-orange-600 text-[13px] font-semibold">
+               TIEMPO DE ENTREGA 1 A 3 DÍAS HÁBILES (EL PEDIDO
                             PUEDE ENVIARSE EL MISMO DÍA)
-                          </p>
-                        </>
-                      ) : (
-                        <p className="text-zinc-700 text-[13px] mt-2">
-                          Nos pondremos en contacto cuando su pedido esté listo
+              </p>
+            </motion.div>
+          ) : (
+            <motion.p 
+              key="tienda-info"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-zinc-700 text-[13px] mt-2"
+            >
+              Nos pondremos en contacto cuando su pedido esté listo
                           para recoger en tienda (el pedido puede estar listo
                           ese mismo día)
-                        </p>
-                      )}
+            </motion.p>
+          )}
+        </motion.div>
 
-                      {/* Botones */}
-                      <div className="flex justify-between mt-6">
-                        <button
-                          onClick={() => setMostrarModalPedido(false)}
-                          className="flex-1 border border-zinc-300 py-2 rounded-lg mr-2 font-semibold text-zinc-600"
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          onClick={enviarPedido}
-                          disabled={
-                            enviando ||
-                            !cuenta?.cliente ||
-                            (enviarDomicilio && !cuenta?.direccion)
-                          }
-                          className={`flex-1 py-2 rounded-lg font-semibold text-white transition ${
-                            !cuenta?.cliente ||
-                            (enviarDomicilio && !cuenta?.direccion)
-                              ? "bg-orange-300"
-                              : "bg-orange-500 hover:bg-orange-600"
-                          }`}
-                        >
-                          {enviando ? (
-                            <div className="flex items-center justify-center gap-2">
-                              <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
-                              Enviando...
-                            </div>
-                          ) : (
-                            "Enviar"
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+         {/* Botones */}
+        <div className="flex justify-between mt-6 gap-2">
+          <button
+            onClick={() => setMostrarModalPedido(false)}
+            className="flex-1 border border-zinc-300 py-2 rounded-lg font-semibold text-zinc-600"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={enviarPedido}
+            disabled={enviando || !cuenta?.cliente || (enviarDomicilio && !cuenta?.direccion)}
+            className={`flex-1 py-2 rounded-lg font-semibold text-white transition ${
+              !cuenta?.cliente || (enviarDomicilio && !cuenta?.direccion)
+                ? "bg-orange-300"
+                : "bg-orange-500 hover:bg-orange-600"
+            }`}
+          >
+            {enviando ? "Enviando..." : "Enviar"}
+          </button>
+        </div>
+                     </motion.div>
+                  </motion.div>
                 )}
 
                 {/* Favoritos */}
@@ -8962,10 +10022,6 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                   >
                     <div className="mt-4 px-3 pb-32">
-                      <h2 className="text-2xl text-center font-bold text-zinc-900 mb-4">
-                        Mis Favoritos
-                      </h2>
-
                       {favoritos.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20">
                           <Star className="w-16 h-16 text-orange-500" />
@@ -8974,7 +10030,8 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                             No tienes favoritos aún
                           </p>
                           <p className="text-center text-zinc-400 text-sm mt-2">
-                            Agrega productos tocando la estrella dentro de cada producto
+                            Agrega productos tocando la estrella dentro de cada
+                            producto
                           </p>
                         </div>
                       ) : (
@@ -9002,10 +10059,13 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
 
                               <div
                                 onClick={() => {
-  const scrollY = window.scrollY;
-       localStorage.setItem("scrollProducto", scrollY.toString());
-  setProductoSeleccionado(prod);
-}}
+                                  const scrollY = window.scrollY;
+                                  localStorage.setItem(
+                                    "scrollProducto",
+                                    scrollY.toString()
+                                  );
+                                  setProductoSeleccionado(prod);
+                                }}
                               >
                                 <div className="relative w-full h-40 bg-white">
                                   <Image
@@ -9123,10 +10183,13 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
               {/* 3. BOTÓN CARRITO */}
               <div className="relative flex justify-center">
                 <button
-  onClick={() => {
-    localStorage.setItem("scrollPos", window.scrollY.toString());
-    setActiveTab("carrito");
-  }}
+                  onClick={() => {
+                    localStorage.setItem(
+                      "scrollPos",
+                      window.scrollY.toString()
+                    );
+                    setActiveTab("carrito");
+                  }}
                   className={`
         absolute
         flex flex-col items-center text-[10px] sm:text-xs
@@ -9180,10 +10243,10 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
 
               {/* 4. BOTÓN UBICACIÓN */}
               <button
-  onClick={() => {
-    localStorage.setItem("scrollPos", window.scrollY.toString());
-    setActiveTab("ubicacion");
-  }}
+                onClick={() => {
+                  localStorage.setItem("scrollPos", window.scrollY.toString());
+                  setActiveTab("ubicacion");
+                }}
                 className={`flex flex-col items-center text-[10px] sm:text-xs ${
                   activeTab === "ubicacion"
                     ? "text-orange-500"
@@ -9194,7 +10257,7 @@ if (imagenesAdicionalesFiles.length > 0 && productoInsertado) {
                 <span className="mt-1">FAVORITOS</span>
               </button>
 
-              {/* 5. BOTÓN PERFIL */}
+              {/* 5. BOTÓN MAS */}
               <button
                 onClick={() => {
                   if (activeTab === "perfil") {

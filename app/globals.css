@@ -10,6 +10,16 @@ input, textarea, select {
 }
 
 
+  body {
+    overscroll-behavior-y: contain;
+  }
+  
+  @supports (-webkit-touch-callout: none) {
+    body {
+      overscroll-behavior-y: none;
+    }
+  }
+
 :root inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
