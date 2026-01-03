@@ -1027,18 +1027,6 @@ const handleToggleTopVentas = async () => {
                 </div>
               )}
 
-              {/* Información Adicional */}
-{producto.DESCRIPCION && (
-  <div className="mt-5 px-4">
-    <h3 className="text-sm font-semibold text-zinc-900 mb-2">
-      Información Adicional
-    </h3>
-    <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200">
-      {producto.DESCRIPCION}
-    </p>
-  </div>
-)}
-
 {/* Toggles de Admin */}
 {esAdmin && !modoEdicion && (
   <div className="mt-5 px-4">
@@ -1475,6 +1463,7 @@ export default function HomePage() {
   const [carrito, setCarrito] = useState<any[]>([]);
   const [mostrarModalPedido, setMostrarModalPedido] = useState(false);
   const [enviarDomicilio, setEnviarDomicilio] = useState(false);
+  const [recogerLocal, setRecogerLocal] = useState(false); 
   const [cliente, setCliente] = useState("");
   const [ferreteria, setFerreteria] = useState("");
   const [direccion, setDireccion] = useState("");
@@ -1489,6 +1478,7 @@ export default function HomePage() {
   const [cargandoItems, setCargandoItems] = useState(false);
   const [actualizacionReciente, setActualizacionReciente] = useState(false);
   const esAdmin = cuenta?.numero_cuenta === "Admin01";
+  const esMostrador = cuenta?.numero_cuenta === "Mostrador";
   const [mostrar, setMostrar] = useState(false);
   const [subTab, setSubTab] = useState("categorias"); // categorias | marcas
   const [marcas, setMarcas] = useState<any[]>([]);
@@ -1521,6 +1511,13 @@ const [pullStartY, setPullStartY] = useState(0);
 const [pullDistance, setPullDistance] = useState(0);
 const [isPulling, setIsPulling] = useState(false);
 const [isRefreshing, setIsRefreshing] = useState(false);
+const hayTipoEntregaSeleccionado = enviarDomicilio || recogerLocal;
+
+const cerrarModalPedido = () => {
+  setMostrarModalPedido(false);
+  setEnviarDomicilio(false);
+  setRecogerLocal(false);
+};
 
 const handleTouchStart = (e: React.TouchEvent) => {
   if (window.scrollY === 0) {
@@ -4228,7 +4225,7 @@ const handleTouchEnd = async () => {
                 setVistaPerfil("menu");
               }
             }}
-          />
+          /> 
 
           <h2 className="text-xl font-bold text-zinc-900 mb-6">
             Gestionar Cuentas
@@ -6259,7 +6256,7 @@ const handleTouchEnd = async () => {
       ]);
 
       autoTableModule.default(docEnvio, {
-        head: [["IMG/CLAVE", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+        head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
         body: productosTabla,
         startY: 69,
         styles: {
@@ -6298,12 +6295,8 @@ const handleTouchEnd = async () => {
       docEnvio.setFont("helvetica", "normal");
       if (enviarDomicilio) {
         docEnvio.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYEnvio + 8);
-      } else {
-        docEnvio.text(
-          "TIPO DE ENTREGA: RECOGER EN TIENDA",
-          14,
-          finalYEnvio + 8
-        );
+      } else if (recogerLocal) {
+        docEnvio.text("TIPO DE ENTREGA: RECOGER EN LOCAL", 14, finalYEnvio + 8);
       }
 
       // AGREGAR TOTALES EN LA ÚLTIMA PÁGINA (PDF de Envío)
@@ -6360,7 +6353,7 @@ const handleTouchEnd = async () => {
 
       // Tabla
       autoTableModule.default(docCliente, {
-        head: [["IMG/CLAVE", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+        head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
         body: productosTabla,
         startY: 69,
         styles: {
@@ -6399,12 +6392,8 @@ const handleTouchEnd = async () => {
       docCliente.setFont("helvetica", "normal");
       if (enviarDomicilio) {
         docCliente.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYCliente + 8);
-      } else {
-        docCliente.text(
-          "TIPO DE ENTREGA: RECOGER EN TIENDA",
-          14,
-          finalYCliente + 8
-        );
+      } else if (recogerLocal) {
+        docCliente.text("TIPO DE ENTREGA: RECOGER EN LOCAL", 14, finalYCliente + 8);
       }
 
       // AGREGAR TOTALES EN LA ÚLTIMA PÁGINA (PDF de Cliente)
@@ -6920,79 +6909,114 @@ const handleTouchEnd = async () => {
             </div>
           )}
 
-          {/* Información de tiempo de entrega */}
-          {esAdmin && (
-            <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <svg
-                  className="w-5 h-5 text-zinc-600"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <span className="font-semibold text-zinc-800">
-                  Tipo de entrega
-                </span>
+         {/* Información de tiempo de entrega - ACTUALIZADO */}
+{esAdmin && (
+  <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+    <div className="flex items-center gap-2 mb-3">
+      <svg
+        className="w-5 h-5 text-zinc-600"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
+      </svg>
+      <span className="font-semibold text-zinc-800">
+        Logística de Entrega
+      </span>
+    </div>
+
+    {(() => {
+      // Analizamos la fecha de CREACIÓN del pedido, no la fecha actual
+      const fechaPedido = new Date(pedidoSeleccionado.created_at);
+      const horaPedido = fechaPedido.getHours(); // Hora en formato 0-23
+
+      // Obtenemos configuración de la cuenta
+      const tieneEntregaMismoDia =
+        pedidoSeleccionado.cuentas?.entrega_mismo_dia || false;
+
+      // Lógica espejo del Modal de Confirmación
+      if (tieneEntregaMismoDia) {
+        if (horaPedido < 10) {
+          // Caso: Mismo día (Antes de las 10 AM)
+          return (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="flex items-start gap-3">
+                <div className="mt-1">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                </div>
+                <div>
+                  <p className="text-sm text-green-900 font-bold">
+                    Prioridad: Entrega Hoy Mismo
+                  </p>
+                  <p className="text-xs text-green-700 mt-1">
+                    El pedido entró a las {horaPedido}:
+                    {fechaPedido.getMinutes().toString().padStart(2, "0")}{" "}
+                    (Antes de las 10 AM).
+                  </p>
+                  <p className="text-xs font-semibold text-green-800 mt-2 bg-green-100 px-2 py-1 rounded inline-block">
+                    Acción: Surtir y enviar hoy.
+                  </p>
+                </div>
               </div>
-
-              {(() => {
-                const fechaPedido = new Date(pedidoSeleccionado.created_at);
-                const horaPedido = fechaPedido.getHours();
-
-                // Obtener info de la cuenta del pedido (viene en pedidoSeleccionado.cuentas)
-                const tieneEntregaMismoDia =
-                  pedidoSeleccionado.cuentas?.entrega_mismo_dia || false;
-
-                if (tieneEntregaMismoDia) {
-                  if (horaPedido < 10) {
-                    return (
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                        <p className="text-sm text-green-800">
-                          <span className="font-bold">
-                            Entrega el mismo día
-                          </span>
-                          <br />
-                          <span className="text-xs">
-                            Pedido realizado antes de las 10 AM
-                          </span>
-                        </p>
-                      </div>
-                    );
-                  } else {
-                    return (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <p className="text-sm text-blue-800">
-                          <span className="font-bold">1 a 3 días hábiles</span>
-                          <br />
-                          <span className="text-xs">
-                            Pedido realizado después de las 10 AM
-                          </span>
-                        </p>
-                      </div>
-                    );
-                  }
-                } else {
-                  return (
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                      <p className="text-sm text-orange-800">
-                        <span className="font-bold">1 a 3 días hábiles</span>
-                        <br />
-                        <span className="text-xs">Entrega estándar</span>
-                      </p>
-                    </div>
-                  );
-                }
-              })()}
             </div>
-          )}
-
+          );
+        } else {
+          // Caso: Siguiente día hábil (Después de las 10 AM)
+          return (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-start gap-3">
+                <div className="mt-1">
+                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-blue-900 font-bold">
+                    Programar Siguiente Día Hábil
+                  </p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    El pedido entró a las {horaPedido}:
+                    {fechaPedido.getMinutes().toString().padStart(2, "0")}{" "}
+                    (Después de las 10 AM).
+                  </p>
+                  <p className="text-xs font-semibold text-blue-800 mt-2 bg-blue-100 px-2 py-1 rounded inline-block">
+                    Acción: Programar ruta para mañana.
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+      } else {
+        // Caso: Envío Estándar
+        return (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                <div className="w-2 h-2 rounded-full bg-orange-500" />
+              </div>
+              <div>
+                <p className="text-sm text-orange-900 font-bold">
+                  Envío Estándar (1-3 días)
+                </p>
+                <p className="text-xs text-orange-700 mt-1">
+                  La cuenta tiene configuración de entrega estándar.
+                </p>
+                <p className="text-xs font-semibold text-orange-800 mt-2 bg-orange-100 px-2 py-1 rounded inline-block">
+                  Acción: Enviar en ruta normal.
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+    })()}
+  </div>
+)}
           <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
             <div className="flex justify-between mb-2">
               <span className="text-sm text-zinc-600">Pedido #</span>
@@ -8069,9 +8093,12 @@ const handleTouchEnd = async () => {
                                               <p className="text-xs text-zinc-500">
                                                 Código: {prod.CODIGO}
                                               </p>
-                                              {!esAdmin && (
+                                              {!esAdmin && !esMostrador && (
                                                 <p className="text-xs text-orange-500 font-semibold">
-                                                  ${prod.P_MAYOREO?.toFixed(2)}
+                                                  ${prod.P_MAYOREO?.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}
                                                 </p>
                                               )}
                                             </div>
@@ -8682,7 +8709,7 @@ const handleTouchEnd = async () => {
                                         {art.CODIGO}
                                       </p>
 
-                                      {!esAdmin && (
+                                      {!esAdmin && !esMostrador &&(
                                         <p className="text-sm font-bold text-orange-500 mt-1">
                                           ${" "}
                                           {art.P_MAYOREO?.toLocaleString(
@@ -8994,9 +9021,12 @@ const handleTouchEnd = async () => {
                                   <p className="text-xs text-zinc-500">
                                     Código: {prod.CODIGO}
                                   </p>
-                                  {!esAdmin && (
+                                  {!esAdmin && !esMostrador &&(
                                     <p className="text-xs text-orange-500 font-semibold">
-                                      ${prod.P_MAYOREO?.toFixed(2)}
+                                      ${prod.P_MAYOREO?.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}
                                     </p>
                                   )}
                                 </div>
@@ -9604,22 +9634,11 @@ const handleTouchEnd = async () => {
                           {/* Horarios */}
 <div className="w-full bg-white rounded-xl shadow p-4">
   <h3 className="text-lg font-bold text-zinc-800 mb-3 flex items-center gap-2">
-    
     Horarios de Atención
-    
   </h3>
-
-  <div className="space-y-2 text-sm text-zinc-700">
-    <div className="flex justify-between">
-      <span>Lunes – Sábado</span>
-      <span className="font-semibold">8:00 AM – 6:00 PM</span>
-    </div>
-    <div className="flex justify-between text-zinc-400">
-      <span>Domingo</span>
-      <span className="font-semibold">Cerrado</span>
-    </div>
-  </div>
-</div> 
+  
+  <HorariosDisplay cuentaId={38} />
+</div>
 
 
                           {/* Mapa */}
@@ -9882,6 +9901,7 @@ const handleTouchEnd = async () => {
                     </motion.div>
                   </div>
                 )}
+                
 
                 {/* Modal de pedido */}
                 {mostrarModalPedido && (
@@ -9891,7 +9911,7 @@ const handleTouchEnd = async () => {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 bg-black/40 flex items-center justify-center z-[999] backdrop-blur-sm"
-            onClick={() => setMostrarModalPedido(false)} 
+            onClick={cerrarModalPedido}
           >
                    <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -9908,7 +9928,7 @@ const handleTouchEnd = async () => {
             >
                       {/* Cerrar */}
                       <button
-                        onClick={() => setMostrarModalPedido(false)}
+                        onClick={cerrarModalPedido}
                         className="absolute top-3 right-3 text-zinc-500 text-xl"
                       >
                         ×
@@ -9936,21 +9956,71 @@ const handleTouchEnd = async () => {
                         </p>
                       </div>
 
-                      {/* Enviar a domicilio */}
-        <div className="flex items-center justify-between mt-2 mb-3">
-          <label className="text-sm font-medium text-zinc-700">
-            ¿Enviar a domicilio?
-          </label>
-          <input
-            type="checkbox"
-            checked={enviarDomicilio}
-            onChange={(e) => setEnviarDomicilio(e.target.checked)}
-            className="w-5 h-5 accent-orange-500"
-          />
+                   {/* Tipo de entrega con toggles mutuamente excluyentes */}
+        <div className="mb-4">
+          <p className="text-sm font-semibold text-zinc-700 mb-3">Tipo de entrega:</p>
+          
+          {/* Toggle Enviar a Domicilio */}
+          <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-zinc-200 mb-2">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                enviarDomicilio ? 'bg-orange-100' : 'bg-gray-100'
+              }`}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" 
+                  className={`w-5 h-5 ${enviarDomicilio ? 'text-orange-600' : 'text-gray-600'}`}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+                </svg>
+              </div>
+              <span className="text-sm font-medium text-zinc-700">Enviar a domicilio</span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={enviarDomicilio}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setEnviarDomicilio(true);
+                    setRecogerLocal(false);
+                  }
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-orange-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+            </label>
+          </div>
+
+          {/* Toggle Recoger en Local */}
+          <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-zinc-200">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                recogerLocal ? 'bg-blue-100' : 'bg-gray-100'
+              }`}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+                  className={`w-5 h-5 ${recogerLocal ? 'text-blue-600' : 'text-gray-600'}`}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
+                </svg>
+              </div>
+              <span className="text-sm font-medium text-zinc-700">Recoger en local</span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={recogerLocal}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setRecogerLocal(true);
+                    setEnviarDomicilio(false);
+                  }
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+            </label>
+          </div>
         </div>
 
-         {/* Si se activa el toggle */}
-        <motion.div >
+         {/* Mensajes dinámicos según selección y hora */}
+        <motion.div className="mt-3">
           {enviarDomicilio ? (
             <motion.div
               key="domicilio-info"
@@ -9965,48 +10035,78 @@ const handleTouchEnd = async () => {
                 </div>
               ) : (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-xs text-red-600">⚠️ No hay dirección guardada. Por favor de
-                                informar a Bodega Ferretera de Monterrey.</p>
+                  <p className="text-xs text-red-600">⚠️ No hay dirección guardada. Por favor informar a Bodega Ferretera de Monterrey.</p>
                 </div>
               )}
-              <p className="text-orange-600 text-[13px] font-semibold">
-               TIEMPO DE ENTREGA 1 A 3 DÍAS HÁBILES (EL PEDIDO
-                            PUEDE ENVIARSE EL MISMO DÍA)
-              </p>
+              
+              {/* Mensaje según si tiene entrega mismo día y la hora actual */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800 font-semibold">
+                  {(() => {
+                    const horaActual = new Date().getHours();
+                    
+                    if (cuenta?.entrega_mismo_dia) {
+                      if (horaActual < 10) {
+                        return "Tu pedido será entregado el día de hoy";
+                      } else {
+                        return "Tu pedido quedará programado para entregar el siguiente día hábil";
+                      }
+                    } else {
+                      return "Recibirás tu pedido en un plazo de 1 a 3 días hábiles (puedes recibirlo el mismo día)";
+                    }
+                  })()}
+                </p>
+              </div>
             </motion.div>
           ) : (
-            <motion.p 
-              key="tienda-info"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-zinc-700 text-[13px] mt-2"
+            <motion.div 
+              key="recoger-info"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-green-50 border border-green-200 rounded-lg p-3"
             >
-              Nos pondremos en contacto cuando su pedido esté listo
-                          para recoger en tienda (el pedido puede estar listo
-                          ese mismo día)
-            </motion.p>
+              <p className="text-sm text-green-800 font-semibold">
+                {(() => {
+                  const horaActual = new Date().getHours();
+                  
+                  if (horaActual < 15) {
+                    return "Tu pedido estará listo para recoger en aproximadamente 3 horas. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'";
+                  } else {
+                    return "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'";
+                  }
+                })()}
+              </p>
+            </motion.div>
           )}
         </motion.div>
 
          {/* Botones */}
         <div className="flex justify-between mt-6 gap-2">
           <button
-            onClick={() => setMostrarModalPedido(false)}
+            onClick={cerrarModalPedido}
             className="flex-1 border border-zinc-300 py-2 rounded-lg font-semibold text-zinc-600"
           >
             Cancelar
           </button>
           <button
-            onClick={enviarPedido}
-            disabled={enviando || !cuenta?.cliente || (enviarDomicilio && !cuenta?.direccion)}
-            className={`flex-1 py-2 rounded-lg font-semibold text-white transition ${
-              !cuenta?.cliente || (enviarDomicilio && !cuenta?.direccion)
-                ? "bg-orange-300"
-                : "bg-orange-500 hover:bg-orange-600"
-            }`}
-          >
-            {enviando ? "Enviando..." : "Enviar"}
-          </button>
+  onClick={enviarPedido}
+  disabled={
+    enviando ||
+    !cuenta?.cliente ||
+    !hayTipoEntregaSeleccionado ||
+    (enviarDomicilio && !cuenta?.direccion)
+  }
+  className={`flex-1 py-2 rounded-lg font-semibold text-white transition ${
+    !cuenta?.cliente ||
+    !hayTipoEntregaSeleccionado ||
+    (enviarDomicilio && !cuenta?.direccion)
+      ? "bg-orange-300"
+      : "bg-orange-500 hover:bg-orange-600"
+  }`}
+>
+  {enviando ? "Enviando..." : "Enviar"}
+</button>
+
         </div>
                      </motion.div>
                   </motion.div>
@@ -10085,9 +10185,14 @@ const handleTouchEnd = async () => {
                                   <p className="text-xs text-zinc-500 mt-1">
                                     {prod.CODIGO}
                                   </p>
-                                  <p className="text-sm font-bold text-orange-500 mt-1">
-                                    $ {prod.P_MAYOREO?.toFixed(2)}
-                                  </p>
+                                 {!esMostrador && (
+  <p className="text-sm font-bold text-orange-500 mt-1">
+    $ {prod.P_MAYOREO?.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}
+  </p>
+)}
                                 </div>
                               </div>
                             </motion.div>
@@ -10181,6 +10286,7 @@ const handleTouchEnd = async () => {
               </button>
 
               {/* 3. BOTÓN CARRITO */}
+              {!esMostrador && (
               <div className="relative flex justify-center">
                 <button
                   onClick={() => {
@@ -10240,7 +10346,7 @@ const handleTouchEnd = async () => {
                   </span>
                 </button>
               </div>
-
+              )}
               {/* 4. BOTÓN UBICACIÓN */}
               <button
                 onClick={() => {

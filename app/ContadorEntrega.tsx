@@ -31,13 +31,13 @@ export default function ContadorEntrega({ entregaMismoDia }: Props) {
         <div className="bg-white/90 backdrop-blur border border-white/40 rounded-xl px-4 py-2 shadow-md mx-auto">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-semibold text-zinc-800">
-              Tiempo de entrega
+              Tiempo de entrega: 
             </span>
           </div>
 
           <p className="text-xs text-zinc-700">
-            Entrega en{" "}
-            <span className="font-bold">1 a 3 días hábiles</span>
+            Realiza tu pedido y recibeloen un plazo de {" "}
+            <span className="font-bold">1 a 3 días hábiles.</span>
           </p>
         </div>
       </div>
@@ -47,32 +47,6 @@ export default function ContadorEntrega({ entregaMismoDia }: Props) {
 return (
   <div className="w-full px-3">
     <div className="bg-white/90 backdrop-blur border border-white/40 rounded-lg px-3 py-2 shadow-md">
-      <div className="flex items-center gap-2 mb-1">
-        <svg
-          className={`w-4 h-4 ${
-            segundosActuales < segundosLimite
-              ? "text-green-600"
-              : "text-orange-500"
-          }`}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
-
-        <span className="text-xs sm:text-sm font-bold text-zinc-900">
-          {segundosActuales < segundosLimite
-            ? "Entrega el mismo día"
-            : "Tiempo de entrega"}
-        </span>
-      </div>
-
       {segundosActuales < segundosLimite ? (
         (() => {
           const restantes = segundosLimite - segundosActuales;
@@ -84,12 +58,16 @@ return (
           return (
             <>
               <p className="text-xs sm:text-sm text-zinc-700 mb-1 leading-tight">
-                ¡Ordena en{" "}
+                <span className="font-bold text-zinc-900">
+      Tiempo de entrega:
+    </span>{" "}
+                ¡Realiza tu pedido dentro de las proximas{" "}
                 <span className="font-bold text-green-600">
                   {String(h).padStart(2, "0")}:
                   {String(m).padStart(2, "0")}:
                   {String(s).padStart(2, "0")}
                 </span>
+                 {" "}horas y recibibelo hoy mismo.
               </p>
 
               <div className="w-full bg-zinc-200 rounded-full h-1.5 overflow-hidden">
@@ -102,11 +80,14 @@ return (
           );
         })()
       ) : (
-        <p className="text-xs sm:text-sm text-zinc-600 leading-tight">
-          Ordena antes de las{" "}
-          <span className="font-semibold text-green-600">10 AM </span> 
-          para entrega el mismo día.
-        </p>
+        <p className="text-xs sm:text-sm text-zinc-700 mb-1 leading-tight">
+                <span className="font-bold text-zinc-900">
+      Tiempo de entrega:
+    </span>{" "}
+                Realiza tu pedido antes de las <span className="font-bold text-green-600">
+                10 a.m.
+                </span> y recibelo el mismo dia.
+              </p>
       )}
     </div>
   </div>
