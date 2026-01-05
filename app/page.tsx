@@ -66,8 +66,11 @@ interface Cuenta {
   cliente?: string;
   numero_tel?: string;
   entrega_mismo_dia?: boolean;
+   id?: number;
   [key: string]: any;
 }
+
+
 
 const VistaProducto = ({
   producto,
@@ -945,7 +948,6 @@ const handleToggleTopVentas = async () => {
                 </div>
               )}
 
-              {/* Imagen */}
               {/* Imagen con carrusel si hay adicionales */}
               <div className="relative">
                 <div
@@ -966,7 +968,7 @@ const handleToggleTopVentas = async () => {
                   </div>
                 </div>
 
-                {/* Controles del carrusel - solo si hay más de 1 imagen */}
+                {/* Controles del carrusel, solo si hay más de 1 imagen */}
                 {imagenesProducto.length > 1 && (
                   <>
                     <button
@@ -1032,32 +1034,14 @@ const handleToggleTopVentas = async () => {
 {/* Toggles de Admin */}
 {esAdmin && !modoEdicion && (
   <div className="mt-5 px-4">
-    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
-      <h3 className="text-sm font-bold text-blue-900 mb-3">
-        Configuración del Producto
+    <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4">
+      <h3 className="text-sm font-bold text-zinc-800">
+        Configuración del producto
       </h3>
-      
-      {/* Toggle Visible */}
-      <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-blue-200">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-            visible ? 'bg-blue-100' : 'bg-gray-100'
-          }`}>
-            {visible ? (
-              <Eye size={20} className="text-blue-600" />
-            ) : (
-              <EyeOff size={20} className="text-gray-600" />
-            )}
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-zinc-800">
-              {visible ? 'Producto Visible' : 'Producto Oculto'}
-            </p>
-            <p className="text-xs text-zinc-500">
-              {visible ? 'Los clientes pueden ver este producto' : 'Solo visible para administradores'}
-            </p>
-          </div>
-        </div>
+
+      {/* Visible */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-zinc-700">Producto visible</span>
         <label className="relative inline-flex items-center cursor-pointer">
           <input
             type="checkbox"
@@ -1066,40 +1050,17 @@ const handleToggleTopVentas = async () => {
             disabled={actualizandoToggle}
             className="sr-only peer"
           />
-          <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full disabled:opacity-50"></div>
+          <div className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-blue-600
+            after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+            after:bg-white after:w-5 after:h-5 after:rounded-full
+            after:transition-all peer-checked:after:translate-x-full">
+          </div>
         </label>
       </div>
 
-      {/* Toggle Liquidación */}
-      <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-            liquidacion ? 'bg-red-100' : 'bg-gray-100'
-          }`}>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-              className={`w-5 h-5 ${liquidacion ? 'text-red-600' : 'text-gray-600'}`}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-zinc-800">
-              {liquidacion ? 'En Liquidación' : 'Venta Regular'}
-            </p>
-            <p className="text-xs text-zinc-500">
-              {liquidacion ? 'Producto marcado como liquidación' : 'Sin liquidacion'}
-            </p>
-          </div>
-        </div>
+      {/* Liquidación */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-zinc-700">Liquidación</span>
         <label className="relative inline-flex items-center cursor-pointer">
           <input
             type="checkbox"
@@ -1108,27 +1069,17 @@ const handleToggleTopVentas = async () => {
             disabled={actualizandoToggle}
             className="sr-only peer"
           />
-          <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full disabled:opacity-50"></div>
+          <div className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-red-500
+            after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+            after:bg-white after:w-5 after:h-5 after:rounded-full
+            after:transition-all peer-checked:after:translate-x-full">
+          </div>
         </label>
       </div>
 
-      {/* Toggle Top Ventas */}
-      <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-            topVentas ? 'bg-green-100' : 'bg-gray-100'
-          }`}>
-            <Star size={20} className={topVentas ? 'text-green-600 fill-green-600' : 'text-gray-600'} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-zinc-800">
-              {topVentas ? 'Producto Destacado' : 'Producto Regular'}
-            </p>
-            <p className="text-xs text-zinc-500">
-              {topVentas ? 'Marcado como más vendido' : 'Sin destacar especialmente'}
-            </p>
-          </div>
-        </div>
+      {/* Top Ventas */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-zinc-700">Top ventas</span>
         <label className="relative inline-flex items-center cursor-pointer">
           <input
             type="checkbox"
@@ -1137,19 +1088,24 @@ const handleToggleTopVentas = async () => {
             disabled={actualizandoToggle}
             className="sr-only peer"
           />
-          <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full disabled:opacity-50"></div>
+          <div className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-green-600
+            after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+            after:bg-white after:w-5 after:h-5 after:rounded-full
+            after:transition-all peer-checked:after:translate-x-full">
+          </div>
         </label>
       </div>
 
       {actualizandoToggle && (
-        <div className="flex items-center justify-center gap-2 text-blue-600 text-xs">
-          <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-          <span>Actualizando...</span>
+        <div className="flex items-center gap-2 text-xs text-zinc-500">
+          <span className="animate-spin h-4 w-4 border-2 border-zinc-400 border-t-transparent rounded-full"></span>
+          Guardando cambios…
         </div>
       )}
     </div>
   </div>
 )}
+
 
 
 
@@ -1482,6 +1438,12 @@ export default function HomePage() {
   const [actualizacionReciente, setActualizacionReciente] = useState(false);
   const esAdmin = cuenta?.numero_cuenta === "Admin01";
   const esMostrador = cuenta?.numero_cuenta === "Mostrador";
+  const esAdminMostrador = cuenta?.numero_cuenta === "admin-M01";
+const esMostrador2 = cuenta?.numero_cuenta === "Mostrador2";
+const esAdminMostrador2 = cuenta?.numero_cuenta === "admin-M02";
+const ID_CUENTA_MOSTRADOR = 39; 
+const ID_CUENTA_MOSTRADOR2 = 41;
+  
   const [mostrar, setMostrar] = useState(false);
   const [subTab, setSubTab] = useState("categorias"); // categorias | marcas
   const [marcas, setMarcas] = useState<any[]>([]);
@@ -1515,6 +1477,12 @@ const [pullDistance, setPullDistance] = useState(0);
 const [isPulling, setIsPulling] = useState(false);
 const [isRefreshing, setIsRefreshing] = useState(false);
 const hayTipoEntregaSeleccionado = enviarDomicilio || recogerLocal;
+const [idsOcultosMostrador, setIdsOcultosMostrador] = useState<number[]>([]);
+
+interface ProductoConVisibilidad extends Producto {
+  visibleMostrador?: boolean;
+  visibleMostrador2?: boolean;
+}
 
 const cerrarModalPedido = () => {
   setMostrarModalPedido(false);
@@ -1558,6 +1526,34 @@ const handleTouchEnd = async () => {
   setIsPulling(false);
   setPullDistance(0);
 };
+
+// Cargar productos ocultos para la cuenta mostrador actual
+useEffect(() => {
+  const cargarOcultos = async () => {
+    if (esMostrador || esMostrador2) {
+      const idCuenta = esMostrador ? ID_CUENTA_MOSTRADOR : ID_CUENTA_MOSTRADOR2;
+      
+      const { data } = await supabase
+        .from("productos_visibilidad_cuenta")
+        .select("producto_id")
+        .eq("cuenta_id", idCuenta)
+        .eq("visible", false); 
+
+      if (data) {
+        setIdsOcultosMostrador(data.map((item: any) => item.producto_id));
+      }
+    }
+  };
+
+  cargarOcultos();
+}, [
+  esMostrador, 
+  esMostrador2, 
+  activeTab, 
+  categoriaSeleccionada, 
+  marcaSeleccionada, 
+  macroCategoriaSeleccionada
+]); 
 
  /// Lógica de Banner en tiempo real 
   useEffect(() => {
@@ -2307,25 +2303,71 @@ const handleTouchEnd = async () => {
   }, []);
 
   // Cargar todos los productos al entrar a la pestaña de "buscar"
-  const fetchProductos = async () => {
-    const { data, error } = await supabase
-      .from("productos")
-      .select(
-        "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
-      );
+ const fetchProductos = async () => {
+  try {
+    let productosFinales: any[] = [];
 
-    const productosNormalizados = (data || []).map((producto) => ({
+    if (esMostrador) {
+      // Mostrador 1
+      const { data: visibilidad } = await supabase
+        .from("productos_visibilidad_cuenta")
+        .select("producto_id")
+        .eq("cuenta_id", ID_CUENTA_MOSTRADOR)
+        .eq("visible", true);
+
+      const idsVisibles = visibilidad?.map((v) => v.producto_id) || [];
+
+      if (idsVisibles.length > 0) {
+        const { data, error } = await supabase
+          .from("productos")
+          .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID")
+          .in("id", idsVisibles);
+
+        productosFinales = data || [];
+      }
+    } else if (esMostrador2) {
+      // Mostrador 2
+      const { data: visibilidad } = await supabase
+        .from("productos_visibilidad_cuenta")
+        .select("producto_id")
+        .eq("cuenta_id", ID_CUENTA_MOSTRADOR2)
+        .eq("visible", true);
+
+      const idsVisibles = visibilidad?.map((v) => v.producto_id) || [];
+
+      if (idsVisibles.length > 0) {
+        const { data, error } = await supabase
+          .from("productos")
+          .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID")
+          .in("id", idsVisibles);
+
+        productosFinales = data || [];
+      }
+    } else {
+      // Admin o usuarios normales
+      const { data, error } = await supabase
+        .from("productos")
+        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID");
+
+      if (error) {
+        console.error("Error cargando productos:", error.message);
+      } else {
+        productosFinales = data || [];
+      }
+    }
+
+    const productosNormalizados = productosFinales.map((producto) => ({
       ...producto,
       visible: producto.visible ?? true,
     }));
 
-    if (error) {
-      console.error("Error cargando productos:", error.message);
-    } else {
-      setProductos(productosNormalizados);
-      setProductosMostrados(10);
-    }
-  };
+    setProductos(productosNormalizados);
+    setProductosMostrados(10);
+  } catch (error) {
+    console.error("Error en fetchProductos:", error);
+    setProductos([]);
+  }
+};
 
   useEffect(() => {
     if (activeTab === "buscar" && productos.length === 0) {
@@ -3780,7 +3822,14 @@ const handleTouchEnd = async () => {
         .order("numero_cuenta", { ascending: true });
 
       if (!error && data) {
-        setCuentas(data);
+        const cuentasFiltradas = data.filter(
+          (c: any) => 
+            c.numero_cuenta !== "Admin01" && 
+            c.numero_cuenta !== "admin-M01" &&
+            c.numero_cuenta !== "Mostrador" &&
+            c.numero_cuenta !== "Mostrador2"
+        );
+        setCuentas(cuentasFiltradas);
       }
       setCargando(false);
     };
@@ -7425,6 +7474,100 @@ const handleTouchEnd = async () => {
     }
   };
 
+  
+// visibilidad personal de la cuenta
+  const toggleVisibilidadMostrador = async (
+  productoId: number,
+  visibleActual: boolean,
+  cuentaId: number
+): Promise<void> => {
+  try {
+    const { data: existe } = await supabase
+      .from("productos_visibilidad_cuenta")
+      .select("*")
+      .eq("producto_id", productoId)
+      .eq("cuenta_id", cuentaId)
+      .single();
+
+    if (existe) {
+      // Actualizar
+      const { error } = await supabase
+        .from("productos_visibilidad_cuenta")
+        .update({ visible: !visibleActual })
+        .eq("producto_id", productoId)
+        .eq("cuenta_id", cuentaId);
+
+      if (error) throw error;
+    } else {
+      // Crear nuevo registro (por defecto todos son visibles, así que si no existe, crearlo como no visible)
+      const { error } = await supabase
+        .from("productos_visibilidad_cuenta")
+        .insert({
+          producto_id: productoId,
+          cuenta_id: cuentaId,
+          visible: !visibleActual,
+        });
+
+      if (error) throw error;
+    }
+
+    // Actualizar estado local según el mostrador
+    if (cuentaId === ID_CUENTA_MOSTRADOR) {
+      setArticulos((prevArticulos: ProductoConVisibilidad[]) =>
+        prevArticulos.map((art: ProductoConVisibilidad) =>
+          art.id === productoId
+            ? { ...art, visibleMostrador: !visibleActual }
+            : art
+        )
+      );
+    } else if (cuentaId === ID_CUENTA_MOSTRADOR2) {
+      setArticulos((prevArticulos: ProductoConVisibilidad[]) =>
+        prevArticulos.map((art: ProductoConVisibilidad) =>
+          art.id === productoId
+            ? { ...art, visibleMostrador2: !visibleActual }
+            : art
+        )
+      );
+    }
+
+    console.log("Visibilidad actualizada correctamente");
+  } catch (error) {
+    console.error("Error al actualizar visibilidad mostrador:", error);
+  }
+};
+
+// Cargar visibilidad específica para mostradores
+useEffect(() => {
+  const cargarVisibilidadMostrador = async () => {
+    if (esAdminMostrador || esAdminMostrador2) {
+      const cuentaId = esAdminMostrador ? ID_CUENTA_MOSTRADOR : ID_CUENTA_MOSTRADOR2;
+      
+      const { data } = await supabase
+        .from("productos_visibilidad_cuenta")
+        .select("producto_id, visible")
+        .eq("cuenta_id", cuentaId);
+
+      const visibilidadMap = new Map(
+        data?.map((v) => [v.producto_id, v.visible]) || []
+      );
+
+      setArticulos((prev) =>
+        prev.map((art) => ({
+          ...art,
+          ...(esAdminMostrador 
+            ? { visibleMostrador: visibilidadMap.get(art.id) ?? true }
+            : { visibleMostrador2: visibilidadMap.get(art.id) ?? true }
+          ),
+        }))
+      );
+    }
+  };
+
+  if (articulos.length > 0) {
+    cargarVisibilidadMostrador();
+  }
+}, [articulos.length, esAdminMostrador, esAdminMostrador2]);
+
   const HorariosDisplay = ({ cuentaId }: { cuentaId: number }) => {
     const [horarios, setHorarios] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
@@ -8653,18 +8796,16 @@ const handleTouchEnd = async () => {
                             <AnimatePresence>
                               {articulos
                                 .filter((a) => {
-                                  if (!esAdmin && !a.visible) return false;
-                                  return (
-                                    (a.TITULO &&
-                                      a.TITULO.toLowerCase().includes(
-                                        searchTerm.toLowerCase()
-                                      )) ||
-                                    (a.CODIGO &&
-                                      a.CODIGO.toLowerCase().includes(
-                                        searchTerm.toLowerCase()
-                                      ))
-                                  );
-                                })
+
+  if (!esAdmin && !a.visible) return false;
+  if ((esMostrador || esMostrador2) && idsOcultosMostrador.includes(a.id)) {
+    return false; 
+  }
+  return (
+    (a.TITULO && a.TITULO.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (a.CODIGO && a.CODIGO.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+})
                                 .map((art) => (
                                   <motion.div
                                     key={art.id}
@@ -8729,86 +8870,135 @@ const handleTouchEnd = async () => {
                                         </p>
                                       )}
 
-                                      {/* Toggle (solo admin) */}
-                                      {esAdmin && (
-                                        <div
-                                          className="flex flex-col gap-2 mt-2"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          {/* Toggle Visible */}
-                                          <div className="flex items-center gap-2">
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                              <input
-                                                type="checkbox"
-                                                checked={art.visible}
-                                                onChange={() =>
-                                                  toggleVisibilidad(
-                                                    art.id,
-                                                    art.visible
-                                                  )
-                                                }
-                                                className="sr-only peer"
-                                              />
-                                              <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-                                            </label>
-                                            <span className="text-xs text-zinc-500">
-                                              {art.visible
-                                                ? "Visible"
-                                                : "Oculto"}
-                                            </span>
-                                          </div>
+                                     {/* Toggle (solo admin o admin mostrador) */}
+{(esAdmin || esAdminMostrador || esAdminMostrador2) && (
+  <div
+    className="flex flex-col gap-2 mt-2"
+    onClick={(e) => e.stopPropagation()}
+  >
+    {esAdmin ? (
+      // Admin principal
+      <>
+        {/* Toggle Visible */}
+        <div className="flex items-center gap-2">
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={art.visible}
+              onChange={() =>
+                toggleVisibilidad(
+                  art.id,
+                  art.visible
+                )
+              }
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+          </label>
+          <span className="text-xs text-zinc-500">
+            {art.visible
+              ? "Visible"
+              : "Oculto"}
+          </span>
+        </div>
 
-                                          {/* Toggle Liquidación */}
-                                          <div className="flex items-center gap-2">
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                              <input
-                                                type="checkbox"
-                                                checked={
-                                                  art.liquidacion ?? false
-                                                }
-                                                onChange={() =>
-                                                  toggleLiquidacion(
-                                                    art.id,
-                                                    art.liquidacion ?? false
-                                                  )
-                                                }
-                                                className="sr-only peer"
-                                              />
-                                              <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-                                            </label>
-                                            <span className="text-xs text-zinc-500">
-                                              {art.liquidacion
-                                                ? "En Liquidación"
-                                                : "Liquidación"}
-                                            </span>
-                                          </div>
+        {/* Toggle Liquidación */}
+        <div className="flex items-center gap-2">
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={
+                art.liquidacion ?? false
+              }
+              onChange={() =>
+                toggleLiquidacion(
+                  art.id,
+                  art.liquidacion ?? false
+                )
+              }
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+          </label>
+          <span className="text-xs text-zinc-500">
+            {art.liquidacion
+              ? "En Liquidación"
+              : "Liquidación"}
+          </span>
+        </div>
 
-                                          {/* Toggle Top Ventas */}
-                                          <div className="flex items-center gap-2">
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                              <input
-                                                type="checkbox"
-                                                checked={
-                                                  art.top_ventas ?? false
-                                                }
-                                                onChange={() =>
-                                                  toggleTopVentas(
-                                                    art.id,
-                                                    art.top_ventas ?? false
-                                                  )
-                                                }
-                                                className="sr-only peer"
-                                              />
-                                              <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-                                            </label>
-                                            <span className="text-xs text-zinc-500">
-                                              {art.top_ventas
-                                                ? "Top Ventas"
-                                                : "Top Ventas"}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      )}
+        {/* Toggle Top Ventas */}
+        <div className="flex items-center gap-2">
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={
+                art.top_ventas ?? false
+              }
+              onChange={() =>
+                toggleTopVentas(
+                  art.id,
+                  art.top_ventas ?? false
+                )
+              }
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+          </label>
+          <span className="text-xs text-zinc-500">
+            {art.top_ventas
+              ? "Top Ventas"
+              : "Top Ventas"}
+          </span>
+        </div>
+      </>
+    ) : esAdminMostrador ? (
+      // Admin Mostrador 1
+      <div className="flex items-center gap-2">
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={art.visibleMostrador ?? true}
+            onChange={() =>
+              toggleVisibilidadMostrador(
+                art.id,
+                art.visibleMostrador ?? true,
+                ID_CUENTA_MOSTRADOR
+              )
+            }
+            className="sr-only peer"
+          />
+          <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-purple-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+        </label>
+        <span className="text-xs text-zinc-500">
+          {art.visibleMostrador ? "Visible M1" : "Oculto M1"}
+        </span>
+      </div>
+    ) : esAdminMostrador2 ? (
+      // Admin Mostrador 2
+      <div className="flex items-center gap-2">
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={art.visibleMostrador2 ?? true}
+            onChange={() =>
+              toggleVisibilidadMostrador(
+                art.id,
+                art.visibleMostrador2 ?? true,
+                ID_CUENTA_MOSTRADOR2
+              )
+            }
+            className="sr-only peer"
+          />
+          <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-teal-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+        </label>
+        <span className="text-xs text-zinc-500">
+          {art.visibleMostrador2 ? "Visible M2" : "Oculto M2"}
+        </span>
+      </div>
+    ) : null}
+  </div>
+)}
                                     </div>
                                   </motion.div>
                                 ))}
@@ -9028,7 +9218,7 @@ const handleTouchEnd = async () => {
                                   <p className="text-xs text-zinc-500">
                                     Código: {prod.CODIGO}
                                   </p>
-                                  {!esAdmin && !esMostrador &&(
+                                  {!esAdmin && !esMostrador && !esMostrador2 &&(
                                     <p className="text-xs text-orange-500 font-semibold">
                                       ${prod.P_MAYOREO?.toLocaleString("en-US", {
       minimumFractionDigits: 2,
@@ -9981,18 +10171,18 @@ const handleTouchEnd = async () => {
               <span className="text-sm font-medium text-zinc-700">Enviar a domicilio</span>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={enviarDomicilio}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setEnviarDomicilio(true);
-                    setRecogerLocal(false);
-                  }
-                }}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-orange-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+               <input
+    type="checkbox"
+    checked={enviarDomicilio}
+    onChange={(e) => {
+      if (e.target.checked) {
+        setEnviarDomicilio(true);
+        setRecogerLocal(false);
+      }
+    }}
+    className="w-5 h-5 accent-orange-600 cursor-pointer"
+  />
+             
             </label>
           </div>
 
@@ -10017,11 +10207,11 @@ const handleTouchEnd = async () => {
                   if (e.target.checked) {
                     setRecogerLocal(true);
                     setEnviarDomicilio(false);
-                  }
-                }}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                   }
+    }}
+    className="w-5 h-5 accent-orange-600 cursor-pointer"
+  />
+              
             </label>
           </div>
         </div>
@@ -10192,7 +10382,7 @@ const handleTouchEnd = async () => {
                                   <p className="text-xs text-zinc-500 mt-1">
                                     {prod.CODIGO}
                                   </p>
-                                 {!esMostrador && (
+                                 {!esMostrador && !esMostrador2 && (
   <p className="text-sm font-bold text-orange-500 mt-1">
     $ {prod.P_MAYOREO?.toLocaleString("en-US", {
       minimumFractionDigits: 2,
@@ -10276,10 +10466,20 @@ const handleTouchEnd = async () => {
                 <span className="mt-1">CATEGORÍAS</span>
               </button>
 
-              {/* 2. BOTÓN BUSCAR */}
+             {/* 2. BOTÓN BUSCAR */}
               <button
                 onClick={() => {
                   window.scrollTo({ top: 0, behavior: "instant" });
+                  setCategoriaSeleccionada(null);
+                  setMarcaSeleccionada(null);
+                  setMacroCategoriaSeleccionada(null);
+                  buscarStateRef.current = {
+                    categoria: null,
+                    marca: null,
+                    searchTerm: "",
+                    productos: [],
+                  };
+
                   setActiveTab("buscar");
                 }}
                 className={`flex flex-col items-center text-[10px] sm:text-xs ${
@@ -10291,7 +10491,7 @@ const handleTouchEnd = async () => {
                 <Search size={20} />
                 <span className="mt-1">BUSCAR</span>
               </button>
-
+              
               {/* 3. BOTÓN CARRITO */}
               {!esMostrador && (
               <div className="relative flex justify-center">
