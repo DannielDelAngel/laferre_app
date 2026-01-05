@@ -1482,7 +1482,6 @@ export default function HomePage() {
   const [actualizacionReciente, setActualizacionReciente] = useState(false);
   const esAdmin = cuenta?.numero_cuenta === "Admin01";
   const esMostrador = cuenta?.numero_cuenta === "Mostrador";
-  
   const [mostrar, setMostrar] = useState(false);
   const [subTab, setSubTab] = useState("categorias"); // categorias | marcas
   const [marcas, setMarcas] = useState<any[]>([]);
@@ -1516,7 +1515,6 @@ const [pullDistance, setPullDistance] = useState(0);
 const [isPulling, setIsPulling] = useState(false);
 const [isRefreshing, setIsRefreshing] = useState(false);
 const hayTipoEntregaSeleccionado = enviarDomicilio || recogerLocal;
-
 
 const cerrarModalPedido = () => {
   setMostrarModalPedido(false);
@@ -6491,7 +6489,7 @@ const handleTouchEnd = async () => {
     } finally {
       setEnviando(false);
       setEnviarDomicilio(false);
-      setRecogerLocal(false);
+  setRecogerLocal(false);
     }
   };
 
