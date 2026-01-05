@@ -11,6 +11,7 @@ import {
   Hammer,
   X,
   Megaphone,
+  BookOpenText,
   Star,
   History,
   Menu,
@@ -73,6 +74,7 @@ const VistaProducto = ({
   onBack,
   esAdmin,
   carrito,
+  esMostrador,
   setCarrito,
   cuenta,
   supabase,
@@ -1163,7 +1165,7 @@ const handleToggleTopVentas = async () => {
                     {getNombreMarca(producto.marca_id)}
                   </span>
                 </div>
-
+{!esMostrador && (
                 <div className="flex justify-between py-2">
                   <span className="font-medium">Precio</span>
                   <span>
@@ -1174,8 +1176,8 @@ const handleToggleTopVentas = async () => {
                     })}
                   </span>
                 </div>
-
-                {!esAdmin && (
+ )}
+                {!esAdmin && !esMostrador && (
                   <div className="flex justify-between py-2">
                     <span className="font-medium">Total de artículo</span>
                     <span>
@@ -1191,7 +1193,7 @@ const handleToggleTopVentas = async () => {
                   </div>
                 )}
               </div>
-
+{!esMostrador && (
               <div className="mt-5 px-4">
                 <div className="flex justify-between items-center gap-3">
                   {/* Botón restar */}
@@ -1229,6 +1231,7 @@ const handleToggleTopVentas = async () => {
                   {esDesdeCarrito ? "Modificar cantidad" : "Agregar al carrito"}
                 </button>
               </div>
+               )}
             </>
           )}
 
@@ -1479,6 +1482,7 @@ export default function HomePage() {
   const [actualizacionReciente, setActualizacionReciente] = useState(false);
   const esAdmin = cuenta?.numero_cuenta === "Admin01";
   const esMostrador = cuenta?.numero_cuenta === "Mostrador";
+  
   const [mostrar, setMostrar] = useState(false);
   const [subTab, setSubTab] = useState("categorias"); // categorias | marcas
   const [marcas, setMarcas] = useState<any[]>([]);
@@ -1512,6 +1516,7 @@ const [pullDistance, setPullDistance] = useState(0);
 const [isPulling, setIsPulling] = useState(false);
 const [isRefreshing, setIsRefreshing] = useState(false);
 const hayTipoEntregaSeleccionado = enviarDomicilio || recogerLocal;
+
 
 const cerrarModalPedido = () => {
   setMostrarModalPedido(false);
@@ -6101,6 +6106,7 @@ const handleTouchEnd = async () => {
       setEnviando(true);
       setMensajeExito("");
       setErrorCuenta("");
+       
 
       if (!cuenta) {
         setMensajeExito("Error: cuenta no cargada. Intente nuevamente.");
@@ -6484,6 +6490,8 @@ const handleTouchEnd = async () => {
       );
     } finally {
       setEnviando(false);
+      setEnviarDomicilio(false);
+      setRecogerLocal(false);
     }
   };
 
@@ -7619,6 +7627,7 @@ const handleTouchEnd = async () => {
         esFavorito={esFavorito}
         toggleFavorito={toggleFavorito}
         categoriasAdmin={categoriasAdmin}
+        esMostrador={esMostrador}
       />
     );
   }
@@ -10021,64 +10030,64 @@ const handleTouchEnd = async () => {
 
          {/* Mensajes dinámicos según selección y hora */}
         <motion.div className="mt-3">
-          {enviarDomicilio ? (
-            <motion.div
-              key="domicilio-info"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-2"
-            >
-              {cuenta?.direccion ? (
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                  <p className="text-xs text-zinc-600 mb-1">Dirección:</p>
-                  <p className="text-sm text-zinc-700">{cuenta.direccion}</p>
-                </div>
-              ) : (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-xs text-red-600">⚠️ No hay dirección guardada. Por favor informar a Bodega Ferretera de Monterrey.</p>
-                </div>
-              )}
-              
-              {/* Mensaje según si tiene entrega mismo día y la hora actual */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-800 font-semibold">
-                  {(() => {
-                    const horaActual = new Date().getHours();
-                    
-                    if (cuenta?.entrega_mismo_dia) {
-                      if (horaActual < 10) {
-                        return "Tu pedido será entregado el día de hoy";
-                      } else {
-                        return "Tu pedido quedará programado para entregar el siguiente día hábil";
-                      }
-                    } else {
-                      return "Recibirás tu pedido en un plazo de 1 a 3 días hábiles (puedes recibirlo el mismo día)";
-                    }
-                  })()}
-                </p>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div 
-              key="recoger-info"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-green-50 border border-green-200 rounded-lg p-3"
-            >
-              <p className="text-sm text-green-800 font-semibold">
-                {(() => {
-                  const horaActual = new Date().getHours();
-                  
-                  if (horaActual < 15) {
-                    return "Tu pedido estará listo para recoger en aproximadamente 3 horas. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'";
-                  } else {
-                    return "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'";
-                  }
-                })()}
-              </p>
-            </motion.div>
-          )}
-        </motion.div>
+  {enviarDomicilio && (
+    <motion.div
+      key="domicilio-info"
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-2"
+    >
+      {cuenta?.direccion ? (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+          <p className="text-xs text-zinc-600 mb-1">Dirección:</p>
+          <p className="text-sm text-zinc-700">{cuenta.direccion}</p>
+        </div>
+      ) : (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <p className="text-xs text-red-600">
+            ⚠️ No hay dirección guardada. Por favor informar a Bodega Ferretera de Monterrey.
+          </p>
+        </div>
+      )}
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <p className="text-sm text-blue-800 font-semibold">
+          {(() => {
+            const horaActual = new Date().getHours();
+
+            if (cuenta?.entrega_mismo_dia) {
+              return horaActual < 10
+                ? "Tu pedido será entregado el día de hoy"
+                : "Tu pedido quedará programado para entregar el siguiente día hábil";
+            } else {
+              return "Recibirás tu pedido en un plazo de 1 a 3 días hábiles (puedes recibirlo el mismo día)";
+            }
+          })()}
+        </p>
+      </div>
+    </motion.div>
+  )}
+
+  {recogerLocal && (
+    <motion.div
+      key="recoger-info"
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-green-50 border border-green-200 rounded-lg p-3"
+    >
+      <p className="text-sm text-green-800 font-semibold">
+        {(() => {
+          const horaActual = new Date().getHours();
+
+          return horaActual < 15
+            ? "Tu pedido estará listo para recoger en aproximadamente 3 horas. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"
+            : "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'";
+        })()}
+      </p>
+    </motion.div>
+  )}
+</motion.div>
+
 
          {/* Botones */}
         <div className="flex justify-between mt-6 gap-2">
@@ -10347,6 +10356,15 @@ const handleTouchEnd = async () => {
                 </button>
               </div>
               )}
+
+              {/* espacio */}
+              {esMostrador && (
+              <div className="relative flex justify-center">
+                
+                <BookOpenText size={30} color="#bcbcbcff"/>
+              </div>
+              )}
+
               {/* 4. BOTÓN UBICACIÓN */}
               <button
                 onClick={() => {
