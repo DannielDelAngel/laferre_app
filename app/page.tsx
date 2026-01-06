@@ -1568,6 +1568,7 @@ const [isPulling, setIsPulling] = useState(false);
 const [isRefreshing, setIsRefreshing] = useState(false);
 const hayTipoEntregaSeleccionado = enviarDomicilio || recogerLocal;
 const [idsOcultosMostrador, setIdsOcultosMostrador] = useState<number[]>([]);
+const [codigoBarrasModal, setCodigoBarrasModal] = useState(null);
 
 interface ProductoConVisibilidad extends Producto {
   visibleMostrador?: boolean;
@@ -9305,7 +9306,7 @@ useEffect(() => {
                   </motion.div>
                 )}
 
-                {/* Carrito */}
+ {/* Carrito */}
 {activeTab === "carrito" && (
   <motion.div
     initial={{ opacity: 0, x: -40 }}
@@ -9371,7 +9372,10 @@ useEffect(() => {
 
                   {/* Código de barras */}
                   <div className="mt-4 pt-4 border-t border-zinc-200">
-                    <div className="flex justify-center bg-white p-2 rounded">
+                    <div 
+                      className="flex justify-center bg-white p-2 rounded cursor-pointer hover:bg-zinc-50 transition"
+                      onClick={() => setCodigoBarrasModal(item.CODIGO)}
+                    >
                       <Barcode
                         value={item.CODIGO || "0000000000000"}
                         width={1.5}
@@ -9382,6 +9386,9 @@ useEffect(() => {
                         background="#ffffff"
                       />
                     </div>
+                    <p className="text-xs text-center text-zinc-500 mt-1">
+                      Toca para ampliar
+                    </p>
                   </div>
                 </div>
               ))}
@@ -9596,6 +9603,45 @@ useEffect(() => {
       )}
     </div>
   </motion.div>
+)}
+
+{/* Modal de código de barras ampliado */}
+{codigoBarrasModal && (
+  <div 
+    className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
+    onClick={() => setCodigoBarrasModal(null)}
+  >
+    <div 
+      className="bg-white rounded-2xl p-6 max-w-lg w-full"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-bold text-zinc-900">Código de Barras</h3>
+        <button
+          onClick={() => setCodigoBarrasModal(null)}
+          className="w-8 h-8 bg-zinc-600 hover:bg-zinc-700 rounded-full flex items-center justify-center transition"
+        >
+          <X size={18} />
+        </button>
+      </div>
+      
+      <div className="flex justify-center bg-white p-4 rounded-lg border border-zinc-200">
+        <Barcode
+          value={codigoBarrasModal}
+          width={2.5}
+          height={100}
+          fontSize={16}
+          margin={10}
+          displayValue={true}
+          background="#ffffff"
+        />
+      </div>
+      
+      <p className="text-center text-sm text-zinc-600 mt-4">
+        Código: {codigoBarrasModal}
+      </p>
+    </div>
+  </div>
 )}
 
                 {/* perfil */}
