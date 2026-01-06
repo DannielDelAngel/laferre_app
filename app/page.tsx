@@ -39,6 +39,7 @@ import { createPortal } from "react-dom";
 import InstallPWA from "@/app/InstallPWA";
 import ContadorEntrega from "@/app/ContadorEntrega";
 import { div } from "framer-motion/client";
+import Barcode from 'react-barcode';
 
 const SkeletonImage = ({ src, alt, className }: any) => {
   const [loaded, setLoaded] = useState(false);
@@ -73,11 +74,14 @@ interface Cuenta {
 
 
 const VistaProducto = ({
+  esAdminMostrador,
+  esAdminMostrador2,
   producto,
   onBack,
   esAdmin,
   carrito,
   esMostrador,
+  esMostrador2,
   setCarrito,
   cuenta,
   supabase,
@@ -145,6 +149,42 @@ const VistaProducto = ({
 const [liquidacion, setLiquidacion] = useState(producto.liquidacion ?? false);
 const [topVentas, setTopVentas] = useState(producto.top_ventas ?? false);
 const [actualizandoToggle, setActualizandoToggle] = useState(false);
+const [visibleM1, setVisibleM1] = useState(producto.visibleMostrador ?? true);
+const [visibleM2, setVisibleM2] = useState(producto.visibleMostrador2 ?? true);
+
+const ID_CUENTA_M1 = "49"; 
+const ID_CUENTA_M2 = "41";
+
+const handleToggleMostrador = async (mostrador: 'M1' | 'M2') => {
+  setActualizandoToggle(true);
+  try {
+    const esM1 = mostrador === 'M1';
+    const cuentaId = esM1 ? ID_CUENTA_M1 : ID_CUENTA_M2;
+    const valorActual = esM1 ? visibleM1 : visibleM2;
+    const nuevoValor = !valorActual;
+
+    const { error } = await supabase
+      .from("productos_visibilidad_cuenta")
+      .upsert(
+        { producto_id: producto.id, cuenta_id: cuentaId, visible: nuevoValor },
+        { onConflict: "producto_id,cuenta_id" }
+      );
+
+    if (!error) {
+      if (esM1) {
+        setVisibleM1(nuevoValor);
+        producto.visibleMostrador = nuevoValor;
+      } else {
+        setVisibleM2(nuevoValor);
+        producto.visibleMostrador2 = nuevoValor;
+      }
+    }
+  } catch (error) {
+    console.error(`Error actualizando ${mostrador}:`, error);
+  } finally {
+    setActualizandoToggle(false);
+  }
+};
 
 const handleToggleVisible = async () => {
   setActualizandoToggle(true);
@@ -1095,19 +1135,69 @@ const handleToggleTopVentas = async () => {
           </div>
         </label>
       </div>
-
+   
       {actualizandoToggle && (
         <div className="flex items-center gap-2 text-xs text-zinc-500">
           <span className="animate-spin h-4 w-4 border-2 border-zinc-400 border-t-transparent rounded-full"></span>
           Guardando cambios…
         </div>
       )}
+      
     </div>
   </div>
 )}
 
 
+{/* Toggle Mostrador 1 */}
+{esAdminMostrador && (
 
+<div className="flex items-center justify-between">
+  <div className="flex flex-col">
+    <span className="text-sm text-zinc-700 font-medium">Visible en Mostrador 1</span>
+    <span className="text-[10px] text-zinc-400">Control de visibilidad local M1</span>
+  </div>
+  <label className="relative inline-flex items-center cursor-pointer">
+    <input
+      type="checkbox"
+      checked={visibleM1}
+      onChange={() => handleToggleMostrador('M1')}
+      disabled={actualizandoToggle}
+      className="sr-only peer"
+    />
+    <div className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-purple-600
+      after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+      after:bg-white after:w-5 after:h-5 after:rounded-full
+      after:transition-all peer-checked:after:translate-x-full">
+    </div>
+  </label>
+</div>
+)}
+
+
+{/* Toggle Mostrador 2 */}
+{esAdminMostrador2 && (
+<div className="flex items-center justify-between">
+  <div className="flex flex-col">
+    <span className="text-sm text-zinc-700 font-medium">Visible en Mostrador 2</span>
+    <span className="text-[10px] text-zinc-400">Control de visibilidad local M2</span>
+  </div>
+  <label className="relative inline-flex items-center cursor-pointer">
+    <input
+      type="checkbox"
+      checked={visibleM2}
+      onChange={() => handleToggleMostrador('M2')}
+      disabled={actualizandoToggle}
+      className="sr-only peer"
+    />
+    <div className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-indigo-600
+      after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+      after:bg-white after:w-5 after:h-5 after:rounded-full
+      after:transition-all peer-checked:after:translate-x-full">
+    </div>
+  </label>
+</div>
+
+)}
 
               <div className="mt-4 text-sm text-zinc-700 px-2">
                 <div className="flex justify-between py-2">
@@ -1121,7 +1211,7 @@ const handleToggleTopVentas = async () => {
                     {getNombreMarca(producto.marca_id)}
                   </span>
                 </div>
-{!esMostrador && (
+{!esMostrador && !esMostrador2 &&(
                 <div className="flex justify-between py-2">
                   <span className="font-medium">Precio</span>
                   <span>
@@ -1133,7 +1223,7 @@ const handleToggleTopVentas = async () => {
                   </span>
                 </div>
  )}
-                {!esAdmin && !esMostrador && (
+                {!esAdmin && !esMostrador && !esMostrador2 && (
                   <div className="flex justify-between py-2">
                     <span className="font-medium">Total de artículo</span>
                     <span>
@@ -1149,7 +1239,7 @@ const handleToggleTopVentas = async () => {
                   </div>
                 )}
               </div>
-{!esMostrador && (
+
               <div className="mt-5 px-4">
                 <div className="flex justify-between items-center gap-3">
                   {/* Botón restar */}
@@ -1187,7 +1277,7 @@ const handleToggleTopVentas = async () => {
                   {esDesdeCarrito ? "Modificar cantidad" : "Agregar al carrito"}
                 </button>
               </div>
-               )}
+             
             </>
           )}
 
@@ -6191,16 +6281,18 @@ useEffect(() => {
       const totalConIVA = total;
 
       // Guardar pedido en Supabase
-      const { data: pedidoInsertado, error: errorPedido } = await supabase
-        .from("pedidos")
-        .insert([
-          {
-            cuenta_id: cuenta.id,
-            total: total,
-          },
-        ])
-        .select()
-        .single();
+const { data: pedidoInsertado, error: errorPedido } = await supabase
+  .from("pedidos")
+  .insert([
+    {
+      cuenta_id: cuenta.id,
+      total: total, 
+      estado: "pendiente",
+      es_domicilio: enviarDomicilio, 
+    },
+  ])
+  .select()
+  .single();
 
       if (errorPedido) {
         console.error("Error registrando pedido:", errorPedido);
@@ -6613,8 +6705,9 @@ useEffect(() => {
         if (error) throw error;
 
         onEstadoChange(nuevoEstado);
-        setActualizacionReciente(true);
-        setTimeout(() => setActualizacionReciente(false), 2000);
+
+       // setActualizacionReciente(true);
+       // setTimeout(() => setActualizacionReciente(false), 2000);
       } catch (error) {
         console.error("Error actualizando estado:", error);
         alert("Error al actualizar el estado");
@@ -6624,7 +6717,7 @@ useEffect(() => {
     };
 
     return (
-      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4">
+      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-2">
         <label className="text-sm font-semibold text-zinc-700 mb-2 block">
           Estado del Pedido
         </label>
@@ -6700,6 +6793,12 @@ useEffect(() => {
     const [errorEliminar, setErrorEliminar] = useState("");
     const [eliminando, setEliminando] = useState(false);
 
+const pedidoSeleccionadoRef = useRef<any>(null);
+
+useEffect(() => {
+    pedidoSeleccionadoRef.current = pedidoSeleccionado;
+  }, [pedidoSeleccionado]);
+
     const eliminarPedido = async () => {
       if (!pedidoAEliminar) return;
 
@@ -6759,138 +6858,148 @@ useEffect(() => {
       }
     };
 
-    useEffect(() => {
-      const fetchPedidos = async () => {
-        if (!cuenta?.id && !esAdmin) return;
+useEffect(() => {
+    const fetchPedidos = async () => {
+  if (!cuenta?.id && !esAdmin) return;
 
-        let query = supabase
-          .from("pedidos")
-          .select(
-            `
-    id, 
-    total, 
-    created_at,
-    cuenta_id,
-    pdf_url,
-    estado,
-    cuentas (
-      numero_cuenta,
-      cliente,
-      ferreteria,
-      numero_tel,
-      entrega_mismo_dia
+  let query = supabase
+    .from("pedidos")
+    .select(
+      `
+        id, 
+        total, 
+        created_at,
+        cuenta_id,
+        pdf_url,
+        estado,
+        es_domicilio,  
+        cuentas (
+          numero_cuenta,
+          cliente,
+          ferreteria,
+          numero_tel,
+          entrega_mismo_dia
+        )
+      `
     )
-  `
-          )
-          .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false });
 
-        if (!esAdmin) {
-          query = query.eq("cuenta_id", cuenta.id);
-        }
 
-        const { data, error } = await query;
+      if (!esAdmin) {
+        query = query.eq("cuenta_id", cuenta.id);
+      }
 
-        if (!error && data) {
-          setPedidos(data);
-        }
-        setCargando(false);
-      };
+      const { data, error } = await query;
 
-      fetchPedidos();
-      const channel = supabase
-        .channel("pedidos-changes")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "pedidos",
-            ...(esAdmin ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` }),
-          },
-          async (payload) => {
-            console.log("Cambio detectado:", payload);
+      if (!error && data) {
+        setPedidos(data);
+      }
+      setCargando(false);
+    };
 
-            if (payload.eventType === "UPDATE") {
-              const { data: pedidoActualizado } = await supabase
-                .from("pedidos")
-                .select(
-                  `
-    id, 
-    total, 
-    created_at,
-    cuenta_id,
-    pdf_url,
-    estado,
-    cuentas (
-      numero_cuenta,
-      cliente,
-      ferreteria,
-      numero_tel,
-      entrega_mismo_dia
-    )
-  `
-                )
-                .eq("id", payload.new.id)
-                .single();
+    fetchPedidos();
 
-              if (pedidoActualizado) {
-                setPedidos((prev) =>
-                  prev.map((p) =>
-                    p.id === pedidoActualizado.id ? pedidoActualizado : p
+    const channel = supabase
+      .channel("pedidos-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pedidos",
+          ...(esAdmin ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` }),
+        },
+        async (payload) => {
+          console.log("Cambio detectado:", payload);
+
+          if (payload.eventType === "UPDATE") {
+            const { data: pedidoActualizado } = await supabase
+              .from("pedidos")
+              .select(
+                `
+                  id, 
+                  total, 
+                  created_at,
+                  cuenta_id,
+                  pdf_url,
+                  estado,
+                  es_domicilio,
+                  cuentas (
+                    numero_cuenta,
+                    cliente,
+                    ferreteria,
+                    numero_tel,
+                    entrega_mismo_dia
                   )
-                );
+                `
+              )
+              .eq("id", payload.new.id)
+              .single();
 
-                if (pedidoSeleccionado?.id === pedidoActualizado.id) {
-                  setPedidoSeleccionado(pedidoActualizado);
-                  setCuentaPedido(pedidoActualizado.cuentas || cuenta);
-                }
-
-                setActualizacionReciente(true);
-                setTimeout(() => setActualizacionReciente(false), 2000);
-              }
-            } else if (payload.eventType === "INSERT") {
-              const { data: nuevoPedido } = await supabase
-                .from("pedidos")
-                .select(
-                  `
-    id, 
-    total, 
-    created_at,
-    cuenta_id,
-    pdf_url,
-    estado,
-    cuentas (
-      numero_cuenta,
-      cliente,
-      ferreteria,
-      numero_tel,
-      entrega_mismo_dia
-    )
-  `
+            if (pedidoActualizado) {
+              setPedidos((prev) =>
+                prev.map((p) =>
+                  p.id === pedidoActualizado.id ? pedidoActualizado : p
                 )
-                .eq("id", payload.new.id)
-                .single();
+              );
 
-              if (nuevoPedido) {
-                setPedidos((prev) => [nuevoPedido, ...prev]);
-                setActualizacionReciente(true);
-                setTimeout(() => setActualizacionReciente(false), 2000);
+              
+              if (pedidoSeleccionadoRef.current?.id === pedidoActualizado.id) {
+                setPedidoSeleccionado(pedidoActualizado);
+                setCuentaPedido(pedidoActualizado.cuentas || cuenta);
               }
-            } else if (payload.eventType === "DELETE") {
-              setPedidos((prev) => prev.filter((p) => p.id !== payload.old.id));
 
-              if (pedidoSeleccionado?.id === payload.old.id) {
-                setPedidoSeleccionado(null);
-              }
+              setActualizacionReciente(true);
+              setTimeout(() => setActualizacionReciente(false), 2000);
+            }
+          } else if (payload.eventType === "INSERT") {
+
+            const { data: nuevoPedido } = await supabase
+              .from("pedidos")
+              .select(
+                `
+                  id, 
+                  total, 
+                  created_at,
+                  cuenta_id,
+                  pdf_url,
+                  estado,
+                  es_domicilio,
+                  cuentas (
+                    numero_cuenta,
+                    cliente,
+                    ferreteria,
+                    numero_tel,
+                    entrega_mismo_dia
+                  )
+                `
+              )
+              .eq("id", payload.new.id)
+              .single();
+
+            if (nuevoPedido) {
+              setPedidos((prev) => [nuevoPedido, ...prev]);
+              setActualizacionReciente(true);
+              setTimeout(() => setActualizacionReciente(false), 2000);
+            }
+          } else if (payload.eventType === "DELETE") {
+             
+            setPedidos((prev) => prev.filter((p) => p.id !== payload.old.id));
+
+            if (pedidoSeleccionadoRef.current?.id === payload.old.id) {
+              setPedidoSeleccionado(null);
             }
           }
-        )
-        .subscribe();
+        }
+      )
+      .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }, [cuenta, esAdmin, pedidoSeleccionado?.id]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    
+   
+  }, [cuenta, esAdmin]);
 
     const verDetallePedido = (pedido: any) => {
       setPedidoSeleccionado(pedido);
@@ -6964,114 +7073,42 @@ useEffect(() => {
             </div>
           )}
 
-         {/* Información de tiempo de entrega - ACTUALIZADO */}
-{esAdmin && (
-  <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-    <div className="flex items-center gap-2 mb-3">
-      <svg
-        className="w-5 h-5 text-zinc-600"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-        />
-      </svg>
-      <span className="font-semibold text-zinc-800">
-        Logística de Entrega
-      </span>
-    </div>
-
+          {/* informacion de entrega */}
+{pedidoSeleccionado && (
+  <div className="mt-2 mb-2">
     {(() => {
-      // Analizamos la fecha de CREACIÓN del pedido, no la fecha actual
       const fechaPedido = new Date(pedidoSeleccionado.created_at);
-      const horaPedido = fechaPedido.getHours(); // Hora en formato 0-23
+      const horaPedido = fechaPedido.getHours();
+      const esDomicilio = pedidoSeleccionado.es_domicilio;
+      const entregaMismoDia = cuentaPedido?.entrega_mismo_dia;
 
-      // Obtenemos configuración de la cuenta
-      const tieneEntregaMismoDia =
-        pedidoSeleccionado.cuentas?.entrega_mismo_dia || false;
-
-      // Lógica espejo del Modal de Confirmación
-      if (tieneEntregaMismoDia) {
-        if (horaPedido < 10) {
-          // Caso: Mismo día (Antes de las 10 AM)
-          return (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-              <div className="flex items-start gap-3">
-                <div className="mt-1">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                </div>
-                <div>
-                  <p className="text-sm text-green-900 font-bold">
-                    Prioridad: Entrega Hoy Mismo
-                  </p>
-                  <p className="text-xs text-green-700 mt-1">
-                    El pedido entró a las {horaPedido}:
-                    {fechaPedido.getMinutes().toString().padStart(2, "0")}{" "}
-                    (Antes de las 10 AM).
-                  </p>
-                  <p className="text-xs font-semibold text-green-800 mt-2 bg-green-100 px-2 py-1 rounded inline-block">
-                    Acción: Surtir y enviar hoy.
-                  </p>
-                </div>
-              </div>
-            </div>
-          );
-        } else {
-          // Caso: Siguiente día hábil (Después de las 10 AM)
-          return (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <div className="flex items-start gap-3">
-                <div className="mt-1">
-                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-blue-900 font-bold">
-                    Programar Siguiente Día Hábil
-                  </p>
-                  <p className="text-xs text-blue-700 mt-1">
-                    El pedido entró a las {horaPedido}:
-                    {fechaPedido.getMinutes().toString().padStart(2, "0")}{" "}
-                    (Después de las 10 AM).
-                  </p>
-                  <p className="text-xs font-semibold text-blue-800 mt-2 bg-blue-100 px-2 py-1 rounded inline-block">
-                    Acción: Programar ruta para mañana.
-                  </p>
-                </div>
-              </div>
-            </div>
-          );
-        }
-      } else {
-        // Caso: Envío Estándar
+      if (esDomicilio) {
         return (
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-            <div className="flex items-start gap-3">
-              <div className="mt-1">
-                <div className="w-2 h-2 rounded-full bg-orange-500" />
-              </div>
-              <div>
-                <p className="text-sm text-orange-900 font-bold">
-                  Envío Estándar (1-3 días)
-                </p>
-                <p className="text-xs text-orange-700 mt-1">
-                  La cuenta tiene configuración de entrega estándar.
-                </p>
-                <p className="text-xs font-semibold text-orange-800 mt-2 bg-orange-100 px-2 py-1 rounded inline-block">
-                  Acción: Enviar en ruta normal.
-                </p>
-              </div>
-            </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-blue-800 font-semibold">
+              {entregaMismoDia
+                ? (horaPedido < 10 
+                    ? "Tu pedido será entregado el día de hoy" 
+                    : "Tu pedido quedará programado para entregar el siguiente día hábil")
+                : "Recibirás tu pedido en un plazo de 1 a 3 días hábiles (puedes recibirlo el mismo día)"}
+            </p>
+          </div>
+        );
+      } else {
+        return (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <p className="text-sm text-green-800 font-semibold">
+              {horaPedido < 15
+                ? "Tu pedido estará listo para recoger en aproximadamente 3 horas. Mantente atento al estado de tu pedido."
+                : "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"}
+            </p>
           </div>
         );
       }
     })()}
   </div>
 )}
+
           <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
             <div className="flex justify-between mb-2">
               <span className="text-sm text-zinc-600">Pedido #</span>
@@ -7121,7 +7158,10 @@ useEffect(() => {
             <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
               <span className="font-bold text-zinc-900">Total</span>
               <span className="font-bold text-orange-500 text-lg">
-                ${pedidoSeleccionado.total.toFixed(2)}
+                ${pedidoSeleccionado.total.toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
               </span>
             </div>
           </div>
@@ -7259,7 +7299,10 @@ useEffect(() => {
                     Pedido #{pedidoAEliminar?.id}
                   </p>
                   <p className="text-xs text-zinc-500 mt-1">
-                    Total: ${pedidoAEliminar?.total?.toFixed(2)}
+                    Total: ${pedidoAEliminar?.total?.toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
                   </p>
                 </div>
 
@@ -7769,6 +7812,9 @@ useEffect(() => {
         toggleFavorito={toggleFavorito}
         categoriasAdmin={categoriasAdmin}
         esMostrador={esMostrador}
+        esMostrador2={esMostrador2}
+        esAdminMostrador2={esAdminMostrador2}
+        esAdminMostrador={esAdminMostrador}
       />
     );
   }
@@ -8243,7 +8289,7 @@ useEffect(() => {
                                               <p className="text-xs text-zinc-500">
                                                 Código: {prod.CODIGO}
                                               </p>
-                                              {!esAdmin && !esMostrador && (
+                                              {!esAdmin && !esMostrador && !esMostrador2 && (
                                                 <p className="text-xs text-orange-500 font-semibold">
                                                   ${prod.P_MAYOREO?.toLocaleString("en-US", {
       minimumFractionDigits: 2,
@@ -8857,7 +8903,7 @@ useEffect(() => {
                                         {art.CODIGO}
                                       </p>
 
-                                      {!esAdmin && !esMostrador &&(
+                                      {!esAdmin && !esMostrador && !esMostrador2 && (
                                         <p className="text-sm font-bold text-orange-500 mt-1">
                                           ${" "}
                                           {art.P_MAYOREO?.toLocaleString(
@@ -9260,221 +9306,297 @@ useEffect(() => {
                 )}
 
                 {/* Carrito */}
-                {activeTab === "carrito" && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -40 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 40 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                  >
-                    <div className="mt-4 px-3 pb-13">
-                      {carrito.length === 0 ? (
-                        <p className="text-center text-zinc-500 mt-16">
-                          Tu carrito está vacío
-                        </p>
-                      ) : (
-                        <>
-                          {/* Productos */}
-                          <div className="space-y-3">
-                            {carrito.map((item) => (
-                              <div
-                                key={item.id}
-                                className="flex items-center gap-3 border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
-                              >
-                                {/* Imagen */}
-                                <div
-                                  className="relative w-16 h-16 bg-zinc-100 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
-                                  onClick={() => {
-                                    localStorage.setItem(
-                                      "scrollProducto",
-                                      scrollY.toString()
-                                    );
-                                    setProductoSeleccionado(item);
-                                  }}
-                                >
-                                  <Image
-                                    src={item.IMAGEN || "/placeholder.jpg"}
-                                    alt={item.TITULO}
-                                    fill
-                                    className="object-contain"
-                                  />
-                                </div>
-
-                                {/* Información del producto */}
-                                <div
-                                  className="flex-1 min-w-0 cursor-pointer"
-                                  onClick={() => {
-                                    localStorage.setItem(
-                                      "scrollProducto",
-                                      scrollY.toString()
-                                    );
-                                    setProductoSeleccionado(item);
-                                  }}
-                                >
-                                  <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
-                                    {item.TITULO}
-                                  </p>
-                                  <p className="text-xs text-zinc-500 mt-1">
-                                    Código: {item.CODIGO}
-                                  </p>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <p className="text-xs text-zinc-600">
-                                      {item.cantidad} × $
-                                      {item.P_MAYOREO.toLocaleString("en-US", {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                      })}
-                                    </p>
-                                    <span className="text-xs text-zinc-400">
-                                      |
-                                    </span>
-                                    <p className="text-sm font-bold text-orange-500">
-                                      $
-                                      {item.subtotal.toLocaleString("en-US", {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                      })}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                {/* Botón eliminar */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setCarrito((prev) =>
-                                      prev.filter((p) => p.id !== item.id)
-                                    );
-                                  }}
-                                  className="w-9 h-9 bg-orange-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
-                                  aria-label="Eliminar producto"
-                                >
-                                  <X size={18} />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Total */}
-
-                          {/* Barra de progreso*/}
-                          <AnimatePresence>
-                            {!ocultarBarra &&
-                              (() => {
-                                const totalCarrito = carrito.reduce(
-                                  (sum, p) => sum + p.subtotal,
-                                  0
-                                );
-                                const minimoRequerido = 1000;
-                                const progreso = Math.min(
-                                  (totalCarrito / minimoRequerido) * 100,
-                                  100
-                                );
-                                const faltante = Math.max(
-                                  minimoRequerido - totalCarrito,
-                                  0
-                                );
-
-                                return (
-                                  <motion.div
-                                    key="barra-progreso"
-                                    initial={{ opacity: 0, x: -100 }}
-                                    animate={{
-                                      opacity: 1,
-                                      x: 0,
-                                      scale:
-                                        totalCarrito >= minimoRequerido
-                                          ? [1, 1.02, 1]
-                                          : 1,
-                                    }}
-                                    exit={{ opacity: 0, x: 100 }}
-                                    transition={{
-                                      x: { duration: 0.4, ease: "easeInOut" },
-                                      opacity: { duration: 0.3 },
-                                      scale: {
-                                        duration: 0.6,
-                                        repeat:
-                                          totalCarrito >= minimoRequerido
-                                            ? Infinity
-                                            : 0,
-                                        repeatDelay: 0.3,
-                                      },
-                                    }}
-                                    className="mb-4 mt-4 bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"
-                                  >
-                                    <div className="flex justify-between items-center mb-2">
-                                      <span className="text-sm font-semibold text-zinc-700">
-                                        Pedido mínimo: $1,000.00
-                                      </span>
-                                      <span
-                                        className={`text-sm font-bold ${
-                                          totalCarrito >= minimoRequerido
-                                            ? "text-green-600"
-                                            : "text-orange-600"
-                                        }`}
-                                      >
-                                        $
-                                        {totalCarrito.toLocaleString("en-US", {
-                                          minimumFractionDigits: 2,
-                                          maximumFractionDigits: 2,
-                                        })}
-                                      </span>
-                                    </div>
-
-                                    <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
-                                      <motion.div
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${progreso}%` }}
-                                        transition={{
-                                          duration: 0.5,
-                                          ease: "easeOut",
-                                        }}
-                                        className={`h-full rounded-full transition-colors ${
-                                          progreso === 100
-                                            ? "bg-gradient-to-r from-green-500 to-green-600"
-                                            : "bg-gradient-to-r from-orange-500 to-orange-600"
-                                        }`}
-                                      />
-                                    </div>
-
-                                    {totalCarrito >= minimoRequerido ? (
-                                      <div className="mt-2 flex items-center gap-2 text-green-600">
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          strokeWidth={2}
-                                          stroke="currentColor"
-                                          className="w-5 h-5"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                          />
-                                        </svg>
-                                        <span className="text-sm font-semibold">
-                                          ¡Ya puedes enviar tu pedido!
-                                        </span>
-                                      </div>
-                                    ) : (
-                                      <p className="mt-2 text-xs text-zinc-600">
-                                        Te faltan{" "}
-                                        <span className="font-bold text-orange-600">
-                                          ${faltante.toFixed(2)}
-                                        </span>{" "}
-                                        para realizar el pedido
-                                      </p>
-                                    )}
-                                  </motion.div>
-                                );
-                              })()}
-                          </AnimatePresence>
-                        </>
-                      )}
+{activeTab === "carrito" && (
+  <motion.div
+    initial={{ opacity: 0, x: -40 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: 40 }}
+    transition={{ duration: 0.3, ease: "easeInOut" }}
+  >
+    <div className="mt-4 px-3 pb-13">
+      {carrito.length === 0 ? (
+        <p className="text-center text-zinc-500 mt-16">
+          {esMostrador || esMostrador2 ? "No hay productos agregados" : "Tu carrito está vacío"}
+        </p>
+      ) : (
+        <>
+          {/* VISTA PARA MOSTRADORES */}
+          {(esMostrador || esMostrador2) ? (
+            <div className="space-y-4">
+              {carrito.map((item) => (
+                <div
+                  key={item.id}
+                  className="border border-zinc-300 rounded-xl p-4 bg-white shadow-md"
+                >
+                  <div className="flex items-start gap-4">
+                    {/* Imagen del producto */}
+                    <div className="relative w-20 h-20 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
+                      <Image
+                        src={item.IMAGEN || "/placeholder.jpg"}
+                        alt={item.TITULO}
+                        fill
+                        className="object-contain"
+                      />
                     </div>
-                  </motion.div>
-                )}
+
+                    {/* Información del producto */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-base font-bold text-zinc-900 line-clamp-2 leading-tight mb-2">
+                        {item.TITULO}
+                      </p>
+                      <div className="space-y-1">
+                        <p className="text-sm text-zinc-700">
+                          <span className="font-semibold">Código:</span> {item.CODIGO}
+                        </p>
+                        <p className="text-sm text-zinc-700">
+                          <span className="font-semibold">Cantidad:</span> {item.cantidad}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Botón eliminar */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCarrito((prev) =>
+                          prev.filter((p) => p.id !== item.id)
+                        );
+                      }}
+                      className="w-9 h-9 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
+                      aria-label="Eliminar producto"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  {/* Código de barras */}
+                  <div className="mt-4 pt-4 border-t border-zinc-200">
+                    <div className="flex justify-center bg-white p-2 rounded">
+                      <Barcode
+                        value={item.CODIGO || "0000000000000"}
+                        width={1.5}
+                        height={60}
+                        fontSize={12}
+                        margin={0}
+                        displayValue={true}
+                        background="#ffffff"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Contador de productos */}
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+                <p className="text-lg font-bold text-blue-900">
+                  Total de productos: {carrito.reduce((sum, item) => sum + item.cantidad, 0)}
+                </p>
+              </div>
+            </div>
+          ) : (
+            /* VISTA NORMAL PARA CLIENTES */
+            <>
+              {/* Productos */}
+              <div className="space-y-3">
+                {carrito.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
+                  >
+                    {/* Imagen */}
+                    <div
+                      className="relative w-16 h-16 bg-zinc-100 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
+                      onClick={() => {
+                        localStorage.setItem(
+                          "scrollProducto",
+                          scrollY.toString()
+                        );
+                        setProductoSeleccionado(item);
+                      }}
+                    >
+                      <Image
+                        src={item.IMAGEN || "/placeholder.jpg"}
+                        alt={item.TITULO}
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+
+                    {/* Información del producto */}
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => {
+                        localStorage.setItem(
+                          "scrollProducto",
+                          scrollY.toString()
+                        );
+                        setProductoSeleccionado(item);
+                      }}
+                    >
+                      <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
+                        {item.TITULO}
+                      </p>
+                      <p className="text-xs text-zinc-500 mt-1">
+                        Código: {item.CODIGO}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-xs text-zinc-600">
+                          {item.cantidad} × $
+                          {item.P_MAYOREO.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </p>
+                        <span className="text-xs text-zinc-400">
+                          |
+                        </span>
+                        <p className="text-sm font-bold text-orange-500">
+                          $
+                          {item.subtotal.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Botón eliminar */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCarrito((prev) =>
+                          prev.filter((p) => p.id !== item.id)
+                        );
+                      }}
+                      className="w-9 h-9 bg-orange-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
+                      aria-label="Eliminar producto"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Barra de progreso*/}
+              <AnimatePresence>
+                {!ocultarBarra &&
+                  (() => {
+                    const totalCarrito = carrito.reduce(
+                      (sum, p) => sum + p.subtotal,
+                      0
+                    );
+                    const minimoRequerido = 1000;
+                    const progreso = Math.min(
+                      (totalCarrito / minimoRequerido) * 100,
+                      100
+                    );
+                    const faltante = Math.max(
+                      minimoRequerido - totalCarrito,
+                      0
+                    );
+
+                    return (
+                      <motion.div
+                        key="barra-progreso"
+                        initial={{ opacity: 0, x: -100 }}
+                        animate={{
+                          opacity: 1,
+                          x: 0,
+                          scale:
+                            totalCarrito >= minimoRequerido
+                              ? [1, 1.02, 1]
+                              : 1,
+                        }}
+                        exit={{ opacity: 0, x: 100 }}
+                        transition={{
+                          x: { duration: 0.4, ease: "easeInOut" },
+                          opacity: { duration: 0.3 },
+                          scale: {
+                            duration: 0.6,
+                            repeat:
+                              totalCarrito >= minimoRequerido
+                                ? Infinity
+                                : 0,
+                            repeatDelay: 0.3,
+                          },
+                        }}
+                        className="mb-4 mt-4 bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"
+                      >
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-semibold text-zinc-700">
+                            Pedido mínimo: $1,000.00
+                          </span>
+                          <span
+                            className={`text-sm font-bold ${
+                              totalCarrito >= minimoRequerido
+                                ? "text-green-600"
+                                : "text-orange-600"
+                            }`}
+                          >
+                            $
+                            {totalCarrito.toLocaleString("en-US", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </div>
+
+                        <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progreso}%` }}
+                            transition={{
+                              duration: 0.5,
+                              ease: "easeOut",
+                            }}
+                            className={`h-full rounded-full transition-colors ${
+                              progreso === 100
+                                ? "bg-gradient-to-r from-green-500 to-green-600"
+                                : "bg-gradient-to-r from-orange-500 to-orange-600"
+                            }`}
+                          />
+                        </div>
+
+                        {totalCarrito >= minimoRequerido ? (
+                          <div className="mt-2 flex items-center gap-2 text-green-600">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth={2}
+                              stroke="currentColor"
+                              className="w-5 h-5"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                            <span className="text-sm font-semibold">
+                              ¡Ya puedes enviar tu pedido!
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-zinc-600">
+                            Te faltan{" "}
+                            <span className="font-bold text-orange-600">
+                              ${faltante.toFixed(2)}
+                            </span>{" "}
+                            para realizar el pedido
+                          </p>
+                        )}
+                      </motion.div>
+                    );
+                  })()}
+              </AnimatePresence>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  </motion.div>
+)}
 
                 {/* perfil */}
                 {activeTab === "perfil" && (
@@ -10197,7 +10319,7 @@ useEffect(() => {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
                 </svg>
               </div>
-              <span className="text-sm font-medium text-zinc-700">Recoger en local</span>
+              <span className="text-sm font-medium text-zinc-700">Recoger en tienda</span>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -10403,40 +10525,44 @@ useEffect(() => {
             </main>
 
             {/* BOTÓN DE CONFIRMAR PEDIDO */}
-            <AnimatePresence>
-              {activeTab === "carrito" && carrito.length > 0 && (
-                <motion.div
-                  initial={{ y: 100, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: 100, opacity: 0 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  className="fixed bottom-[90px] left-0 right-0 px-4 z-40"
-                >
-                  <button
-                    onClick={() => setMostrarModalPedido(true)}
-                    disabled={
-                      carrito.reduce((sum, p) => sum + p.subtotal, 0) < 1000
-                    }
-                    className={`w-full py-4 mb-5 rounded-xl font-semibold text-[16px] shadow-2xl transition flex items-center justify-between px-6 ${
-                      carrito.reduce((sum, p) => sum + p.subtotal, 0) >= 1000
-                        ? "bg-orange-500 text-white hover:bg-orange-600"
-                        : "bg-zinc-300 text-zinc-500 cursor-not-allowed"
-                    }`}
-                  >
-                    <span>Confirmar pedido</span>
-                    <span className="text-lg font-bold">
-                      Total: $
-                      {carrito
-                        .reduce((sum, p) => sum + p.subtotal, 0)
-                        .toLocaleString("en-US", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                    </span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+           
+<AnimatePresence>
+  {activeTab === "carrito" && 
+   carrito.length > 0 && 
+   !esMostrador && 
+   !esMostrador2 && (
+    <motion.div
+      initial={{ y: 100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: 100, opacity: 0 }}
+      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      className="fixed bottom-[90px] left-0 right-0 px-4 z-40"
+    >
+      <button
+        onClick={() => setMostrarModalPedido(true)}
+        disabled={
+          carrito.reduce((sum, p) => sum + p.subtotal, 0) < 1000
+        }
+        className={`w-full py-4 mb-5 rounded-xl font-semibold text-[16px] shadow-2xl transition flex items-center justify-between px-6 ${
+          carrito.reduce((sum, p) => sum + p.subtotal, 0) >= 1000
+            ? "bg-orange-500 text-white hover:bg-orange-600"
+            : "bg-zinc-300 text-zinc-500 cursor-not-allowed"
+        }`}
+      >
+        <span>Confirmar pedido</span>
+        <span className="text-lg font-bold">
+          Total: $
+          {carrito
+            .reduce((sum, p) => sum + p.subtotal, 0)
+            .toLocaleString("en-US", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+        </span>
+      </button>
+    </motion.div>
+  )}
+</AnimatePresence>
 
             {/* Barra de navegación*/}
             <nav className="fixed bottom-0 left-0 z-50 grid w-full grid-cols-5 items-center border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md">
@@ -10493,7 +10619,6 @@ useEffect(() => {
               </button>
               
               {/* 3. BOTÓN CARRITO */}
-              {!esMostrador && (
               <div className="relative flex justify-center">
                 <button
                   onClick={() => {
@@ -10553,15 +10678,7 @@ useEffect(() => {
                   </span>
                 </button>
               </div>
-              )}
-
-              {/* espacio */}
-              {esMostrador && (
-              <div className="relative flex justify-center">
-                
-                <BookOpenText size={30} color="#bcbcbcff"/>
-              </div>
-              )}
+              
 
               {/* 4. BOTÓN UBICACIÓN */}
               <button
