@@ -40,6 +40,7 @@ import InstallPWA from "@/app/InstallPWA";
 import ContadorEntrega from "@/app/ContadorEntrega";
 import { div } from "framer-motion/client";
 import Barcode from 'react-barcode';
+const QRCodeModule = await import("qrcode");
 
 const SkeletonImage = ({ src, alt, className }: any) => {
   const [loaded, setLoaded] = useState(false);
@@ -1533,7 +1534,7 @@ const esMostrador2 = cuenta?.numero_cuenta === "Mostrador2";
 const esAdminMostrador2 = cuenta?.numero_cuenta === "admin-M02";
 const ID_CUENTA_MOSTRADOR = 39; 
 const ID_CUENTA_MOSTRADOR2 = 41;
-  
+  const esRutas = cuenta?.numero_cuenta === "Rutas";
   const [mostrar, setMostrar] = useState(false);
   const [subTab, setSubTab] = useState("categorias"); // categorias | marcas
   const [marcas, setMarcas] = useState<any[]>([]);
@@ -3833,6 +3834,7 @@ useEffect(() => {
     const [numeroCuenta, setNumeroCuenta] = useState("");
     const [cliente, setCliente] = useState("");
     const [ferreteria, setFerreteria] = useState("");
+    const [tipoComprobante, setTipoComprobante] = useState("Nota de Remisión");
     const [direccion, setDireccion] = useState("");
     const [numeroTel, setNumeroTel] = useState("");
     const [guardando, setGuardando] = useState(false);
@@ -3842,6 +3844,7 @@ useEffect(() => {
     const [errorEliminar, setErrorEliminar] = useState("");
     const [eliminando, setEliminando] = useState(false);
     const [entregaMismoDia, setEntregaMismoDia] = useState(false);
+    const [ruta, setRuta] = useState("");
     const [horarios, setHorarios] = useState<any[]>([
       {
         dia: 0,
@@ -3918,7 +3921,8 @@ useEffect(() => {
             c.numero_cuenta !== "Admin01" && 
             c.numero_cuenta !== "admin-M01" &&
             c.numero_cuenta !== "Mostrador" &&
-            c.numero_cuenta !== "Mostrador2"
+            c.numero_cuenta !== "Mostrador2" &&
+             c.numero_cuenta !== "admin-M02" 
         );
         setCuentas(cuentasFiltradas);
       }
@@ -3936,6 +3940,7 @@ useEffect(() => {
       setTieneSaldoPendiente(false);
       setDocumentosPendientes([]);
       setNuevoDocumento({ tipo: "nota", numero: "", monto: "" });
+      setTipoComprobante("Nota de Remisión");
       setHorarios([
         {
           dia: 0,
@@ -4055,6 +4060,8 @@ useEffect(() => {
             numero_tel: numeroTel.trim() || null,
             entrega_mismo_dia: entregaMismoDia,
             tiene_saldo_pendiente: tieneSaldoPendiente,
+            ruta: ruta.trim() || null,
+            tipo_comprobante: tipoComprobante,
           })
           .eq("id", cuentaSeleccionada.id);
 
@@ -4204,6 +4211,8 @@ useEffect(() => {
       setEntregaMismoDia(cuentaItem.entrega_mismo_dia || false);
       setModoVista("editar");
       setTieneSaldoPendiente(cuentaItem.tiene_saldo_pendiente || false);
+      setRuta(cuentaItem.ruta || '');
+       setTipoComprobante(cuentaItem.tipo_comprobante || 'Nota de Remisión');
 
       // Cargar horarios de la base de datos
       try {
@@ -4700,6 +4709,33 @@ useEffect(() => {
                   className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
+
+              <div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Ruta
+  </label>
+  <input
+    type="text"
+    value={ruta}
+    onChange={(e) => setRuta(e.target.value)}
+    placeholder="Ej: Ruta 1, Ruta Norte, etc."
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+  />
+</div>
+
+<div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Tipo de Comprobante
+  </label>
+  <select
+    value={tipoComprobante}
+    onChange={(e) => setTipoComprobante(e.target.value)}
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+  >
+    <option value="Nota de Remisión">Nota de Remisión</option>
+    <option value="Factura">Factura</option>
+  </select>
+</div>
 
               <div className="mb-4">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -6239,7 +6275,7 @@ useEffect(() => {
   };
   // Función para enviar el pedido
 
-  const enviarPedido = async () => {
+ const enviarPedido = async () => {
     try {
       setEnviando(true);
       setMensajeExito("");
@@ -6303,6 +6339,7 @@ const { data: pedidoInsertado, error: errorPedido } = await supabase
 
       const jsPDFModule = await import("jspdf");
       const autoTableModule = await import("jspdf-autotable");
+      const QRCodeModule = await import("qrcode");
       const { jsPDF } = jsPDFModule;
 
       const pedidoId = pedidoInsertado.id;
@@ -6313,6 +6350,17 @@ const { data: pedidoInsertado, error: errorPedido } = await supabase
         year: "numeric",
       });
       const hora = new Date().toLocaleTimeString("es-MX");
+
+      // Generar string para QR con formato: CODIGO1*CANTIDAD1-CODIGO2*CANTIDAD2-...
+      const qrString = carrito
+        .map((p) => `${p.CODIGO}*${p.cantidad}`)
+        .join("-");
+
+      // Generar QR como base64
+      const qrBase64 = await QRCodeModule.default.toDataURL(qrString, {
+        width: 200,
+        margin: 1,
+      });
 
       // Cargar logo como base64
       const getImageBase64 = async (url: string): Promise<string> => {
@@ -6327,61 +6375,163 @@ const { data: pedidoInsertado, error: errorPedido } = await supabase
       };
 
       const logoBase64 = await getImageBase64("/logo-pdf.png");
+// Función para dibujar el encabezado DEL PDF DE ENVÍO (con tipo de documento)
+const dibujarEncabezadoEnvio = (doc: any) => {
+  const pageWidth = doc.internal.pageSize.width;
+const ahora = new Date();
+const horaActual = ahora.getHours();
+let promesaEntrega = "";
 
-      // Función para dibujar el encabezado (se usará en cada página)
-      const dibujarEncabezado = (doc: any) => {
-        // Logo en la esquina superior izquierda
-        doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
+const entregaMismoDia = cuenta?.entrega_mismo_dia; 
 
-        // Información empresa
-        doc.setFontSize(7);
-        doc.setFont("helvetica", "bold");
-        doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
-        doc.setFont("helvetica", "normal");
-        doc.text("GUGS701012E14", 70, 14);
-        doc.text("Av. del maestro # 24 -", 70, 18);
-        doc.text("Col. Praxedis Balboa C.P. 87430", 70, 22);
-        doc.text("H. Matamoros, Tamaulipas, MÉXICO", 70, 26);
-        doc.text("Tel 8682724481 gmail.", 70, 30);
-        doc.text("bodegaferreterademty@hotmail.com", 70, 34);
+if (enviarDomicilio) {
+  if (entregaMismoDia) {
+    promesaEntrega = horaActual < 10 
+      ? "Entrega: Hoy mismo" 
+      : "Entrega: Siguiente día hábil";
+  } else {
+  
+    promesaEntrega = "Entrega: 1 a 3 días hábiles";
+  }
+} else {
 
-        // Cotización y Fecha (lado derecho)
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "bold");
-        doc.text("Pedido", 165, 10);
-        doc.setFontSize(10);
-        doc.text(numeroCotizacion.toString(), 170, 16);
+  promesaEntrega = horaActual < 15
+    ? "Listo para recoger: en 3 horas"
+    : "Listo para recoger: Mañana 11:00 AM";
+}
 
-        doc.setFontSize(9);
-        doc.text("Fecha", 172, 24);
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "normal");
-        doc.text(fecha, 167, 30);
 
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "bold");
-        doc.text("Moneda: MXN", 165, 38);
+const tipoDoc = (cuenta?.tipo_comprobante === "Factura" ? "FACTURA" : "NOTA");
 
-        // Línea separadora
-        doc.setLineWidth(0.3);
-        doc.line(14, 42, 196, 42);
 
-        // Sección RECEPTOR
-        doc.setFontSize(7);
-        doc.setFont("helvetica", "bold");
-        doc.text("RECEPTOR", 14, 48);
+  // Logo
+  doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
 
-        doc.setFont("helvetica", "normal");
-        doc.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
-        doc.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
-        doc.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
-        doc.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
-        doc.text(
-          `Ciudad: Heroica Matamoros, Matamoros, Tamaulipas, México`,
-          14,
-          64
-        );
-      };
+  // Información empresa
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "bold");
+  doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+  doc.setFont("helvetica", "normal");
+  doc.text("GUGS701012E14", 70, 14);
+  doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
+  doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
+  doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
+
+  // Folio y Fecha
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text("Pedido", 165, 10);
+  doc.setFontSize(10);
+  doc.text(numeroCotizacion.toString(), 170, 16);
+  doc.setFontSize(9);
+  doc.text("Fecha", 172, 24);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.text(fecha, 167, 30);
+
+  // Línea separadora
+  doc.setLineWidth(0.3);
+  doc.line(14, 42, 196, 42);
+
+ // Dibujar en el PDF (Fila RECEPTOR)
+doc.setFontSize(8);
+doc.setFont("helvetica", "bold");
+doc.text("RECEPTOR", 14, 48);
+
+doc.setFontSize(11);
+doc.setTextColor(100, 100, 100);
+doc.text(tipoDoc, pageWidth / 2, 48, { align: "center" });
+
+doc.setFontSize(8);
+doc.setTextColor(100, 100, 100);
+doc.text(promesaEntrega, 196, 48, { align: "right" });
+
+  // Resetear colores para datos del cliente
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
+  doc.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
+  doc.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
+  doc.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
+  doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
+};
+
+// Función para dibujar el encabezado DEL PDF DE CLIENTE (SIN tipo de documento)
+const dibujarEncabezadoCliente = (doc: any) => {
+  const pageWidth = doc.internal.pageSize.width;
+
+const ahora = new Date();
+const horaActual = ahora.getHours();
+let promesaEntrega = "";
+
+const entregaMismoDia = cuenta?.entrega_mismo_dia; 
+
+if (enviarDomicilio) {
+  if (entregaMismoDia) {
+    promesaEntrega = horaActual < 10 
+      ? "Entrega: Hoy mismo" 
+      : "Entrega: Siguiente día hábil";
+  } else {
+  
+    promesaEntrega = "Entrega: 1 a 3 días hábiles";
+  }
+} else {
+
+  promesaEntrega = horaActual < 15
+    ? "Listo para recoger: en 3 horas"
+    : "Listo para recoger: Mañana 11:00 AM";
+}
+
+
+const tipoDoc = (cuenta?.tipo_comprobante === "Factura" ? "FACTURA" : "NOTA");
+
+
+
+  // Logo
+  doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
+
+  // Información empresa
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "bold");
+  doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+  doc.setFont("helvetica", "normal");
+  doc.text("GUGS701012E14", 70, 14);
+  doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
+  doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
+  doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
+
+  // Folio y Fecha
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text("Pedido", 165, 10);
+  doc.setFontSize(10);
+  doc.text(numeroCotizacion.toString(), 170, 16);
+  doc.setFontSize(9);
+  doc.text("Fecha", 172, 24);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.text(fecha, 167, 30);
+
+  // Línea separadora
+  doc.setLineWidth(0.3);
+  doc.line(14, 42, 196, 42);
+
+  // RECEPTOR | PROMESA (SIN TIPO DE DOCUMENTO)
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.text("RECEPTOR", 14, 48);
+
+  // Resetear colores para datos del cliente
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
+  doc.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
+  doc.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
+  doc.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
+  doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
+};
 
       // PDF PARA ENVÍO (docEnvio)
       const docEnvio = new jsPDF();
@@ -6430,7 +6580,7 @@ const { data: pedidoInsertado, error: errorPedido } = await supabase
         margin: { left: 14, right: 14, top: 69 },
         // Hook para dibujar el encabezado en cada nueva página
         didDrawPage: (data: any) => {
-          dibujarEncabezado(docEnvio);
+          dibujarEncabezadoEnvio(docEnvio);
         },
       });
 
@@ -6472,6 +6622,19 @@ const { data: pedidoInsertado, error: errorPedido } = await supabase
           align: "right",
         }
       );
+
+      // AGREGAR QR AL FINAL DEL PDF DE ENVÍO (solo en última página)
+const pageHeight = docEnvio.internal.pageSize.height;
+const pageWidth = docEnvio.internal.pageSize.width;
+const qrSize = 40;
+const qrX = pageWidth - qrSize - 14; 
+const qrY = pageHeight - qrSize - 20;
+
+docEnvio.addImage(qrBase64, "PNG", qrX, qrY, qrSize, qrSize);
+docEnvio.setFontSize(7);
+docEnvio.setFont("helvetica", "normal");
+docEnvio.text("", qrX + qrSize/2, qrY + qrSize + 4, { align: "center" });// texto debajo del QR
+
 
       // Pie de página con fecha/hora y número de página
       const pageCount2 = (docEnvio as any).getNumberOfPages();
@@ -6527,7 +6690,7 @@ const { data: pedidoInsertado, error: errorPedido } = await supabase
         margin: { left: 14, right: 14, top: 69 },
         // Hook para dibujar el encabezado en cada nueva página
         didDrawPage: (data: any) => {
-          dibujarEncabezado(docCliente);
+          dibujarEncabezadoCliente(docCliente);
         },
       });
 
@@ -6567,6 +6730,18 @@ const { data: pedidoInsertado, error: errorPedido } = await supabase
         yTotalesCliente + 13,
         { align: "right" }
       );
+
+     // AGREGAR QR AL FINAL DEL PDF DE CLIENTE (solo en última página)
+const pageHeightCliente = docCliente.internal.pageSize.height;
+const pageWidthCliente = docCliente.internal.pageSize.width;
+const qrSizeCliente = 40;
+const qrXCliente = pageWidthCliente - qrSizeCliente - 14; 
+const qrYCliente = pageHeightCliente - qrSizeCliente - 20;
+
+docCliente.addImage(qrBase64, "PNG", qrXCliente, qrYCliente, qrSizeCliente, qrSizeCliente);
+docCliente.setFontSize(7);
+docCliente.setFont("helvetica", "normal");
+docCliente.text("", qrXCliente + qrSizeCliente/2, qrYCliente + qrSizeCliente + 4, { align: "center" });// texto debajo del QR
 
       // Pie de página
       const pageCount = (docCliente as any).getNumberOfPages();
@@ -6631,7 +6806,7 @@ const { data: pedidoInsertado, error: errorPedido } = await supabase
     } finally {
       setEnviando(false);
       setEnviarDomicilio(false);
-  setRecogerLocal(false);
+      setRecogerLocal(false);
     }
   };
 
@@ -6654,89 +6829,104 @@ const { data: pedidoInsertado, error: errorPedido } = await supabase
     },
   ];
 
-  const SelectorEstado = ({ estadoActual, pedidoId, onEstadoChange }: any) => {
-    const estados = [
-      {
-        valor: "revision",
-        label: "En Revisión",
-        color: "bg-yellow-100 text-yellow-800",
-      },
-      {
-        valor: "recibido",
-        label: "Recibido",
-        color: "bg-blue-100 text-blue-800",
-      },
-      {
-        valor: "surtiendo",
-        label: "Surtiendo",
-        color: "bg-purple-100 text-purple-800",
-      },
-      {
-        valor: "encajado",
-        label: "Encajado",
-        color: "bg-indigo-100 text-indigo-800",
-      },
-      {
-        valor: "en_camino",
-        label: "En Camino",
-        color: "bg-orange-100 text-orange-800",
-      },
-      {
-        valor: "completado",
-        label: "Completado",
-        color: "bg-green-100 text-green-800",
-      },
-      {
-        valor: "listo_para_recoger",
-        label: "Listo para recoger",
-        color: "bg-emerald-100 text-emerald-800",
-      },
-    ];
+ const SelectorEstado = ({ estadoActual, pedidoId, onEstadoChange }: any) => {
+  const [estadoLocal, setEstadoLocal] = useState(estadoActual);
+  const [cambiando, setCambiando] = useState(false);
 
-    const [cambiando, setCambiando] = useState(false);
 
-    const cambiarEstado = async (nuevoEstado: string) => {
-      setCambiando(true);
-      try {
-        const { error } = await supabase
-          .from("pedidos")
-          .update({ estado: nuevoEstado })
-          .eq("id", pedidoId);
+  useEffect(() => {
+    setEstadoLocal(estadoActual);
+  }, [estadoActual]);
 
-        if (error) throw error;
+  const estados = [
+    {
+      valor: "revision",
+      label: "En Revisión",
+      color: "bg-yellow-100 text-yellow-800",
+    },
+    {
+      valor: "recibido",
+      label: "Recibido",
+      color: "bg-blue-100 text-blue-800",
+    },
+    {
+      valor: "surtiendo",
+      label: "Surtiendo",
+      color: "bg-purple-100 text-purple-800",
+    },
+    {
+      valor: "encajado",
+      label: "Encajado",
+      color: "bg-indigo-100 text-indigo-800",
+    },
+    {
+      valor: "en_camino",
+      label: "En Camino",
+      color: "bg-orange-100 text-orange-800",
+    },
+    {
+      valor: "completado",
+      label: "Completado",
+      color: "bg-green-100 text-green-800",
+    },
+    {
+      valor: "listo_para_recoger",
+      label: "Listo para recoger",
+      color: "bg-emerald-100 text-emerald-800",
+    },
+  ];
 
+  const cambiarEstado = async (nuevoEstado: string) => {
+    if (nuevoEstado === estadoLocal) return; 
+    
+    setCambiando(true);
+    try {
+      const { error } = await supabase
+        .from("pedidos")
+        .update({ estado: nuevoEstado })
+        .eq("id", pedidoId);
+
+      if (error) throw error;
+      setEstadoLocal(nuevoEstado);
+      if (onEstadoChange) {
         onEstadoChange(nuevoEstado);
-
-       // setActualizacionReciente(true);
-       // setTimeout(() => setActualizacionReciente(false), 2000);
-      } catch (error) {
-        console.error("Error actualizando estado:", error);
-        alert("Error al actualizar el estado");
-      } finally {
-        setCambiando(false);
       }
-    };
-
-    return (
-      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-2">
-        <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-          Estado del Pedido
-        </label>
-        <select
-          value={estadoActual || "revision"}
-          onChange={(e) => cambiarEstado(e.target.value)}
-          disabled={cambiando}
-          className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm font-medium text-black focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-zinc-100"
-        >
-          {estados.map((estado) => (
-            <option key={estado.valor} value={estado.valor}>
-              {estado.label}
-            </option>
-          ))}
-        </select>
-      </div>
-    );
+    } catch (error) {
+      console.error("Error actualizando estado:", error);
+      alert("Error al actualizar el estado");
+      setEstadoLocal(estadoActual);
+    } finally {
+      setCambiando(false);
+    }
   };
+
+  return (
+    <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-2">
+      <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+        Estado del Pedido
+      </label>
+      <select
+        value={estadoLocal || "revision"}
+        onChange={(e) => cambiarEstado(e.target.value)}
+        disabled={cambiando}
+        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm font-medium text-black focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-zinc-100 disabled:cursor-not-allowed"
+      >
+        {estados.map((estado) => (
+          <option key={estado.valor} value={estado.valor}>
+            {estado.label}
+          </option>
+        ))}
+      </select>
+      
+      {cambiando && (
+        <div className="flex items-center gap-2 mt-2 text-xs text-zinc-500">
+          <span className="animate-spin h-3 w-3 border-2 border-zinc-400 border-t-transparent rounded-full"></span>
+          Actualizando...
+        </div>
+      )}
+    </div>
+  );
+};
 
   const BadgeEstado = ({ estado }: any) => {
     const estados: Record<string, { label: string; color: string }> = {
@@ -6793,12 +6983,57 @@ const { data: pedidoInsertado, error: errorPedido } = await supabase
     const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
     const [errorEliminar, setErrorEliminar] = useState("");
     const [eliminando, setEliminando] = useState(false);
-
 const pedidoSeleccionadoRef = useRef<any>(null);
+const [detallesEmpaque, setDetallesEmpaque] = useState<any>(null);
+
+const cargarDetallesEmpaque = async (pedidoId: number) => {
+  const { data } = await supabase
+    .from('detalles_empaque')
+    .select('*')
+    .eq('pedido_id', pedidoId)
+    .single();
+
+  setDetallesEmpaque(data || { 
+    pedido_id: pedidoId,
+    detalles_empacado: '', 
+    observaciones: '' 
+  });
+};
+
+const guardarDetallesEmpaque = async () => {
+  if (!pedidoSeleccionado || !detallesEmpaque) return;
+
+  const { data: existe } = await supabase
+    .from('detalles_empaque')
+    .select('id')
+    .eq('pedido_id', pedidoSeleccionado.id)
+    .single();
+
+  if (existe) {
+    await supabase
+      .from('detalles_empaque')
+      .update({
+        detalles_empacado: detallesEmpaque.detalles_empacado,
+        observaciones: detallesEmpaque.observaciones,
+        updated_at: new Date().toISOString()
+      })
+      .eq('pedido_id', pedidoSeleccionado.id);
+  } else {
+    await supabase
+      .from('detalles_empaque')
+      .insert({
+        pedido_id: pedidoSeleccionado.id,
+        detalles_empacado: detallesEmpaque.detalles_empacado,
+        observaciones: detallesEmpaque.observaciones
+      });
+  }
+};
 
 useEffect(() => {
-    pedidoSeleccionadoRef.current = pedidoSeleccionado;
-  }, [pedidoSeleccionado]);
+  if (pedidoSeleccionado && esAdmin && pedidoSeleccionado.estado === 'encajado') {
+    cargarDetallesEmpaque(pedidoSeleccionado.id);
+  }
+}, [pedidoSeleccionado]);
 
     const eliminarPedido = async () => {
       if (!pedidoAEliminar) return;
@@ -6860,13 +7095,13 @@ useEffect(() => {
     };
 
 useEffect(() => {
-    const fetchPedidos = async () => {
-  if (!cuenta?.id && !esAdmin) return;
+  const fetchPedidos = async () => {
+    if (!cuenta?.id && !esAdmin) return;
 
-  let query = supabase
-    .from("pedidos")
-    .select(
-      `
+    let query = supabase
+      .from("pedidos")
+      .select(
+        `
         id, 
         total, 
         created_at,
@@ -6882,133 +7117,134 @@ useEffect(() => {
           entrega_mismo_dia
         )
       `
-    )
-    .order("created_at", { ascending: false });
+      )
+      .order("created_at", { ascending: false });
 
+    if (!esAdmin) {
+      query = query.eq("cuenta_id", cuenta.id);
+    }
 
-      if (!esAdmin) {
-        query = query.eq("cuenta_id", cuenta.id);
-      }
+    const { data, error } = await query;
 
-      const { data, error } = await query;
+    if (!error && data) {
+      setPedidos(data);
+    }
+    setCargando(false);
+  };
 
-      if (!error && data) {
-        setPedidos(data);
-      }
-      setCargando(false);
-    };
+  fetchPedidos();
 
-    fetchPedidos();
+  const channel = supabase
+    .channel("pedidos-changes")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "pedidos",
+        ...(esAdmin ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` }),
+      },
+      async (payload) => {
+        console.log("Cambio detectado en pedidos:", payload);
 
-    const channel = supabase
-      .channel("pedidos-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "pedidos",
-          ...(esAdmin ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` }),
-        },
-        async (payload) => {
-          console.log("Cambio detectado:", payload);
-
-          if (payload.eventType === "UPDATE") {
-            const { data: pedidoActualizado } = await supabase
-              .from("pedidos")
-              .select(
-                `
-                  id, 
-                  total, 
-                  created_at,
-                  cuenta_id,
-                  pdf_url,
-                  estado,
-                  es_domicilio,
-                  cuentas (
-                    numero_cuenta,
-                    cliente,
-                    ferreteria,
-                    numero_tel,
-                    entrega_mismo_dia
-                  )
-                `
-              )
-              .eq("id", payload.new.id)
-              .single();
-
-            if (pedidoActualizado) {
-              setPedidos((prev) =>
-                prev.map((p) =>
-                  p.id === pedidoActualizado.id ? pedidoActualizado : p
+        if (payload.eventType === "UPDATE") {
+          const { data: pedidoActualizado } = await supabase
+            .from("pedidos")
+            .select(
+              `
+                id, 
+                total, 
+                created_at,
+                cuenta_id,
+                pdf_url,
+                estado,
+                es_domicilio,
+                cuentas (
+                  numero_cuenta,
+                  cliente,
+                  ferreteria,
+                  numero_tel,
+                  entrega_mismo_dia
                 )
-              );
+              `
+            )
+            .eq("id", payload.new.id)
+            .single();
 
-              
-              if (pedidoSeleccionadoRef.current?.id === pedidoActualizado.id) {
-                setPedidoSeleccionado(pedidoActualizado);
-                setCuentaPedido(pedidoActualizado.cuentas || cuenta);
-              }
-
-              setActualizacionReciente(true);
-              setTimeout(() => setActualizacionReciente(false), 2000);
-            }
-          } else if (payload.eventType === "INSERT") {
-
-            const { data: nuevoPedido } = await supabase
-              .from("pedidos")
-              .select(
-                `
-                  id, 
-                  total, 
-                  created_at,
-                  cuenta_id,
-                  pdf_url,
-                  estado,
-                  es_domicilio,
-                  cuentas (
-                    numero_cuenta,
-                    cliente,
-                    ferreteria,
-                    numero_tel,
-                    entrega_mismo_dia
-                  )
-                `
+          if (pedidoActualizado) {
+            setPedidos((prev) =>
+              prev.map((p) =>
+                p.id === pedidoActualizado.id ? pedidoActualizado : p
               )
-              .eq("id", payload.new.id)
-              .single();
+            );
 
-            if (nuevoPedido) {
-              setPedidos((prev) => [nuevoPedido, ...prev]);
-              setActualizacionReciente(true);
-              setTimeout(() => setActualizacionReciente(false), 2000);
+            // Actualizar pedido seleccionado si es el mismo
+            if (pedidoSeleccionadoRef.current?.id === pedidoActualizado.id) {
+              setPedidoSeleccionado(pedidoActualizado);
+              setCuentaPedido(pedidoActualizado.cuentas || cuenta);
             }
-          } else if (payload.eventType === "DELETE") {
-             
-            setPedidos((prev) => prev.filter((p) => p.id !== payload.old.id));
 
-            if (pedidoSeleccionadoRef.current?.id === payload.old.id) {
-              setPedidoSeleccionado(null);
-            }
+            setActualizacionReciente(true);
+            setTimeout(() => setActualizacionReciente(false), 2000);
+          }
+        } else if (payload.eventType === "INSERT") {
+          const { data: nuevoPedido } = await supabase
+            .from("pedidos")
+            .select(
+              `
+                id, 
+                total, 
+                created_at,
+                cuenta_id,
+                pdf_url,
+                estado,
+                es_domicilio,
+                cuentas (
+                  numero_cuenta,
+                  cliente,
+                  ferreteria,
+                  numero_tel,
+                  entrega_mismo_dia
+                )
+              `
+            )
+            .eq("id", payload.new.id)
+            .single();
+
+          if (nuevoPedido) {
+            setPedidos((prev) => [nuevoPedido, ...prev]);
+            setActualizacionReciente(true);
+            setTimeout(() => setActualizacionReciente(false), 2000);
+          }
+        } else if (payload.eventType === "DELETE") {
+          setPedidos((prev) => prev.filter((p) => p.id !== payload.old.id));
+
+          if (pedidoSeleccionadoRef.current?.id === payload.old.id) {
+            setPedidoSeleccionado(null);
           }
         }
-      )
-      .subscribe();
+      }
+    )
+    .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-    
-   
-  }, [cuenta, esAdmin]);
-
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [cuenta, esAdmin]);
     const verDetallePedido = (pedido: any) => {
       setPedidoSeleccionado(pedido);
       setCuentaPedido(pedido.cuentas || cuenta);
     };
 
     const actualizarEstadoLocal = (nuevoEstado: string) => {
-      // Ya no es necesario porque Realtime lo maneja
+      setPedidoSeleccionado((prev: any) => {
+        if (!prev) return null;
+        return { ...prev, estado: nuevoEstado };
+      });
+
+      if (nuevoEstado === 'encajado' && pedidoSeleccionado) {
+        cargarDetallesEmpaque(pedidoSeleccionado.id);
+      }
     };
 
     const descargarPDF = async () => {
@@ -7073,6 +7309,47 @@ useEffect(() => {
               <BadgeEstado estado={pedidoSeleccionado.estado} />
             </div>
           )}
+
+{/* Detalles de empaque */}
+          <AnimatePresence>
+            {esAdmin && pedidoSeleccionado.estado === "encajado" && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, y: -20 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={{ opacity: 0, height: 0, y: -20 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="overflow-hidden"
+              >
+                <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 mt-2 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-2 bg-orange-100 rounded-full text-orange-600">
+                      <Box size={18} />
+                    </div>
+                    <h3 className="text-lg font-semibold text-zinc-900">
+                      Detalles de Empacado
+                    </h3>
+                  </div>
+                  
+                  <textarea
+                    value={detallesEmpaque?.detalles_empacado || ""}
+                    onChange={(e) => {
+                      setDetallesEmpaque({
+                        ...detallesEmpaque,
+                        detalles_empacado: e.target.value,
+                      });
+                    }}
+                    onBlur={() => guardarDetallesEmpaque()}
+                    rows={4}
+                    placeholder="Escribe aquí qué cajas se usaron, detalles del paquete, etc..."
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500 mb-2 bg-zinc-50"
+                  />
+                  <p className="text-xs text-zinc-400 text-right">
+                    Se guarda automáticamente al salir del campo
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* informacion de entrega */}
 {pedidoSeleccionado && (
@@ -7428,6 +7705,316 @@ useEffect(() => {
     );
   };
 
+const VistaRutas = ({ setVistaPerfil }: any) => {
+    const [pedidosPorRuta, setPedidosPorRuta] = useState<{
+      [key: string]: any[];
+    }>({});
+    const [cargando, setCargando] = useState(true);
+    const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
+    const [detallesEmpaque, setDetallesEmpaque] = useState<any>(null);
+    const [rutaExpandida, setRutaExpandida] = useState<string | null>(null);
+    const [actualizacionReciente, setActualizacionReciente] = useState(false);
+    const pedidoSeleccionadoRef = useRef<any>(null);
+
+    const cargarPedidosRuta = async () => {
+      const { data, error } = await supabase
+        .from("pedidos")
+        .select(
+          `
+        id,
+        total,
+        created_at,
+        cuenta_id,
+        pdf_url,
+        estado,
+        es_domicilio,
+        cuentas (
+          numero_cuenta,
+          cliente,
+          ferreteria,
+          numero_tel,
+          direccion,
+          ruta
+        )
+      `
+        )
+
+        .in("estado", ["encajado", "en_camino"]) 
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        const agrupados = data.reduce((acc: any, pedido: any) => {
+          const ruta = pedido.cuentas?.ruta || "Sin ruta asignada";
+          if (!acc[ruta]) acc[ruta] = [];
+          acc[ruta].push(pedido);
+          return acc;
+        }, {});
+
+        setPedidosPorRuta(agrupados);
+        setActualizacionReciente(true);
+        setTimeout(() => setActualizacionReciente(false), 2000);
+      }
+      setCargando(false);
+    };
+
+    
+    const actualizarEstadoLocal = (nuevoEstado: string) => {
+      setPedidoSeleccionado((prev: any) => 
+        prev ? { ...prev, estado: nuevoEstado } : null
+      );
+
+      setPedidosPorRuta((prevMap) => {
+        const nuevoMap = { ...prevMap };
+        Object.keys(nuevoMap).forEach((ruta) => {
+          nuevoMap[ruta] = nuevoMap[ruta].map((p) =>
+            p.id === pedidoSeleccionado?.id ? { ...p, estado: nuevoEstado } : p
+          );
+        });
+        return nuevoMap;
+      });
+    };
+
+    useEffect(() => {
+      cargarPedidosRuta();
+
+      const channel = supabase
+        .channel("rutas-realtime-v3")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "pedidos" },
+          (payload) => {
+            console.log("Cambio en rutas:", payload);
+            cargarPedidosRuta();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }, []);
+
+    const cargarDetallesEmpaque = async (pedidoId: number) => {
+      const { data } = await supabase
+        .from("detalles_empaque")
+        .select("*")
+        .eq("pedido_id", pedidoId)
+        .single();
+      setDetallesEmpaque(data || { detalles_empacado: "", observaciones: "" });
+    };
+
+    const verDetallePedido = async (pedido: any) => {
+      setPedidoSeleccionado(pedido);
+      pedidoSeleccionadoRef.current = pedido;
+      if (pedido.estado === "encajado") {
+        await cargarDetallesEmpaque(pedido.id);
+      }
+    };
+
+    if (pedidoSeleccionado) {
+      return (
+        <motion.div
+          key="detalle-pedido-ruta"
+          className="min-h-screen pb-10"
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -40 }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+        >
+          <BackBtn
+            onBack={() => {
+              setPedidoSeleccionado(null);
+              pedidoSeleccionadoRef.current = null;
+            }}
+          />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">
+            Pedido #{pedidoSeleccionado.id}
+          </h2>
+
+          {/* SELECTOR DE ESTADO */}
+          <div className="mb-4">
+            <SelectorEstado
+              estadoActual={pedidoSeleccionado.estado}
+              pedidoId={pedidoSeleccionado.id}
+              onEstadoChange={actualizarEstadoLocal}
+            />
+          </div>
+
+          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Cliente</span>
+                <span className="font-semibold text-zinc-900">
+                  {pedidoSeleccionado.cuentas?.cliente || "N/A"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Dirección</span>
+                <span className="font-semibold text-zinc-900 text-right max-w-[60%]">
+                  {pedidoSeleccionado.cuentas?.direccion || "N/A"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Teléfono</span>
+                <a href={`tel:${pedidoSeleccionado.cuentas?.numero_tel}`} className="font-semibold text-blue-600 underline">
+                  {pedidoSeleccionado.cuentas?.numero_tel || "N/A"}
+                </a>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Ruta Asignada</span>
+                <span className="font-semibold text-orange-500">
+                  {pedidoSeleccionado.cuentas?.ruta || "Sin ruta"}
+                </span>
+              </div>
+              <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
+                <span className="font-bold text-zinc-900">Total</span>
+                <span className="font-bold text-orange-500 text-lg">
+                  ${pedidoSeleccionado.total.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Detalles de empaque*/}
+          <div className="bg-zinc-50 rounded-xl border border-zinc-200 p-4 mb-4">
+            <h3 className="text-sm font-bold text-zinc-800 mb-2 flex items-center gap-2">
+              <Box size={16} /> Detalles de Empaque
+            </h3>
+            {detallesEmpaque?.detalles_empacado ? (
+               <p className="text-sm text-zinc-700 whitespace-pre-wrap bg-white p-3 rounded border border-zinc-300">
+                 {detallesEmpaque.detalles_empacado}
+               </p>
+            ) : (
+               <p className="text-xs text-zinc-400 italic">Sin detalles registrados</p>
+            )}
+          </div>
+
+          {pedidoSeleccionado.pdf_url && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-zinc-900">
+                Documento
+              </h3>
+              <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm h-[400px]">
+                <iframe
+                  src={pedidoSeleccionado.pdf_url}
+                  className="w-full h-full"
+                  title="PDF Pedido"
+                />
+              </div>
+            </div>
+          )}
+        </motion.div>
+      );
+    }
+
+    // VISTA LISTA DE RUTAS
+    return (
+      <motion.div
+        key="vista-rutas"
+        className="min-h-screen"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+        <h2 className="text-xl font-bold text-zinc-900 mb-4">
+          Control de Rutas
+        </h2>
+
+        {cargando ? (
+          <div className="flex justify-center py-10">
+            <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+          </div>
+        ) : Object.keys(pedidosPorRuta).length === 0 ? (
+          <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
+             <MapPin size={40} className="mx-auto text-zinc-300 mb-2" />
+             <p className="text-zinc-500">No hay pedidos pendientes de ruta</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {Object.entries(pedidosPorRuta).map(([ruta, pedidos]: [string, any[]]) => (
+              <div
+                key={ruta}
+                className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden"
+              >
+                <button
+                  onClick={() =>
+                    setRutaExpandida(rutaExpandida === ruta ? null : ruta)
+                  }
+                  className="w-full p-4 flex items-center justify-between hover:bg-zinc-50 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                      <MapPin size={20} className="text-orange-600" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-bold text-zinc-900">{ruta}</p>
+                      <p className="text-xs text-zinc-500">
+                        {pedidos.length} pedido{pedidos.length !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronLeft
+                    size={20}
+                    className={`text-zinc-400 transition-transform ${
+                      rutaExpandida === ruta ? "rotate-90" : "-rotate-90"
+                    }`}
+                  />
+                </button>
+
+                <AnimatePresence>
+                  {rutaExpandida === ruta && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="border-t border-zinc-200"
+                    >
+                      <div className="p-2 space-y-2 bg-zinc-50">
+                        {pedidos.map((pedido) => (
+                          <div
+                            key={pedido.id}
+                            onClick={() => verDetallePedido(pedido)}
+                            className="border border-zinc-200 rounded-lg p-3 bg-white cursor-pointer hover:border-orange-300 transition shadow-sm"
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                   <span className="font-bold text-zinc-900 text-sm">#{pedido.id}</span>
+                                   {/* AQUÍ SE MUESTRA EL ESTADO EN LA LISTA */}
+                                   <BadgeEstado estado={pedido.estado} />
+                                </div>
+                                <p className="text-xs font-semibold text-zinc-700">
+                                  {pedido.cuentas?.cliente || "Sin cliente"}
+                                </p>
+                                <p className="text-[10px] text-zinc-500 truncate max-w-[200px]">
+                                  {pedido.cuentas?.direccion}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-bold text-orange-500">
+                                  ${pedido.total.toFixed(2)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    );
+  };
+
   interface ToggleVisibilidadParams {
     productoId: number;
     visibleActual: boolean;
@@ -7460,11 +8047,9 @@ useEffect(() => {
         )
       );
 
-      // Opcional: Mostrar mensaje de éxito
       console.log("Visibilidad actualizada correctamente");
     } catch (error) {
       console.error("Error al actualizar visibilidad:", error);
-      // Opcional: Mostrar mensaje de error al usuario
     }
   };
 
@@ -9833,6 +10418,17 @@ useEffect(() => {
                             }}
                           />
 
+                          {(esAdmin || esRutas) && (
+  <MenuItem
+    label="Ver Rutas"
+    icon={<MapPin size={20} />}
+    onClick={() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      setVistaPerfil("rutas");
+    }}
+  />
+)}
+
                           {/* Ubicación */}
                           {!esAdmin && (
                             <MenuItem
@@ -10101,6 +10697,10 @@ useEffect(() => {
                     {vistaPerfil === "gestionar-cuentas" && (
                       <GestionarCuentasView setVistaPerfil={setVistaPerfil} />
                     )}
+
+                    {vistaPerfil === 'rutas' && (
+  <VistaRutas setVistaPerfil={setVistaPerfil} />
+)}
 
                     {vistaPerfil === "gestionar-banner" && (
   <GestionarBannerView setVistaPerfil={setVistaPerfil} />
