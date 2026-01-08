@@ -39,7 +39,7 @@ import { createPortal } from "react-dom";
 import InstallPWA from "@/app/InstallPWA";
 import ContadorEntrega from "@/app/ContadorEntrega";
 import { div } from "framer-motion/client";
-import Barcode from 'react-barcode';
+import Barcode from "react-barcode";
 const QRCodeModule = await import("qrcode");
 
 const SkeletonImage = ({ src, alt, className }: any) => {
@@ -68,11 +68,9 @@ interface Cuenta {
   cliente?: string;
   numero_tel?: string;
   entrega_mismo_dia?: boolean;
-   id?: number;
+  id?: number;
   [key: string]: any;
 }
-
-
 
 const VistaProducto = ({
   esAdminMostrador,
@@ -126,6 +124,7 @@ const VistaProducto = ({
   const [marcaId, setMarcaId] = useState(
     producto.marca_id ? String(producto.marca_id) : ""
   );
+  
 
   const [imagenAmpliada, setImagenAmpliada] = useState(false);
   const [scale, setScale] = useState(1);
@@ -147,105 +146,136 @@ const VistaProducto = ({
   >([]);
   const [imagenesAdicionalesDB, setImagenesAdicionalesDB] = useState<any[]>([]);
   const [visible, setVisible] = useState(producto.visible ?? true);
-const [liquidacion, setLiquidacion] = useState(producto.liquidacion ?? false);
-const [topVentas, setTopVentas] = useState(producto.top_ventas ?? false);
-const [actualizandoToggle, setActualizandoToggle] = useState(false);
-const [visibleM1, setVisibleM1] = useState(producto.visibleMostrador ?? true);
-const [visibleM2, setVisibleM2] = useState(producto.visibleMostrador2 ?? true);
+  const [liquidacion, setLiquidacion] = useState(producto.liquidacion ?? false);
+  const [topVentas, setTopVentas] = useState(producto.top_ventas ?? false);
+  const [actualizandoToggle, setActualizandoToggle] = useState(false);
+  const [visibleM1, setVisibleM1] = useState(producto.visibleMostrador ?? true);
+  const [visibleM2, setVisibleM2] = useState(
+    producto.visibleMostrador2 ?? true
+  );
 
-const ID_CUENTA_M1 = "49"; 
-const ID_CUENTA_M2 = "41";
+  const ID_CUENTA_M1 = "49";
+  const ID_CUENTA_M2 = "41";
+//borrar
+  const [codigoEditable, setCodigoEditable] = useState(false);
+const [codigoTemp, setCodigoTemp] = useState(producto.CODIGO);
 
-const handleToggleMostrador = async (mostrador: 'M1' | 'M2') => {
-  setActualizandoToggle(true);
-  try {
-    const esM1 = mostrador === 'M1';
-    const cuentaId = esM1 ? ID_CUENTA_M1 : ID_CUENTA_M2;
-    const valorActual = esM1 ? visibleM1 : visibleM2;
-    const nuevoValor = !valorActual;
 
-    const { error } = await supabase
-      .from("productos_visibilidad_cuenta")
-      .upsert(
-        { producto_id: producto.id, cuenta_id: cuentaId, visible: nuevoValor },
-        { onConflict: "producto_id,cuenta_id" }
-      );
+  const handleToggleMostrador = async (mostrador: "M1" | "M2") => {
+    setActualizandoToggle(true);
+    try {
+      const esM1 = mostrador === "M1";
+      const cuentaId = esM1 ? ID_CUENTA_M1 : ID_CUENTA_M2;
+      const valorActual = esM1 ? visibleM1 : visibleM2;
+      const nuevoValor = !valorActual;
 
-    if (!error) {
-      if (esM1) {
-        setVisibleM1(nuevoValor);
-        producto.visibleMostrador = nuevoValor;
-      } else {
-        setVisibleM2(nuevoValor);
-        producto.visibleMostrador2 = nuevoValor;
+      const { error } = await supabase
+        .from("productos_visibilidad_cuenta")
+        .upsert(
+          {
+            producto_id: producto.id,
+            cuenta_id: cuentaId,
+            visible: nuevoValor,
+          },
+          { onConflict: "producto_id,cuenta_id" }
+        );
+
+      if (!error) {
+        if (esM1) {
+          setVisibleM1(nuevoValor);
+          producto.visibleMostrador = nuevoValor;
+        } else {
+          setVisibleM2(nuevoValor);
+          producto.visibleMostrador2 = nuevoValor;
+        }
       }
+    } catch (error) {
+      console.error(`Error actualizando ${mostrador}:`, error);
+    } finally {
+      setActualizandoToggle(false);
     }
-  } catch (error) {
-    console.error(`Error actualizando ${mostrador}:`, error);
-  } finally {
-    setActualizandoToggle(false);
+  };
+//borrar 
+  const guardarCodigoProducto = async () => {
+  if (!codigoTemp || codigoTemp.trim() === "") return;
+
+  const { error } = await supabase
+    .from("productos")
+    .update({ CODIGO: codigoTemp })
+    .eq("id", producto.id);
+
+  if (error) {
+    console.error("Error actualizando código:", error);
+    alert("Error al actualizar el código");
+    return;
   }
+
+  // Actualiza el producto local para que no se regrese
+  producto.CODIGO = codigoTemp;
+
+  setCodigoEditable(false);
 };
 
-const handleToggleVisible = async () => {
-  setActualizandoToggle(true);
-  try {
-    const nuevoValor = !visible;
-    const { error } = await supabase
-      .from('productos')
-      .update({ visible: nuevoValor })
-      .eq('id', producto.id);
 
-    if (!error) {
-      setVisible(nuevoValor);
-      producto.visible = nuevoValor;
+  const handleToggleVisible = async () => {
+    setActualizandoToggle(true);
+    try {
+      const nuevoValor = !visible;
+      const { error } = await supabase
+        .from("productos")
+        .update({ visible: nuevoValor })
+        .eq("id", producto.id);
+
+      if (!error) {
+        setVisible(nuevoValor);
+        producto.visible = nuevoValor;
+      }
+    } catch (error) {
+      console.error("Error actualizando visibilidad:", error);
+    } finally {
+      setActualizandoToggle(false);
     }
-  } catch (error) {
-    console.error('Error actualizando visibilidad:', error);
-  } finally {
-    setActualizandoToggle(false);
-  }
-};
+  };
 
-const handleToggleLiquidacion = async () => {
-  setActualizandoToggle(true);
-  try {
-    const nuevoValor = !liquidacion;
-    const { error } = await supabase
-      .from('productos')
-      .update({ liquidacion: nuevoValor })
-      .eq('id', producto.id);
+  const handleToggleLiquidacion = async () => {
+    setActualizandoToggle(true);
+    try {
+      const nuevoValor = !liquidacion;
+      const { error } = await supabase
+        .from("productos")
+        .update({ liquidacion: nuevoValor })
+        .eq("id", producto.id);
 
-    if (!error) {
-      setLiquidacion(nuevoValor);
-      producto.liquidacion = nuevoValor;
+      if (!error) {
+        setLiquidacion(nuevoValor);
+        producto.liquidacion = nuevoValor;
+      }
+    } catch (error) {
+      console.error("Error actualizando liquidación:", error);
+    } finally {
+      setActualizandoToggle(false);
     }
-  } catch (error) {
-    console.error('Error actualizando liquidación:', error);
-  } finally {
-    setActualizandoToggle(false);
-  }
-};
+  };
 
-const handleToggleTopVentas = async () => {
-  setActualizandoToggle(true);
-  try {
-    const nuevoValor = !topVentas;
-    const { error } = await supabase
-      .from('productos')
-      .update({ top_ventas: nuevoValor })
-      .eq('id', producto.id);
+  const handleToggleTopVentas = async () => {
+    setActualizandoToggle(true);
+    try {
+      const nuevoValor = !topVentas;
+      const { error } = await supabase
+        .from("productos")
+        .update({ top_ventas: nuevoValor })
+        .eq("id", producto.id);
 
-    if (!error) {
-      setTopVentas(nuevoValor);
-      producto.top_ventas = nuevoValor;
+      if (!error) {
+        setTopVentas(nuevoValor);
+        producto.top_ventas = nuevoValor;
+      }
+    } catch (error) {
+      console.error("Error actualizando top ventas:", error);
+    } finally {
+      setActualizandoToggle(false);
     }
-  } catch (error) {
-    console.error('Error actualizando top ventas:', error);
-  } finally {
-    setActualizandoToggle(false);
-  }
-};
+  };
 
   useEffect(() => {
     const cargarImagenesAdicionales = async () => {
@@ -848,6 +878,60 @@ const handleToggleTopVentas = async () => {
                 />
               </div>
 
+              {/* Código temporal borrar*/}
+<div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Código
+  </label>
+
+  <input
+    type="text"
+    value={codigoTemp}
+    disabled={!codigoEditable}
+    onChange={(e) => setCodigoTemp(e.target.value)}
+    className={`w-full border rounded-lg px-3 py-2 ${
+      codigoEditable
+        ? "border-orange-400 bg-white text-zinc-800"
+        : "border-zinc-300 bg-zinc-100 text-zinc-500"
+    }`}
+  />
+
+  <div className="flex gap-2 mt-2">
+    {!codigoEditable ? (
+      <button
+        type="button"
+        onClick={() => setCodigoEditable(true)}
+        className="text-xs px-3 py-1 rounded-md bg-orange-100 text-orange-700 hover:bg-orange-200"
+      >
+        Editar código
+      </button>
+    ) : (
+      <>
+        <button
+  type="button"
+  onClick={guardarCodigoProducto}
+  className="text-xs px-3 py-1 rounded-md bg-green-600 text-white hover:bg-green-700"
+>
+  Guardar
+</button>
+
+
+        <button
+          type="button"
+          onClick={() => {
+            setCodigoTemp(producto.CODIGO);
+            setCodigoEditable(false);
+          }}
+          className="text-xs px-3 py-1 rounded-md bg-zinc-200 text-zinc-700 hover:bg-zinc-300"
+        >
+          Cancelar
+        </button>
+      </>
+    )}
+  </div>
+</div>
+
+
               {/* Precio */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-zinc-700 mb-2">
@@ -1072,133 +1156,143 @@ const handleToggleTopVentas = async () => {
                 </div>
               )}
 
-{/* Toggles de Admin */}
-{esAdmin && !modoEdicion && (
-  <div className="mt-5 px-4">
-    <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4">
-      <h3 className="text-sm font-bold text-zinc-800">
-        Configuración del producto
-      </h3>
+              {/* Toggles de Admin */}
+              {esAdmin && !modoEdicion && (
+                <div className="mt-5 px-4">
+                  <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4">
+                    <h3 className="text-sm font-bold text-zinc-800">
+                      Configuración del producto
+                    </h3>
 
-      {/* Visible */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-zinc-700">Producto visible</span>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={visible}
-            onChange={handleToggleVisible}
-            disabled={actualizandoToggle}
-            className="sr-only peer"
-          />
-          <div className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-blue-600
+                    {/* Visible */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-zinc-700">
+                        Producto visible
+                      </span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={visible}
+                          onChange={handleToggleVisible}
+                          disabled={actualizandoToggle}
+                          className="sr-only peer"
+                        />
+                        <div
+                          className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-blue-600
             after:content-[''] after:absolute after:top-[2px] after:left-[2px]
             after:bg-white after:w-5 after:h-5 after:rounded-full
-            after:transition-all peer-checked:after:translate-x-full">
-          </div>
-        </label>
-      </div>
+            after:transition-all peer-checked:after:translate-x-full"
+                        ></div>
+                      </label>
+                    </div>
 
-      {/* Liquidación */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-zinc-700">Liquidación</span>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={liquidacion}
-            onChange={handleToggleLiquidacion}
-            disabled={actualizandoToggle}
-            className="sr-only peer"
-          />
-          <div className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-red-500
+                    {/* Liquidación */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-zinc-700">Liquidación</span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={liquidacion}
+                          onChange={handleToggleLiquidacion}
+                          disabled={actualizandoToggle}
+                          className="sr-only peer"
+                        />
+                        <div
+                          className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-red-500
             after:content-[''] after:absolute after:top-[2px] after:left-[2px]
             after:bg-white after:w-5 after:h-5 after:rounded-full
-            after:transition-all peer-checked:after:translate-x-full">
-          </div>
-        </label>
-      </div>
+            after:transition-all peer-checked:after:translate-x-full"
+                        ></div>
+                      </label>
+                    </div>
 
-      {/* Top Ventas */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-zinc-700">Top ventas</span>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={topVentas}
-            onChange={handleToggleTopVentas}
-            disabled={actualizandoToggle}
-            className="sr-only peer"
-          />
-          <div className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-green-600
+                    {/* Top Ventas */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-zinc-700">Top ventas</span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={topVentas}
+                          onChange={handleToggleTopVentas}
+                          disabled={actualizandoToggle}
+                          className="sr-only peer"
+                        />
+                        <div
+                          className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-green-600
             after:content-[''] after:absolute after:top-[2px] after:left-[2px]
             after:bg-white after:w-5 after:h-5 after:rounded-full
-            after:transition-all peer-checked:after:translate-x-full">
-          </div>
-        </label>
-      </div>
-   
-      {actualizandoToggle && (
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
-          <span className="animate-spin h-4 w-4 border-2 border-zinc-400 border-t-transparent rounded-full"></span>
-          Guardando cambios…
-        </div>
-      )}
-      
-    </div>
-  </div>
-)}
+            after:transition-all peer-checked:after:translate-x-full"
+                        ></div>
+                      </label>
+                    </div>
 
+                    {actualizandoToggle && (
+                      <div className="flex items-center gap-2 text-xs text-zinc-500">
+                        <span className="animate-spin h-4 w-4 border-2 border-zinc-400 border-t-transparent rounded-full"></span>
+                        Guardando cambios…
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
-{/* Toggle Mostrador 1 */}
-{esAdminMostrador && (
-
-<div className="flex items-center justify-between">
-  <div className="flex flex-col">
-    <span className="text-sm text-zinc-700 font-medium">Visible en Mostrador 1</span>
-    <span className="text-[10px] text-zinc-400">Control de visibilidad local M1</span>
-  </div>
-  <label className="relative inline-flex items-center cursor-pointer">
-    <input
-      type="checkbox"
-      checked={visibleM1}
-      onChange={() => handleToggleMostrador('M1')}
-      disabled={actualizandoToggle}
-      className="sr-only peer"
-    />
-    <div className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-purple-600
+              {/* Toggle Mostrador 1 */}
+              {esAdminMostrador && (
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-sm text-zinc-700 font-medium">
+                      Visible en Mostrador 1
+                    </span>
+                    <span className="text-[10px] text-zinc-400">
+                      Control de visibilidad local M1
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={visibleM1}
+                      onChange={() => handleToggleMostrador("M1")}
+                      disabled={actualizandoToggle}
+                      className="sr-only peer"
+                    />
+                    <div
+                      className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-purple-600
       after:content-[''] after:absolute after:top-[2px] after:left-[2px]
       after:bg-white after:w-5 after:h-5 after:rounded-full
-      after:transition-all peer-checked:after:translate-x-full">
-    </div>
-  </label>
-</div>
-)}
+      after:transition-all peer-checked:after:translate-x-full"
+                    ></div>
+                  </label>
+                </div>
+              )}
 
-
-{/* Toggle Mostrador 2 */}
-{esAdminMostrador2 && (
-<div className="flex items-center justify-between">
-  <div className="flex flex-col">
-    <span className="text-sm text-zinc-700 font-medium">Visible en Mostrador 2</span>
-    <span className="text-[10px] text-zinc-400">Control de visibilidad local M2</span>
-  </div>
-  <label className="relative inline-flex items-center cursor-pointer">
-    <input
-      type="checkbox"
-      checked={visibleM2}
-      onChange={() => handleToggleMostrador('M2')}
-      disabled={actualizandoToggle}
-      className="sr-only peer"
-    />
-    <div className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-indigo-600
+              {/* Toggle Mostrador 2 */}
+              {esAdminMostrador2 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-sm text-zinc-700 font-medium">
+                      Visible en Mostrador 2
+                    </span>
+                    <span className="text-[10px] text-zinc-400">
+                      Control de visibilidad local M2
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={visibleM2}
+                      onChange={() => handleToggleMostrador("M2")}
+                      disabled={actualizandoToggle}
+                      className="sr-only peer"
+                    />
+                    <div
+                      className="w-11 h-6 bg-zinc-300 rounded-full peer peer-checked:bg-indigo-600
       after:content-[''] after:absolute after:top-[2px] after:left-[2px]
       after:bg-white after:w-5 after:h-5 after:rounded-full
-      after:transition-all peer-checked:after:translate-x-full">
-    </div>
-  </label>
-</div>
-
-)}
+      after:transition-all peer-checked:after:translate-x-full"
+                    ></div>
+                  </label>
+                </div>
+              )}
 
               <div className="mt-4 text-sm text-zinc-700 px-2">
                 <div className="flex justify-between py-2">
@@ -1212,18 +1306,18 @@ const handleToggleTopVentas = async () => {
                     {getNombreMarca(producto.marca_id)}
                   </span>
                 </div>
-{!esMostrador && !esMostrador2 &&(
-                <div className="flex justify-between py-2">
-                  <span className="font-medium">Precio</span>
-                  <span>
-                    $
-                    {producto.P_MAYOREO?.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
-                </div>
- )}
+                {!esMostrador && !esMostrador2 && (
+                  <div className="flex justify-between py-2">
+                    <span className="font-medium">Precio</span>
+                    <span>
+                      $
+                      {producto.P_MAYOREO?.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                )}
                 {!esAdmin && !esMostrador && !esMostrador2 && (
                   <div className="flex justify-between py-2">
                     <span className="font-medium">Total de artículo</span>
@@ -1278,7 +1372,6 @@ const handleToggleTopVentas = async () => {
                   {esDesdeCarrito ? "Modificar cantidad" : "Agregar al carrito"}
                 </button>
               </div>
-             
             </>
           )}
 
@@ -1513,7 +1606,7 @@ export default function HomePage() {
   const [carrito, setCarrito] = useState<any[]>([]);
   const [mostrarModalPedido, setMostrarModalPedido] = useState(false);
   const [enviarDomicilio, setEnviarDomicilio] = useState(false);
-  const [recogerLocal, setRecogerLocal] = useState(false); 
+  const [recogerLocal, setRecogerLocal] = useState(false);
   const [cliente, setCliente] = useState("");
   const [ferreteria, setFerreteria] = useState("");
   const [direccion, setDireccion] = useState("");
@@ -1530,11 +1623,12 @@ export default function HomePage() {
   const esAdmin = cuenta?.numero_cuenta === "Admin01";
   const esMostrador = cuenta?.numero_cuenta === "Mostrador";
   const esAdminMostrador = cuenta?.numero_cuenta === "admin-M01";
-const esMostrador2 = cuenta?.numero_cuenta === "Mostrador2";
-const esAdminMostrador2 = cuenta?.numero_cuenta === "admin-M02";
-const ID_CUENTA_MOSTRADOR = 39; 
-const ID_CUENTA_MOSTRADOR2 = 41;
+  const esMostrador2 = cuenta?.numero_cuenta === "Mostrador2";
+  const esAdminMostrador2 = cuenta?.numero_cuenta === "admin-M02";
+  const ID_CUENTA_MOSTRADOR = 39;
+  const ID_CUENTA_MOSTRADOR2 = 41;
   const esRutas = cuenta?.numero_cuenta === "Rutas";
+  const esEmpleado = cuenta?.numero_cuenta === "Empleado";
   const [mostrar, setMostrar] = useState(false);
   const [subTab, setSubTab] = useState("categorias"); // categorias | marcas
   const [marcas, setMarcas] = useState<any[]>([]);
@@ -1562,92 +1656,99 @@ const ID_CUENTA_MOSTRADOR2 = 41;
   const [ocultarBarra, setOcultarBarra] = useState(false);
   const [favoritos, setFavoritos] = useState<any[]>([]);
   const [bannerAnuncio, setBannerAnuncio] = useState<any>(null);
-const [cargandoBanner, setCargandoBanner] = useState(true);
-const [pullStartY, setPullStartY] = useState(0);
-const [pullDistance, setPullDistance] = useState(0);
-const [isPulling, setIsPulling] = useState(false);
-const [isRefreshing, setIsRefreshing] = useState(false);
-const hayTipoEntregaSeleccionado = enviarDomicilio || recogerLocal;
-const [idsOcultosMostrador, setIdsOcultosMostrador] = useState<number[]>([]);
-const [codigoBarrasModal, setCodigoBarrasModal] = useState(null);
+  const [cargandoBanner, setCargandoBanner] = useState(true);
+  const [pullStartY, setPullStartY] = useState(0);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const hayTipoEntregaSeleccionado = enviarDomicilio || recogerLocal;
+  const [idsOcultosMostrador, setIdsOcultosMostrador] = useState<number[]>([]);
+  const [codigoBarrasModal, setCodigoBarrasModal] = useState(null);
+  const [vistaSurtir, setVistaSurtir] = useState<"seleccionar" | "surtiendo" | null>(null);
+const [pedidoSurtir, setPedidoSurtir] = useState<any>(null);
+const [productosSurtir, setProductosSurtir] = useState<any[]>([]);
+const [productosSurtidos, setProductosSurtidos] = useState<Map<number, number>>(new Map());
+const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
 
-interface ProductoConVisibilidad extends Producto {
-  visibleMostrador?: boolean;
-  visibleMostrador2?: boolean;
-}
-
-const cerrarModalPedido = () => {
-  setMostrarModalPedido(false);
-  setEnviarDomicilio(false);
-  setRecogerLocal(false);
-};
-
-const handleTouchStart = (e: React.TouchEvent) => {
-  if (window.scrollY === 0) {
-    setPullStartY(e.touches[0].clientY);
-    setIsPulling(true);
+  interface ProductoConVisibilidad extends Producto {
+    visibleMostrador?: boolean;
+    visibleMostrador2?: boolean;
   }
-};
 
-const handleTouchMove = (e: React.TouchEvent) => {
-  if (!isPulling || window.scrollY > 0) return;
-  
-  const currentY = e.touches[0].clientY;
-  const distance = currentY - pullStartY;
-  
-  if (distance > 0) {
-    setPullDistance(Math.min(distance, 150)); 
-  }
-};
+  const cerrarModalPedido = () => {
+    setMostrarModalPedido(false);
+    setEnviarDomicilio(false);
+    setRecogerLocal(false);
+  };
 
-const handleTouchEnd = async () => {
-  if (pullDistance > 80 && !isRefreshing) {
-    setIsRefreshing(true);
-    
-    // Vibración si está disponible
-    if ('vibrate' in navigator) {
-      navigator.vibrate(50);
-    }
-    
-    // Recargar la página
-    setTimeout(() => {
-      window.location.reload();
-    }, 300);
-  }
-  
-  setIsPulling(false);
-  setPullDistance(0);
-};
-
-// Cargar productos ocultos para la cuenta mostrador actual
-useEffect(() => {
-  const cargarOcultos = async () => {
-    if (esMostrador || esMostrador2) {
-      const idCuenta = esMostrador ? ID_CUENTA_MOSTRADOR : ID_CUENTA_MOSTRADOR2;
-      
-      const { data } = await supabase
-        .from("productos_visibilidad_cuenta")
-        .select("producto_id")
-        .eq("cuenta_id", idCuenta)
-        .eq("visible", false); 
-
-      if (data) {
-        setIdsOcultosMostrador(data.map((item: any) => item.producto_id));
-      }
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      setPullStartY(e.touches[0].clientY);
+      setIsPulling(true);
     }
   };
 
-  cargarOcultos();
-}, [
-  esMostrador, 
-  esMostrador2, 
-  activeTab, 
-  categoriaSeleccionada, 
-  marcaSeleccionada, 
-  macroCategoriaSeleccionada
-]); 
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPulling || window.scrollY > 0) return;
 
- /// Lógica de Banner en tiempo real 
+    const currentY = e.touches[0].clientY;
+    const distance = currentY - pullStartY;
+
+    if (distance > 0) {
+      setPullDistance(Math.min(distance, 150));
+    }
+  };
+
+  const handleTouchEnd = async () => {
+    if (pullDistance > 80 && !isRefreshing) {
+      setIsRefreshing(true);
+
+      // Vibración si está disponible
+      if ("vibrate" in navigator) {
+        navigator.vibrate(50);
+      }
+
+      // Recargar la página
+      setTimeout(() => {
+        window.location.reload();
+      }, 300);
+    }
+
+    setIsPulling(false);
+    setPullDistance(0);
+  };
+
+  // Cargar productos ocultos para la cuenta mostrador actual
+  useEffect(() => {
+    const cargarOcultos = async () => {
+      if (esMostrador || esMostrador2) {
+        const idCuenta = esMostrador
+          ? ID_CUENTA_MOSTRADOR
+          : ID_CUENTA_MOSTRADOR2;
+
+        const { data } = await supabase
+          .from("productos_visibilidad_cuenta")
+          .select("producto_id")
+          .eq("cuenta_id", idCuenta)
+          .eq("visible", false);
+
+        if (data) {
+          setIdsOcultosMostrador(data.map((item: any) => item.producto_id));
+        }
+      }
+    };
+
+    cargarOcultos();
+  }, [
+    esMostrador,
+    esMostrador2,
+    activeTab,
+    categoriaSeleccionada,
+    marcaSeleccionada,
+    macroCategoriaSeleccionada,
+  ]);
+
+  /// Lógica de Banner en tiempo real
   useEffect(() => {
     const fetchBanner = async () => {
       const { data, error } = await supabase
@@ -1686,7 +1787,6 @@ useEffect(() => {
       supabase.removeChannel(channel);
     };
   }, []);
-
 
   // Cargar favoritos desde localStorage
   useEffect(() => {
@@ -2395,71 +2495,77 @@ useEffect(() => {
   }, []);
 
   // Cargar todos los productos al entrar a la pestaña de "buscar"
- const fetchProductos = async () => {
-  try {
-    let productosFinales: any[] = [];
+  const fetchProductos = async () => {
+    try {
+      let productosFinales: any[] = [];
 
-    if (esMostrador) {
-      // Mostrador 1
-      const { data: visibilidad } = await supabase
-        .from("productos_visibilidad_cuenta")
-        .select("producto_id")
-        .eq("cuenta_id", ID_CUENTA_MOSTRADOR)
-        .eq("visible", true);
+      if (esMostrador) {
+        // Mostrador 1
+        const { data: visibilidad } = await supabase
+          .from("productos_visibilidad_cuenta")
+          .select("producto_id")
+          .eq("cuenta_id", ID_CUENTA_MOSTRADOR)
+          .eq("visible", true);
 
-      const idsVisibles = visibilidad?.map((v) => v.producto_id) || [];
+        const idsVisibles = visibilidad?.map((v) => v.producto_id) || [];
 
-      if (idsVisibles.length > 0) {
-        const { data, error } = await supabase
-          .from("productos")
-          .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID")
-          .in("id", idsVisibles);
+        if (idsVisibles.length > 0) {
+          const { data, error } = await supabase
+            .from("productos")
+            .select(
+              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
+            )
+            .in("id", idsVisibles);
 
-        productosFinales = data || [];
-      }
-    } else if (esMostrador2) {
-      // Mostrador 2
-      const { data: visibilidad } = await supabase
-        .from("productos_visibilidad_cuenta")
-        .select("producto_id")
-        .eq("cuenta_id", ID_CUENTA_MOSTRADOR2)
-        .eq("visible", true);
+          productosFinales = data || [];
+        }
+      } else if (esMostrador2) {
+        // Mostrador 2
+        const { data: visibilidad } = await supabase
+          .from("productos_visibilidad_cuenta")
+          .select("producto_id")
+          .eq("cuenta_id", ID_CUENTA_MOSTRADOR2)
+          .eq("visible", true);
 
-      const idsVisibles = visibilidad?.map((v) => v.producto_id) || [];
+        const idsVisibles = visibilidad?.map((v) => v.producto_id) || [];
 
-      if (idsVisibles.length > 0) {
-        const { data, error } = await supabase
-          .from("productos")
-          .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID")
-          .in("id", idsVisibles);
+        if (idsVisibles.length > 0) {
+          const { data, error } = await supabase
+            .from("productos")
+            .select(
+              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
+            )
+            .in("id", idsVisibles);
 
-        productosFinales = data || [];
-      }
-    } else {
-      // Admin o usuarios normales
-      const { data, error } = await supabase
-        .from("productos")
-        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID");
-
-      if (error) {
-        console.error("Error cargando productos:", error.message);
+          productosFinales = data || [];
+        }
       } else {
-        productosFinales = data || [];
+        // Admin o usuarios normales
+        const { data, error } = await supabase
+          .from("productos")
+          .select(
+            "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
+          );
+
+        if (error) {
+          console.error("Error cargando productos:", error.message);
+        } else {
+          productosFinales = data || [];
+        }
       }
+
+      const productosNormalizados = productosFinales.map((producto) => ({
+        ...producto,
+        visible: producto.visible ?? true,
+      }));
+
+      setProductos(productosNormalizados);
+      setProductosMostrados(10);
+    } catch (error) {
+      console.error("Error en fetchProductos:", error);
+      setProductos([]);
     }
-
-    const productosNormalizados = productosFinales.map((producto) => ({
-      ...producto,
-      visible: producto.visible ?? true,
-    }));
-
-    setProductos(productosNormalizados);
-    setProductosMostrados(10);
-  } catch (error) {
-    console.error("Error en fetchProductos:", error);
-    setProductos([]);
-  }
-};
+  };
 
   useEffect(() => {
     if (activeTab === "buscar" && productos.length === 0) {
@@ -3438,391 +3544,431 @@ useEffect(() => {
   };
 
   const GestionarBannerView = ({ setVistaPerfil }: any) => {
-  const [banners, setBanners] = useState<any[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [modoVista, setModoVista] = useState<'lista' | 'agregar' | 'editar'>('lista');
-  const [bannerSeleccionado, setBannerSeleccionado] = useState<any>(null);
-  const [titulo, setTitulo] = useState('');
-  const [mensaje, setMensaje] = useState('');
-  const [color, setColor] = useState('blue');
-  const [guardando, setGuardando] = useState(false);
-  const [mensajeInfo, setMensajeInfo] = useState('');
+    const [banners, setBanners] = useState<any[]>([]);
+    const [cargando, setCargando] = useState(true);
+    const [modoVista, setModoVista] = useState<"lista" | "agregar" | "editar">(
+      "lista"
+    );
+    const [bannerSeleccionado, setBannerSeleccionado] = useState<any>(null);
+    const [titulo, setTitulo] = useState("");
+    const [mensaje, setMensaje] = useState("");
+    const [color, setColor] = useState("blue");
+    const [guardando, setGuardando] = useState(false);
+    const [mensajeInfo, setMensajeInfo] = useState("");
 
-  const coloresDisponibles = [
-    { valor: 'blue', nombre: 'Azul (Info)', clase: 'bg-blue-50 border-blue-200 text-blue-800' },
-    { valor: 'yellow', nombre: 'Amarillo (Advertencia)', clase: 'bg-yellow-50 border-yellow-200 text-yellow-800' },
-    { valor: 'red', nombre: 'Rojo (Importante)', clase: 'bg-red-50 border-red-200 text-red-800' },
-    { valor: 'green', nombre: 'Verde (Éxito)', clase: 'bg-green-50 border-green-200 text-green-800' },
-  ];
+    const coloresDisponibles = [
+      {
+        valor: "blue",
+        nombre: "Azul (Info)",
+        clase: "bg-blue-50 border-blue-200 text-blue-800",
+      },
+      {
+        valor: "yellow",
+        nombre: "Amarillo (Advertencia)",
+        clase: "bg-yellow-50 border-yellow-200 text-yellow-800",
+      },
+      {
+        valor: "red",
+        nombre: "Rojo (Importante)",
+        clase: "bg-red-50 border-red-200 text-red-800",
+      },
+      {
+        valor: "green",
+        nombre: "Verde (Éxito)",
+        clase: "bg-green-50 border-green-200 text-green-800",
+      },
+    ];
 
-  useEffect(() => {
-    cargarBanners();
-}, []);
+    useEffect(() => {
+      cargarBanners();
+    }, []);
 
-  const cargarBanners = async () => {
-    setCargando(true);
-    const { data, error } = await supabase
-      .from('banner_anuncios')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const cargarBanners = async () => {
+      setCargando(true);
+      const { data, error } = await supabase
+        .from("banner_anuncios")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      setBanners(data);
-    }
-    setCargando(false);
-  };
-
-  const limpiarFormulario = () => {
-    setTitulo('');
-    setMensaje('');
-    setColor('blue');
-    setMensajeInfo('');
-    setBannerSeleccionado(null);
-  };
-
-  const agregarBanner = async () => {
-    setGuardando(true);
-    setMensajeInfo('');
-
-    if (!titulo.trim() || !mensaje.trim()) {
-      setMensajeInfo('Por favor completa todos los campos');
-      setGuardando(false);
-      return;
-    }
-
-    try {
-      const { error } = await supabase.from('banner_anuncios').insert([
-        {
-          titulo: titulo.trim(),
-          mensaje: mensaje.trim(),
-          color: color,
-          activo: false,
-        },
-      ]);
-
-      if (error) {
-        setMensajeInfo('Error al agregar el banner');
-      } else {
-        setMensajeInfo('Banner agregado correctamente');
-        await cargarBanners();
-        setTimeout(() => {
-          limpiarFormulario();
-          setModoVista('lista');
-        }, 1500);
+      if (!error && data) {
+        setBanners(data);
       }
-    } catch (error) {
-      setMensajeInfo('Ocurrió un error inesperado');
-    } finally {
-      setGuardando(false);
-    }
-  };
+      setCargando(false);
+    };
 
-  const editarBanner = async () => {
-    if (!bannerSeleccionado) return;
+    const limpiarFormulario = () => {
+      setTitulo("");
+      setMensaje("");
+      setColor("blue");
+      setMensajeInfo("");
+      setBannerSeleccionado(null);
+    };
 
-    setGuardando(true);
-    setMensajeInfo('');
+    const agregarBanner = async () => {
+      setGuardando(true);
+      setMensajeInfo("");
 
-    if (!titulo.trim() || !mensaje.trim()) {
-      setMensajeInfo('Por favor completa todos los campos');
-      setGuardando(false);
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('banner_anuncios')
-        .update({
-          titulo: titulo.trim(),
-          mensaje: mensaje.trim(),
-          color: color,
-        })
-        .eq('id', bannerSeleccionado.id);
-
-      if (error) {
-        setMensajeInfo('Error al actualizar el banner');
-      } else {
-        setMensajeInfo('Banner actualizado correctamente');
-        await cargarBanners();
-        setTimeout(() => {
-          limpiarFormulario();
-          setModoVista('lista');
-        }, 1500);
-      }
-    } catch (error) {
-      setMensajeInfo('Ocurrió un error inesperado');
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  const toggleActivo = async (bannerId: number, activoActual: boolean) => {
-    try {
-      // Si se va a activar este banner, desactivar todos los demás
-      if (!activoActual) {
-        await supabase
-          .from('banner_anuncios')
-          .update({ activo: false })
-          .neq('id', bannerId);
+      if (!titulo.trim() || !mensaje.trim()) {
+        setMensajeInfo("Por favor completa todos los campos");
+        setGuardando(false);
+        return;
       }
 
-      const { error } = await supabase
-        .from('banner_anuncios')
-        .update({ activo: !activoActual })
-        .eq('id', bannerId);
+      try {
+        const { error } = await supabase.from("banner_anuncios").insert([
+          {
+            titulo: titulo.trim(),
+            mensaje: mensaje.trim(),
+            color: color,
+            activo: false,
+          },
+        ]);
 
-      if (!error) {
-        await cargarBanners();
+        if (error) {
+          setMensajeInfo("Error al agregar el banner");
+        } else {
+          setMensajeInfo("Banner agregado correctamente");
+          await cargarBanners();
+          setTimeout(() => {
+            limpiarFormulario();
+            setModoVista("lista");
+          }, 1500);
+        }
+      } catch (error) {
+        setMensajeInfo("Ocurrió un error inesperado");
+      } finally {
+        setGuardando(false);
       }
-    } catch (error) {
-      console.error('Error al cambiar estado:', error);
-    }
-  };
+    };
 
-  const eliminarBanner = async (bannerId: number) => {
-    if (!confirm('¿Estás seguro de eliminar este banner?')) return;
+    const editarBanner = async () => {
+      if (!bannerSeleccionado) return;
 
-    try {
-      const { error } = await supabase
-        .from('banner_anuncios')
-        .delete()
-        .eq('id', bannerId);
+      setGuardando(true);
+      setMensajeInfo("");
 
-      if (!error) {
-        await cargarBanners();
+      if (!titulo.trim() || !mensaje.trim()) {
+        setMensajeInfo("Por favor completa todos los campos");
+        setGuardando(false);
+        return;
       }
-    } catch (error) {
-      console.error('Error al eliminar:', error);
-    }
-  };
 
-  const abrirEdicion = (banner: any) => {
-    setBannerSeleccionado(banner);
-    setTitulo(banner.titulo);
-    setMensaje(banner.mensaje);
-    setColor(banner.color);
-    setModoVista('editar');
-  };
+      try {
+        const { error } = await supabase
+          .from("banner_anuncios")
+          .update({
+            titulo: titulo.trim(),
+            mensaje: mensaje.trim(),
+            color: color,
+          })
+          .eq("id", bannerSeleccionado.id);
 
-  const getClaseColor = (colorValue: string) => {
-    const colorObj = coloresDisponibles.find(c => c.valor === colorValue);
-    return colorObj?.clase || 'bg-blue-50 border-blue-200 text-blue-800';
-  };
+        if (error) {
+          setMensajeInfo("Error al actualizar el banner");
+        } else {
+          setMensajeInfo("Banner actualizado correctamente");
+          await cargarBanners();
+          setTimeout(() => {
+            limpiarFormulario();
+            setModoVista("lista");
+          }, 1500);
+        }
+      } catch (error) {
+        setMensajeInfo("Ocurrió un error inesperado");
+      } finally {
+        setGuardando(false);
+      }
+    };
 
-  return (
-    <motion.div
-      key="gestionar-banner"
-      className="min-h-screen"
-      initial={{ opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -40 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-    >
-      <div className="px-6 py-6">
-        <BackBtn
-          onBack={() => {
-            if (modoVista !== 'lista') {
-              limpiarFormulario();
-              setModoVista('lista');
-            } else {
-              setVistaPerfil('menu');
-            }
-          }}
-        />
+    const toggleActivo = async (bannerId: number, activoActual: boolean) => {
+      try {
+        // Si se va a activar este banner, desactivar todos los demás
+        if (!activoActual) {
+          await supabase
+            .from("banner_anuncios")
+            .update({ activo: false })
+            .neq("id", bannerId);
+        }
 
-        <h2 className="text-xl font-bold text-zinc-900 mb-6">
-          Gestionar Banner de Anuncios
-        </h2>
+        const { error } = await supabase
+          .from("banner_anuncios")
+          .update({ activo: !activoActual })
+          .eq("id", bannerId);
 
-        {/* VISTA LISTA */}
-        {modoVista === 'lista' && (
-          <>
-            <button
-              onClick={() => setModoVista('agregar')}
-              className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition mb-4"
-            >
-              + Agregar Nuevo Anuncio
-            </button>
+        if (!error) {
+          await cargarBanners();
+        }
+      } catch (error) {
+        console.error("Error al cambiar estado:", error);
+      }
+    };
 
-            {cargando ? (
-              <div className="flex justify-center py-10">
-                <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {banners.map((banner) => (
-                  <div
-                    key={banner.id}
-                    className="bg-white border border-zinc-200 rounded-xl p-4 shadow-sm"
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <p className="font-bold text-zinc-900 text-lg">{banner.titulo}</p>
-                        <p className="text-sm text-zinc-600 mt-1">{banner.mensaje}</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer ml-3">
-                        <input
-                          type="checkbox"
-                          checked={banner.activo}
-                          onChange={() => toggleActivo(banner.id, banner.activo)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-                      </label>
-                    </div>
+    const eliminarBanner = async (bannerId: number) => {
+      if (!confirm("¿Estás seguro de eliminar este banner?")) return;
 
-                    <div className={`p-2 rounded-lg mb-3 ${getClaseColor(banner.color)}`}>
-                      <p className="text-xs font-semibold">Vista previa</p>
-                    </div>
+      try {
+        const { error } = await supabase
+          .from("banner_anuncios")
+          .delete()
+          .eq("id", bannerId);
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => abrirEdicion(banner)}
-                        className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => eliminarBanner(banner.id)}
-                        className="flex-1 bg-red-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-red-600 transition"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </div>
-                ))}
+        if (!error) {
+          await cargarBanners();
+        }
+      } catch (error) {
+        console.error("Error al eliminar:", error);
+      }
+    };
 
-                {banners.length === 0 && (
-                  <p className="text-center text-zinc-500 py-10">
-                    No hay banners registrados
-                  </p>
-                )}
-              </div>
-            )}
-          </>
-        )}
+    const abrirEdicion = (banner: any) => {
+      setBannerSeleccionado(banner);
+      setTitulo(banner.titulo);
+      setMensaje(banner.mensaje);
+      setColor(banner.color);
+      setModoVista("editar");
+    };
 
-        {/* VISTA AGREGAR/EDITAR */}
-        {(modoVista === 'agregar' || modoVista === 'editar') && (
-          <>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-zinc-700 mb-2">
-                Título <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
-                placeholder="Ej: Cierre por día festivo"
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
+    const getClaseColor = (colorValue: string) => {
+      const colorObj = coloresDisponibles.find((c) => c.valor === colorValue);
+      return colorObj?.clase || "bg-blue-50 border-blue-200 text-blue-800";
+    };
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-zinc-700 mb-2">
-                Mensaje <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                value={mensaje}
-                onChange={(e) => setMensaje(e.target.value)}
-                placeholder="Descripción del anuncio"
-                rows={3}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
+    return (
+      <motion.div
+        key="gestionar-banner"
+        className="min-h-screen"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <div className="px-6 py-6">
+          <BackBtn
+            onBack={() => {
+              if (modoVista !== "lista") {
+                limpiarFormulario();
+                setModoVista("lista");
+              } else {
+                setVistaPerfil("menu");
+              }
+            }}
+          />
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-zinc-700 mb-2">
-                Color del Banner
-              </label>
-              <select
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          <h2 className="text-xl font-bold text-zinc-900 mb-6">
+            Gestionar Banner de Anuncios
+          </h2>
+
+          {/* VISTA LISTA */}
+          {modoVista === "lista" && (
+            <>
+              <button
+                onClick={() => setModoVista("agregar")}
+                className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition mb-4"
               >
-                {coloresDisponibles.map((c) => (
-                  <option key={c.valor} value={c.valor}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
+                + Agregar Nuevo Anuncio
+              </button>
 
-            {/* Vista previa */}
-            {titulo || mensaje ? (
+              {cargando ? (
+                <div className="flex justify-center py-10">
+                  <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {banners.map((banner) => (
+                    <div
+                      key={banner.id}
+                      className="bg-white border border-zinc-200 rounded-xl p-4 shadow-sm"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <p className="font-bold text-zinc-900 text-lg">
+                            {banner.titulo}
+                          </p>
+                          <p className="text-sm text-zinc-600 mt-1">
+                            {banner.mensaje}
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer ml-3">
+                          <input
+                            type="checkbox"
+                            checked={banner.activo}
+                            onChange={() =>
+                              toggleActivo(banner.id, banner.activo)
+                            }
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                        </label>
+                      </div>
+
+                      <div
+                        className={`p-2 rounded-lg mb-3 ${getClaseColor(
+                          banner.color
+                        )}`}
+                      >
+                        <p className="text-xs font-semibold">Vista previa</p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => abrirEdicion(banner)}
+                          className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => eliminarBanner(banner.id)}
+                          className="flex-1 bg-red-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-red-600 transition"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {banners.length === 0 && (
+                    <p className="text-center text-zinc-500 py-10">
+                      No hay banners registrados
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* VISTA AGREGAR/EDITAR */}
+          {(modoVista === "agregar" || modoVista === "editar") && (
+            <>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Vista Previa
+                  Título <span className="text-red-500">*</span>
                 </label>
-                <div className={`rounded-xl p-4 border-2 ${getClaseColor(color)}`}>
-                  <div className="flex items-start gap-3">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={2}
-                      stroke="currentColor"
-                      className="w-6 h-6 flex-shrink-0"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"
-                      />
-                    </svg>
-                    <div>
-                      <p className="font-bold text-sm">{titulo || 'Título del anuncio'}</p>
-                      <p className="text-xs mt-1">{mensaje || 'Mensaje del anuncio'}</p>
+                <input
+                  type="text"
+                  value={titulo}
+                  onChange={(e) => setTitulo(e.target.value)}
+                  placeholder="Ej: Cierre por día festivo"
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Mensaje <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={mensaje}
+                  onChange={(e) => setMensaje(e.target.value)}
+                  placeholder="Descripción del anuncio"
+                  rows={3}
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Color del Banner
+                </label>
+                <select
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  {coloresDisponibles.map((c) => (
+                    <option key={c.valor} value={c.valor}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Vista previa */}
+              {titulo || mensaje ? (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Vista Previa
+                  </label>
+                  <div
+                    className={`rounded-xl p-4 border-2 ${getClaseColor(
+                      color
+                    )}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                        stroke="currentColor"
+                        className="w-6 h-6 flex-shrink-0"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"
+                        />
+                      </svg>
+                      <div>
+                        <p className="font-bold text-sm">
+                          {titulo || "Título del anuncio"}
+                        </p>
+                        <p className="text-xs mt-1">
+                          {mensaje || "Mensaje del anuncio"}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
 
-            {mensajeInfo && (
-              <div
-                className={`mb-4 p-3 rounded-lg text-sm ${
-                  mensajeInfo.includes('Error')
-                    ? 'bg-red-50 text-red-700 border border-red-200'
-                    : 'bg-green-50 text-green-700 border border-green-200'
-                }`}
-              >
-                {mensajeInfo}
-              </div>
-            )}
+              {mensajeInfo && (
+                <div
+                  className={`mb-4 p-3 rounded-lg text-sm ${
+                    mensajeInfo.includes("Error")
+                      ? "bg-red-50 text-red-700 border border-red-200"
+                      : "bg-green-50 text-green-700 border border-green-200"
+                  }`}
+                >
+                  {mensajeInfo}
+                </div>
+              )}
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  limpiarFormulario();
-                  setModoVista('lista');
-                }}
-                disabled={guardando}
-                className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={modoVista === 'agregar' ? agregarBanner : editarBanner}
-                disabled={guardando || !titulo || !mensaje}
-                className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {guardando ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                    Guardando...
-                  </span>
-                ) : (
-                  modoVista === 'agregar' ? 'Agregar Banner' : 'Guardar Cambios'
-                )}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </motion.div>
-  );
-};
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    limpiarFormulario();
+                    setModoVista("lista");
+                  }}
+                  disabled={guardando}
+                  className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={
+                    modoVista === "agregar" ? agregarBanner : editarBanner
+                  }
+                  disabled={guardando || !titulo || !mensaje}
+                  className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {guardando ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                      Guardando...
+                    </span>
+                  ) : modoVista === "agregar" ? (
+                    "Agregar Banner"
+                  ) : (
+                    "Guardar Cambios"
+                  )}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </motion.div>
+    );
+  };
 
   const GestionarCuentasView = ({ setVistaPerfil }: any) => {
     const [cuentas, setCuentas] = useState<any[]>([]);
@@ -3917,12 +4063,12 @@ useEffect(() => {
 
       if (!error && data) {
         const cuentasFiltradas = data.filter(
-          (c: any) => 
-            c.numero_cuenta !== "Admin01" && 
+          (c: any) =>
+            c.numero_cuenta !== "Admin01" &&
             c.numero_cuenta !== "admin-M01" &&
             c.numero_cuenta !== "Mostrador" &&
             c.numero_cuenta !== "Mostrador2" &&
-             c.numero_cuenta !== "admin-M02" 
+            c.numero_cuenta !== "admin-M02"
         );
         setCuentas(cuentasFiltradas);
       }
@@ -4211,8 +4357,8 @@ useEffect(() => {
       setEntregaMismoDia(cuentaItem.entrega_mismo_dia || false);
       setModoVista("editar");
       setTieneSaldoPendiente(cuentaItem.tiene_saldo_pendiente || false);
-      setRuta(cuentaItem.ruta || '');
-       setTipoComprobante(cuentaItem.tipo_comprobante || 'Nota de Remisión');
+      setRuta(cuentaItem.ruta || "");
+      setTipoComprobante(cuentaItem.tipo_comprobante || "Nota de Remisión");
 
       // Cargar horarios de la base de datos
       try {
@@ -4377,7 +4523,7 @@ useEffect(() => {
                 setVistaPerfil("menu");
               }
             }}
-          /> 
+          />
 
           <h2 className="text-xl font-bold text-zinc-900 mb-6">
             Gestionar Cuentas
@@ -4711,31 +4857,31 @@ useEffect(() => {
               </div>
 
               <div className="mb-4">
-  <label className="block text-sm font-medium text-zinc-700 mb-2">
-    Ruta
-  </label>
-  <input
-    type="text"
-    value={ruta}
-    onChange={(e) => setRuta(e.target.value)}
-    placeholder="Ej: Ruta 1, Ruta Norte, etc."
-    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-  />
-</div>
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Ruta
+                </label>
+                <input
+                  type="text"
+                  value={ruta}
+                  onChange={(e) => setRuta(e.target.value)}
+                  placeholder="Ej: Ruta 1, Ruta Norte, etc."
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
 
-<div className="mb-4">
-  <label className="block text-sm font-medium text-zinc-700 mb-2">
-    Tipo de Comprobante
-  </label>
-  <select
-    value={tipoComprobante}
-    onChange={(e) => setTipoComprobante(e.target.value)}
-    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-  >
-    <option value="Nota de Remisión">Nota de Remisión</option>
-    <option value="Factura">Factura</option>
-  </select>
-</div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Tipo de Comprobante
+                </label>
+                <select
+                  value={tipoComprobante}
+                  onChange={(e) => setTipoComprobante(e.target.value)}
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="Nota de Remisión">Nota de Remisión</option>
+                  <option value="Factura">Factura</option>
+                </select>
+              </div>
 
               <div className="mb-4">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -6275,12 +6421,11 @@ useEffect(() => {
   };
   // Función para enviar el pedido
 
- const enviarPedido = async () => {
+  const enviarPedido = async () => {
     try {
       setEnviando(true);
       setMensajeExito("");
       setErrorCuenta("");
-       
 
       if (!cuenta) {
         setMensajeExito("Error: cuenta no cargada. Intente nuevamente.");
@@ -6305,6 +6450,12 @@ useEffect(() => {
         }
       }
 
+      // Formato: CODIGO*CANTIDAD-CODIGO*CANTIDAD
+      const listaProductosString = carrito
+        .map((p) => `${p.CODIGO}*${p.cantidad}`)
+        .join("-");
+
+
       // Calcular el total
       const total = carrito.reduce(
         (sum, p) =>
@@ -6318,18 +6469,19 @@ useEffect(() => {
       const totalConIVA = total;
 
       // Guardar pedido en Supabase
-const { data: pedidoInsertado, error: errorPedido } = await supabase
-  .from("pedidos")
-  .insert([
-    {
-      cuenta_id: cuenta.id,
-      total: total, 
-      estado: "pendiente",
-      es_domicilio: enviarDomicilio, 
-    },
-  ])
-  .select()
-  .single();
+      const { data: pedidoInsertado, error: errorPedido } = await supabase
+        .from("pedidos")
+        .insert([
+          {
+            cuenta_id: cuenta.id,
+            total: total,
+            estado: "pendiente",
+            es_domicilio: enviarDomicilio,
+            lista_productos: listaProductosString,
+          },
+        ])
+        .select()
+        .single();
 
       if (errorPedido) {
         console.error("Error registrando pedido:", errorPedido);
@@ -6375,163 +6527,160 @@ const { data: pedidoInsertado, error: errorPedido } = await supabase
       };
 
       const logoBase64 = await getImageBase64("/logo-pdf.png");
-// Función para dibujar el encabezado DEL PDF DE ENVÍO (con tipo de documento)
-const dibujarEncabezadoEnvio = (doc: any) => {
-  const pageWidth = doc.internal.pageSize.width;
-const ahora = new Date();
-const horaActual = ahora.getHours();
-let promesaEntrega = "";
+      // Función para dibujar el encabezado DEL PDF DE ENVÍO (con tipo de documento)
+      const dibujarEncabezadoEnvio = (doc: any) => {
+        const pageWidth = doc.internal.pageSize.width;
+        const ahora = new Date();
+        const horaActual = ahora.getHours();
+        let promesaEntrega = "";
 
-const entregaMismoDia = cuenta?.entrega_mismo_dia; 
+        const entregaMismoDia = cuenta?.entrega_mismo_dia;
 
-if (enviarDomicilio) {
-  if (entregaMismoDia) {
-    promesaEntrega = horaActual < 10 
-      ? "Entrega: Hoy mismo" 
-      : "Entrega: Siguiente día hábil";
-  } else {
-  
-    promesaEntrega = "Entrega: 1 a 3 días hábiles";
-  }
-} else {
+        if (enviarDomicilio) {
+          if (entregaMismoDia) {
+            promesaEntrega =
+              horaActual < 10
+                ? "Entrega: Hoy mismo"
+                : "Entrega: Siguiente día hábil";
+          } else {
+            promesaEntrega = "Entrega: 1 a 3 días hábiles";
+          }
+        } else {
+          promesaEntrega =
+            horaActual < 15
+              ? "Listo para recoger: en 3 horas"
+              : "Listo para recoger: Mañana 11:00 AM";
+        }
 
-  promesaEntrega = horaActual < 15
-    ? "Listo para recoger: en 3 horas"
-    : "Listo para recoger: Mañana 11:00 AM";
-}
+        const tipoDoc =
+          cuenta?.tipo_comprobante === "Factura" ? "FACTURA" : "NOTA";
 
+        // Logo
+        doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
 
-const tipoDoc = (cuenta?.tipo_comprobante === "Factura" ? "FACTURA" : "NOTA");
+        // Información empresa
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+        doc.setFont("helvetica", "normal");
+        doc.text("GUGS701012E14", 70, 14);
+        doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
+        doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
+        doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
 
+        // Folio y Fecha
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Pedido", 165, 10);
+        doc.setFontSize(10);
+        doc.text(numeroCotizacion.toString(), 170, 16);
+        doc.setFontSize(9);
+        doc.text("Fecha", 172, 24);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(fecha, 167, 30);
 
-  // Logo
-  doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
+        // Línea separadora
+        doc.setLineWidth(0.3);
+        doc.line(14, 42, 196, 42);
 
-  // Información empresa
-  doc.setFontSize(7);
-  doc.setFont("helvetica", "bold");
-  doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
-  doc.setFont("helvetica", "normal");
-  doc.text("GUGS701012E14", 70, 14);
-  doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
-  doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
-  doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
+        // Dibujar en el PDF (Fila RECEPTOR)
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("RECEPTOR", 14, 48);
 
-  // Folio y Fecha
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.text("Pedido", 165, 10);
-  doc.setFontSize(10);
-  doc.text(numeroCotizacion.toString(), 170, 16);
-  doc.setFontSize(9);
-  doc.text("Fecha", 172, 24);
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.text(fecha, 167, 30);
+        doc.setFontSize(11);
+        doc.setTextColor(100, 100, 100);
+        doc.text(tipoDoc, pageWidth / 2, 48, { align: "center" });
 
-  // Línea separadora
-  doc.setLineWidth(0.3);
-  doc.line(14, 42, 196, 42);
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(promesaEntrega, 196, 48, { align: "right" });
 
- // Dibujar en el PDF (Fila RECEPTOR)
-doc.setFontSize(8);
-doc.setFont("helvetica", "bold");
-doc.text("RECEPTOR", 14, 48);
+        // Resetear colores para datos del cliente
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
+        doc.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
+        doc.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
+        doc.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
+        doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
+      };
 
-doc.setFontSize(11);
-doc.setTextColor(100, 100, 100);
-doc.text(tipoDoc, pageWidth / 2, 48, { align: "center" });
+      // Función para dibujar el encabezado DEL PDF DE CLIENTE (SIN tipo de documento)
+      const dibujarEncabezadoCliente = (doc: any) => {
+        const pageWidth = doc.internal.pageSize.width;
 
-doc.setFontSize(8);
-doc.setTextColor(100, 100, 100);
-doc.text(promesaEntrega, 196, 48, { align: "right" });
+        const ahora = new Date();
+        const horaActual = ahora.getHours();
+        let promesaEntrega = "";
 
-  // Resetear colores para datos del cliente
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(7);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
-  doc.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
-  doc.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
-  doc.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
-  doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
-};
+        const entregaMismoDia = cuenta?.entrega_mismo_dia;
 
-// Función para dibujar el encabezado DEL PDF DE CLIENTE (SIN tipo de documento)
-const dibujarEncabezadoCliente = (doc: any) => {
-  const pageWidth = doc.internal.pageSize.width;
+        if (enviarDomicilio) {
+          if (entregaMismoDia) {
+            promesaEntrega =
+              horaActual < 10
+                ? "Entrega: Hoy mismo"
+                : "Entrega: Siguiente día hábil";
+          } else {
+            promesaEntrega = "Entrega: 1 a 3 días hábiles";
+          }
+        } else {
+          promesaEntrega =
+            horaActual < 15
+              ? "Listo para recoger: en 3 horas"
+              : "Listo para recoger: Mañana 11:00 AM";
+        }
 
-const ahora = new Date();
-const horaActual = ahora.getHours();
-let promesaEntrega = "";
+        const tipoDoc =
+          cuenta?.tipo_comprobante === "Factura" ? "FACTURA" : "NOTA";
 
-const entregaMismoDia = cuenta?.entrega_mismo_dia; 
+        // Logo
+        doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
 
-if (enviarDomicilio) {
-  if (entregaMismoDia) {
-    promesaEntrega = horaActual < 10 
-      ? "Entrega: Hoy mismo" 
-      : "Entrega: Siguiente día hábil";
-  } else {
-  
-    promesaEntrega = "Entrega: 1 a 3 días hábiles";
-  }
-} else {
+        // Información empresa
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+        doc.setFont("helvetica", "normal");
+        doc.text("GUGS701012E14", 70, 14);
+        doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
+        doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
+        doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
 
-  promesaEntrega = horaActual < 15
-    ? "Listo para recoger: en 3 horas"
-    : "Listo para recoger: Mañana 11:00 AM";
-}
+        // Folio y Fecha
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Pedido", 165, 10);
+        doc.setFontSize(10);
+        doc.text(numeroCotizacion.toString(), 170, 16);
+        doc.setFontSize(9);
+        doc.text("Fecha", 172, 24);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(fecha, 167, 30);
 
+        // Línea separadora
+        doc.setLineWidth(0.3);
+        doc.line(14, 42, 196, 42);
 
-const tipoDoc = (cuenta?.tipo_comprobante === "Factura" ? "FACTURA" : "NOTA");
+        // RECEPTOR | PROMESA (SIN TIPO DE DOCUMENTO)
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("RECEPTOR", 14, 48);
 
-
-
-  // Logo
-  doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
-
-  // Información empresa
-  doc.setFontSize(7);
-  doc.setFont("helvetica", "bold");
-  doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
-  doc.setFont("helvetica", "normal");
-  doc.text("GUGS701012E14", 70, 14);
-  doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
-  doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
-  doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
-
-  // Folio y Fecha
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.text("Pedido", 165, 10);
-  doc.setFontSize(10);
-  doc.text(numeroCotizacion.toString(), 170, 16);
-  doc.setFontSize(9);
-  doc.text("Fecha", 172, 24);
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.text(fecha, 167, 30);
-
-  // Línea separadora
-  doc.setLineWidth(0.3);
-  doc.line(14, 42, 196, 42);
-
-  // RECEPTOR | PROMESA (SIN TIPO DE DOCUMENTO)
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
-  doc.text("RECEPTOR", 14, 48);
-
-  // Resetear colores para datos del cliente
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(7);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
-  doc.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
-  doc.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
-  doc.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
-  doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
-};
+        // Resetear colores para datos del cliente
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
+        doc.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
+        doc.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
+        doc.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
+        doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
+      };
 
       // PDF PARA ENVÍO (docEnvio)
       const docEnvio = new jsPDF();
@@ -6586,55 +6735,62 @@ const tipoDoc = (cuenta?.tipo_comprobante === "Factura" ? "FACTURA" : "NOTA");
 
       const finalYEnvio = (docEnvio as any).lastAutoTable?.finalY || 100;
 
-      // Nota de tipo de entrega (solo en la última página)
-      docEnvio.setFontSize(7);
-      docEnvio.setFont("helvetica", "normal");
-      if (enviarDomicilio) {
-        docEnvio.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYEnvio + 8);
-      } else if (recogerLocal) {
-        docEnvio.text("TIPO DE ENTREGA: RECOGER EN LOCAL", 14, finalYEnvio + 8);
-      }
+// Nota de tipo de entrega (solo en la última página)
+docEnvio.setFontSize(7);
+docEnvio.setFont("helvetica", "normal");
+if (enviarDomicilio) {
+  docEnvio.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYEnvio + 8);
+} else if (recogerLocal) {
+  docEnvio.text("TIPO DE ENTREGA: RECOGER EN LOCAL", 14, finalYEnvio + 8);
+}
 
-      // AGREGAR TOTALES EN LA ÚLTIMA PÁGINA (PDF de Envío)
-      const yTotales = finalYEnvio + 18;
-      docEnvio.setFontSize(8);
-      docEnvio.setFont("helvetica", "bold");
-      {
-        /* 
-    docEnvio.text("Subtotal:", 145, yTotales);
-    docEnvio.text(`$ ${subtotalSinIVA.toFixed(2)}`, 175, yTotales, { align: "right" });
-    docEnvio.text("IVA (8%):", 145, yTotales + 5);
-    docEnvio.text(`$ ${iva.toFixed(2)}`, 175, yTotales + 5, { align: "right" });
-    */
-      }
-      docEnvio.setLineWidth(0.5);
-      docEnvio.line(145, yTotales + 8, 196, yTotales + 8);
-      docEnvio.setFontSize(9);
-      docEnvio.text("TOTAL NETO:", 145, yTotales + 13);
-      docEnvio.text(
-        `$ ${totalConIVA.toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}`,
-        195,
-        yTotales + 13,
-        {
-          align: "right",
-        }
-      );
-
-      // AGREGAR QR AL FINAL DEL PDF DE ENVÍO (solo en última página)
+// Verificar espacio disponible en la página
 const pageHeight = docEnvio.internal.pageSize.height;
-const pageWidth = docEnvio.internal.pageSize.width;
+const espacioNecesario = 60; // QR (40) + texto (8) + margen (12)
+const espacioDisponible = pageHeight - finalYEnvio - 20;
+
+// Si no hay espacio suficiente, agregar nueva página
+let yBase: number;
+if (espacioDisponible < espacioNecesario) {
+  docEnvio.addPage();
+  dibujarEncabezadoEnvio(docEnvio); // Usar la función correcta según tu código
+  yBase = 70; // Empezar después del encabezado
+} else {
+  yBase = finalYEnvio + 18;
+}
+
+// QR DEL LADO IZQUIERDO
 const qrSize = 40;
-const qrX = pageWidth - qrSize - 14; 
-const qrY = pageHeight - qrSize - 20;
+const qrX = 14;
+const qrY = yBase;
 
 docEnvio.addImage(qrBase64, "PNG", qrX, qrY, qrSize, qrSize);
 docEnvio.setFontSize(7);
 docEnvio.setFont("helvetica", "normal");
-docEnvio.text("", qrX + qrSize/2, qrY + qrSize + 4, { align: "center" });// texto debajo del QR
+docEnvio.setTextColor(0, 0, 0);
+docEnvio.text("Escanea para ver pedido", qrX + qrSize/2, qrY + qrSize + 4, { align: "center" });
 
+// TOTALES DEL LADO DERECHO (misma altura que el QR)
+docEnvio.setFontSize(8);
+docEnvio.setFont("helvetica", "bold");
+docEnvio.setTextColor(0, 0, 0);
+
+// Línea separadora
+docEnvio.setLineWidth(0.5);
+docEnvio.line(145, yBase, 196, yBase);
+
+// TOTAL NETO
+docEnvio.setFontSize(9);
+docEnvio.text("TOTAL NETO:", 145, yBase + 8);
+docEnvio.text(
+  `$ ${totalConIVA.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`,
+  195,
+  yBase + 8,
+  { align: "right" }
+);
 
       // Pie de página con fecha/hora y número de página
       const pageCount2 = (docEnvio as any).getNumberOfPages();
@@ -6696,52 +6852,62 @@ docEnvio.text("", qrX + qrSize/2, qrY + qrSize + 4, { align: "center" });// text
 
       const finalYCliente = (docCliente as any).lastAutoTable?.finalY || 100;
 
-      // Tipo de entrega (solo en la última página)
-      docCliente.setFontSize(7);
-      docCliente.setFont("helvetica", "normal");
-      if (enviarDomicilio) {
-        docCliente.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYCliente + 8);
-      } else if (recogerLocal) {
-        docCliente.text("TIPO DE ENTREGA: RECOGER EN LOCAL", 14, finalYCliente + 8);
-      }
+// Tipo de entrega (solo en la última página)
+docCliente.setFontSize(7);
+docCliente.setFont("helvetica", "normal");
+if (enviarDomicilio) {
+  docCliente.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYCliente + 8);
+} else if (recogerLocal) {
+  docCliente.text("TIPO DE ENTREGA: RECOGER EN LOCAL", 14, finalYCliente + 8);
+}
 
-      // AGREGAR TOTALES EN LA ÚLTIMA PÁGINA (PDF de Cliente)
-      const yTotalesCliente = finalYCliente + 18;
-      docCliente.setFontSize(8);
-      docCliente.setFont("helvetica", "bold");
-      {
-        /* 
-    docCliente.text("Subtotal:", 145, yTotales);
-    docCliente.text(`$ ${subtotalSinIVA.toFixed(2)}`, 175, yTotales, { align: "right" });
-    docCliente.text("IVA (8%):", 145, yTotales + 5);
-    docCliente.text(`$ ${iva.toFixed(2)}`, 175, yTotales + 5, { align: "right" });
-    */
-      }
-      docCliente.setLineWidth(0.5);
-      docCliente.line(145, yTotalesCliente + 8, 196, yTotalesCliente + 8);
-      docCliente.setFontSize(9);
-      docCliente.text("TOTAL NETO:", 145, yTotalesCliente + 13);
-      docCliente.text(
-        `$ ${totalConIVA.toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}`,
-        195,
-        yTotalesCliente + 13,
-        { align: "right" }
-      );
-
-     // AGREGAR QR AL FINAL DEL PDF DE CLIENTE (solo en última página)
+// Verificar espacio disponible en la página
 const pageHeightCliente = docCliente.internal.pageSize.height;
-const pageWidthCliente = docCliente.internal.pageSize.width;
+const espacioNecesarioCliente = 60;
+const espacioDisponibleCliente = pageHeightCliente - finalYCliente - 20;
+
+// Si no hay espacio suficiente, agregar nueva página
+let yBaseCliente: number;
+if (espacioDisponibleCliente < espacioNecesarioCliente) {
+  docCliente.addPage();
+  dibujarEncabezadoCliente(docCliente); 
+   yBaseCliente = 70;
+} else {
+   yBaseCliente = finalYCliente + 18;
+}
+
+// QR DEL LADO IZQUIERDO
 const qrSizeCliente = 40;
-const qrXCliente = pageWidthCliente - qrSizeCliente - 14; 
-const qrYCliente = pageHeightCliente - qrSizeCliente - 20;
+const qrXCliente = 14;
+const qrYCliente = yBaseCliente;
 
 docCliente.addImage(qrBase64, "PNG", qrXCliente, qrYCliente, qrSizeCliente, qrSizeCliente);
 docCliente.setFontSize(7);
 docCliente.setFont("helvetica", "normal");
-docCliente.text("", qrXCliente + qrSizeCliente/2, qrYCliente + qrSizeCliente + 4, { align: "center" });// texto debajo del QR
+docCliente.setTextColor(0, 0, 0);
+docCliente.text("", qrXCliente + qrSizeCliente/2, qrYCliente + qrSizeCliente + 4, { align: "center" });
+
+// TOTALES DEL LADO DERECHO (misma altura que el QR)
+docCliente.setFontSize(8);
+docCliente.setFont("helvetica", "bold");
+docCliente.setTextColor(0, 0, 0);
+
+// Línea separadora
+docCliente.setLineWidth(0.5);
+docCliente.line(145, yBaseCliente, 196, yBaseCliente);
+
+// TOTAL NETO
+docCliente.setFontSize(9);
+docCliente.text("TOTAL NETO:", 145, yBaseCliente + 8);
+docCliente.text(
+  `$ ${totalConIVA.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`,
+  195,
+  yBaseCliente + 8,
+  { align: "right" }
+);
 
       // Pie de página
       const pageCount = (docCliente as any).getNumberOfPages();
@@ -6829,104 +6995,103 @@ docCliente.text("", qrXCliente + qrSizeCliente/2, qrYCliente + qrSizeCliente + 4
     },
   ];
 
- const SelectorEstado = ({ estadoActual, pedidoId, onEstadoChange }: any) => {
-  const [estadoLocal, setEstadoLocal] = useState(estadoActual);
-  const [cambiando, setCambiando] = useState(false);
+  const SelectorEstado = ({ estadoActual, pedidoId, onEstadoChange }: any) => {
+    const [estadoLocal, setEstadoLocal] = useState(estadoActual);
+    const [cambiando, setCambiando] = useState(false);
 
-
-  useEffect(() => {
-    setEstadoLocal(estadoActual);
-  }, [estadoActual]);
-
-  const estados = [
-    {
-      valor: "revision",
-      label: "En Revisión",
-      color: "bg-yellow-100 text-yellow-800",
-    },
-    {
-      valor: "recibido",
-      label: "Recibido",
-      color: "bg-blue-100 text-blue-800",
-    },
-    {
-      valor: "surtiendo",
-      label: "Surtiendo",
-      color: "bg-purple-100 text-purple-800",
-    },
-    {
-      valor: "encajado",
-      label: "Encajado",
-      color: "bg-indigo-100 text-indigo-800",
-    },
-    {
-      valor: "en_camino",
-      label: "En Camino",
-      color: "bg-orange-100 text-orange-800",
-    },
-    {
-      valor: "completado",
-      label: "Completado",
-      color: "bg-green-100 text-green-800",
-    },
-    {
-      valor: "listo_para_recoger",
-      label: "Listo para recoger",
-      color: "bg-emerald-100 text-emerald-800",
-    },
-  ];
-
-  const cambiarEstado = async (nuevoEstado: string) => {
-    if (nuevoEstado === estadoLocal) return; 
-    
-    setCambiando(true);
-    try {
-      const { error } = await supabase
-        .from("pedidos")
-        .update({ estado: nuevoEstado })
-        .eq("id", pedidoId);
-
-      if (error) throw error;
-      setEstadoLocal(nuevoEstado);
-      if (onEstadoChange) {
-        onEstadoChange(nuevoEstado);
-      }
-    } catch (error) {
-      console.error("Error actualizando estado:", error);
-      alert("Error al actualizar el estado");
+    useEffect(() => {
       setEstadoLocal(estadoActual);
-    } finally {
-      setCambiando(false);
-    }
-  };
+    }, [estadoActual]);
 
-  return (
-    <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-2">
-      <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-        Estado del Pedido
-      </label>
-      <select
-        value={estadoLocal || "revision"}
-        onChange={(e) => cambiarEstado(e.target.value)}
-        disabled={cambiando}
-        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm font-medium text-black focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-zinc-100 disabled:cursor-not-allowed"
-      >
-        {estados.map((estado) => (
-          <option key={estado.valor} value={estado.valor}>
-            {estado.label}
-          </option>
-        ))}
-      </select>
-      
-      {cambiando && (
-        <div className="flex items-center gap-2 mt-2 text-xs text-zinc-500">
-          <span className="animate-spin h-3 w-3 border-2 border-zinc-400 border-t-transparent rounded-full"></span>
-          Actualizando...
-        </div>
-      )}
-    </div>
-  );
-};
+    const estados = [
+      {
+        valor: "revision",
+        label: "En Revisión",
+        color: "bg-yellow-100 text-yellow-800",
+      },
+      {
+        valor: "recibido",
+        label: "Recibido",
+        color: "bg-blue-100 text-blue-800",
+      },
+      {
+        valor: "surtiendo",
+        label: "Surtiendo",
+        color: "bg-purple-100 text-purple-800",
+      },
+      {
+        valor: "encajado",
+        label: "Encajado",
+        color: "bg-indigo-100 text-indigo-800",
+      },
+      {
+        valor: "en_camino",
+        label: "En Camino",
+        color: "bg-orange-100 text-orange-800",
+      },
+      {
+        valor: "completado",
+        label: "Completado",
+        color: "bg-green-100 text-green-800",
+      },
+      {
+        valor: "listo_para_recoger",
+        label: "Listo para recoger",
+        color: "bg-emerald-100 text-emerald-800",
+      },
+    ];
+
+    const cambiarEstado = async (nuevoEstado: string) => {
+      if (nuevoEstado === estadoLocal) return;
+
+      setCambiando(true);
+      try {
+        const { error } = await supabase
+          .from("pedidos")
+          .update({ estado: nuevoEstado })
+          .eq("id", pedidoId);
+
+        if (error) throw error;
+        setEstadoLocal(nuevoEstado);
+        if (onEstadoChange) {
+          onEstadoChange(nuevoEstado);
+        }
+      } catch (error) {
+        console.error("Error actualizando estado:", error);
+        alert("Error al actualizar el estado");
+        setEstadoLocal(estadoActual);
+      } finally {
+        setCambiando(false);
+      }
+    };
+
+    return (
+      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-2">
+        <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+          Estado del Pedido
+        </label>
+        <select
+          value={estadoLocal || "revision"}
+          onChange={(e) => cambiarEstado(e.target.value)}
+          disabled={cambiando}
+          className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm font-medium text-black focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-zinc-100 disabled:cursor-not-allowed"
+        >
+          {estados.map((estado) => (
+            <option key={estado.valor} value={estado.valor}>
+              {estado.label}
+            </option>
+          ))}
+        </select>
+
+        {cambiando && (
+          <div className="flex items-center gap-2 mt-2 text-xs text-zinc-500">
+            <span className="animate-spin h-3 w-3 border-2 border-zinc-400 border-t-transparent rounded-full"></span>
+            Actualizando...
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const BadgeEstado = ({ estado }: any) => {
     const estados: Record<string, { label: string; color: string }> = {
@@ -6983,57 +7148,61 @@ docCliente.text("", qrXCliente + qrSizeCliente/2, qrYCliente + qrSizeCliente + 4
     const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
     const [errorEliminar, setErrorEliminar] = useState("");
     const [eliminando, setEliminando] = useState(false);
-const pedidoSeleccionadoRef = useRef<any>(null);
-const [detallesEmpaque, setDetallesEmpaque] = useState<any>(null);
+    const pedidoSeleccionadoRef = useRef<any>(null);
+    const [detallesEmpaque, setDetallesEmpaque] = useState<any>(null);
 
-const cargarDetallesEmpaque = async (pedidoId: number) => {
-  const { data } = await supabase
-    .from('detalles_empaque')
-    .select('*')
-    .eq('pedido_id', pedidoId)
-    .single();
+    const cargarDetallesEmpaque = async (pedidoId: number) => {
+      const { data } = await supabase
+        .from("detalles_empaque")
+        .select("*")
+        .eq("pedido_id", pedidoId)
+        .single();
 
-  setDetallesEmpaque(data || { 
-    pedido_id: pedidoId,
-    detalles_empacado: '', 
-    observaciones: '' 
-  });
-};
+      setDetallesEmpaque(
+        data || {
+          pedido_id: pedidoId,
+          detalles_empacado: "",
+          observaciones: "",
+        }
+      );
+    };
 
-const guardarDetallesEmpaque = async () => {
-  if (!pedidoSeleccionado || !detallesEmpaque) return;
+    const guardarDetallesEmpaque = async () => {
+      if (!pedidoSeleccionado || !detallesEmpaque) return;
 
-  const { data: existe } = await supabase
-    .from('detalles_empaque')
-    .select('id')
-    .eq('pedido_id', pedidoSeleccionado.id)
-    .single();
+      const { data: existe } = await supabase
+        .from("detalles_empaque")
+        .select("id")
+        .eq("pedido_id", pedidoSeleccionado.id)
+        .single();
 
-  if (existe) {
-    await supabase
-      .from('detalles_empaque')
-      .update({
-        detalles_empacado: detallesEmpaque.detalles_empacado,
-        observaciones: detallesEmpaque.observaciones,
-        updated_at: new Date().toISOString()
-      })
-      .eq('pedido_id', pedidoSeleccionado.id);
-  } else {
-    await supabase
-      .from('detalles_empaque')
-      .insert({
-        pedido_id: pedidoSeleccionado.id,
-        detalles_empacado: detallesEmpaque.detalles_empacado,
-        observaciones: detallesEmpaque.observaciones
-      });
-  }
-};
+      if (existe) {
+        await supabase
+          .from("detalles_empaque")
+          .update({
+            detalles_empacado: detallesEmpaque.detalles_empacado,
+            observaciones: detallesEmpaque.observaciones,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("pedido_id", pedidoSeleccionado.id);
+      } else {
+        await supabase.from("detalles_empaque").insert({
+          pedido_id: pedidoSeleccionado.id,
+          detalles_empacado: detallesEmpaque.detalles_empacado,
+          observaciones: detallesEmpaque.observaciones,
+        });
+      }
+    };
 
-useEffect(() => {
-  if (pedidoSeleccionado && esAdmin && pedidoSeleccionado.estado === 'encajado') {
-    cargarDetallesEmpaque(pedidoSeleccionado.id);
-  }
-}, [pedidoSeleccionado]);
+    useEffect(() => {
+      if (
+        pedidoSeleccionado &&
+        esAdmin &&
+        pedidoSeleccionado.estado === "encajado"
+      ) {
+        cargarDetallesEmpaque(pedidoSeleccionado.id);
+      }
+    }, [pedidoSeleccionado]);
 
     const eliminarPedido = async () => {
       if (!pedidoAEliminar) return;
@@ -7094,14 +7263,14 @@ useEffect(() => {
       }
     };
 
-useEffect(() => {
-  const fetchPedidos = async () => {
-    if (!cuenta?.id && !esAdmin) return;
+    useEffect(() => {
+      const fetchPedidos = async () => {
+        if (!cuenta?.id && !esAdmin) return;
 
-    let query = supabase
-      .from("pedidos")
-      .select(
-        `
+        let query = supabase
+          .from("pedidos")
+          .select(
+            `
         id, 
         total, 
         created_at,
@@ -7117,120 +7286,122 @@ useEffect(() => {
           entrega_mismo_dia
         )
       `
-      )
-      .order("created_at", { ascending: false });
+          )
+          .order("created_at", { ascending: false });
 
-    if (!esAdmin) {
-      query = query.eq("cuenta_id", cuenta.id);
-    }
-
-    const { data, error } = await query;
-
-    if (!error && data) {
-      setPedidos(data);
-    }
-    setCargando(false);
-  };
-
-  fetchPedidos();
-
-  const channel = supabase
-    .channel("pedidos-changes")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "pedidos",
-        ...(esAdmin ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` }),
-      },
-      async (payload) => {
-        console.log("Cambio detectado en pedidos:", payload);
-
-        if (payload.eventType === "UPDATE") {
-          const { data: pedidoActualizado } = await supabase
-            .from("pedidos")
-            .select(
-              `
-                id, 
-                total, 
-                created_at,
-                cuenta_id,
-                pdf_url,
-                estado,
-                es_domicilio,
-                cuentas (
-                  numero_cuenta,
-                  cliente,
-                  ferreteria,
-                  numero_tel,
-                  entrega_mismo_dia
-                )
-              `
-            )
-            .eq("id", payload.new.id)
-            .single();
-
-          if (pedidoActualizado) {
-            setPedidos((prev) =>
-              prev.map((p) =>
-                p.id === pedidoActualizado.id ? pedidoActualizado : p
-              )
-            );
-
-            // Actualizar pedido seleccionado si es el mismo
-            if (pedidoSeleccionadoRef.current?.id === pedidoActualizado.id) {
-              setPedidoSeleccionado(pedidoActualizado);
-              setCuentaPedido(pedidoActualizado.cuentas || cuenta);
-            }
-
-            setActualizacionReciente(true);
-            setTimeout(() => setActualizacionReciente(false), 2000);
-          }
-        } else if (payload.eventType === "INSERT") {
-          const { data: nuevoPedido } = await supabase
-            .from("pedidos")
-            .select(
-              `
-                id, 
-                total, 
-                created_at,
-                cuenta_id,
-                pdf_url,
-                estado,
-                es_domicilio,
-                cuentas (
-                  numero_cuenta,
-                  cliente,
-                  ferreteria,
-                  numero_tel,
-                  entrega_mismo_dia
-                )
-              `
-            )
-            .eq("id", payload.new.id)
-            .single();
-
-          if (nuevoPedido) {
-            setPedidos((prev) => [nuevoPedido, ...prev]);
-            setActualizacionReciente(true);
-            setTimeout(() => setActualizacionReciente(false), 2000);
-          }
-        } else if (payload.eventType === "DELETE") {
-          setPedidos((prev) => prev.filter((p) => p.id !== payload.old.id));
-
-          if (pedidoSeleccionadoRef.current?.id === payload.old.id) {
-            setPedidoSeleccionado(null);
-          }
+        if (!esAdmin) {
+          query = query.eq("cuenta_id", cuenta.id);
         }
-      }
-    )
-    .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [cuenta, esAdmin]);
+        const { data, error } = await query;
+
+        if (!error && data) {
+          setPedidos(data);
+        }
+        setCargando(false);
+      };
+
+      fetchPedidos();
+
+      const channel = supabase
+        .channel("pedidos-changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "pedidos",
+            ...(esAdmin ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` }),
+          },
+          async (payload) => {
+            console.log("Cambio detectado en pedidos:", payload);
+
+            if (payload.eventType === "UPDATE") {
+              const { data: pedidoActualizado } = await supabase
+                .from("pedidos")
+                .select(
+                  `
+                id, 
+                total, 
+                created_at,
+                cuenta_id,
+                pdf_url,
+                estado,
+                es_domicilio,
+                cuentas (
+                  numero_cuenta,
+                  cliente,
+                  ferreteria,
+                  numero_tel,
+                  entrega_mismo_dia
+                )
+              `
+                )
+                .eq("id", payload.new.id)
+                .single();
+
+              if (pedidoActualizado) {
+                setPedidos((prev) =>
+                  prev.map((p) =>
+                    p.id === pedidoActualizado.id ? pedidoActualizado : p
+                  )
+                );
+
+                // Actualizar pedido seleccionado si es el mismo
+                if (
+                  pedidoSeleccionadoRef.current?.id === pedidoActualizado.id
+                ) {
+                  setPedidoSeleccionado(pedidoActualizado);
+                  setCuentaPedido(pedidoActualizado.cuentas || cuenta);
+                }
+
+                setActualizacionReciente(true);
+                setTimeout(() => setActualizacionReciente(false), 2000);
+              }
+            } else if (payload.eventType === "INSERT") {
+              const { data: nuevoPedido } = await supabase
+                .from("pedidos")
+                .select(
+                  `
+                id, 
+                total, 
+                created_at,
+                cuenta_id,
+                pdf_url,
+                estado,
+                es_domicilio,
+                cuentas (
+                  numero_cuenta,
+                  cliente,
+                  ferreteria,
+                  numero_tel,
+                  entrega_mismo_dia
+                )
+              `
+                )
+                .eq("id", payload.new.id)
+                .single();
+
+              if (nuevoPedido) {
+                setPedidos((prev) => [nuevoPedido, ...prev]);
+                setActualizacionReciente(true);
+                setTimeout(() => setActualizacionReciente(false), 2000);
+              }
+            } else if (payload.eventType === "DELETE") {
+              setPedidos((prev) => prev.filter((p) => p.id !== payload.old.id));
+
+              if (pedidoSeleccionadoRef.current?.id === payload.old.id) {
+                setPedidoSeleccionado(null);
+              }
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }, [cuenta, esAdmin]);
     const verDetallePedido = (pedido: any) => {
       setPedidoSeleccionado(pedido);
       setCuentaPedido(pedido.cuentas || cuenta);
@@ -7242,7 +7413,7 @@ useEffect(() => {
         return { ...prev, estado: nuevoEstado };
       });
 
-      if (nuevoEstado === 'encajado' && pedidoSeleccionado) {
+      if (nuevoEstado === "encajado" && pedidoSeleccionado) {
         cargarDetallesEmpaque(pedidoSeleccionado.id);
       }
     };
@@ -7310,7 +7481,7 @@ useEffect(() => {
             </div>
           )}
 
-{/* Detalles de empaque */}
+          {/* Detalles de empaque */}
           <AnimatePresence>
             {esAdmin && pedidoSeleccionado.estado === "encajado" && (
               <motion.div
@@ -7329,7 +7500,7 @@ useEffect(() => {
                       Detalles de Empacado
                     </h3>
                   </div>
-                  
+
                   <textarea
                     value={detallesEmpaque?.detalles_empacado || ""}
                     onChange={(e) => {
@@ -7352,40 +7523,40 @@ useEffect(() => {
           </AnimatePresence>
 
           {/* informacion de entrega */}
-{pedidoSeleccionado && (
-  <div className="mt-2 mb-2">
-    {(() => {
-      const fechaPedido = new Date(pedidoSeleccionado.created_at);
-      const horaPedido = fechaPedido.getHours();
-      const esDomicilio = pedidoSeleccionado.es_domicilio;
-      const entregaMismoDia = cuentaPedido?.entrega_mismo_dia;
+          {pedidoSeleccionado && (
+            <div className="mt-2 mb-2">
+              {(() => {
+                const fechaPedido = new Date(pedidoSeleccionado.created_at);
+                const horaPedido = fechaPedido.getHours();
+                const esDomicilio = pedidoSeleccionado.es_domicilio;
+                const entregaMismoDia = cuentaPedido?.entrega_mismo_dia;
 
-      if (esDomicilio) {
-        return (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-sm text-blue-800 font-semibold">
-              {entregaMismoDia
-                ? (horaPedido < 10 
-                    ? "Tu pedido será entregado el día de hoy" 
-                    : "Tu pedido quedará programado para entregar el siguiente día hábil")
-                : "Recibirás tu pedido en un plazo de 1 a 3 días hábiles (puedes recibirlo el mismo día)"}
-            </p>
-          </div>
-        );
-      } else {
-        return (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-            <p className="text-sm text-green-800 font-semibold">
-              {horaPedido < 15
-                ? "Tu pedido estará listo para recoger en aproximadamente 3 horas. Mantente atento al estado de tu pedido."
-                : "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"}
-            </p>
-          </div>
-        );
-      }
-    })()}
-  </div>
-)}
+                if (esDomicilio) {
+                  return (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm text-blue-800 font-semibold">
+                        {entregaMismoDia
+                          ? horaPedido < 10
+                            ? "Tu pedido será entregado el día de hoy"
+                            : "Tu pedido quedará programado para entregar el siguiente día hábil"
+                          : "Recibirás tu pedido en un plazo de 1 a 3 días hábiles (puedes recibirlo el mismo día)"}
+                      </p>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <p className="text-sm text-green-800 font-semibold">
+                        {horaPedido < 15
+                          ? "Tu pedido estará listo para recoger en aproximadamente 3 horas. Mantente atento al estado de tu pedido."
+                          : "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"}
+                      </p>
+                    </div>
+                  );
+                }
+              })()}
+            </div>
+          )}
 
           <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
             <div className="flex justify-between mb-2">
@@ -7436,10 +7607,11 @@ useEffect(() => {
             <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
               <span className="font-bold text-zinc-900">Total</span>
               <span className="font-bold text-orange-500 text-lg">
-                ${pedidoSeleccionado.total.toLocaleString("en-US", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
+                $
+                {pedidoSeleccionado.total.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </span>
             </div>
           </div>
@@ -7577,10 +7749,11 @@ useEffect(() => {
                     Pedido #{pedidoAEliminar?.id}
                   </p>
                   <p className="text-xs text-zinc-500 mt-1">
-                    Total: ${pedidoAEliminar?.total?.toLocaleString("en-US", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
+                    Total: $
+                    {pedidoAEliminar?.total?.toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </p>
                 </div>
 
@@ -7705,7 +7878,7 @@ useEffect(() => {
     );
   };
 
-const VistaRutas = ({ setVistaPerfil }: any) => {
+  const VistaRutas = ({ setVistaPerfil }: any) => {
     const [pedidosPorRuta, setPedidosPorRuta] = useState<{
       [key: string]: any[];
     }>({});
@@ -7739,7 +7912,7 @@ const VistaRutas = ({ setVistaPerfil }: any) => {
       `
         )
 
-        .in("estado", ["encajado", "en_camino"]) 
+        .in("estado", ["encajado", "en_camino"])
         .order("created_at", { ascending: false });
 
       if (!error && data) {
@@ -7757,9 +7930,8 @@ const VistaRutas = ({ setVistaPerfil }: any) => {
       setCargando(false);
     };
 
-    
     const actualizarEstadoLocal = (nuevoEstado: string) => {
-      setPedidoSeleccionado((prev: any) => 
+      setPedidoSeleccionado((prev: any) =>
         prev ? { ...prev, estado: nuevoEstado } : null
       );
 
@@ -7857,7 +8029,10 @@ const VistaRutas = ({ setVistaPerfil }: any) => {
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-zinc-600">Teléfono</span>
-                <a href={`tel:${pedidoSeleccionado.cuentas?.numero_tel}`} className="font-semibold text-blue-600 underline">
+                <a
+                  href={`tel:${pedidoSeleccionado.cuentas?.numero_tel}`}
+                  className="font-semibold text-blue-600 underline"
+                >
                   {pedidoSeleccionado.cuentas?.numero_tel || "N/A"}
                 </a>
               </div>
@@ -7882,19 +8057,19 @@ const VistaRutas = ({ setVistaPerfil }: any) => {
               <Box size={16} /> Detalles de Empaque
             </h3>
             {detallesEmpaque?.detalles_empacado ? (
-               <p className="text-sm text-zinc-700 whitespace-pre-wrap bg-white p-3 rounded border border-zinc-300">
-                 {detallesEmpaque.detalles_empacado}
-               </p>
+              <p className="text-sm text-zinc-700 whitespace-pre-wrap bg-white p-3 rounded border border-zinc-300">
+                {detallesEmpaque.detalles_empacado}
+              </p>
             ) : (
-               <p className="text-xs text-zinc-400 italic">Sin detalles registrados</p>
+              <p className="text-xs text-zinc-400 italic">
+                Sin detalles registrados
+              </p>
             )}
           </div>
 
           {pedidoSeleccionado.pdf_url && (
             <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-zinc-900">
-                Documento
-              </h3>
+              <h3 className="text-lg font-semibold text-zinc-900">Documento</h3>
               <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm h-[400px]">
                 <iframe
                   src={pedidoSeleccionado.pdf_url}
@@ -7930,90 +8105,528 @@ const VistaRutas = ({ setVistaPerfil }: any) => {
           </div>
         ) : Object.keys(pedidosPorRuta).length === 0 ? (
           <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
-             <MapPin size={40} className="mx-auto text-zinc-300 mb-2" />
-             <p className="text-zinc-500">No hay pedidos pendientes de ruta</p>
+            <MapPin size={40} className="mx-auto text-zinc-300 mb-2" />
+            <p className="text-zinc-500">No hay pedidos pendientes de ruta</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {Object.entries(pedidosPorRuta).map(([ruta, pedidos]: [string, any[]]) => (
-              <div
-                key={ruta}
-                className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden"
-              >
-                <button
-                  onClick={() =>
-                    setRutaExpandida(rutaExpandida === ruta ? null : ruta)
-                  }
-                  className="w-full p-4 flex items-center justify-between hover:bg-zinc-50 transition"
+            {Object.entries(pedidosPorRuta).map(
+              ([ruta, pedidos]: [string, any[]]) => (
+                <div
+                  key={ruta}
+                  className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                      <MapPin size={20} className="text-orange-600" />
+                  <button
+                    onClick={() =>
+                      setRutaExpandida(rutaExpandida === ruta ? null : ruta)
+                    }
+                    className="w-full p-4 flex items-center justify-between hover:bg-zinc-50 transition"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                        <MapPin size={20} className="text-orange-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-zinc-900">{ruta}</p>
+                        <p className="text-xs text-zinc-500">
+                          {pedidos.length} pedido
+                          {pedidos.length !== 1 ? "s" : ""}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-left">
-                      <p className="font-bold text-zinc-900">{ruta}</p>
-                      <p className="text-xs text-zinc-500">
-                        {pedidos.length} pedido{pedidos.length !== 1 ? "s" : ""}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronLeft
-                    size={20}
-                    className={`text-zinc-400 transition-transform ${
-                      rutaExpandida === ruta ? "rotate-90" : "-rotate-90"
-                    }`}
-                  />
-                </button>
+                    <ChevronLeft
+                      size={20}
+                      className={`text-zinc-400 transition-transform ${
+                        rutaExpandida === ruta ? "rotate-90" : "-rotate-90"
+                      }`}
+                    />
+                  </button>
 
-                <AnimatePresence>
-                  {rutaExpandida === ruta && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="border-t border-zinc-200"
-                    >
-                      <div className="p-2 space-y-2 bg-zinc-50">
-                        {pedidos.map((pedido) => (
-                          <div
-                            key={pedido.id}
-                            onClick={() => verDetallePedido(pedido)}
-                            className="border border-zinc-200 rounded-lg p-3 bg-white cursor-pointer hover:border-orange-300 transition shadow-sm"
-                          >
-                            <div className="flex justify-between items-start mb-2">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                   <span className="font-bold text-zinc-900 text-sm">#{pedido.id}</span>
-                                   {/* AQUÍ SE MUESTRA EL ESTADO EN LA LISTA */}
-                                   <BadgeEstado estado={pedido.estado} />
+                  <AnimatePresence>
+                    {rutaExpandida === ruta && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="border-t border-zinc-200"
+                      >
+                        <div className="p-2 space-y-2 bg-zinc-50">
+                          {pedidos.map((pedido) => (
+                            <div
+                              key={pedido.id}
+                              onClick={() => verDetallePedido(pedido)}
+                              className="border border-zinc-200 rounded-lg p-3 bg-white cursor-pointer hover:border-orange-300 transition shadow-sm"
+                            >
+                              <div className="flex justify-between items-start mb-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-bold text-zinc-900 text-sm">
+                                      #{pedido.id}
+                                    </span>
+                                    {/* AQUÍ SE MUESTRA EL ESTADO EN LA LISTA */}
+                                    <BadgeEstado estado={pedido.estado} />
+                                  </div>
+                                  <p className="text-xs font-semibold text-zinc-700">
+                                    {pedido.cuentas?.cliente || "Sin cliente"}
+                                  </p>
+                                  <p className="text-[10px] text-zinc-500 truncate max-w-[200px]">
+                                    {pedido.cuentas?.direccion}
+                                  </p>
                                 </div>
-                                <p className="text-xs font-semibold text-zinc-700">
-                                  {pedido.cuentas?.cliente || "Sin cliente"}
-                                </p>
-                                <p className="text-[10px] text-zinc-500 truncate max-w-[200px]">
-                                  {pedido.cuentas?.direccion}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-sm font-bold text-orange-500">
-                                  ${pedido.total.toFixed(2)}
-                                </p>
+                                <div className="text-right">
+                                  <p className="text-sm font-bold text-orange-500">
+                                    ${pedido.total.toFixed(2)}
+                                  </p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            ))}
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )
+            )}
           </div>
         )}
       </motion.div>
     );
   };
+
+  const VistaSurtir = ({ setVistaPerfil }: any) => {
+  const [pedidosPendientes, setPedidosPendientes] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    cargarPedidosPendientes();
+
+    const channel = supabase
+      .channel("pedidos-surtir-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "pedidos" },
+        () => cargarPedidosPendientes()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const cargarPedidosPendientes = async () => {
+    const { data } = await supabase
+      .from("pedidos")
+      .select(`
+        id, created_at, total, estado,
+        cuentas (cliente, ferreteria, numero_cuenta)
+      `)
+      .in("estado", ["recibido", "surtiendo"])
+      .order("created_at", { ascending: true });
+
+    setPedidosPendientes(data || []);
+    setCargando(false);
+  };
+
+const iniciarSurtido = async (pedido: any) => {
+    const { data: pedidoData } = await supabase
+      .from("pedidos")
+      .select("lista_productos") 
+      .eq("id", pedido.id)
+      .single();
+
+    if (pedidoData?.lista_productos) {
+      try {
+
+        const items = pedidoData.lista_productos.split("-").map((item: string) => {
+          const [codigo, cantidad] = item.split("*");
+          return { codigo, cantidad: parseInt(cantidad) };
+        });
+
+        const codigos = items.map((i: any) => i.codigo);
+
+        const { data: productos } = await supabase
+          .from("productos")
+          .select("*")
+          .in("CODIGO", codigos);
+
+        if (!productos) {
+           console.error("No se encontraron productos");
+           return;
+        }
+
+        const productosSurtir = items.map((item: any) => {
+          const prod = productos.find((p) => p.CODIGO === item.codigo);
+          
+          if (!prod) return null; 
+
+          return {
+            ...prod,
+            cantidad: item.cantidad,
+            producto_id: prod.id,
+          };
+        }).filter(Boolean); 
+
+        // Actualizar estados para cambiar de vista
+        setPedidoSurtir(pedido);
+        setProductosSurtir(productosSurtir);
+        setProductosSurtidos(new Map());
+        setVistaSurtir("surtiendo");
+
+        // Actualizar estado del pedido a "surtiendo" en BD
+        await supabase
+          .from("pedidos")
+          .update({ estado: "surtiendo" })
+          .eq("id", pedido.id);
+
+      } catch (error) {
+        console.error("Error procesando surtido:", error);
+        alert("Error al procesar los productos del pedido");
+      }
+    } else {
+      alert("Este pedido es antiguo o no contiene la lista de productos guardada.");
+    }
+  };
+
+  if (vistaSurtir === "surtiendo" && pedidoSurtir) {
+    return <VistaSurtiendoPedido />;
+  }
+
+  return (
+    <motion.div
+      key="vista-surtir"
+      className="min-h-screen pb-10"
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -40 }}
+    >
+      <BackBtn onBack={() => setVistaPerfil("menu")} />
+      
+      <h2 className="text-xl font-bold text-zinc-900 mb-4">
+        Surtir Pedidos
+      </h2>
+
+      {cargando ? (
+        <div className="flex justify-center py-10">
+          <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+        </div>
+      ) : pedidosPendientes.length === 0 ? (
+        <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
+          <Box size={40} className="mx-auto text-zinc-300 mb-2" />
+          <p className="text-zinc-500">No hay pedidos pendientes de surtir</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {pedidosPendientes.map((pedido) => (
+            <div
+              key={pedido.id}
+              className="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"
+            >
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <p className="font-bold text-zinc-900">Pedido #{pedido.id}</p>
+                  <p className="text-sm text-zinc-600">{pedido.cuentas?.cliente}</p>
+                  <p className="text-xs text-zinc-500">{pedido.cuentas?.ferreteria}</p>
+                </div>
+                <BadgeEstado estado={pedido.estado} />
+              </div>
+
+              <button
+                onClick={() => iniciarSurtido(pedido)}
+                className="w-full mt-3 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-semibold transition"
+              >
+                {pedido.estado === "surtiendo" ? "Continuar Surtido" : "Iniciar Surtido"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
+const VistaSurtiendoPedido = () => {
+  const totalProductos = productosSurtir.reduce((sum, item) => sum + item.cantidad, 0);
+  const productosSurtidosTotal = Array.from(productosSurtidos.values()).reduce((sum, val) => sum + val, 0);
+  const progreso = (productosSurtidosTotal / totalProductos) * 100;
+  const [mensajeError, setMensajeError] = useState("");
+  const [ultimoEscaneo, setUltimoEscaneo] = useState("");
+  const [bufferEscaneo, setBufferEscaneo] = useState("");
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+const [modalAlerta, setModalAlerta] = useState<{
+  visible: boolean;
+  titulo: string;
+  mensaje: string;
+  tipo: "error" | "warning"; 
+} | null>(null);
+
+
+  // Detectar escaneo del Bluetooth 
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        if (bufferEscaneo.trim()) {
+          procesarEscaneo(bufferEscaneo.trim());
+          setBufferEscaneo("");
+        }
+        return;
+      }
+
+
+      setBufferEscaneo((prev) => prev + e.key);
+
+      // Limpiar buffer después de 100ms de inactividad 
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        if (bufferEscaneo.trim()) {
+          procesarEscaneo(bufferEscaneo.trim());
+          setBufferEscaneo("");
+        }
+      }, 100);
+    };
+
+    window.addEventListener("keypress", handleKeyPress);
+
+    return () => {
+      window.removeEventListener("keypress", handleKeyPress);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [bufferEscaneo, productosSurtir, productosSurtidos]);
+
+  const procesarEscaneo = (codigoEscaneado: string) => {
+    setUltimoEscaneo(codigoEscaneado);
+    
+    const itemEncontrado = productosSurtir.find(
+      item => item.CODIGO === codigoEscaneado
+    );
+
+    if (!itemEncontrado) {
+      if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+      
+      setModalAlerta({
+        visible: true,
+        titulo: "Producto Incorrecto",
+        mensaje: `El código "${codigoEscaneado}" no pertenece a este pedido.`,
+        tipo: "error"
+      });
+      return;
+    }
+
+    const cantidadSurtida = productosSurtidos.get(itemEncontrado.producto_id) || 0;
+
+
+    if (cantidadSurtida >= itemEncontrado.cantidad) {
+      if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+
+      setModalAlerta({
+        visible: true,
+        titulo: "Producto Completo",
+        mensaje: `El producto "${itemEncontrado.TITULO}" ya tiene la cantidad requerida completa.`,
+        tipo: "warning"
+      });
+      return;
+    }
+
+    const nuevaCantidad = cantidadSurtida + 1;
+    const nuevoMapa = new Map(productosSurtidos);
+    nuevoMapa.set(itemEncontrado.producto_id, nuevaCantidad);
+    setProductosSurtidos(nuevoMapa);
+
+    if ("vibrate" in navigator) navigator.vibrate(50); 
+ 
+    setMensajeError(`✓ Agregado: ${itemEncontrado.TITULO}`);
+    setTimeout(() => setMensajeError(""), 1500);
+
+  
+    const nuevoTotal = Array.from(nuevoMapa.values()).reduce((sum, val) => sum + val, 0);
+    const totalProductos = productosSurtir.reduce((sum, item) => sum + item.cantidad, 0);
+    
+    if (nuevoTotal >= totalProductos) {
+      completarSurtido();
+    }
+  };
+
+  const completarSurtido = async () => {
+    await supabase
+      .from("pedidos")
+      .update({ estado: "encajado" })
+      .eq("id", pedidoSurtir.id);
+
+    setMensajeError("✓ ¡Pedido surtido completamente!");
+    setTimeout(() => {
+      setVistaSurtir(null);
+      setPedidoSurtir(null);
+    }, 2000);
+  };
+
+  return (
+    <motion.div className="min-h-screen pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <BackBtn onBack={() => {
+        setVistaSurtir("seleccionar");
+        setPedidoSurtir(null);
+      }} />
+
+      <h2 className="text-xl font-bold text-zinc-900 mb-2">
+        Surtiendo Pedido #{pedidoSurtir.id}
+      </h2>
+
+      {/* Barra de progreso */}
+      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4">
+        <div className="flex justify-between mb-2">
+          <span className="text-sm font-semibold text-zinc-700">Progreso</span>
+          <span className="text-sm font-bold text-orange-600">
+            {productosSurtidosTotal} / {totalProductos}
+          </span>
+        </div>
+        <div className="w-full bg-zinc-200 rounded-full h-3">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${progreso}%` }}
+            className="h-full rounded-full bg-gradient-to-r from-orange-500 to-orange-600"
+          />
+        </div>
+      </div>
+
+      {/* Indicador de escaneo activo */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center gap-3">
+        <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+        <span className="text-sm text-blue-800 font-medium">
+          Esperando escaneo del código de barras...
+        </span>
+      </div>
+
+      {/* Mensaje de error/éxito */}
+      <AnimatePresence>
+        {mensajeError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className={`mb-4 p-3 rounded-lg text-sm font-semibold ${
+              mensajeError.includes("⚠️")
+                ? "bg-red-50 text-red-700 border border-red-200"
+                : "bg-green-50 text-green-700 border border-green-200"
+            }`}
+          >
+            {mensajeError}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Lista de productos */}
+      <div className="space-y-2">
+        {productosSurtir.map((item) => {
+          const cantidadSurtida = productosSurtidos.get(item.producto_id) || 0;
+          const completado = cantidadSurtida >= item.cantidad;
+          const ultimoEscaneado = ultimoEscaneo === item.CODIGO;
+
+          return (
+            <motion.div
+              key={item.producto_id}
+              animate={{
+                scale: ultimoEscaneado ? [1, 1.02, 1] : 1,
+                backgroundColor: completado ? "#dcfce7" : "#ffffff"
+              }}
+              className={`border-2 rounded-xl p-3 ${
+                completado ? "border-green-500" : "border-zinc-200"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden">
+                  <Image
+                    src={item.IMAGEN || "/placeholder.jpg"}
+                    alt={item.TITULO}
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-zinc-800 line-clamp-2">
+                    {item.TITULO}
+                  </p>
+                  <p className="text-xs text-zinc-500">{item.CODIGO}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`text-lg font-bold ${
+                      completado ? "text-green-600" : "text-orange-600"
+                    }`}>
+                      {cantidadSurtida} / {item.cantidad}
+                    </span>
+                    {completado && <span className="text-green-600">✓</span>}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+      
+      {/* MODAL DE ALERTA DE ESCANEO */}
+      <AnimatePresence>
+        {modalAlerta && modalAlerta.visible && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
+            onClick={() => {
+               // Opcional: Si quieres obligar al clic en el botón, borra este onClick
+               // setModalAlerta(null) 
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Icono animado dependiendo del tipo */}
+              <div className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${
+                modalAlerta.tipo === "error" ? "bg-red-100" : "bg-yellow-100"
+              }`}>
+                {modalAlerta.tipo === "error" ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-10 h-10 text-red-600">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-10 h-10 text-yellow-600">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                )}
+              </div>
+
+              <h3 className={`text-2xl font-bold mb-2 ${
+                modalAlerta.tipo === "error" ? "text-red-600" : "text-zinc-800"
+              }`}>
+                {modalAlerta.titulo}
+              </h3>
+              
+              <p className="text-zinc-600 text-lg mb-8 leading-relaxed">
+                {modalAlerta.mensaje}
+              </p>
+
+              <button
+                ref={(btn) => btn?.focus()} // Enfocar automáticamente el botón
+                onClick={() => setModalAlerta(null)}
+                className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg active:scale-95 transition-transform ${
+                   modalAlerta.tipo === "error" 
+                   ? "bg-red-500 hover:bg-red-600 shadow-red-200" 
+                   : "bg-zinc-800 hover:bg-zinc-900 shadow-zinc-200"
+                }`}
+              >
+                ENTENDIDO
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
 
   interface ToggleVisibilidadParams {
     productoId: number;
@@ -8103,99 +8716,99 @@ const VistaRutas = ({ setVistaPerfil }: any) => {
     }
   };
 
-  
-// visibilidad personal de la cuenta
+  // visibilidad personal de la cuenta
   const toggleVisibilidadMostrador = async (
-  productoId: number,
-  visibleActual: boolean,
-  cuentaId: number
-): Promise<void> => {
-  try {
-    const { data: existe } = await supabase
-      .from("productos_visibilidad_cuenta")
-      .select("*")
-      .eq("producto_id", productoId)
-      .eq("cuenta_id", cuentaId)
-      .single();
-
-    if (existe) {
-      // Actualizar
-      const { error } = await supabase
+    productoId: number,
+    visibleActual: boolean,
+    cuentaId: number
+  ): Promise<void> => {
+    try {
+      const { data: existe } = await supabase
         .from("productos_visibilidad_cuenta")
-        .update({ visible: !visibleActual })
+        .select("*")
         .eq("producto_id", productoId)
-        .eq("cuenta_id", cuentaId);
+        .eq("cuenta_id", cuentaId)
+        .single();
 
-      if (error) throw error;
-    } else {
-      // Crear nuevo registro (por defecto todos son visibles, así que si no existe, crearlo como no visible)
-      const { error } = await supabase
-        .from("productos_visibilidad_cuenta")
-        .insert({
-          producto_id: productoId,
-          cuenta_id: cuentaId,
-          visible: !visibleActual,
-        });
+      if (existe) {
+        // Actualizar
+        const { error } = await supabase
+          .from("productos_visibilidad_cuenta")
+          .update({ visible: !visibleActual })
+          .eq("producto_id", productoId)
+          .eq("cuenta_id", cuentaId);
 
-      if (error) throw error;
-    }
+        if (error) throw error;
+      } else {
+        // Crear nuevo registro (por defecto todos son visibles, así que si no existe, crearlo como no visible)
+        const { error } = await supabase
+          .from("productos_visibilidad_cuenta")
+          .insert({
+            producto_id: productoId,
+            cuenta_id: cuentaId,
+            visible: !visibleActual,
+          });
 
-    // Actualizar estado local según el mostrador
-    if (cuentaId === ID_CUENTA_MOSTRADOR) {
-      setArticulos((prevArticulos: ProductoConVisibilidad[]) =>
-        prevArticulos.map((art: ProductoConVisibilidad) =>
-          art.id === productoId
-            ? { ...art, visibleMostrador: !visibleActual }
-            : art
-        )
-      );
-    } else if (cuentaId === ID_CUENTA_MOSTRADOR2) {
-      setArticulos((prevArticulos: ProductoConVisibilidad[]) =>
-        prevArticulos.map((art: ProductoConVisibilidad) =>
-          art.id === productoId
-            ? { ...art, visibleMostrador2: !visibleActual }
-            : art
-        )
-      );
-    }
+        if (error) throw error;
+      }
 
-    console.log("Visibilidad actualizada correctamente");
-  } catch (error) {
-    console.error("Error al actualizar visibilidad mostrador:", error);
-  }
-};
+      // Actualizar estado local según el mostrador
+      if (cuentaId === ID_CUENTA_MOSTRADOR) {
+        setArticulos((prevArticulos: ProductoConVisibilidad[]) =>
+          prevArticulos.map((art: ProductoConVisibilidad) =>
+            art.id === productoId
+              ? { ...art, visibleMostrador: !visibleActual }
+              : art
+          )
+        );
+      } else if (cuentaId === ID_CUENTA_MOSTRADOR2) {
+        setArticulos((prevArticulos: ProductoConVisibilidad[]) =>
+          prevArticulos.map((art: ProductoConVisibilidad) =>
+            art.id === productoId
+              ? { ...art, visibleMostrador2: !visibleActual }
+              : art
+          )
+        );
+      }
 
-// Cargar visibilidad específica para mostradores
-useEffect(() => {
-  const cargarVisibilidadMostrador = async () => {
-    if (esAdminMostrador || esAdminMostrador2) {
-      const cuentaId = esAdminMostrador ? ID_CUENTA_MOSTRADOR : ID_CUENTA_MOSTRADOR2;
-      
-      const { data } = await supabase
-        .from("productos_visibilidad_cuenta")
-        .select("producto_id, visible")
-        .eq("cuenta_id", cuentaId);
-
-      const visibilidadMap = new Map(
-        data?.map((v) => [v.producto_id, v.visible]) || []
-      );
-
-      setArticulos((prev) =>
-        prev.map((art) => ({
-          ...art,
-          ...(esAdminMostrador 
-            ? { visibleMostrador: visibilidadMap.get(art.id) ?? true }
-            : { visibleMostrador2: visibilidadMap.get(art.id) ?? true }
-          ),
-        }))
-      );
+      console.log("Visibilidad actualizada correctamente");
+    } catch (error) {
+      console.error("Error al actualizar visibilidad mostrador:", error);
     }
   };
 
-  if (articulos.length > 0) {
-    cargarVisibilidadMostrador();
-  }
-}, [articulos.length, esAdminMostrador, esAdminMostrador2]);
+  // Cargar visibilidad específica para mostradores
+  useEffect(() => {
+    const cargarVisibilidadMostrador = async () => {
+      if (esAdminMostrador || esAdminMostrador2) {
+        const cuentaId = esAdminMostrador
+          ? ID_CUENTA_MOSTRADOR
+          : ID_CUENTA_MOSTRADOR2;
+
+        const { data } = await supabase
+          .from("productos_visibilidad_cuenta")
+          .select("producto_id, visible")
+          .eq("cuenta_id", cuentaId);
+
+        const visibilidadMap = new Map(
+          data?.map((v) => [v.producto_id, v.visible]) || []
+        );
+
+        setArticulos((prev) =>
+          prev.map((art) => ({
+            ...art,
+            ...(esAdminMostrador
+              ? { visibleMostrador: visibilidadMap.get(art.id) ?? true }
+              : { visibleMostrador2: visibilidadMap.get(art.id) ?? true }),
+          }))
+        );
+      }
+    };
+
+    if (articulos.length > 0) {
+      cargarVisibilidadMostrador();
+    }
+  }, [articulos.length, esAdminMostrador, esAdminMostrador2]);
 
   const HorariosDisplay = ({ cuentaId }: { cuentaId: number }) => {
     const [horarios, setHorarios] = useState<any[]>([]);
@@ -8565,26 +9178,24 @@ useEffect(() => {
               </AnimatePresence>
 
               <AnimatePresence>
-  {activeTab === "ubicacion" && (
-    <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-      className="absolute top-7 px-3 left-0 right-0 z-10"
-    >
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-6 py-2 flex items-center justify-center gap-2 shadow-sm">
-  <Star size={15} className="text-yellow-800" />
+                {activeTab === "ubicacion" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    className="absolute top-7 px-3 left-0 right-0 z-10"
+                  >
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-6 py-2 flex items-center justify-center gap-2 shadow-sm">
+                      <Star size={15} className="text-yellow-800" />
 
-  <span className="text-sm font-semibold text-yellow-800">
-    Mis favoritos
-  </span>
-</div>
-
-    </motion.div>
-  )}
-</AnimatePresence>
-
+                      <span className="text-sm font-semibold text-yellow-800">
+                        Mis favoritos
+                      </span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="max-w-2xl mx-auto">
                 <AnimatePresence mode="wait">
@@ -8875,14 +9486,20 @@ useEffect(() => {
                                               <p className="text-xs text-zinc-500">
                                                 Código: {prod.CODIGO}
                                               </p>
-                                              {!esAdmin && !esMostrador && !esMostrador2 && (
-                                                <p className="text-xs text-orange-500 font-semibold">
-                                                  ${prod.P_MAYOREO?.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}
-                                                </p>
-                                              )}
+                                              {!esAdmin &&
+                                                !esMostrador &&
+                                                !esMostrador2 && (
+                                                  <p className="text-xs text-orange-500 font-semibold">
+                                                    $
+                                                    {prod.P_MAYOREO?.toLocaleString(
+                                                      "en-US",
+                                                      {
+                                                        minimumFractionDigits: 2,
+                                                        maximumFractionDigits: 2,
+                                                      }
+                                                    )}
+                                                  </p>
+                                                )}
                                             </div>
                                             <svg
                                               xmlns="http://www.w3.org/2000/svg"
@@ -9024,68 +9641,90 @@ useEffect(() => {
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                   >
                     {/* Banner de anuncio */}
-<AnimatePresence>
-  {!cargandoBanner && bannerAnuncio && (
-    <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.3 }}
-      className="px-6 mb-4"
-    >
-      <div className={`rounded-xl p-4 border-2 shadow-sm ${
-        bannerAnuncio.color === 'blue' ? 'bg-blue-50 border-blue-200' :
-        bannerAnuncio.color === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
-        bannerAnuncio.color === 'red' ? 'bg-red-50 border-red-200' :
-        bannerAnuncio.color === 'green' ? 'bg-green-50 border-green-200' :
-        'bg-blue-50 border-blue-200'
-      }`}>
-        <div className="flex items-start gap-3">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-            stroke="currentColor"
-            className={`w-6 h-6 flex-shrink-0 ${
-              bannerAnuncio.color === 'blue' ? 'text-blue-600' :
-              bannerAnuncio.color === 'yellow' ? 'text-yellow-600' :
-              bannerAnuncio.color === 'red' ? 'text-red-600' :
-              bannerAnuncio.color === 'green' ? 'text-green-600' :
-              'text-blue-600'
-            }`}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"
-            />
-          </svg>
-          <div className="flex-1">
-            <p className={`font-bold text-sm ${
-              bannerAnuncio.color === 'blue' ? 'text-blue-900' :
-              bannerAnuncio.color === 'yellow' ? 'text-yellow-900' :
-              bannerAnuncio.color === 'red' ? 'text-red-900' :
-              bannerAnuncio.color === 'green' ? 'text-green-900' :
-              'text-blue-900'
-            }`}>
-              {bannerAnuncio.titulo}
-            </p>
-            <p className={`text-xs mt-1 ${
-              bannerAnuncio.color === 'blue' ? 'text-blue-800' :
-              bannerAnuncio.color === 'yellow' ? 'text-yellow-800' :
-              bannerAnuncio.color === 'red' ? 'text-red-800' :
-              bannerAnuncio.color === 'green' ? 'text-green-800' :
-              'text-blue-800'
-            }`}>
-              {bannerAnuncio.mensaje}
-            </p>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  )}
-</AnimatePresence>
+                    <AnimatePresence>
+                      {!cargandoBanner && bannerAnuncio && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -20 }}
+                          transition={{ duration: 0.3 }}
+                          className="px-6 mb-4"
+                        >
+                          <div
+                            className={`rounded-xl p-4 border-2 shadow-sm ${
+                              bannerAnuncio.color === "blue"
+                                ? "bg-blue-50 border-blue-200"
+                                : bannerAnuncio.color === "yellow"
+                                ? "bg-yellow-50 border-yellow-200"
+                                : bannerAnuncio.color === "red"
+                                ? "bg-red-50 border-red-200"
+                                : bannerAnuncio.color === "green"
+                                ? "bg-green-50 border-green-200"
+                                : "bg-blue-50 border-blue-200"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={2}
+                                stroke="currentColor"
+                                className={`w-6 h-6 flex-shrink-0 ${
+                                  bannerAnuncio.color === "blue"
+                                    ? "text-blue-600"
+                                    : bannerAnuncio.color === "yellow"
+                                    ? "text-yellow-600"
+                                    : bannerAnuncio.color === "red"
+                                    ? "text-red-600"
+                                    : bannerAnuncio.color === "green"
+                                    ? "text-green-600"
+                                    : "text-blue-600"
+                                }`}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"
+                                />
+                              </svg>
+                              <div className="flex-1">
+                                <p
+                                  className={`font-bold text-sm ${
+                                    bannerAnuncio.color === "blue"
+                                      ? "text-blue-900"
+                                      : bannerAnuncio.color === "yellow"
+                                      ? "text-yellow-900"
+                                      : bannerAnuncio.color === "red"
+                                      ? "text-red-900"
+                                      : bannerAnuncio.color === "green"
+                                      ? "text-green-900"
+                                      : "text-blue-900"
+                                  }`}
+                                >
+                                  {bannerAnuncio.titulo}
+                                </p>
+                                <p
+                                  className={`text-xs mt-1 ${
+                                    bannerAnuncio.color === "blue"
+                                      ? "text-blue-800"
+                                      : bannerAnuncio.color === "yellow"
+                                      ? "text-yellow-800"
+                                      : bannerAnuncio.color === "red"
+                                      ? "text-red-800"
+                                      : bannerAnuncio.color === "green"
+                                      ? "text-green-800"
+                                      : "text-blue-800"
+                                  }`}
+                                >
+                                  {bannerAnuncio.mensaje}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                     {/* Si no hay nada seleccionado, mostrar pestañas con Macro-Categorías y Marcas */}
                     {!macroCategoriaSeleccionada &&
                     !categoriaSeleccionada &&
@@ -9428,16 +10067,24 @@ useEffect(() => {
                             <AnimatePresence>
                               {articulos
                                 .filter((a) => {
-
-  if (!esAdmin && !a.visible) return false;
-  if ((esMostrador || esMostrador2) && idsOcultosMostrador.includes(a.id)) {
-    return false; 
-  }
-  return (
-    (a.TITULO && a.TITULO.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (a.CODIGO && a.CODIGO.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-})
+                                  if (!esAdmin && !a.visible) return false;
+                                  if (
+                                    (esMostrador || esMostrador2) &&
+                                    idsOcultosMostrador.includes(a.id)
+                                  ) {
+                                    return false;
+                                  }
+                                  return (
+                                    (a.TITULO &&
+                                      a.TITULO.toLowerCase().includes(
+                                        searchTerm.toLowerCase()
+                                      )) ||
+                                    (a.CODIGO &&
+                                      a.CODIGO.toLowerCase().includes(
+                                        searchTerm.toLowerCase()
+                                      ))
+                                  );
+                                })
                                 .map((art) => (
                                   <motion.div
                                     key={art.id}
@@ -9489,148 +10136,163 @@ useEffect(() => {
                                         {art.CODIGO}
                                       </p>
 
-                                      {!esAdmin && !esMostrador && !esMostrador2 && (
-                                        <p className="text-sm font-bold text-orange-500 mt-1">
-                                          ${" "}
-                                          {art.P_MAYOREO?.toLocaleString(
-                                            "en-US",
-                                            {
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            }
-                                          )}
-                                        </p>
+                                      {!esAdmin &&
+                                        !esMostrador &&
+                                        !esMostrador2 && (
+                                          <p className="text-sm font-bold text-orange-500 mt-1">
+                                            ${" "}
+                                            {art.P_MAYOREO?.toLocaleString(
+                                              "en-US",
+                                              {
+                                                minimumFractionDigits: 2,
+                                                maximumFractionDigits: 2,
+                                              }
+                                            )}
+                                          </p>
+                                        )}
+
+                                      {/* Toggle (solo admin o admin mostrador) */}
+                                      {(esAdmin ||
+                                        esAdminMostrador ||
+                                        esAdminMostrador2) && (
+                                        <div
+                                          className="flex flex-col gap-2 mt-2"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          {esAdmin ? (
+                                            // Admin principal
+                                            <>
+                                              {/* Toggle Visible */}
+                                              <div className="flex items-center gap-2">
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={art.visible}
+                                                    onChange={() =>
+                                                      toggleVisibilidad(
+                                                        art.id,
+                                                        art.visible
+                                                      )
+                                                    }
+                                                    className="sr-only peer"
+                                                  />
+                                                  <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                                                </label>
+                                                <span className="text-xs text-zinc-500">
+                                                  {art.visible
+                                                    ? "Visible"
+                                                    : "Oculto"}
+                                                </span>
+                                              </div>
+
+                                              {/* Toggle Liquidación */}
+                                              <div className="flex items-center gap-2">
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={
+                                                      art.liquidacion ?? false
+                                                    }
+                                                    onChange={() =>
+                                                      toggleLiquidacion(
+                                                        art.id,
+                                                        art.liquidacion ?? false
+                                                      )
+                                                    }
+                                                    className="sr-only peer"
+                                                  />
+                                                  <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                                                </label>
+                                                <span className="text-xs text-zinc-500">
+                                                  {art.liquidacion
+                                                    ? "En Liquidación"
+                                                    : "Liquidación"}
+                                                </span>
+                                              </div>
+
+                                              {/* Toggle Top Ventas */}
+                                              <div className="flex items-center gap-2">
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={
+                                                      art.top_ventas ?? false
+                                                    }
+                                                    onChange={() =>
+                                                      toggleTopVentas(
+                                                        art.id,
+                                                        art.top_ventas ?? false
+                                                      )
+                                                    }
+                                                    className="sr-only peer"
+                                                  />
+                                                  <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                                                </label>
+                                                <span className="text-xs text-zinc-500">
+                                                  {art.top_ventas
+                                                    ? "Top Ventas"
+                                                    : "Top Ventas"}
+                                                </span>
+                                              </div>
+                                            </>
+                                          ) : esAdminMostrador ? (
+                                            // Admin Mostrador 1
+                                            <div className="flex items-center gap-2">
+                                              <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={
+                                                    art.visibleMostrador ?? true
+                                                  }
+                                                  onChange={() =>
+                                                    toggleVisibilidadMostrador(
+                                                      art.id,
+                                                      art.visibleMostrador ??
+                                                        true,
+                                                      ID_CUENTA_MOSTRADOR
+                                                    )
+                                                  }
+                                                  className="sr-only peer"
+                                                />
+                                                <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-purple-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                                              </label>
+                                              <span className="text-xs text-zinc-500">
+                                                {art.visibleMostrador
+                                                  ? "Visible M1"
+                                                  : "Oculto M1"}
+                                              </span>
+                                            </div>
+                                          ) : esAdminMostrador2 ? (
+                                            // Admin Mostrador 2
+                                            <div className="flex items-center gap-2">
+                                              <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={
+                                                    art.visibleMostrador2 ??
+                                                    true
+                                                  }
+                                                  onChange={() =>
+                                                    toggleVisibilidadMostrador(
+                                                      art.id,
+                                                      art.visibleMostrador2 ??
+                                                        true,
+                                                      ID_CUENTA_MOSTRADOR2
+                                                    )
+                                                  }
+                                                  className="sr-only peer"
+                                                />
+                                                <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-teal-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                                              </label>
+                                              <span className="text-xs text-zinc-500">
+                                                {art.visibleMostrador2
+                                                  ? "Visible M2"
+                                                  : "Oculto M2"}
+                                              </span>
+                                            </div>
+                                          ) : null}
+                                        </div>
                                       )}
-
-                                     {/* Toggle (solo admin o admin mostrador) */}
-{(esAdmin || esAdminMostrador || esAdminMostrador2) && (
-  <div
-    className="flex flex-col gap-2 mt-2"
-    onClick={(e) => e.stopPropagation()}
-  >
-    {esAdmin ? (
-      // Admin principal
-      <>
-        {/* Toggle Visible */}
-        <div className="flex items-center gap-2">
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={art.visible}
-              onChange={() =>
-                toggleVisibilidad(
-                  art.id,
-                  art.visible
-                )
-              }
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-          </label>
-          <span className="text-xs text-zinc-500">
-            {art.visible
-              ? "Visible"
-              : "Oculto"}
-          </span>
-        </div>
-
-        {/* Toggle Liquidación */}
-        <div className="flex items-center gap-2">
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={
-                art.liquidacion ?? false
-              }
-              onChange={() =>
-                toggleLiquidacion(
-                  art.id,
-                  art.liquidacion ?? false
-                )
-              }
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-          </label>
-          <span className="text-xs text-zinc-500">
-            {art.liquidacion
-              ? "En Liquidación"
-              : "Liquidación"}
-          </span>
-        </div>
-
-        {/* Toggle Top Ventas */}
-        <div className="flex items-center gap-2">
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={
-                art.top_ventas ?? false
-              }
-              onChange={() =>
-                toggleTopVentas(
-                  art.id,
-                  art.top_ventas ?? false
-                )
-              }
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-          </label>
-          <span className="text-xs text-zinc-500">
-            {art.top_ventas
-              ? "Top Ventas"
-              : "Top Ventas"}
-          </span>
-        </div>
-      </>
-    ) : esAdminMostrador ? (
-      // Admin Mostrador 1
-      <div className="flex items-center gap-2">
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={art.visibleMostrador ?? true}
-            onChange={() =>
-              toggleVisibilidadMostrador(
-                art.id,
-                art.visibleMostrador ?? true,
-                ID_CUENTA_MOSTRADOR
-              )
-            }
-            className="sr-only peer"
-          />
-          <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-purple-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-        </label>
-        <span className="text-xs text-zinc-500">
-          {art.visibleMostrador ? "Visible M1" : "Oculto M1"}
-        </span>
-      </div>
-    ) : esAdminMostrador2 ? (
-      // Admin Mostrador 2
-      <div className="flex items-center gap-2">
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={art.visibleMostrador2 ?? true}
-            onChange={() =>
-              toggleVisibilidadMostrador(
-                art.id,
-                art.visibleMostrador2 ?? true,
-                ID_CUENTA_MOSTRADOR2
-              )
-            }
-            className="sr-only peer"
-          />
-          <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-teal-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
-        </label>
-        <span className="text-xs text-zinc-500">
-          {art.visibleMostrador2 ? "Visible M2" : "Oculto M2"}
-        </span>
-      </div>
-    ) : null}
-  </div>
-)}
                                     </div>
                                   </motion.div>
                                 ))}
@@ -9850,14 +10512,20 @@ useEffect(() => {
                                   <p className="text-xs text-zinc-500">
                                     Código: {prod.CODIGO}
                                   </p>
-                                  {!esAdmin && !esMostrador && !esMostrador2 &&(
-                                    <p className="text-xs text-orange-500 font-semibold">
-                                      ${prod.P_MAYOREO?.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}
-                                    </p>
-                                  )}
+                                  {!esAdmin &&
+                                    !esMostrador &&
+                                    !esMostrador2 && (
+                                      <p className="text-xs text-orange-500 font-semibold">
+                                        $
+                                        {prod.P_MAYOREO?.toLocaleString(
+                                          "en-US",
+                                          {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2,
+                                          }
+                                        )}
+                                      </p>
+                                    )}
                                 </div>
                               </div>
                               <span className="text-zinc-400">{">"}</span>
@@ -9891,343 +10559,371 @@ useEffect(() => {
                   </motion.div>
                 )}
 
- {/* Carrito */}
-{activeTab === "carrito" && (
-  <motion.div
-    initial={{ opacity: 0, x: -40 }}
-    animate={{ opacity: 1, x: 0 }}
-    exit={{ opacity: 0, x: 40 }}
-    transition={{ duration: 0.3, ease: "easeInOut" }}
-  >
-    <div className="mt-4 px-3 pb-13">
-      {carrito.length === 0 ? (
-        <p className="text-center text-zinc-500 mt-16">
-          {esMostrador || esMostrador2 ? "No hay productos agregados" : "Tu carrito está vacío"}
-        </p>
-      ) : (
-        <>
-          {/* VISTA PARA MOSTRADORES */}
-          {(esMostrador || esMostrador2) ? (
-            <div className="space-y-4">
-              {carrito.map((item) => (
-                <div
-                  key={item.id}
-                  className="border border-zinc-300 rounded-xl p-4 bg-white shadow-md"
-                >
-                  <div className="flex items-start gap-4">
-                    {/* Imagen del producto */}
-                    <div className="relative w-20 h-20 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
-                      <Image
-                        src={item.IMAGEN || "/placeholder.jpg"}
-                        alt={item.TITULO}
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
-
-                    {/* Información del producto */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-base font-bold text-zinc-900 line-clamp-2 leading-tight mb-2">
-                        {item.TITULO}
-                      </p>
-                      <div className="space-y-1">
-                        <p className="text-sm text-zinc-700">
-                          <span className="font-semibold">Código:</span> {item.CODIGO}
-                        </p>
-                        <p className="text-sm text-zinc-700">
-                          <span className="font-semibold">Cantidad:</span> {item.cantidad}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Botón eliminar */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCarrito((prev) =>
-                          prev.filter((p) => p.id !== item.id)
-                        );
-                      }}
-                      className="w-9 h-9 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
-                      aria-label="Eliminar producto"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-
-                  {/* Código de barras */}
-                  <div className="mt-4 pt-4 border-t border-zinc-200">
-                    <div 
-                      className="flex justify-center bg-white p-2 rounded cursor-pointer hover:bg-zinc-50 transition"
-                      onClick={() => setCodigoBarrasModal(item.CODIGO)}
-                    >
-                      <Barcode
-                        value={item.CODIGO || "0000000000000"}
-                        width={1.5}
-                        height={60}
-                        fontSize={12}
-                        margin={0}
-                        displayValue={true}
-                        background="#ffffff"
-                      />
-                    </div>
-                    <p className="text-xs text-center text-zinc-500 mt-1">
-                      Toca para ampliar
-                    </p>
-                  </div>
-                </div>
-              ))}
-
-              {/* Contador de productos */}
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-                <p className="text-lg font-bold text-blue-900">
-                  Total de productos: {carrito.reduce((sum, item) => sum + item.cantidad, 0)}
-                </p>
-              </div>
-            </div>
-          ) : (
-            /* VISTA NORMAL PARA CLIENTES */
-            <>
-              {/* Productos */}
-              <div className="space-y-3">
-                {carrito.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-3 border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
+                {/* Carrito */}
+                {activeTab === "carrito" && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 40 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
                   >
-                    {/* Imagen */}
-                    <div
-                      className="relative w-16 h-16 bg-zinc-100 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
-                      onClick={() => {
-                        localStorage.setItem(
-                          "scrollProducto",
-                          scrollY.toString()
-                        );
-                        setProductoSeleccionado(item);
-                      }}
-                    >
-                      <Image
-                        src={item.IMAGEN || "/placeholder.jpg"}
-                        alt={item.TITULO}
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
+                    <div className="mt-4 px-3 pb-13">
+                      {carrito.length === 0 ? (
+                        <p className="text-center text-zinc-500 mt-16">
+                          {esMostrador || esMostrador2
+                            ? "No hay productos agregados"
+                            : "Tu carrito está vacío"}
+                        </p>
+                      ) : (
+                        <>
+                          {/* VISTA PARA MOSTRADORES */}
+                          {esMostrador || esMostrador2 ? (
+                            <div className="space-y-4">
+                              {carrito.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="border border-zinc-300 rounded-xl p-4 bg-white shadow-md"
+                                >
+                                  <div className="flex items-start gap-4">
+                                    {/* Imagen del producto */}
+                                    <div className="relative w-20 h-20 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
+                                      <Image
+                                        src={item.IMAGEN || "/placeholder.jpg"}
+                                        alt={item.TITULO}
+                                        fill
+                                        className="object-contain"
+                                      />
+                                    </div>
 
-                    {/* Información del producto */}
+                                    {/* Información del producto */}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-base font-bold text-zinc-900 line-clamp-2 leading-tight mb-2">
+                                        {item.TITULO}
+                                      </p>
+                                      <div className="space-y-1">
+                                        <p className="text-sm text-zinc-700">
+                                          <span className="font-semibold">
+                                            Código:
+                                          </span>{" "}
+                                          {item.CODIGO}
+                                        </p>
+                                        <p className="text-sm text-zinc-700">
+                                          <span className="font-semibold">
+                                            Cantidad:
+                                          </span>{" "}
+                                          {item.cantidad}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {/* Botón eliminar */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setCarrito((prev) =>
+                                          prev.filter((p) => p.id !== item.id)
+                                        );
+                                      }}
+                                      className="w-9 h-9 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
+                                      aria-label="Eliminar producto"
+                                    >
+                                      <X size={18} />
+                                    </button>
+                                  </div>
+
+                                  {/* Código de barras */}
+                                  <div className="mt-4 pt-4 border-t border-zinc-200">
+                                    <div
+                                      className="flex justify-center bg-white p-2 rounded cursor-pointer hover:bg-zinc-50 transition"
+                                      onClick={() =>
+                                        setCodigoBarrasModal(item.CODIGO)
+                                      }
+                                    >
+                                      <Barcode
+                                        value={item.CODIGO || "0000000000000"}
+                                        width={1.5}
+                                        height={60}
+                                        fontSize={12}
+                                        margin={0}
+                                        displayValue={true}
+                                        background="#ffffff"
+                                      />
+                                    </div>
+                                    <p className="text-xs text-center text-zinc-500 mt-1">
+                                      Toca para ampliar
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+
+                              {/* Contador de productos */}
+                              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+                                <p className="text-lg font-bold text-blue-900">
+                                  Total de productos:{" "}
+                                  {carrito.reduce(
+                                    (sum, item) => sum + item.cantidad,
+                                    0
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            /* VISTA NORMAL PARA CLIENTES */
+                            <>
+                              {/* Productos */}
+                              <div className="space-y-3">
+                                {carrito.map((item) => (
+                                  <div
+                                    key={item.id}
+                                    className="flex items-center gap-3 border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
+                                  >
+                                    {/* Imagen */}
+                                    <div
+                                      className="relative w-16 h-16 bg-zinc-100 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
+                                      onClick={() => {
+                                        localStorage.setItem(
+                                          "scrollProducto",
+                                          scrollY.toString()
+                                        );
+                                        setProductoSeleccionado(item);
+                                      }}
+                                    >
+                                      <Image
+                                        src={item.IMAGEN || "/placeholder.jpg"}
+                                        alt={item.TITULO}
+                                        fill
+                                        className="object-contain"
+                                      />
+                                    </div>
+
+                                    {/* Información del producto */}
+                                    <div
+                                      className="flex-1 min-w-0 cursor-pointer"
+                                      onClick={() => {
+                                        localStorage.setItem(
+                                          "scrollProducto",
+                                          scrollY.toString()
+                                        );
+                                        setProductoSeleccionado(item);
+                                      }}
+                                    >
+                                      <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
+                                        {item.TITULO}
+                                      </p>
+                                      <p className="text-xs text-zinc-500 mt-1">
+                                        Código: {item.CODIGO}
+                                      </p>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <p className="text-xs text-zinc-600">
+                                          {item.cantidad} × $
+                                          {item.P_MAYOREO.toLocaleString(
+                                            "en-US",
+                                            {
+                                              minimumFractionDigits: 2,
+                                              maximumFractionDigits: 2,
+                                            }
+                                          )}
+                                        </p>
+                                        <span className="text-xs text-zinc-400">
+                                          |
+                                        </span>
+                                        <p className="text-sm font-bold text-orange-500">
+                                          $
+                                          {item.subtotal.toLocaleString(
+                                            "en-US",
+                                            {
+                                              minimumFractionDigits: 2,
+                                              maximumFractionDigits: 2,
+                                            }
+                                          )}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {/* Botón eliminar */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setCarrito((prev) =>
+                                          prev.filter((p) => p.id !== item.id)
+                                        );
+                                      }}
+                                      className="w-9 h-9 bg-orange-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
+                                      aria-label="Eliminar producto"
+                                    >
+                                      <X size={18} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Barra de progreso*/}
+                              <AnimatePresence>
+                                {!ocultarBarra &&
+                                  (() => {
+                                    const totalCarrito = carrito.reduce(
+                                      (sum, p) => sum + p.subtotal,
+                                      0
+                                    );
+                                    const minimoRequerido = 1000;
+                                    const progreso = Math.min(
+                                      (totalCarrito / minimoRequerido) * 100,
+                                      100
+                                    );
+                                    const faltante = Math.max(
+                                      minimoRequerido - totalCarrito,
+                                      0
+                                    );
+
+                                    return (
+                                      <motion.div
+                                        key="barra-progreso"
+                                        initial={{ opacity: 0, x: -100 }}
+                                        animate={{
+                                          opacity: 1,
+                                          x: 0,
+                                          scale:
+                                            totalCarrito >= minimoRequerido
+                                              ? [1, 1.02, 1]
+                                              : 1,
+                                        }}
+                                        exit={{ opacity: 0, x: 100 }}
+                                        transition={{
+                                          x: {
+                                            duration: 0.4,
+                                            ease: "easeInOut",
+                                          },
+                                          opacity: { duration: 0.3 },
+                                          scale: {
+                                            duration: 0.6,
+                                            repeat:
+                                              totalCarrito >= minimoRequerido
+                                                ? Infinity
+                                                : 0,
+                                            repeatDelay: 0.3,
+                                          },
+                                        }}
+                                        className="mb-4 mt-4 bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"
+                                      >
+                                        <div className="flex justify-between items-center mb-2">
+                                          <span className="text-sm font-semibold text-zinc-700">
+                                            Pedido mínimo: $1,000.00
+                                          </span>
+                                          <span
+                                            className={`text-sm font-bold ${
+                                              totalCarrito >= minimoRequerido
+                                                ? "text-green-600"
+                                                : "text-orange-600"
+                                            }`}
+                                          >
+                                            $
+                                            {totalCarrito.toLocaleString(
+                                              "en-US",
+                                              {
+                                                minimumFractionDigits: 2,
+                                                maximumFractionDigits: 2,
+                                              }
+                                            )}
+                                          </span>
+                                        </div>
+
+                                        <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
+                                          <motion.div
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${progreso}%` }}
+                                            transition={{
+                                              duration: 0.5,
+                                              ease: "easeOut",
+                                            }}
+                                            className={`h-full rounded-full transition-colors ${
+                                              progreso === 100
+                                                ? "bg-gradient-to-r from-green-500 to-green-600"
+                                                : "bg-gradient-to-r from-orange-500 to-orange-600"
+                                            }`}
+                                          />
+                                        </div>
+
+                                        {totalCarrito >= minimoRequerido ? (
+                                          <div className="mt-2 flex items-center gap-2 text-green-600">
+                                            <svg
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              strokeWidth={2}
+                                              stroke="currentColor"
+                                              className="w-5 h-5"
+                                            >
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                              />
+                                            </svg>
+                                            <span className="text-sm font-semibold">
+                                              ¡Ya puedes enviar tu pedido!
+                                            </span>
+                                          </div>
+                                        ) : (
+                                          <p className="mt-2 text-xs text-zinc-600">
+                                            Te faltan{" "}
+                                            <span className="font-bold text-orange-600">
+                                              ${faltante.toFixed(2)}
+                                            </span>{" "}
+                                            para realizar el pedido
+                                          </p>
+                                        )}
+                                      </motion.div>
+                                    );
+                                  })()}
+                              </AnimatePresence>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Modal de código de barras ampliado */}
+                {codigoBarrasModal && (
+                  <div
+                    className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
+                    onClick={() => setCodigoBarrasModal(null)}
+                  >
                     <div
-                      className="flex-1 min-w-0 cursor-pointer"
-                      onClick={() => {
-                        localStorage.setItem(
-                          "scrollProducto",
-                          scrollY.toString()
-                        );
-                        setProductoSeleccionado(item);
-                      }}
+                      className="bg-white rounded-2xl p-6 max-w-lg w-full"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
-                        {item.TITULO}
-                      </p>
-                      <p className="text-xs text-zinc-500 mt-1">
-                        Código: {item.CODIGO}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <p className="text-xs text-zinc-600">
-                          {item.cantidad} × $
-                          {item.P_MAYOREO.toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </p>
-                        <span className="text-xs text-zinc-400">
-                          |
-                        </span>
-                        <p className="text-sm font-bold text-orange-500">
-                          $
-                          {item.subtotal.toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </p>
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-zinc-900">
+                          Código de Barras
+                        </h3>
+                        <button
+                          onClick={() => setCodigoBarrasModal(null)}
+                          className="w-8 h-8 bg-zinc-600 hover:bg-zinc-700 rounded-full flex items-center justify-center transition"
+                        >
+                          <X size={18} />
+                        </button>
                       </div>
+
+                      <div className="flex justify-center bg-white p-4 rounded-lg border border-zinc-200">
+                        <Barcode
+                          value={codigoBarrasModal}
+                          width={2.5}
+                          height={100}
+                          fontSize={16}
+                          margin={10}
+                          displayValue={true}
+                          background="#ffffff"
+                        />
+                      </div>
+
+                      <p className="text-center text-sm text-zinc-600 mt-4">
+                        Código: {codigoBarrasModal}
+                      </p>
                     </div>
-
-                    {/* Botón eliminar */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCarrito((prev) =>
-                          prev.filter((p) => p.id !== item.id)
-                        );
-                      }}
-                      className="w-9 h-9 bg-orange-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
-                      aria-label="Eliminar producto"
-                    >
-                      <X size={18} />
-                    </button>
                   </div>
-                ))}
-              </div>
-
-              {/* Barra de progreso*/}
-              <AnimatePresence>
-                {!ocultarBarra &&
-                  (() => {
-                    const totalCarrito = carrito.reduce(
-                      (sum, p) => sum + p.subtotal,
-                      0
-                    );
-                    const minimoRequerido = 1000;
-                    const progreso = Math.min(
-                      (totalCarrito / minimoRequerido) * 100,
-                      100
-                    );
-                    const faltante = Math.max(
-                      minimoRequerido - totalCarrito,
-                      0
-                    );
-
-                    return (
-                      <motion.div
-                        key="barra-progreso"
-                        initial={{ opacity: 0, x: -100 }}
-                        animate={{
-                          opacity: 1,
-                          x: 0,
-                          scale:
-                            totalCarrito >= minimoRequerido
-                              ? [1, 1.02, 1]
-                              : 1,
-                        }}
-                        exit={{ opacity: 0, x: 100 }}
-                        transition={{
-                          x: { duration: 0.4, ease: "easeInOut" },
-                          opacity: { duration: 0.3 },
-                          scale: {
-                            duration: 0.6,
-                            repeat:
-                              totalCarrito >= minimoRequerido
-                                ? Infinity
-                                : 0,
-                            repeatDelay: 0.3,
-                          },
-                        }}
-                        className="mb-4 mt-4 bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"
-                      >
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-semibold text-zinc-700">
-                            Pedido mínimo: $1,000.00
-                          </span>
-                          <span
-                            className={`text-sm font-bold ${
-                              totalCarrito >= minimoRequerido
-                                ? "text-green-600"
-                                : "text-orange-600"
-                            }`}
-                          >
-                            $
-                            {totalCarrito.toLocaleString("en-US", {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
-                          </span>
-                        </div>
-
-                        <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${progreso}%` }}
-                            transition={{
-                              duration: 0.5,
-                              ease: "easeOut",
-                            }}
-                            className={`h-full rounded-full transition-colors ${
-                              progreso === 100
-                                ? "bg-gradient-to-r from-green-500 to-green-600"
-                                : "bg-gradient-to-r from-orange-500 to-orange-600"
-                            }`}
-                          />
-                        </div>
-
-                        {totalCarrito >= minimoRequerido ? (
-                          <div className="mt-2 flex items-center gap-2 text-green-600">
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              strokeWidth={2}
-                              stroke="currentColor"
-                              className="w-5 h-5"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                            <span className="text-sm font-semibold">
-                              ¡Ya puedes enviar tu pedido!
-                            </span>
-                          </div>
-                        ) : (
-                          <p className="mt-2 text-xs text-zinc-600">
-                            Te faltan{" "}
-                            <span className="font-bold text-orange-600">
-                              ${faltante.toFixed(2)}
-                            </span>{" "}
-                            para realizar el pedido
-                          </p>
-                        )}
-                      </motion.div>
-                    );
-                  })()}
-              </AnimatePresence>
-            </>
-          )}
-        </>
-      )}
-    </div>
-  </motion.div>
-)}
-
-{/* Modal de código de barras ampliado */}
-{codigoBarrasModal && (
-  <div 
-    className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
-    onClick={() => setCodigoBarrasModal(null)}
-  >
-    <div 
-      className="bg-white rounded-2xl p-6 max-w-lg w-full"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-bold text-zinc-900">Código de Barras</h3>
-        <button
-          onClick={() => setCodigoBarrasModal(null)}
-          className="w-8 h-8 bg-zinc-600 hover:bg-zinc-700 rounded-full flex items-center justify-center transition"
-        >
-          <X size={18} />
-        </button>
-      </div>
-      
-      <div className="flex justify-center bg-white p-4 rounded-lg border border-zinc-200">
-        <Barcode
-          value={codigoBarrasModal}
-          width={2.5}
-          height={100}
-          fontSize={16}
-          margin={10}
-          displayValue={true}
-          background="#ffffff"
-        />
-      </div>
-      
-      <p className="text-center text-sm text-zinc-600 mt-4">
-        Código: {codigoBarrasModal}
-      </p>
-    </div>
-  </div>
-)}
+                )}
 
                 {/* perfil */}
                 {activeTab === "perfil" && (
@@ -10398,15 +11094,18 @@ useEffect(() => {
                           )}
 
                           {esAdmin && (
-  <MenuItem
-    label="Gestionar Banner de Anuncios"
-    icon={<Megaphone size={20}/>}
-    onClick={() => {
-      window.scrollTo({ top: 0, behavior: "instant" });
-      setVistaPerfil("gestionar-banner");
-    }}
-  />
-)}
+                            <MenuItem
+                              label="Gestionar Banner de Anuncios"
+                              icon={<Megaphone size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("gestionar-banner");
+                              }}
+                            />
+                          )}
 
                           {/* personal info  */}
                           <MenuItem
@@ -10419,12 +11118,26 @@ useEffect(() => {
                           />
 
                           {(esAdmin || esRutas) && (
+                            <MenuItem
+                              label="Ver Rutas"
+                              icon={<MapPin size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("rutas");
+                              }}
+                            />
+                          )}
+
+                          {esEmpleado && (
   <MenuItem
-    label="Ver Rutas"
-    icon={<MapPin size={20} />}
+    label="Surtir Pedidos"
+    icon={<Box size={20} />}
     onClick={() => {
       window.scrollTo({ top: 0, behavior: "instant" });
-      setVistaPerfil("rutas");
+      setVistaPerfil("surtir");
     }}
   />
 )}
@@ -10593,14 +11306,13 @@ useEffect(() => {
                           </div>
 
                           {/* Horarios */}
-<div className="w-full bg-white rounded-xl shadow p-4">
-  <h3 className="text-lg font-bold text-zinc-800 mb-3 flex items-center gap-2">
-    Horarios de Atención
-  </h3>
-  
-  <HorariosDisplay cuentaId={38} />
-</div>
+                          <div className="w-full bg-white rounded-xl shadow p-4">
+                            <h3 className="text-lg font-bold text-zinc-800 mb-3 flex items-center gap-2">
+                              Horarios de Atención
+                            </h3>
 
+                            <HorariosDisplay cuentaId={38} />
+                          </div>
 
                           {/* Mapa */}
                           <div className="w-full bg-white rounded-xl shadow p-4">
@@ -10698,13 +11410,17 @@ useEffect(() => {
                       <GestionarCuentasView setVistaPerfil={setVistaPerfil} />
                     )}
 
-                    {vistaPerfil === 'rutas' && (
-  <VistaRutas setVistaPerfil={setVistaPerfil} />
+                    {vistaPerfil === "rutas" && (
+                      <VistaRutas setVistaPerfil={setVistaPerfil} />
+                    )}
+
+                    {vistaPerfil === "surtir" && esEmpleado && (
+  <VistaSurtir setVistaPerfil={setVistaPerfil} />
 )}
 
                     {vistaPerfil === "gestionar-banner" && (
-  <GestionarBannerView setVistaPerfil={setVistaPerfil} />
-)}
+                      <GestionarBannerView setVistaPerfil={setVistaPerfil} />
+                    )}
 
                     {/* CONFIGURACIÓN */}
                     {vistaPerfil === "settings" && (
@@ -10866,31 +11582,30 @@ useEffect(() => {
                     </motion.div>
                   </div>
                 )}
-                
 
                 {/* Modal de pedido */}
                 {mostrarModalPedido && (
-                 <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/40 flex items-center justify-center z-[999] backdrop-blur-sm"
-            onClick={cerrarModalPedido}
-          >
-                   <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              transition={{
-                type: "spring",
-                damping: 25,
-                stiffness: 300,
-                duration: 0.3,
-              }}
-              onClick={(e) => e.stopPropagation()} 
-              className="bg-white rounded-2xl w-[90%] max-w-md p-5 relative shadow-2xl overflow-hidden"
-            >
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="fixed inset-0 bg-black/40 flex items-center justify-center z-[999] backdrop-blur-sm"
+                    onClick={cerrarModalPedido}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                      animate={{ scale: 1, opacity: 1, y: 0 }}
+                      exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                      transition={{
+                        type: "spring",
+                        damping: 25,
+                        stiffness: 300,
+                        duration: 0.3,
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="bg-white rounded-2xl w-[90%] max-w-md p-5 relative shadow-2xl overflow-hidden"
+                    >
                       {/* Cerrar */}
                       <button
                         onClick={cerrarModalPedido}
@@ -10921,159 +11636,200 @@ useEffect(() => {
                         </p>
                       </div>
 
-                   {/* Tipo de entrega con toggles mutuamente excluyentes */}
-        <div className="mb-4">
-          <p className="text-sm font-semibold text-zinc-700 mb-3">Tipo de entrega:</p>
-          
-          {/* Toggle Enviar a Domicilio */}
-          <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-zinc-200 mb-2">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                enviarDomicilio ? 'bg-orange-100' : 'bg-gray-100'
-              }`}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" 
-                  className={`w-5 h-5 ${enviarDomicilio ? 'text-orange-600' : 'text-gray-600'}`}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-                </svg>
-              </div>
-              <span className="text-sm font-medium text-zinc-700">Enviar a domicilio</span>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-               <input
-    type="checkbox"
-    checked={enviarDomicilio}
-    onChange={(e) => {
-      if (e.target.checked) {
-        setEnviarDomicilio(true);
-        setRecogerLocal(false);
-      }
-    }}
-    className="w-5 h-5 accent-orange-600 cursor-pointer"
-  />
-             
-            </label>
-          </div>
+                      {/* Tipo de entrega con toggles mutuamente excluyentes */}
+                      <div className="mb-4">
+                        <p className="text-sm font-semibold text-zinc-700 mb-3">
+                          Tipo de entrega:
+                        </p>
 
-          {/* Toggle Recoger en Local */}
-          <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-zinc-200">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                recogerLocal ? 'bg-blue-100' : 'bg-gray-100'
-              }`}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
-                  className={`w-5 h-5 ${recogerLocal ? 'text-blue-600' : 'text-gray-600'}`}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
-                </svg>
-              </div>
-              <span className="text-sm font-medium text-zinc-700">Recoger en tienda</span>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={recogerLocal}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setRecogerLocal(true);
-                    setEnviarDomicilio(false);
-                   }
-    }}
-    className="w-5 h-5 accent-orange-600 cursor-pointer"
-  />
-              
-            </label>
-          </div>
-        </div>
+                        {/* Toggle Enviar a Domicilio */}
+                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-zinc-200 mb-2">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                enviarDomicilio
+                                  ? "bg-orange-100"
+                                  : "bg-gray-100"
+                              }`}
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={2}
+                                stroke="currentColor"
+                                className={`w-5 h-5 ${
+                                  enviarDomicilio
+                                    ? "text-orange-600"
+                                    : "text-gray-600"
+                                }`}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12"
+                                />
+                              </svg>
+                            </div>
+                            <span className="text-sm font-medium text-zinc-700">
+                              Enviar a domicilio
+                            </span>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={enviarDomicilio}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setEnviarDomicilio(true);
+                                  setRecogerLocal(false);
+                                }
+                              }}
+                              className="w-5 h-5 accent-orange-600 cursor-pointer"
+                            />
+                          </label>
+                        </div>
 
-         {/* Mensajes dinámicos según selección y hora */}
-        <motion.div className="mt-3">
-  {enviarDomicilio && (
-    <motion.div
-      key="domicilio-info"
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-2"
-    >
-      {cuenta?.direccion ? (
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-          <p className="text-xs text-zinc-600 mb-1">Dirección:</p>
-          <p className="text-sm text-zinc-700">{cuenta.direccion}</p>
-        </div>
-      ) : (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <p className="text-xs text-red-600">
-            ⚠️ No hay dirección guardada. Por favor informar a Bodega Ferretera de Monterrey.
-          </p>
-        </div>
-      )}
+                        {/* Toggle Recoger en Local */}
+                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-zinc-200">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                recogerLocal ? "bg-blue-100" : "bg-gray-100"
+                              }`}
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={2}
+                                stroke="currentColor"
+                                className={`w-5 h-5 ${
+                                  recogerLocal
+                                    ? "text-blue-600"
+                                    : "text-gray-600"
+                                }`}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+                                />
+                              </svg>
+                            </div>
+                            <span className="text-sm font-medium text-zinc-700">
+                              Recoger en tienda
+                            </span>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={recogerLocal}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setRecogerLocal(true);
+                                  setEnviarDomicilio(false);
+                                }
+                              }}
+                              className="w-5 h-5 accent-orange-600 cursor-pointer"
+                            />
+                          </label>
+                        </div>
+                      </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-        <p className="text-sm text-blue-800 font-semibold">
-          {(() => {
-            const horaActual = new Date().getHours();
+                      {/* Mensajes dinámicos según selección y hora */}
+                      <motion.div className="mt-3">
+                        {enviarDomicilio && (
+                          <motion.div
+                            key="domicilio-info"
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="space-y-2"
+                          >
+                            {cuenta?.direccion ? (
+                              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                                <p className="text-xs text-zinc-600 mb-1">
+                                  Dirección:
+                                </p>
+                                <p className="text-sm text-zinc-700">
+                                  {cuenta.direccion}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                <p className="text-xs text-red-600">
+                                  ⚠️ No hay dirección guardada. Por favor
+                                  informar a Bodega Ferretera de Monterrey.
+                                </p>
+                              </div>
+                            )}
 
-            if (cuenta?.entrega_mismo_dia) {
-              return horaActual < 10
-                ? "Tu pedido será entregado el día de hoy"
-                : "Tu pedido quedará programado para entregar el siguiente día hábil";
-            } else {
-              return "Recibirás tu pedido en un plazo de 1 a 3 días hábiles (puedes recibirlo el mismo día)";
-            }
-          })()}
-        </p>
-      </div>
-    </motion.div>
-  )}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                              <p className="text-sm text-blue-800 font-semibold">
+                                {(() => {
+                                  const horaActual = new Date().getHours();
 
-  {recogerLocal && (
-    <motion.div
-      key="recoger-info"
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-green-50 border border-green-200 rounded-lg p-3"
-    >
-      <p className="text-sm text-green-800 font-semibold">
-        {(() => {
-          const horaActual = new Date().getHours();
+                                  if (cuenta?.entrega_mismo_dia) {
+                                    return horaActual < 10
+                                      ? "Tu pedido será entregado el día de hoy"
+                                      : "Tu pedido quedará programado para entregar el siguiente día hábil";
+                                  } else {
+                                    return "Recibirás tu pedido en un plazo de 1 a 3 días hábiles (puedes recibirlo el mismo día)";
+                                  }
+                                })()}
+                              </p>
+                            </div>
+                          </motion.div>
+                        )}
 
-          return horaActual < 15
-            ? "Tu pedido estará listo para recoger en aproximadamente 3 horas. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"
-            : "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'";
-        })()}
-      </p>
-    </motion.div>
-  )}
-</motion.div>
+                        {recogerLocal && (
+                          <motion.div
+                            key="recoger-info"
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-green-50 border border-green-200 rounded-lg p-3"
+                          >
+                            <p className="text-sm text-green-800 font-semibold">
+                              {(() => {
+                                const horaActual = new Date().getHours();
 
+                                return horaActual < 15
+                                  ? "Tu pedido estará listo para recoger en aproximadamente 3 horas. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"
+                                  : "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'";
+                              })()}
+                            </p>
+                          </motion.div>
+                        )}
+                      </motion.div>
 
-         {/* Botones */}
-        <div className="flex justify-between mt-6 gap-2">
-          <button
-            onClick={cerrarModalPedido}
-            className="flex-1 border border-zinc-300 py-2 rounded-lg font-semibold text-zinc-600"
-          >
-            Cancelar
-          </button>
-          <button
-  onClick={enviarPedido}
-  disabled={
-    enviando ||
-    !cuenta?.cliente ||
-    !hayTipoEntregaSeleccionado ||
-    (enviarDomicilio && !cuenta?.direccion)
-  }
-  className={`flex-1 py-2 rounded-lg font-semibold text-white transition ${
-    !cuenta?.cliente ||
-    !hayTipoEntregaSeleccionado ||
-    (enviarDomicilio && !cuenta?.direccion)
-      ? "bg-orange-300"
-      : "bg-orange-500 hover:bg-orange-600"
-  }`}
->
-  {enviando ? "Enviando..." : "Enviar"}
-</button>
-
-        </div>
-                     </motion.div>
+                      {/* Botones */}
+                      <div className="flex justify-between mt-6 gap-2">
+                        <button
+                          onClick={cerrarModalPedido}
+                          className="flex-1 border border-zinc-300 py-2 rounded-lg font-semibold text-zinc-600"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={enviarPedido}
+                          disabled={
+                            enviando ||
+                            !cuenta?.cliente ||
+                            !hayTipoEntregaSeleccionado ||
+                            (enviarDomicilio && !cuenta?.direccion)
+                          }
+                          className={`flex-1 py-2 rounded-lg font-semibold text-white transition ${
+                            !cuenta?.cliente ||
+                            !hayTipoEntregaSeleccionado ||
+                            (enviarDomicilio && !cuenta?.direccion)
+                              ? "bg-orange-300"
+                              : "bg-orange-500 hover:bg-orange-600"
+                          }`}
+                        >
+                          {enviando ? "Enviando..." : "Enviar"}
+                        </button>
+                      </div>
+                    </motion.div>
                   </motion.div>
                 )}
 
@@ -11150,14 +11906,15 @@ useEffect(() => {
                                   <p className="text-xs text-zinc-500 mt-1">
                                     {prod.CODIGO}
                                   </p>
-                                 {!esMostrador && !esMostrador2 && (
-  <p className="text-sm font-bold text-orange-500 mt-1">
-    $ {prod.P_MAYOREO?.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}
-  </p>
-)}
+                                  {!esMostrador && !esMostrador2 && (
+                                    <p className="text-sm font-bold text-orange-500 mt-1">
+                                      ${" "}
+                                      {prod.P_MAYOREO?.toLocaleString("en-US", {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      })}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                             </motion.div>
@@ -11171,44 +11928,44 @@ useEffect(() => {
             </main>
 
             {/* BOTÓN DE CONFIRMAR PEDIDO */}
-           
-<AnimatePresence>
-  {activeTab === "carrito" && 
-   carrito.length > 0 && 
-   !esMostrador && 
-   !esMostrador2 && (
-    <motion.div
-      initial={{ y: 100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={{ y: 100, opacity: 0 }}
-      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className="fixed bottom-[90px] left-0 right-0 px-4 z-40"
-    >
-      <button
-        onClick={() => setMostrarModalPedido(true)}
-        disabled={
-          carrito.reduce((sum, p) => sum + p.subtotal, 0) < 1000
-        }
-        className={`w-full py-4 mb-5 rounded-xl font-semibold text-[16px] shadow-2xl transition flex items-center justify-between px-6 ${
-          carrito.reduce((sum, p) => sum + p.subtotal, 0) >= 1000
-            ? "bg-orange-500 text-white hover:bg-orange-600"
-            : "bg-zinc-300 text-zinc-500 cursor-not-allowed"
-        }`}
-      >
-        <span>Confirmar pedido</span>
-        <span className="text-lg font-bold">
-          Total: $
-          {carrito
-            .reduce((sum, p) => sum + p.subtotal, 0)
-            .toLocaleString("en-US", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-        </span>
-      </button>
-    </motion.div>
-  )}
-</AnimatePresence>
+
+            <AnimatePresence>
+              {activeTab === "carrito" &&
+                carrito.length > 0 &&
+                !esMostrador &&
+                !esMostrador2 && (
+                  <motion.div
+                    initial={{ y: 100, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 100, opacity: 0 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    className="fixed bottom-[90px] left-0 right-0 px-4 z-40"
+                  >
+                    <button
+                      onClick={() => setMostrarModalPedido(true)}
+                      disabled={
+                        carrito.reduce((sum, p) => sum + p.subtotal, 0) < 1000
+                      }
+                      className={`w-full py-4 mb-5 rounded-xl font-semibold text-[16px] shadow-2xl transition flex items-center justify-between px-6 ${
+                        carrito.reduce((sum, p) => sum + p.subtotal, 0) >= 1000
+                          ? "bg-orange-500 text-white hover:bg-orange-600"
+                          : "bg-zinc-300 text-zinc-500 cursor-not-allowed"
+                      }`}
+                    >
+                      <span>Confirmar pedido</span>
+                      <span className="text-lg font-bold">
+                        Total: $
+                        {carrito
+                          .reduce((sum, p) => sum + p.subtotal, 0)
+                          .toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                      </span>
+                    </button>
+                  </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Barra de navegación*/}
             <nav className="fixed bottom-0 left-0 z-50 grid w-full grid-cols-5 items-center border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md">
@@ -11238,7 +11995,7 @@ useEffect(() => {
                 <span className="mt-1">CATEGORÍAS</span>
               </button>
 
-             {/* 2. BOTÓN BUSCAR */}
+              {/* 2. BOTÓN BUSCAR */}
               <button
                 onClick={() => {
                   window.scrollTo({ top: 0, behavior: "instant" });
@@ -11263,7 +12020,7 @@ useEffect(() => {
                 <Search size={20} />
                 <span className="mt-1">BUSCAR</span>
               </button>
-              
+
               {/* 3. BOTÓN CARRITO */}
               <div className="relative flex justify-center">
                 <button
@@ -11324,7 +12081,6 @@ useEffect(() => {
                   </span>
                 </button>
               </div>
-              
 
               {/* 4. BOTÓN UBICACIÓN */}
               <button
