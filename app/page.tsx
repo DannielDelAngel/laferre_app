@@ -124,7 +124,6 @@ const VistaProducto = ({
   const [marcaId, setMarcaId] = useState(
     producto.marca_id ? String(producto.marca_id) : ""
   );
-  
 
   const [imagenAmpliada, setImagenAmpliada] = useState(false);
   const [scale, setScale] = useState(1);
@@ -156,10 +155,6 @@ const VistaProducto = ({
 
   const ID_CUENTA_M1 = "49";
   const ID_CUENTA_M2 = "41";
-//borrar
-  const [codigoEditable, setCodigoEditable] = useState(false);
-const [codigoTemp, setCodigoTemp] = useState(producto.CODIGO);
-
 
   const handleToggleMostrador = async (mostrador: "M1" | "M2") => {
     setActualizandoToggle(true);
@@ -195,27 +190,6 @@ const [codigoTemp, setCodigoTemp] = useState(producto.CODIGO);
       setActualizandoToggle(false);
     }
   };
-//borrar 
-  const guardarCodigoProducto = async () => {
-  if (!codigoTemp || codigoTemp.trim() === "") return;
-
-  const { error } = await supabase
-    .from("productos")
-    .update({ CODIGO: codigoTemp })
-    .eq("id", producto.id);
-
-  if (error) {
-    console.error("Error actualizando código:", error);
-    alert("Error al actualizar el código");
-    return;
-  }
-
-  // Actualiza el producto local para que no se regrese
-  producto.CODIGO = codigoTemp;
-
-  setCodigoEditable(false);
-};
-
 
   const handleToggleVisible = async () => {
     setActualizandoToggle(true);
@@ -877,60 +851,6 @@ const [codigoTemp, setCodigoTemp] = useState(producto.CODIGO);
                   className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
                 />
               </div>
-
-              {/* Código temporal borrar*/}
-<div className="mb-4">
-  <label className="block text-sm font-medium text-zinc-700 mb-2">
-    Código
-  </label>
-
-  <input
-    type="text"
-    value={codigoTemp}
-    disabled={!codigoEditable}
-    onChange={(e) => setCodigoTemp(e.target.value)}
-    className={`w-full border rounded-lg px-3 py-2 ${
-      codigoEditable
-        ? "border-orange-400 bg-white text-zinc-800"
-        : "border-zinc-300 bg-zinc-100 text-zinc-500"
-    }`}
-  />
-
-  <div className="flex gap-2 mt-2">
-    {!codigoEditable ? (
-      <button
-        type="button"
-        onClick={() => setCodigoEditable(true)}
-        className="text-xs px-3 py-1 rounded-md bg-orange-100 text-orange-700 hover:bg-orange-200"
-      >
-        Editar código
-      </button>
-    ) : (
-      <>
-        <button
-  type="button"
-  onClick={guardarCodigoProducto}
-  className="text-xs px-3 py-1 rounded-md bg-green-600 text-white hover:bg-green-700"
->
-  Guardar
-</button>
-
-
-        <button
-          type="button"
-          onClick={() => {
-            setCodigoTemp(producto.CODIGO);
-            setCodigoEditable(false);
-          }}
-          className="text-xs px-3 py-1 rounded-md bg-zinc-200 text-zinc-700 hover:bg-zinc-300"
-        >
-          Cancelar
-        </button>
-      </>
-    )}
-  </div>
-</div>
-
 
               {/* Precio */}
               <div className="mb-4">
@@ -6475,7 +6395,7 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
           {
             cuenta_id: cuenta.id,
             total: total,
-            estado: "pendiente",
+            estado: "nuevo_pedido",
             es_domicilio: enviarDomicilio,
             lista_productos: listaProductosString,
           },
@@ -7004,42 +6924,52 @@ docCliente.text(
     }, [estadoActual]);
 
     const estados = [
-      {
-        valor: "revision",
-        label: "En Revisión",
-        color: "bg-yellow-100 text-yellow-800",
-      },
-      {
-        valor: "recibido",
-        label: "Recibido",
-        color: "bg-blue-100 text-blue-800",
-      },
-      {
-        valor: "surtiendo",
-        label: "Surtiendo",
-        color: "bg-purple-100 text-purple-800",
-      },
-      {
-        valor: "encajado",
-        label: "Encajado",
-        color: "bg-indigo-100 text-indigo-800",
-      },
-      {
-        valor: "en_camino",
-        label: "En Camino",
-        color: "bg-orange-100 text-orange-800",
-      },
-      {
-        valor: "completado",
-        label: "Completado",
-        color: "bg-green-100 text-green-800",
-      },
-      {
-        valor: "listo_para_recoger",
-        label: "Listo para recoger",
-        color: "bg-emerald-100 text-emerald-800",
-      },
-    ];
+  {
+    valor: "nuevo_pedido",
+    label: "Nuevo pedido",
+    color: "bg-yellow-100 text-yellow-800",
+  },
+  // {
+  //   valor: "recibido",
+  //   label: "Recibido",
+  //   color: "bg-blue-100 text-blue-800",
+  // },
+  {
+    valor: "surtiendo",
+    label: "Surtiendo",
+    color: "bg-purple-100 text-purple-800",
+  },
+  {
+    valor: "por_revisar",
+    label: "Por revisar",
+    color: "bg-orange-100 text-orange-800",
+  },
+  {
+    valor: "revisando",
+    label: "Revisando",
+    color: "bg-amber-100 text-amber-800",
+  },
+  {
+    valor: "encajado",
+    label: "Encajado",
+    color: "bg-indigo-100 text-indigo-800",
+  },
+  {
+    valor: "en_ruta",
+    label: "En ruta",
+    color: "bg-cyan-100 text-cyan-800",
+  },
+  {
+    valor: "completado",
+    label: "Completado",
+    color: "bg-green-100 text-green-800",
+  },
+  {
+    valor: "listo_para_recoger",
+    label: "Listo para recoger",
+    color: "bg-emerald-100 text-emerald-800",
+  },
+];
 
     const cambiarEstado = async (nuevoEstado: string) => {
       if (nuevoEstado === estadoLocal) return;
@@ -7093,48 +7023,69 @@ docCliente.text(
     );
   };
 
-  const BadgeEstado = ({ estado }: any) => {
-    const estados: Record<string, { label: string; color: string }> = {
-      revision: {
-        label: "En Revisión",
-        color: "bg-yellow-100 text-yellow-800 border-yellow-200",
-      },
-      recibido: {
-        label: "Recibido",
-        color: "bg-blue-100 text-blue-800 border-blue-200",
-      },
-      surtiendo: {
-        label: "Surtiendo",
-        color: "bg-purple-100 text-purple-800 border-purple-200",
-      },
-      encajado: {
-        label: "Encajado",
-        color: "bg-indigo-100 text-indigo-800 border-indigo-200",
-      },
-      en_camino: {
-        label: "En Camino",
-        color: "bg-orange-100 text-orange-800 border-orange-200",
-      },
-      completado: {
-        label: "Completado",
-        color: "bg-green-100 text-green-800 border-green-200",
-      },
-      listo_para_recoger: {
-        label: "Listo para recoger",
-        color: "bg-emerald-100 text-emerald-800 border-emerald-200",
-      },
-    };
+const BadgeEstado = ({ estado }: any) => {
+  // Determinar si es vista admin/empleado/rutas
+  const esVistaAdmin = esAdmin || esEmpleado || esRutas;
 
-    const estadoInfo = estados[estado] ?? estados["revision"];
-
-    return (
-      <span
-        className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${estadoInfo.color}`}
-      >
-        {estadoInfo.label}
-      </span>
-    );
+  const estados: Record<string, { label: string; labelAdmin: string; color: string }> = {
+    nuevo_pedido: {
+      label: "Recibido", 
+      labelAdmin: "Nuevo pedido",
+      color: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    },
+    recibido: {
+      label: "Recibido",
+      labelAdmin: "Nuevo pedido",
+      color: "bg-blue-100 text-blue-800 border-blue-200",
+    },
+    surtiendo: {
+      label: "Surtiendo",
+      labelAdmin: "Surtiendo",
+      color: "bg-purple-100 text-purple-800 border-purple-200",
+    },
+    por_revisar: {
+      label: "Surtiendo", 
+      labelAdmin: "Por revisar",
+      color: "bg-orange-100 text-orange-800 border-orange-200",
+    },
+    revisando: {
+      label: "En mesa de revisión",
+      labelAdmin: "Revisando",
+      color: "bg-amber-100 text-amber-800 border-amber-200",
+    },
+    encajado: {
+      label: "Encajado",
+      labelAdmin: "Encajado",
+      color: "bg-indigo-100 text-indigo-800 border-indigo-200",
+    },
+    en_ruta: {
+      label: "En Camino",
+      labelAdmin: "En ruta",
+      color: "bg-cyan-100 text-cyan-800 border-cyan-200",
+    },
+    completado: {
+      label: "Completado",
+      labelAdmin: "Completado",
+      color: "bg-green-100 text-green-800 border-green-200",
+    },
+    listo_para_recoger: {
+      label: "Listo para recoger",
+      labelAdmin: "Listo para recoger",
+      color: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    },
   };
+
+  const estadoInfo = estados[estado] ?? estados["recibido"];
+  const labelMostrar = esVistaAdmin ? estadoInfo.labelAdmin : estadoInfo.label;
+
+  return (
+    <span
+      className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${estadoInfo.color}`}
+    >
+      {labelMostrar}
+    </span>
+  );
+};
 
   const HistorialPedidos = ({ cuenta, setVistaPerfil }: any) => {
     const [pedidos, setPedidos] = useState<any[]>([]);
@@ -7912,7 +7863,7 @@ docCliente.text(
       `
         )
 
-        .in("estado", ["encajado", "en_camino"])
+        .in("estado", ["encajado", "en_ruta"])
         .order("created_at", { ascending: false });
 
       if (!error && data) {
@@ -8216,19 +8167,19 @@ docCliente.text(
     };
   }, []);
 
-  const cargarPedidosPendientes = async () => {
-    const { data } = await supabase
-      .from("pedidos")
-      .select(`
-        id, created_at, total, estado,
-        cuentas (cliente, ferreteria, numero_cuenta)
-      `)
-      .in("estado", ["recibido", "surtiendo"])
-      .order("created_at", { ascending: true });
+ const cargarPedidosPendientes = async () => {
+  const { data } = await supabase
+    .from("pedidos")
+    .select(`
+      id, created_at, total, estado,
+      cuentas (cliente, ferreteria, numero_cuenta)
+    `)
+    .in("estado", ["nuevo_pedido", "recibido", "surtiendo"]) 
+    .order("created_at", { ascending: true });
 
-    setPedidosPendientes(data || []);
-    setCargando(false);
-  };
+  setPedidosPendientes(data || []);
+  setCargando(false);
+};
 
 const iniciarSurtido = async (pedido: any) => {
     const { data: pedidoData } = await supabase
@@ -8350,23 +8301,37 @@ const iniciarSurtido = async (pedido: any) => {
 const VistaSurtiendoPedido = () => {
   const totalProductos = productosSurtir.reduce((sum, item) => sum + item.cantidad, 0);
   const productosSurtidosTotal = Array.from(productosSurtidos.values()).reduce((sum, val) => sum + val, 0);
-  const progreso = (productosSurtidosTotal / totalProductos) * 100;
+  const progreso = totalProductos > 0 ? (productosSurtidosTotal / totalProductos) * 100 : 0;
+  const estaCompleto = productosSurtidosTotal >= totalProductos && totalProductos > 0;
   const [mensajeError, setMensajeError] = useState("");
   const [ultimoEscaneo, setUltimoEscaneo] = useState("");
   const [bufferEscaneo, setBufferEscaneo] = useState("");
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [mostrarModalCompletado, setMostrarModalCompletado] = useState(false);
+  const [guardandoCierre, setGuardandoCierre] = useState(false);
+  const [modalAlerta, setModalAlerta] = useState<{
+    visible: boolean;
+    titulo: string;
+    mensaje: string;
+    tipo: "error" | "warning"; 
+  } | null>(null);
 
-const [modalAlerta, setModalAlerta] = useState<{
-  visible: boolean;
-  titulo: string;
-  mensaje: string;
-  tipo: "error" | "warning"; 
-} | null>(null);
+  useEffect(() => {
+    if (estaCompleto) {
+      const timer = setTimeout(() => {
+        setMostrarModalCompletado(true);
+        if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [productosSurtidosTotal, totalProductos, estaCompleto]);
 
-
-  // Detectar escaneo del Bluetooth 
+  // Lógica del Escáner 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
+      // Si el modal de completado ya está abierto, ignorar escaneos
+      if (mostrarModalCompletado) return;
+
       if (e.key === "Enter") {
         if (bufferEscaneo.trim()) {
           procesarEscaneo(bufferEscaneo.trim());
@@ -8374,11 +8339,8 @@ const [modalAlerta, setModalAlerta] = useState<{
         }
         return;
       }
-
-
       setBufferEscaneo((prev) => prev + e.key);
-
-      // Limpiar buffer después de 100ms de inactividad 
+      
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         if (bufferEscaneo.trim()) {
@@ -8389,12 +8351,11 @@ const [modalAlerta, setModalAlerta] = useState<{
     };
 
     window.addEventListener("keypress", handleKeyPress);
-
     return () => {
       window.removeEventListener("keypress", handleKeyPress);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [bufferEscaneo, productosSurtir, productosSurtidos]);
+  }, [bufferEscaneo, productosSurtir, productosSurtidos, mostrarModalCompletado]);
 
   const procesarEscaneo = (codigoEscaneado: string) => {
     setUltimoEscaneo(codigoEscaneado);
@@ -8405,7 +8366,6 @@ const [modalAlerta, setModalAlerta] = useState<{
 
     if (!itemEncontrado) {
       if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-      
       setModalAlerta({
         visible: true,
         titulo: "Producto Incorrecto",
@@ -8417,10 +8377,8 @@ const [modalAlerta, setModalAlerta] = useState<{
 
     const cantidadSurtida = productosSurtidos.get(itemEncontrado.producto_id) || 0;
 
-
     if (cantidadSurtida >= itemEncontrado.cantidad) {
       if ("vibrate" in navigator) navigator.vibrate([100, 100]);
-
       setModalAlerta({
         visible: true,
         titulo: "Producto Completo",
@@ -8430,36 +8388,38 @@ const [modalAlerta, setModalAlerta] = useState<{
       return;
     }
 
+    // Actualizar conteo
     const nuevaCantidad = cantidadSurtida + 1;
     const nuevoMapa = new Map(productosSurtidos);
     nuevoMapa.set(itemEncontrado.producto_id, nuevaCantidad);
     setProductosSurtidos(nuevoMapa);
 
     if ("vibrate" in navigator) navigator.vibrate(50); 
- 
     setMensajeError(`✓ Agregado: ${itemEncontrado.TITULO}`);
     setTimeout(() => setMensajeError(""), 1500);
-
-  
-    const nuevoTotal = Array.from(nuevoMapa.values()).reduce((sum, val) => sum + val, 0);
-    const totalProductos = productosSurtir.reduce((sum, item) => sum + item.cantidad, 0);
-    
-    if (nuevoTotal >= totalProductos) {
-      completarSurtido();
-    }
   };
 
-  const completarSurtido = async () => {
-    await supabase
-      .from("pedidos")
-      .update({ estado: "encajado" })
-      .eq("id", pedidoSurtir.id);
-
-    setMensajeError("✓ ¡Pedido surtido completamente!");
-    setTimeout(() => {
-      setVistaSurtir(null);
-      setPedidoSurtir(null);
-    }, 2000);
+  const confirmarCompletado = async () => {
+    setGuardandoCierre(true);
+    try {
+      const { error } = await supabase
+        .from("pedidos")
+        .update({ estado: "por_revisar" }) 
+        .eq("id", pedidoSurtir.id);
+      
+      if(error) {
+        console.error("Error al finalizar:", error);
+        alert("Error al finalizar el pedido. Verifica tu conexión.");
+      } else {
+        setMostrarModalCompletado(false);
+        setVistaSurtir("seleccionar");
+        setPedidoSurtir(null);
+      }
+    } catch (err) {
+      console.error("Error de red:", err);
+    } finally {
+      setGuardandoCierre(false);
+    }
   };
 
   return (
@@ -8474,42 +8434,56 @@ const [modalAlerta, setModalAlerta] = useState<{
       </h2>
 
       {/* Barra de progreso */}
-      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4">
+      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
         <div className="flex justify-between mb-2">
           <span className="text-sm font-semibold text-zinc-700">Progreso</span>
-          <span className="text-sm font-bold text-orange-600">
+          <span className={`text-sm font-bold ${estaCompleto ? "text-green-600" : "text-orange-600"}`}>
             {productosSurtidosTotal} / {totalProductos}
           </span>
         </div>
-        <div className="w-full bg-zinc-200 rounded-full h-3">
+        <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${progreso}%` }}
-            className="h-full rounded-full bg-gradient-to-r from-orange-500 to-orange-600"
+            className={`h-full rounded-full transition-colors duration-300 ${
+              estaCompleto 
+                ? "bg-gradient-to-r from-green-500 to-green-600" 
+                : "bg-gradient-to-r from-orange-500 to-orange-600"
+            }`}
           />
         </div>
+        
+        {/*Solo aparece si está completo */}
+        {estaCompleto && (
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={() => setMostrarModalCompletado(true)}
+            className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold shadow-md transition"
+          >
+            CONFIRMAR FINALIZADO
+          </motion.button>
+        )}
       </div>
 
       {/* Indicador de escaneo activo */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center gap-3">
-        <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-        <span className="text-sm text-blue-800 font-medium">
-          Esperando escaneo del código de barras...
-        </span>
-      </div>
+      {!estaCompleto && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center gap-3">
+          <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+          <span className="text-sm text-blue-800 font-medium">
+            Esperando escaneo del código de barras...
+          </span>
+        </div>
+      )}
 
-      {/* Mensaje de error/éxito */}
+      {/* Feedback Visual */}
       <AnimatePresence>
         {mensajeError && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className={`mb-4 p-3 rounded-lg text-sm font-semibold ${
-              mensajeError.includes("⚠️")
-                ? "bg-red-50 text-red-700 border border-red-200"
-                : "bg-green-50 text-green-700 border border-green-200"
-            }`}
+            className="mb-4 p-3 rounded-lg text-sm font-semibold bg-green-50 text-green-700 border border-green-200"
           >
             {mensajeError}
           </motion.div>
@@ -8517,7 +8491,7 @@ const [modalAlerta, setModalAlerta] = useState<{
       </AnimatePresence>
 
       {/* Lista de productos */}
-      <div className="space-y-2">
+      <div className="space-y-2 pb-20">
         {productosSurtir.map((item) => {
           const cantidadSurtida = productosSurtidos.get(item.producto_id) || 0;
           const completado = cantidadSurtida >= item.cantidad;
@@ -8528,14 +8502,13 @@ const [modalAlerta, setModalAlerta] = useState<{
               key={item.producto_id}
               animate={{
                 scale: ultimoEscaneado ? [1, 1.02, 1] : 1,
-                backgroundColor: completado ? "#dcfce7" : "#ffffff"
+                backgroundColor: completado ? "#dcfce7" : "#ffffff",
+                borderColor: completado ? "#22c55e" : "#e4e4e7"
               }}
-              className={`border-2 rounded-xl p-3 ${
-                completado ? "border-green-500" : "border-zinc-200"
-              }`}
+              className="border-2 rounded-xl p-3 shadow-sm transition-colors duration-300"
             >
               <div className="flex items-center gap-3">
-                <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden">
+                <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
                   <Image
                     src={item.IMAGEN || "/placeholder.jpg"}
                     alt={item.TITULO}
@@ -8545,85 +8518,152 @@ const [modalAlerta, setModalAlerta] = useState<{
                 </div>
 
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-zinc-800 line-clamp-2">
+                  <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
                     {item.TITULO}
                   </p>
-                  <p className="text-xs text-zinc-500">{item.CODIGO}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-lg font-bold ${
-                      completado ? "text-green-600" : "text-orange-600"
+                  <p className="text-xs text-zinc-500 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">
+                    {item.CODIGO}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex-1 bg-zinc-200 h-2 rounded-full overflow-hidden">
+                       <div 
+                         className={`h-full ${completado ? 'bg-green-500' : 'bg-orange-500'}`} 
+                         style={{ width: `${Math.min((cantidadSurtida / item.cantidad) * 100, 100)}%` }}
+                       />
+                    </div>
+                    <span className={`text-sm font-bold ${
+                      completado ? "text-green-600" : "text-zinc-600"
                     }`}>
-                      {cantidadSurtida} / {item.cantidad}
+                      {cantidadSurtida}/{item.cantidad}
                     </span>
-                    {completado && <span className="text-green-600">✓</span>}
                   </div>
                 </div>
+                
+                {completado && (
+                   <div className="bg-green-100 p-1 rounded-full text-green-600">
+                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                       <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                     </svg>
+                   </div>
+                )}
               </div>
             </motion.div>
           );
         })}
       </div>
-      
-      {/* MODAL DE ALERTA DE ESCANEO */}
-      <AnimatePresence>
-        {modalAlerta && modalAlerta.visible && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
-            onClick={() => {
-               // Opcional: Si quieres obligar al clic en el botón, borra este onClick
-               // setModalAlerta(null) 
-            }}
-          >
+
+      {/* Alerta Error/Warning */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {modalAlerta && modalAlerta.visible && (
             <motion.div
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.5, opacity: 0 }}
-              className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+              style={{ zIndex: 50000 }}
             >
-              {/* Icono animado dependiendo del tipo */}
-              <div className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${
-                modalAlerta.tipo === "error" ? "bg-red-100" : "bg-yellow-100"
-              }`}>
-                {modalAlerta.tipo === "error" ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-10 h-10 text-red-600">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-10 h-10 text-yellow-600">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                  </svg>
-                )}
-              </div>
-
-              <h3 className={`text-2xl font-bold mb-2 ${
-                modalAlerta.tipo === "error" ? "text-red-600" : "text-zinc-800"
-              }`}>
-                {modalAlerta.titulo}
-              </h3>
-              
-              <p className="text-zinc-600 text-lg mb-8 leading-relaxed">
-                {modalAlerta.mensaje}
-              </p>
-
-              <button
-                ref={(btn) => btn?.focus()} // Enfocar automáticamente el botón
-                onClick={() => setModalAlerta(null)}
-                className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg active:scale-95 transition-transform ${
-                   modalAlerta.tipo === "error" 
-                   ? "bg-red-500 hover:bg-red-600 shadow-red-200" 
-                   : "bg-zinc-800 hover:bg-zinc-900 shadow-zinc-200"
-                }`}
+              <motion.div
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+                onClick={(e) => e.stopPropagation()}
               >
-                ENTENDIDO
-              </button>
+                <div className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${
+                  modalAlerta.tipo === "error" ? "bg-red-100" : "bg-yellow-100"
+                }`}>
+                  {modalAlerta.tipo === "error" ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-10 h-10 text-red-600">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-10 h-10 text-yellow-600">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                  )}
+                </div>
+
+                <h3 className={`text-2xl font-bold mb-2 ${
+                  modalAlerta.tipo === "error" ? "text-red-600" : "text-zinc-800"
+                }`}>
+                  {modalAlerta.titulo}
+                </h3>
+                
+                <p className="text-zinc-600 text-lg mb-8 leading-relaxed">
+                  {modalAlerta.mensaje}
+                </p>
+
+                <button
+                  onClick={() => setModalAlerta(null)}
+                  className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg active:scale-95 transition-transform ${
+                     modalAlerta.tipo === "error" 
+                     ? "bg-red-500 hover:bg-red-600 shadow-red-200" 
+                     : "bg-zinc-800 hover:bg-zinc-900 shadow-zinc-200"
+                  }`}
+                >
+                  ENTENDIDO
+                </button>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Modal pedido completado */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {mostrarModalCompletado && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+              style={{ zIndex: 50000 }}
+            >
+              <motion.div
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-14 h-14 text-green-600">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                </div>
+
+                <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                  ¡Surtido Completo!
+                </h3>
+                
+                <p className="text-zinc-600 text-lg mb-8">
+                  Has escaneado todos los productos del pedido <strong>#{pedidoSurtir?.id}</strong>.
+                </p>
+
+                <button
+                  onClick={confirmarCompletado}
+                  disabled={guardandoCierre}
+                  className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {guardandoCierre ? "GUARDANDO..." : "FINALIZAR PEDIDO"}
+                </button>
+                
+                <button 
+                  onClick={() => setMostrarModalCompletado(false)}
+                  className="mt-4 text-zinc-400 text-sm hover:text-zinc-600 underline"
+                  disabled={guardandoCierre}
+                >
+                  Revisar lista de nuevo
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </motion.div>
   );
 };
@@ -8740,7 +8780,7 @@ const [modalAlerta, setModalAlerta] = useState<{
 
         if (error) throw error;
       } else {
-        // Crear nuevo registro (por defecto todos son visibles, así que si no existe, crearlo como no visible)
+        // Crear nuevo registro 
         const { error } = await supabase
           .from("productos_visibilidad_cuenta")
           .insert({
