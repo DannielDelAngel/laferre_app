@@ -1,44 +1,41 @@
-const CACHE_NAME = 'bfm-cache-v1';
-const urlsToCache = [
-  '/',
-  '/logo-bfm.jpg',
-  '/placeholder.jpg'
+const CACHE_NAME = "bfm-static-v1";
+
+const STATIC_ASSETS = [
+  "/logo-bfm.jpg",
+  "/placeholder.jpg"
 ];
 
-// Instalar Service Worker
-self.addEventListener('install', (event) => {
+// INSTALL
+self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(urlsToCache))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
   );
+  self.skipWaiting();
 });
 
-// Activar Service Worker
-self.addEventListener('activate', (event) => {
+// ACTIVATE
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.map((key) => {
+          if (key !== CACHE_NAME) return caches.delete(key);
         })
-      );
-    })
+      )
+    )
   );
+  self.clients.claim();
 });
 
-//Network First
-self.addEventListener('fetch', (event) => {
+// FETCH — SOLO GET y SOLO STATIC
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
+
+  if (event.request.url.includes("supabase")) return;
+
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseClone);
-        });
-        return response;
-      })
-      .catch(() => caches.match(event.request))
+    caches.match(event.request).then((cached) => {
+      return cached || fetch(event.request);
+    })
   );
 });

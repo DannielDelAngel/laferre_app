@@ -8610,8 +8610,9 @@ const VistaSurtiendoPedido = () => {
         </AnimatePresence>,
         document.body
       )}
+      
 
-      {/* Modal pedido completado */}
+      {/* Modal pedido completado  */}
       {typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {mostrarModalCompletado && (
@@ -8693,7 +8694,7 @@ const VistaSurtiendoPedido = () => {
 
       if (error) throw error;
 
-      // Actualizar el estado local para reflejar el cambio inmediatamente
+      // Actualizar el estado local para reflejar el cambio
       setArticulos((prevArticulos: Producto[]) =>
         prevArticulos.map((art: Producto) =>
           art.id === productoId ? { ...art, visible: !visibleActual } : art

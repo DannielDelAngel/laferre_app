@@ -42,13 +42,24 @@ export default function InstallPWA() {
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 
-    // Registrar Service Worker
-    if ("serviceWorker" in navigator) {
+   // Registrar Service Worker (SOLO UNA VEZ y SOLO en producción)
+if (
+  "serviceWorker" in navigator &&
+  process.env.NODE_ENV === "production"
+) {
+  navigator.serviceWorker.getRegistration().then((reg) => {
+    if (!reg) {
       navigator.serviceWorker
         .register("/sw.js")
-        .then((reg) => console.log("Service Worker registrado", reg))
-        .catch((err) => console.log("Error al registrar SW", err));
+        .then((reg) =>
+          console.log("Service Worker registrado UNA sola vez", reg)
+        )
+        .catch((err) =>
+          console.error("Error al registrar Service Worker", err)
+        );
     }
+  });
+}
 
     return () => {
       window.removeEventListener(
