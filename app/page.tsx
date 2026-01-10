@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { createPortal } from "react-dom";
@@ -71,6 +71,7 @@ interface Cuenta {
   id?: number;
   [key: string]: any;
 }
+
 
 const VistaProducto = ({
   esAdminMostrador,
@@ -9077,12 +9078,12 @@ const VistaSurtiendoPedido = () => {
     </motion.button>
   );
 
-  return (
-    <>
-      <InstallPWA />
-      <AnimatePresence mode="wait">
-        {/* LOGIN ANTES DE ENTRAR A LA APP */}
-        {!cuentaActiva ? (
+ return (
+  <MotionConfig reducedMotion="always">
+    <InstallPWA />
+    <AnimatePresence mode="wait">
+      {!cuentaActiva ? (
+
           <motion.div
             key="login"
             initial={{ opacity: 1, scale: 1 }}
@@ -10600,17 +10601,330 @@ const VistaSurtiendoPedido = () => {
                   </motion.div>
                 )}
 
-               {activeTab === "carrito" && (
-  <div style={{ padding: 20 }}>
-    <h3>Carrito debug</h3>
-    <p>Total items: {carrito.length}</p>
-    <p>
-      Cantidad total:{" "}
-      {carrito.reduce((s, i) => s + i.cantidad, 0)}
-    </p>
-  </div>
-)}
+                {/* Carrito */}
+                {activeTab === "carrito" && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 40 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    <div className="mt-4 px-3 pb-13">
+                      {carrito.length === 0 ? (
+                        <p className="text-center text-zinc-500 mt-16">
+                          {esMostrador || esMostrador2
+                            ? "No hay productos agregados"
+                            : "Tu carrito está vacío"}
+                        </p>
+                      ) : (
+                        <>
+                          {/* VISTA PARA MOSTRADORES */}
+                          {esMostrador || esMostrador2 ? (
+                            <div className="space-y-4">
+                              {carrito.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="border border-zinc-300 rounded-xl p-4 bg-white shadow-md"
+                                >
+                                  <div className="flex items-start gap-4">
+                                    {/* Imagen del producto */}
+                                    <div className="relative w-20 h-20 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
+                                      <Image
+                                        src={item.IMAGEN || "/placeholder.jpg"}
+                                        alt={item.TITULO}
+                                        fill
+                                        className="object-contain"
+                                      />
+                                    </div>
 
+                                    {/* Información del producto */}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-base font-bold text-zinc-900 line-clamp-2 leading-tight mb-2">
+                                        {item.TITULO}
+                                      </p>
+                                      <div className="space-y-1">
+                                        <p className="text-sm text-zinc-700">
+                                          <span className="font-semibold">
+                                            Código:
+                                          </span>{" "}
+                                          {item.CODIGO}
+                                        </p>
+                                        <p className="text-sm text-zinc-700">
+                                          <span className="font-semibold">
+                                            Cantidad:
+                                          </span>{" "}
+                                          {item.cantidad}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {/* Botón eliminar */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setCarrito((prev) =>
+                                          prev.filter((p) => p.id !== item.id)
+                                        );
+                                      }}
+                                      className="w-9 h-9 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
+                                      aria-label="Eliminar producto"
+                                    >
+                                      <X size={18} />
+                                    </button>
+                                  </div>
+
+                                  {/* Código de barras */}
+                                  <div className="mt-4 pt-4 border-t border-zinc-200">
+                                    <div
+                                      className="flex justify-center bg-white p-2 rounded cursor-pointer hover:bg-zinc-50 transition"
+                                      onClick={() =>
+                                        setCodigoBarrasModal(item.CODIGO)
+                                      }
+                                    >
+                                      <Barcode
+                                        value={item.CODIGO || "0000000000000"}
+                                        width={1.5}
+                                        height={60}
+                                        fontSize={12}
+                                        margin={0}
+                                        displayValue={true}
+                                        background="#ffffff"
+                                      />
+                                    </div>
+                                    <p className="text-xs text-center text-zinc-500 mt-1">
+                                      Toca para ampliar
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+
+                              {/* Contador de productos */}
+                              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+                                <p className="text-lg font-bold text-blue-900">
+                                  Total de productos:{" "}
+                                  {carrito.reduce(
+                                    (sum, item) => sum + item.cantidad,
+                                    0
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            /* VISTA NORMAL PARA CLIENTES */
+                            <>
+                              {/* Productos */}
+                              <div className="space-y-3">
+                                {carrito.map((item) => (
+                                  <div
+                                    key={item.id}
+                                    className="flex items-center gap-3 border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
+                                  >
+                                    {/* Imagen */}
+                                    <div
+                                      className="relative w-16 h-16 bg-zinc-100 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
+                                      onClick={() => {
+                                        localStorage.setItem(
+                                          "scrollProducto",
+                                          scrollY.toString()
+                                        );
+                                        setProductoSeleccionado(item);
+                                      }}
+                                    >
+                                      <Image
+                                        src={item.IMAGEN || "/placeholder.jpg"}
+                                        alt={item.TITULO}
+                                        fill
+                                        className="object-contain"
+                                      />
+                                    </div>
+
+                                    {/* Información del producto */}
+                                    <div
+                                      className="flex-1 min-w-0 cursor-pointer"
+                                      onClick={() => {
+                                        localStorage.setItem(
+                                          "scrollProducto",
+                                          scrollY.toString()
+                                        );
+                                        setProductoSeleccionado(item);
+                                      }}
+                                    >
+                                      <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
+                                        {item.TITULO}
+                                      </p>
+                                      <p className="text-xs text-zinc-500 mt-1">
+                                        Código: {item.CODIGO}
+                                      </p>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <p className="text-xs text-zinc-600">
+                                          {item.cantidad} × $
+                                          {item.P_MAYOREO.toLocaleString(
+                                            "en-US",
+                                            {
+                                              minimumFractionDigits: 2,
+                                              maximumFractionDigits: 2,
+                                            }
+                                          )}
+                                        </p>
+                                        <span className="text-xs text-zinc-400">
+                                          |
+                                        </span>
+                                        <p className="text-sm font-bold text-orange-500">
+                                          $
+                                          {item.subtotal.toLocaleString(
+                                            "en-US",
+                                            {
+                                              minimumFractionDigits: 2,
+                                              maximumFractionDigits: 2,
+                                            }
+                                          )}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {/* Botón eliminar */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setCarrito((prev) =>
+                                          prev.filter((p) => p.id !== item.id)
+                                        );
+                                      }}
+                                      className="w-9 h-9 bg-orange-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
+                                      aria-label="Eliminar producto"
+                                    >
+                                      <X size={18} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Barra de progreso*/}
+                              <AnimatePresence>
+                                {!ocultarBarra &&
+                                  (() => {
+                                    const totalCarrito = carrito.reduce(
+                                      (sum, p) => sum + p.subtotal,
+                                      0
+                                    );
+                                    const minimoRequerido = 1000;
+                                    const progreso = Math.min(
+                                      (totalCarrito / minimoRequerido) * 100,
+                                      100
+                                    );
+                                    const faltante = Math.max(
+                                      minimoRequerido - totalCarrito,
+                                      0
+                                    );
+
+                                    return (
+                                      <motion.div
+                                        key="barra-progreso"
+                                        initial={{ opacity: 0, x: -100 }}
+                                        animate={{
+                                          opacity: 1,
+                                          x: 0,
+                                          scale:
+                                            totalCarrito >= minimoRequerido
+                                              ? [1, 1.02, 1]
+                                              : 1,
+                                        }}
+                                        exit={{ opacity: 0, x: 100 }}
+                                        transition={{
+                                          x: {
+                                            duration: 0.4,
+                                            ease: "easeInOut",
+                                          },
+                                          opacity: { duration: 0.3 },
+                                          scale: {
+                                            duration: 0.6,
+                                            repeat:
+                                              totalCarrito >= minimoRequerido
+                                                ? Infinity
+                                                : 0,
+                                            repeatDelay: 0.3,
+                                          },
+                                        }}
+                                        className="mb-4 mt-4 bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"
+                                      >
+                                        <div className="flex justify-between items-center mb-2">
+                                          <span className="text-sm font-semibold text-zinc-700">
+                                            Pedido mínimo: $1,000.00
+                                          </span>
+                                          <span
+                                            className={`text-sm font-bold ${
+                                              totalCarrito >= minimoRequerido
+                                                ? "text-green-600"
+                                                : "text-orange-600"
+                                            }`}
+                                          >
+                                            $
+                                            {totalCarrito.toLocaleString(
+                                              "en-US",
+                                              {
+                                                minimumFractionDigits: 2,
+                                                maximumFractionDigits: 2,
+                                              }
+                                            )}
+                                          </span>
+                                        </div>
+
+                                        <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
+                                          <motion.div
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${progreso}%` }}
+                                            transition={{
+                                              duration: 0.5,
+                                              ease: "easeOut",
+                                            }}
+                                            className={`h-full rounded-full transition-colors ${
+                                              progreso === 100
+                                                ? "bg-gradient-to-r from-green-500 to-green-600"
+                                                : "bg-gradient-to-r from-orange-500 to-orange-600"
+                                            }`}
+                                          />
+                                        </div>
+
+                                        {totalCarrito >= minimoRequerido ? (
+                                          <div className="mt-2 flex items-center gap-2 text-green-600">
+                                            <svg
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              strokeWidth={2}
+                                              stroke="currentColor"
+                                              className="w-5 h-5"
+                                            >
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                              />
+                                            </svg>
+                                            <span className="text-sm font-semibold">
+                                              ¡Ya puedes enviar tu pedido!
+                                            </span>
+                                          </div>
+                                        ) : (
+                                          <p className="mt-2 text-xs text-zinc-600">
+                                            Te faltan{" "}
+                                            <span className="font-bold text-orange-600">
+                                              ${faltante.toFixed(2)}
+                                            </span>{" "}
+                                            para realizar el pedido
+                                          </p>
+                                        )}
+                                      </motion.div>
+                                    );
+                                  })()}
+                              </AnimatePresence>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
 
                 {/* Modal de código de barras ampliado */}
                 {codigoBarrasModal && (
@@ -11852,7 +12166,8 @@ const VistaSurtiendoPedido = () => {
             </nav>
           </motion.div>
         )}
-      </AnimatePresence>
-    </>
-  );
+             </AnimatePresence>
+  </MotionConfig>
+);
+
 }

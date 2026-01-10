@@ -1,6 +1,5 @@
 const CACHE_NAME = "bfm-static-v2";
 
-// ⚠️ SOLO archivos 100% estáticos y locales
 const STATIC_ASSETS = [
   "/favicon.ico"
 ];
