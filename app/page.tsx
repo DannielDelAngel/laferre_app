@@ -2503,16 +2503,15 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
       } else {
         // Admin o usuarios normales
         const { data, error } = await supabase
-          .from("productos")
-          .select(
-            "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
-          );
+  .from("productos")
+  .select("*")
+  .order("orden_categoria", { ascending: true }); // AGREGA ESTA LÍNEA
 
-        if (error) {
-          console.error("Error cargando productos:", error.message);
-        } else {
-          productosFinales = data || [];
-        }
+if (error) {
+  console.error("Error cargando productos:", error.message);
+} else {
+  productosFinales = data || [];
+}
       }
 
       const productosNormalizados = productosFinales.map((producto) => ({
@@ -3335,6 +3334,224 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
       </motion.div>
     );
   };
+
+  const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
+  const [categorias, setCategorias] = useState<any[]>([]);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<any>(null);
+  const [productos, setProductos] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+
+  useEffect(() => {
+    cargarCategorias();
+  }, []);
+
+  const cargarCategorias = async () => {
+    const { data } = await supabase
+      .from("categorias")
+      .select("id_categoria, nombre_categoria")
+      .order("nombre_categoria", { ascending: true });
+    setCategorias(data || []);
+    setCargando(false);
+  };
+
+  const cargarProductos = async (categoriaId: number) => {
+    const { data } = await supabase
+      .from("productos")
+      .select("id, TITULO, CODIGO, visible, liquidacion, top_ventas, orden_categoria")
+      .eq("CATEGORIA_ID", categoriaId)
+      .order("orden_categoria", { ascending: true });
+    setProductos(data || []);
+  };
+
+  const moverProducto = (index: number, direccion: "arriba" | "abajo") => {
+    const nuevosProductos = [...productos];
+    const nuevoIndex = direccion === "arriba" ? index - 1 : index + 1;
+    
+    if (nuevoIndex < 0 || nuevoIndex >= nuevosProductos.length) return;
+    
+    [nuevosProductos[index], nuevosProductos[nuevoIndex]] = 
+    [nuevosProductos[nuevoIndex], nuevosProductos[index]];
+    
+    setProductos(nuevosProductos);
+  };
+
+  const guardarOrden = async () => {
+    setGuardando(true);
+    setMensaje("");
+    
+    try {
+      const updates = productos.map((prod, index) => ({
+        id: prod.id,
+        orden_categoria: index + 1
+      }));
+
+      for (const update of updates) {
+        await supabase
+          .from("productos")
+          .update({ orden_categoria: update.orden_categoria })
+          .eq("id", update.id);
+      }
+
+      setMensaje("Orden guardado correctamente");
+      setTimeout(() => setMensaje(""), 2000);
+    } catch (error) {
+      setMensaje("Error al guardar el orden");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  if (!categoriaSeleccionada) {
+    return (
+      <motion.div
+        key="seleccionar-categoria"
+        className="min-h-screen"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+      >
+        <BackBtn onBack={() => setVistaPerfil("menu")} />
+        <h2 className="text-xl font-bold text-zinc-900 mb-6">
+          Ordenar Productos
+        </h2>
+        <p className="text-sm text-zinc-600 mb-4">
+          Selecciona una subcategoría:
+        </p>
+        
+        {cargando ? (
+          <div className="flex justify-center py-10">
+            <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {categorias.map((cat) => (
+              <div
+                key={cat.id_categoria}
+                onClick={() => {
+                  setCategoriaSeleccionada(cat);
+                  cargarProductos(cat.id_categoria);
+                }}
+                className="flex items-center justify-between p-4 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition bg-white"
+              >
+                <span className="font-semibold text-zinc-800">
+                  {cat.nombre_categoria}
+                </span>
+                <span className="text-zinc-400">›</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      key="ordenar-productos"
+      className="min-h-screen pb-20"
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -40 }}
+    >
+      <BackBtn onBack={() => {
+        setCategoriaSeleccionada(null);
+        setProductos([]);
+      }} />
+      
+      <h2 className="text-xl font-bold text-zinc-900 mb-2">
+        {categoriaSeleccionada.nombre_categoria}
+      </h2>
+      <p className="text-sm text-zinc-600 mb-6">
+        Arrastra para ordenar los productos
+      </p>
+
+      {mensaje && (
+        <div className={`mb-4 p-3 rounded-lg text-sm ${
+          mensaje.includes("Error")
+            ? "bg-red-50 text-red-700 border border-red-200"
+            : "bg-green-50 text-green-700 border border-green-200"
+        }`}>
+          {mensaje}
+        </div>
+      )}
+
+      <div className="space-y-2 mb-4">
+        {productos.map((prod, index) => (
+          <div
+            key={prod.id}
+            className="flex items-center gap-3 p-3 bg-white rounded-xl border border-zinc-200 shadow-sm"
+          >
+            <div className="flex flex-col gap-1">
+              <button
+  onClick={() => moverProducto(index, "arriba")}
+  disabled={index === 0}
+  className="
+    w-8 h-8 rounded flex items-center justify-center
+    bg-zinc-200 text-zinc-700
+    disabled:bg-zinc-100 disabled:text-zinc-300 disabled:opacity-100
+  "
+>
+  ▲
+</button>
+
+              <button
+                onClick={() => moverProducto(index, "abajo")}
+                disabled={index === productos.length - 1}
+               className="
+    w-8 h-8 rounded flex items-center justify-center
+    bg-zinc-200 text-zinc-700
+    disabled:bg-zinc-100 disabled:text-zinc-300 disabled:opacity-100
+  "
+              >
+                ▼
+              </button>
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-zinc-800 truncate">
+                {prod.TITULO}
+              </p>
+              <p className="text-xs text-zinc-500">
+                Código: {prod.CODIGO}
+              </p>
+              <div className="flex gap-2 mt-1">
+                {!prod.visible && (
+                  <span className="text-xs bg-zinc-200 text-zinc-700 px-2 py-0.5 rounded">
+                    Oculto
+                  </span>
+                )}
+                {prod.liquidacion && (
+                  <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
+                    Liquidación
+                  </span>
+                )}
+                {prod.top_ventas && (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                    Top Ventas
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <span className="text-zinc-400 font-mono text-sm">
+              #{index + 1}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <button
+        onClick={guardarOrden}
+        disabled={guardando}
+        className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
+      >
+        {guardando ? "Guardando..." : "Guardar Orden"}
+      </button>
+    </motion.div>
+  );
+};
 
   const AsignarCategoriasView = ({ setVistaPerfil }: any) => {
     const [categoriaSeleccionada, setCategoriaSeleccionada] =
@@ -10011,45 +10228,32 @@ const VistaSurtiendoPedido = () => {
                             {marcas.map((marca) => (
                               <div
                                 key={marca.id}
-                                onClick={async () => {
-                                  localStorage.setItem(
-                                    "scrollPos",
-                                    window.scrollY.toString()
-                                  );
-                                  if (window.scrollY > 100) {
-                                    window.scrollTo({
-                                      top: 0,
-                                      behavior: "instant",
-                                    });
-                                  }
-                                  setArticulos([]);
-                                  setMarcaSeleccionada(marca);
+                               onClick={async () => {
+  localStorage.setItem("scrollPos", window.scrollY.toString());
+  if (window.scrollY > 100) {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+  setArticulos([]);
+  setMarcaSeleccionada(marca);
 
-                                  const { data, error } = await supabase
-                                    .from("productos")
-                                    .select(
-                                      "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
-                                    )
+  const { data, error } = await supabase
+    .from("productos")
+    .select(
+      "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
+    )
+    .eq("marca_id", marca.id)
+    .order("orden_categoria", { ascending: true }); // AGREGA ESTA LÍNEA
 
-                                    .eq("marca_id", marca.id);
+  const productosNormalizados = (data || []).map((producto) => ({
+    ...producto,
+    visible: producto.visible ?? true,
+  }));
 
-                                  const productosNormalizados = (
-                                    data || []
-                                  ).map((producto) => ({
-                                    ...producto,
-                                    visible: producto.visible ?? true,
-                                  }));
-
-                                  setArticulos(
-                                    error ? [] : productosNormalizados
-                                  );
-                                  requestAnimationFrame(() => {
-                                    window.scrollTo({
-                                      top: 0,
-                                      behavior: "instant",
-                                    });
-                                  });
-                                }}
+  setArticulos(error ? [] : productosNormalizados);
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  });
+}}
                                 className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
                               >
                                 <div className="relative w-full h-28 sm:h-36 md:h-40 overflow-hidden">
@@ -10096,42 +10300,31 @@ const VistaSurtiendoPedido = () => {
                             <div
                               key={cat.id_categoria}
                               onClick={async () => {
-                                localStorage.setItem(
-                                  "scrollPos",
-                                  window.scrollY.toString()
-                                );
-                                if (window.scrollY > 100) {
-                                  window.scrollTo({
-                                    top: 0,
-                                    behavior: "instant",
-                                  });
-                                }
-                                setArticulos([]);
-                                setCategoriaSeleccionada(cat);
+  localStorage.setItem("scrollPos", window.scrollY.toString());
+  if (window.scrollY > 100) {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+  setArticulos([]);
+  setCategoriaSeleccionada(cat);
 
-                                const { data, error } = await supabase
-                                  .from("productos")
-                                  .select("*")
+  const { data, error } = await supabase
+    .from("productos")
+    .select("*")
+    .eq("CATEGORIA_ID", cat.id_categoria)
+    .order("orden_categoria", { ascending: true }); 
 
-                                  .eq("CATEGORIA_ID", cat.id_categoria);
+  const productosNormalizados = (data || []).map(
+    (producto) => ({
+      ...producto,
+      visible: producto.visible ?? true,
+    })
+  );
 
-                                const productosNormalizados = (data || []).map(
-                                  (producto) => ({
-                                    ...producto,
-                                    visible: producto.visible ?? true,
-                                  })
-                                );
-
-                                setArticulos(
-                                  error ? [] : productosNormalizados
-                                );
-                                requestAnimationFrame(() => {
-                                  window.scrollTo({
-                                    top: 0,
-                                    behavior: "instant",
-                                  });
-                                });
-                              }}
+  setArticulos(error ? [] : productosNormalizados);
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  });
+}}
                               className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
                             >
                               <div className="relative w-full h-40">
@@ -11269,6 +11462,17 @@ const VistaSurtiendoPedido = () => {
                             />
                           )}
 
+{esAdmin && (
+  <MenuItem
+    label="Ordenar Productos por Categoría"
+    icon={<FilePenLine size={20} />}
+    onClick={() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      setVistaPerfil("ordenar-productos");
+    }}
+  />
+)}
+
                           {esAdmin && (
                             <MenuItem
                               label="Gestionar Banner de Anuncios"
@@ -11577,6 +11781,10 @@ const VistaSurtiendoPedido = () => {
                         setVistaPerfil={setVistaPerfil}
                       />
                     )}
+
+                    {vistaPerfil === "ordenar-productos" && (
+  <VistaOrdenarProductos setVistaPerfil={setVistaPerfil} />
+)}
 
                     {vistaPerfil === "asignar-categorias" && (
                       <AsignarCategoriasView setVistaPerfil={setVistaPerfil} />
