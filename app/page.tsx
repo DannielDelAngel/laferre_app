@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
 import {
@@ -30,6 +31,7 @@ import {
   ChevronLeft,
   ScanBarcode,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
@@ -40,6 +42,21 @@ import InstallPWA from "@/app/InstallPWA";
 import ContadorEntrega from "@/app/ContadorEntrega";
 import { div } from "framer-motion/client";
 import Barcode from "react-barcode";
+
+
+
+const MapaUbicacion = dynamic(
+  () => import("./MapaUbicacion"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 bg-zinc-100 flex items-center justify-center rounded-xl">
+        Cargando mapa...
+      </div>
+    ),
+  }
+);
+
 const QRCodeModule = await import("qrcode");
 
 const SkeletonImage = ({ src, alt, className }: any) => {
@@ -153,9 +170,11 @@ const VistaProducto = ({
   const [visibleM2, setVisibleM2] = useState(
     producto.visibleMostrador2 ?? true
   );
-
   const ID_CUENTA_M1 = "49";
   const ID_CUENTA_M2 = "41";
+
+const [ubicacion, setUbicacion] = useState(producto.ubicacion || "");
+
 
   const handleToggleMostrador = async (mostrador: "M1" | "M2") => {
     setActualizandoToggle(true);
@@ -475,6 +494,7 @@ const VistaProducto = ({
           CATEGORIA_ID: parseInt(categoriaId),
           marca_id: marcaId ? parseInt(marcaId) : null,
           IMAGEN: urlImagen,
+           ubicacion: ubicacion,
         })
         .eq("id", producto.id);
 
@@ -490,6 +510,8 @@ const VistaProducto = ({
         producto.CATEGORIA_ID = parseInt(categoriaId);
         producto.marca_id = marcaId ? parseInt(marcaId) : null;
         producto.IMAGEN = urlImagen;
+        producto.ubicacion = ubicacion;
+
         setImagenFile(null);
 
         setTimeout(() => {
@@ -721,7 +743,7 @@ const VistaProducto = ({
                 <div className="flex flex-col items-center gap-3">
                   <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-zinc-300">
                     <Image
-                      src={imagenPreview || "/placeholder.jpg"}
+                      src={imagenPreview || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                       alt="Preview"
                       fill
                       className="object-contain"
@@ -907,6 +929,20 @@ const VistaProducto = ({
                 </select>
               </div>
 
+              <div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Ubicación del producto
+  </label>
+  <input
+    type="text"
+    value={ubicacion}
+    onChange={(e) => setUbicacion(e.target.value)}
+    placeholder="Ej. Pasillo 2 - Estante A"
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+  />
+</div>
+
+
               {/* Mensaje */}
               {mensaje && (
                 <div
@@ -1006,7 +1042,7 @@ const VistaProducto = ({
                     <SkeletonImage
                       src={
                         imagenesProducto[imagenActualIndex] ||
-                        "/placeholder.jpg"
+                        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
                       }
                       alt={producto.TITULO}
                       className="object-contain"
@@ -1382,7 +1418,7 @@ const VistaProducto = ({
               >
                 <Image
                   src={
-                    imagenesProducto[imagenActualIndex] || "/placeholder.jpg"
+                    imagenesProducto[imagenActualIndex] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
                   }
                   alt={producto.TITULO}
                   fill
@@ -1590,6 +1626,10 @@ const [pedidoSurtir, setPedidoSurtir] = useState<any>(null);
 const [productosSurtir, setProductosSurtir] = useState<any[]>([]);
 const [productosSurtidos, setProductosSurtidos] = useState<Map<number, number>>(new Map());
 const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
+
+
+
+
 
   interface ProductoConVisibilidad extends Producto {
     visibleMostrador?: boolean;
@@ -2071,7 +2111,7 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
                 <div className="flex items-center gap-3">
                   <div className="relative w-12 h-12 rounded-lg overflow-hidden">
                     <img
-                      src={item.img || "/placeholder.jpg"}
+                      src={item.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                       alt={item.nombre || item.nombre_categoria}
                       sizes="48px"
                       className="object-cover"
@@ -2100,7 +2140,7 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
               <div className="flex flex-col items-center gap-3">
                 <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-zinc-300">
                   <img
-                    src={imagenPreview || "/placeholder.jpg"}
+                    src={imagenPreview || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                     alt="Preview"
                     sizes="48px"
                     className="object-cover"
@@ -2804,7 +2844,7 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
                     <div className="flex items-center gap-3">
                       <div className="relative w-12 h-12 rounded-lg overflow-hidden">
                         <Image
-                          src={marca.img || "/placeholder.jpg"}
+                          src={marca.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                           alt={marca.nombre_marca}
                           fill
                           className="object-contain"
@@ -3211,11 +3251,12 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
                     <div className="flex items-center gap-3">
                       <div className="relative w-12 h-12 rounded-lg overflow-hidden">
                         <Image
-                          src={macro.img || "/placeholder.jpg"}
+                          src={macro.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                           alt={macro.nombre}
                           fill
                           className="object-cover"
-                          loading="lazy"
+                          loading="eager"  
+  priority
                         />
                       </div>
                       <span className="font-semibold text-zinc-800">
@@ -3375,7 +3416,7 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
                 <div className="flex items-center gap-3">
                   <div className="relative w-12 h-12 rounded-lg overflow-hidden">
                     <Image
-                      src={cat.img || "/placeholder.jpg"}
+                      src={cat.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                       alt={cat.nombre_categoria}
                       fill
                       className="object-cover"
@@ -3970,10 +4011,50 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
       numero: "",
       monto: "",
     });
+    const [latitud, setLatitud] = useState("");
+const [longitud, setLongitud] = useState("");
+
 
     useEffect(() => {
       cargarCuentas();
-    }, []);
+       if (cuentaSeleccionada) {
+    setLatitud(cuentaSeleccionada.latitud?.toString() ?? "");
+    setLongitud(cuentaSeleccionada.longitud?.toString() ?? "");
+  } else {
+    setLatitud("");
+    setLongitud("");
+  }
+}, [cuentaSeleccionada?.id]);
+
+    const obtenerCoordenadasDesdeDireccion = async (direccion: string) => {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        direccion
+      )}`,
+      {
+        headers: {
+          "User-Agent": "TuAppPedidos/1.0",
+        },
+      }
+    );
+
+    const data = await res.json();
+
+    if (!data || data.length === 0) {
+      return null;
+    }
+
+    return {
+      latitud: parseFloat(data[0].lat),
+      longitud: parseFloat(data[0].lon),
+    };
+  } catch (error) {
+    console.error("Error geocodificando dirección:", error);
+    return null;
+  }
+};
+
 
     const cargarCuentas = async () => {
       setCargando(true);
@@ -4129,6 +4210,8 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
             tiene_saldo_pendiente: tieneSaldoPendiente,
             ruta: ruta.trim() || null,
             tipo_comprobante: tipoComprobante,
+              latitud: latitud ? parseFloat(latitud) : null,
+    longitud: longitud ? parseFloat(longitud) : null,
           })
           .eq("id", cuentaSeleccionada.id);
 
@@ -4673,6 +4756,33 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
                   className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-6">
+  <div>
+    <label className="text-sm text-zinc-600">Latitud</label>
+    <input
+      type="number"
+      step="any"
+      value={latitud}
+      onChange={(e) => setLatitud(e.target.value)}
+      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+      placeholder="Ej: 25.6866"
+    />
+  </div>
+
+  <div>
+    <label className="text-sm text-zinc-600">Longitud</label>
+    <input
+      type="number"
+      step="any"
+      value={longitud}
+      onChange={(e) => setLongitud(e.target.value)}
+      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+      placeholder="Ej: -100.3161"
+    />
+  </div>
+</div>
+
 
               {/* Sección de Horarios de Recepción - Solo si entrega_mismo_dia está activo */}
 
@@ -5526,7 +5636,7 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
                     <div className="flex items-center gap-3">
                       <div className="relative w-12 h-12 rounded-lg overflow-hidden">
                         <Image
-                          src={cat.img || "/placeholder.jpg"}
+                          src={cat.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                           alt={cat.nombre_categoria}
                           fill
                           className="object-cover"
@@ -7859,7 +7969,10 @@ const BadgeEstado = ({ estado }: any) => {
           ferreteria,
           numero_tel,
           direccion,
-          ruta
+          ruta,
+           latitud,
+      longitud
+          
         )
       `
         )
@@ -8019,6 +8132,20 @@ const BadgeEstado = ({ estado }: any) => {
             )}
           </div>
 
+          
+          {pedidoSeleccionado?.cuentas?.latitud &&
+ pedidoSeleccionado?.cuentas?.longitud ? (
+  <MapaUbicacion
+    lat={pedidoSeleccionado.cuentas.latitud}
+    lng={pedidoSeleccionado.cuentas.longitud}
+    nombreLocal={pedidoSeleccionado.cuentas.ferreteria}
+  />
+) : (
+  <div className="bg-yellow-50 text-yellow-700 p-3 rounded-lg text-sm mt-2">
+    ⚠️ Esta cuenta no tiene ubicación configurada
+  </div>
+)}
+
           {pedidoSeleccionado.pdf_url && (
             <div className="space-y-3">
               <h3 className="text-lg font-semibold text-zinc-900">Documento</h3>
@@ -8031,9 +8158,13 @@ const BadgeEstado = ({ estado }: any) => {
               </div>
             </div>
           )}
+
+
+
         </motion.div>
       );
     }
+    
 
     // VISTA LISTA DE RUTAS
     return (
@@ -8359,22 +8490,22 @@ const VistaSurtiendoPedido = () => {
   }, [bufferEscaneo, productosSurtir, productosSurtidos, mostrarModalCompletado]);
 
   const procesarEscaneo = (codigoEscaneado: string) => {
-    setUltimoEscaneo(codigoEscaneado);
-    
-    const itemEncontrado = productosSurtir.find(
-      item => item.CODIGO === codigoEscaneado
-    );
+  setUltimoEscaneo(codigoEscaneado);
+  
+  const itemEncontrado = productosSurtir.find(
+    item => item.CODIGO === codigoEscaneado || item.C_PRODUCTO === codigoEscaneado
+  );
 
-    if (!itemEncontrado) {
-      if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-      setModalAlerta({
-        visible: true,
-        titulo: "Producto Incorrecto",
-        mensaje: `El código "${codigoEscaneado}" no pertenece a este pedido.`,
-        tipo: "error"
-      });
-      return;
-    }
+  if (!itemEncontrado) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    setModalAlerta({
+      visible: true,
+      titulo: "Producto Incorrecto",
+      mensaje: `El código "${codigoEscaneado}" no pertenece a este pedido.`,
+      tipo: "error"
+    });
+    return;
+  }
 
     const cantidadSurtida = productosSurtidos.get(itemEncontrado.producto_id) || 0;
 
@@ -8496,7 +8627,7 @@ const VistaSurtiendoPedido = () => {
         {productosSurtir.map((item) => {
           const cantidadSurtida = productosSurtidos.get(item.producto_id) || 0;
           const completado = cantidadSurtida >= item.cantidad;
-          const ultimoEscaneado = ultimoEscaneo === item.CODIGO;
+          const ultimoEscaneado = ultimoEscaneo === item.CODIGO || ultimoEscaneo === item.C_PRODUCTO;
 
           return (
             <motion.div
@@ -8511,7 +8642,7 @@ const VistaSurtiendoPedido = () => {
               <div className="flex items-center gap-3">
                 <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
                   <Image
-                    src={item.IMAGEN || "/placeholder.jpg"}
+                    src={item.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                     alt={item.TITULO}
                     fill
                     className="object-contain"
@@ -8525,6 +8656,10 @@ const VistaSurtiendoPedido = () => {
                   <p className="text-xs text-zinc-500 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">
                     {item.CODIGO}
                   </p>
+                  <p className="text-xs text-zinc-500">
+  {item.ubicacion || "Sin ubicación"}
+</p>
+ 
                   <div className="flex items-center gap-2 mt-2">
                     <div className="flex-1 bg-zinc-200 h-2 rounded-full overflow-hidden">
                        <div 
@@ -9078,12 +9213,11 @@ const VistaSurtiendoPedido = () => {
     </motion.button>
   );
 
- return (
-  <MotionConfig reducedMotion="always">
+  return (
+  <>
     <InstallPWA />
     <AnimatePresence mode="wait">
       {!cuentaActiva ? (
-
           <motion.div
             key="login"
             initial={{ opacity: 1, scale: 1 }}
@@ -9514,7 +9648,7 @@ const VistaSurtiendoPedido = () => {
                                               <Image
                                                 src={
                                                   prod.IMAGEN ||
-                                                  "/placeholder.jpg"
+                                                  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
                                                 }
                                                 alt={prod.TITULO}
                                                 fill
@@ -9844,7 +9978,7 @@ const VistaSurtiendoPedido = () => {
                               >
                                 <div className="relative w-full h-40">
                                   <SkeletonImage
-                                    src={macro.img || "/placeholder.jpg"}
+                                    src={macro.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                                     alt={macro.nombre}
                                     className="object-contain"
                                   />
@@ -9920,7 +10054,7 @@ const VistaSurtiendoPedido = () => {
                               >
                                 <div className="relative w-full h-28 sm:h-36 md:h-40 overflow-hidden">
                                   <SkeletonImage
-                                    src={marca.img || "/placeholder.jpg"}
+                                    src={marca.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                                     alt={marca.nombre_marca}
                                     className="object-contain object-center w-full h-full"
                                   />
@@ -10002,7 +10136,7 @@ const VistaSurtiendoPedido = () => {
                             >
                               <div className="relative w-full h-40">
                                 <SkeletonImage
-                                  src={cat.img || "/placeholder.jpg"}
+                                  src={cat.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                                   alt={cat.nombre_categoria}
                                   className="object-contain"
                                 />
@@ -10087,7 +10221,7 @@ const VistaSurtiendoPedido = () => {
                               src={
                                 categoriaSeleccionada?.img ||
                                 marcaSeleccionada?.img ||
-                                "/placeholder.jpg"
+                                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
                               }
                               alt={
                                 categoriaSeleccionada?.nombre_categoria ||
@@ -10149,7 +10283,7 @@ const VistaSurtiendoPedido = () => {
                                   >
                                     <div className="relative w-full h-40 bg-white">
                                       <SkeletonImage
-                                        src={art.IMAGEN || "/placeholder.jpg"}
+                                        src={art.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                                         alt={art.TITULO}
                                         className="object-contain"
                                       />
@@ -10630,7 +10764,7 @@ const VistaSurtiendoPedido = () => {
                                     {/* Imagen del producto */}
                                     <div className="relative w-20 h-20 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
                                       <Image
-                                        src={item.IMAGEN || "/placeholder.jpg"}
+                                        src={item.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                                         alt={item.TITULO}
                                         fill
                                         className="object-contain"
@@ -10731,7 +10865,7 @@ const VistaSurtiendoPedido = () => {
                                       }}
                                     >
                                       <Image
-                                        src={item.IMAGEN || "/placeholder.jpg"}
+                                        src={item.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                                         alt={item.TITULO}
                                         fill
                                         className="object-contain"
@@ -11932,7 +12066,7 @@ const VistaSurtiendoPedido = () => {
                               >
                                 <div className="relative w-full h-40 bg-white">
                                   <Image
-                                    src={prod.IMAGEN || "/placeholder.jpg"}
+                                    src={prod.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
                                     alt={prod.TITULO}
                                     fill
                                     className="object-contain"
@@ -12166,8 +12300,7 @@ const VistaSurtiendoPedido = () => {
             </nav>
           </motion.div>
         )}
-             </AnimatePresence>
-  </MotionConfig>
+          </AnimatePresence>
+  </>
 );
-
 }
