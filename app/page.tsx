@@ -10,11 +10,13 @@ import {
   Codesandbox,
   MapPin,
   Hammer,
+  ListOrdered,
   X,
   Megaphone,
   BookOpenText,
   Star,
   History,
+   Plus, 
   Menu,
   FileQuestionMark,
   LogOut,
@@ -43,19 +45,14 @@ import ContadorEntrega from "@/app/ContadorEntrega";
 import { div } from "framer-motion/client";
 import Barcode from "react-barcode";
 
-
-
-const MapaUbicacion = dynamic(
-  () => import("./MapaUbicacion"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-64 bg-zinc-100 flex items-center justify-center rounded-xl">
-        Cargando mapa...
-      </div>
-    ),
-  }
-);
+const MapaUbicacion = dynamic(() => import("./MapaUbicacion"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-64 bg-zinc-100 flex items-center justify-center rounded-xl">
+      Cargando mapa...
+    </div>
+  ),
+});
 
 const QRCodeModule = await import("qrcode");
 
@@ -88,7 +85,6 @@ interface Cuenta {
   id?: number;
   [key: string]: any;
 }
-
 
 const VistaProducto = ({
   esAdminMostrador,
@@ -173,8 +169,7 @@ const VistaProducto = ({
   const ID_CUENTA_M1 = "49";
   const ID_CUENTA_M2 = "41";
 
-const [ubicacion, setUbicacion] = useState(producto.ubicacion || "");
-
+  const [ubicacion, setUbicacion] = useState(producto.ubicacion || "");
 
   const handleToggleMostrador = async (mostrador: "M1" | "M2") => {
     setActualizandoToggle(true);
@@ -494,7 +489,7 @@ const [ubicacion, setUbicacion] = useState(producto.ubicacion || "");
           CATEGORIA_ID: parseInt(categoriaId),
           marca_id: marcaId ? parseInt(marcaId) : null,
           IMAGEN: urlImagen,
-           ubicacion: ubicacion,
+          ubicacion: ubicacion,
         })
         .eq("id", producto.id);
 
@@ -743,7 +738,10 @@ const [ubicacion, setUbicacion] = useState(producto.ubicacion || "");
                 <div className="flex flex-col items-center gap-3">
                   <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-zinc-300">
                     <Image
-                      src={imagenPreview || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                      src={
+                        imagenPreview ||
+                        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                      }
                       alt="Preview"
                       fill
                       className="object-contain"
@@ -930,18 +928,17 @@ const [ubicacion, setUbicacion] = useState(producto.ubicacion || "");
               </div>
 
               <div className="mb-4">
-  <label className="block text-sm font-medium text-zinc-700 mb-2">
-    Ubicación del producto
-  </label>
-  <input
-    type="text"
-    value={ubicacion}
-    onChange={(e) => setUbicacion(e.target.value)}
-    placeholder="Ej. Pasillo 2 - Estante A"
-    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-  />
-</div>
-
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Ubicación del producto
+                </label>
+                <input
+                  type="text"
+                  value={ubicacion}
+                  onChange={(e) => setUbicacion(e.target.value)}
+                  placeholder="Ej. Pasillo 2 - Estante A"
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                />
+              </div>
 
               {/* Mensaje */}
               {mensaje && (
@@ -1418,7 +1415,8 @@ const [ubicacion, setUbicacion] = useState(producto.ubicacion || "");
               >
                 <Image
                   src={
-                    imagenesProducto[imagenActualIndex] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                    imagenesProducto[imagenActualIndex] ||
+                    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
                   }
                   alt={producto.TITULO}
                   fill
@@ -1584,7 +1582,10 @@ export default function HomePage() {
   const esAdminMostrador2 = cuenta?.numero_cuenta === "admin-M02";
   const ID_CUENTA_MOSTRADOR = 39;
   const ID_CUENTA_MOSTRADOR2 = 41;
-  const esRutas = cuenta?.numero_cuenta === "Rutas";
+  const CUENTAS_RUTAS = ["Rutas", "Rutas2"];
+
+const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cuenta) : false;
+
   const esEmpleado = cuenta?.numero_cuenta === "Empleado";
   const [mostrar, setMostrar] = useState(false);
   const [subTab, setSubTab] = useState("categorias"); // categorias | marcas
@@ -1621,15 +1622,15 @@ export default function HomePage() {
   const hayTipoEntregaSeleccionado = enviarDomicilio || recogerLocal;
   const [idsOcultosMostrador, setIdsOcultosMostrador] = useState<number[]>([]);
   const [codigoBarrasModal, setCodigoBarrasModal] = useState(null);
-  const [vistaSurtir, setVistaSurtir] = useState<"seleccionar" | "surtiendo" | null>(null);
-const [pedidoSurtir, setPedidoSurtir] = useState<any>(null);
-const [productosSurtir, setProductosSurtir] = useState<any[]>([]);
-const [productosSurtidos, setProductosSurtidos] = useState<Map<number, number>>(new Map());
-const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
-
-
-
-
+  const [vistaSurtir, setVistaSurtir] = useState<
+    "seleccionar" | "surtiendo" | null
+  >(null);
+  const [pedidoSurtir, setPedidoSurtir] = useState<any>(null);
+  const [productosSurtir, setProductosSurtir] = useState<any[]>([]);
+  const [productosSurtidos, setProductosSurtidos] = useState<
+    Map<number, number>
+  >(new Map());
+  const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
 
   interface ProductoConVisibilidad extends Producto {
     visibleMostrador?: boolean;
@@ -2111,7 +2112,10 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
                 <div className="flex items-center gap-3">
                   <div className="relative w-12 h-12 rounded-lg overflow-hidden">
                     <img
-                      src={item.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                      src={
+                        item.img ||
+                        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                      }
                       alt={item.nombre || item.nombre_categoria}
                       sizes="48px"
                       className="object-cover"
@@ -2140,7 +2144,10 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
               <div className="flex flex-col items-center gap-3">
                 <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-zinc-300">
                   <img
-                    src={imagenPreview || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                    src={
+                      imagenPreview ||
+                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                    }
                     alt="Preview"
                     sizes="48px"
                     className="object-cover"
@@ -2503,15 +2510,15 @@ const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
       } else {
         // Admin o usuarios normales
         const { data, error } = await supabase
-  .from("productos")
-  .select("*")
-  .order("orden_categoria", { ascending: true }); // AGREGA ESTA LÍNEA
+          .from("productos")
+          .select("*")
+          .order("orden_categoria", { ascending: true }); // AGREGA ESTA LÍNEA
 
-if (error) {
-  console.error("Error cargando productos:", error.message);
-} else {
-  productosFinales = data || [];
-}
+        if (error) {
+          console.error("Error cargando productos:", error.message);
+        } else {
+          productosFinales = data || [];
+        }
       }
 
       const productosNormalizados = productosFinales.map((producto) => ({
@@ -2843,7 +2850,10 @@ if (error) {
                     <div className="flex items-center gap-3">
                       <div className="relative w-12 h-12 rounded-lg overflow-hidden">
                         <Image
-                          src={marca.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                          src={
+                            marca.img ||
+                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                          }
                           alt={marca.nombre_marca}
                           fill
                           className="object-contain"
@@ -3250,12 +3260,15 @@ if (error) {
                     <div className="flex items-center gap-3">
                       <div className="relative w-12 h-12 rounded-lg overflow-hidden">
                         <Image
-                          src={macro.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                          src={
+                            macro.img ||
+                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                          }
                           alt={macro.nombre}
                           fill
                           className="object-cover"
-                          loading="eager"  
-  priority
+                          loading="eager"
+                          priority
                         />
                       </div>
                       <span className="font-semibold text-zinc-800">
@@ -3335,24 +3348,53 @@ if (error) {
     );
   };
 
-  const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
+const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
+  const [pestanaActiva, setPestanaActiva] = useState<"productos" | "subcategorias" | "categorias">("productos");
+  
+  // Estados para Productos
   const [categorias, setCategorias] = useState<any[]>([]);
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<any>(null);
   const [productos, setProductos] = useState<any[]>([]);
+  
+  // Estados para Subcategorías
+  const [macroCategorias, setMacroCategorias] = useState<any[]>([]);
+  const [macroCategoriaSeleccionada, setMacroCategoriaSeleccionada] = useState<any>(null);
+  const [subcategorias, setSubcategorias] = useState<any[]>([]);
+  
+  // Estados para Categorías
+  const [todasMacroCategorias, setTodasMacroCategorias] = useState<any[]>([]);
+  
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
-    cargarCategorias();
-  }, []);
+    cargarDatos();
+  }, [pestanaActiva]);
 
-  const cargarCategorias = async () => {
-    const { data } = await supabase
-      .from("categorias")
-      .select("id_categoria, nombre_categoria")
-      .order("nombre_categoria", { ascending: true });
-    setCategorias(data || []);
+  const cargarDatos = async () => {
+    setCargando(true);
+    
+    if (pestanaActiva === "productos") {
+      const { data } = await supabase
+        .from("categorias")
+        .select("id_categoria, nombre_categoria")
+        .order("nombre_categoria", { ascending: true });
+      setCategorias(data || []);
+    } else if (pestanaActiva === "subcategorias") {
+      const { data } = await supabase
+        .from("macro_categorias")
+        .select("id, nombre")
+        .order("nombre", { ascending: true });
+      setMacroCategorias(data || []);
+    } else if (pestanaActiva === "categorias") {
+      const { data } = await supabase
+        .from("macro_categorias")
+        .select("*")
+        .order("orden", { ascending: true });
+      setTodasMacroCategorias(data || []);
+    }
+    
     setCargando(false);
   };
 
@@ -3365,36 +3407,40 @@ if (error) {
     setProductos(data || []);
   };
 
-  const moverProducto = (index: number, direccion: "arriba" | "abajo") => {
-    const nuevosProductos = [...productos];
-    const nuevoIndex = direccion === "arriba" ? index - 1 : index + 1;
-    
-    if (nuevoIndex < 0 || nuevoIndex >= nuevosProductos.length) return;
-    
-    [nuevosProductos[index], nuevosProductos[nuevoIndex]] = 
-    [nuevosProductos[nuevoIndex], nuevosProductos[index]];
-    
-    setProductos(nuevosProductos);
+  const cargarSubcategorias = async (macroId: number) => {
+    const { data } = await supabase
+      .from("categorias")
+      .select("id_categoria, nombre_categoria, orden")
+      .eq("macro_categoria_id", macroId)
+      .order("orden", { ascending: true });
+    setSubcategorias(data || []);
   };
 
-  const guardarOrden = async () => {
+  const moverItem = (items: any[], setItems: any, index: number, direccion: "arriba" | "abajo") => {
+    const nuevosItems = [...items];
+    const nuevoIndex = direccion === "arriba" ? index - 1 : index + 1;
+    
+    if (nuevoIndex < 0 || nuevoIndex >= nuevosItems.length) return;
+    
+    [nuevosItems[index], nuevosItems[nuevoIndex]] = 
+    [nuevosItems[nuevoIndex], nuevosItems[index]];
+    
+    setItems(nuevosItems);
+  };
+
+  const guardarOrdenProductos = async () => {
     setGuardando(true);
     setMensaje("");
     
     try {
-      const updates = productos.map((prod, index) => ({
-        id: prod.id,
-        orden_categoria: index + 1
-      }));
-
-      for (const update of updates) {
+      for (let i = 0; i < productos.length; i++) {
         await supabase
           .from("productos")
-          .update({ orden_categoria: update.orden_categoria })
-          .eq("id", update.id);
+          .update({ orden_categoria: i + 1 })
+          .eq("id", productos[i].id);
       }
 
-      setMensaje("Orden guardado correctamente");
+      setMensaje("Orden de productos guardado correctamente");
       setTimeout(() => setMensaje(""), 2000);
     } catch (error) {
       setMensaje("Error al guardar el orden");
@@ -3403,69 +3449,116 @@ if (error) {
     }
   };
 
-  if (!categoriaSeleccionada) {
-    return (
-      <motion.div
-        key="seleccionar-categoria"
-        className="min-h-screen"
-        initial={{ opacity: 0, x: 40 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -40 }}
-      >
-        <BackBtn onBack={() => setVistaPerfil("menu")} />
-        <h2 className="text-xl font-bold text-zinc-900 mb-6">
-          Ordenar Productos
-        </h2>
-        <p className="text-sm text-zinc-600 mb-4">
-          Selecciona una subcategoría:
-        </p>
-        
-        {cargando ? (
-          <div className="flex justify-center py-10">
-            <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {categorias.map((cat) => (
-              <div
-                key={cat.id_categoria}
-                onClick={() => {
-                  setCategoriaSeleccionada(cat);
-                  cargarProductos(cat.id_categoria);
-                }}
-                className="flex items-center justify-between p-4 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition bg-white"
-              >
-                <span className="font-semibold text-zinc-800">
-                  {cat.nombre_categoria}
-                </span>
-                <span className="text-zinc-400">›</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </motion.div>
-    );
-  }
+  const guardarOrdenSubcategorias = async () => {
+    setGuardando(true);
+    setMensaje("");
+    
+    try {
+      for (let i = 0; i < subcategorias.length; i++) {
+        await supabase
+          .from("categorias")
+          .update({ orden: i + 1 })
+          .eq("id_categoria", subcategorias[i].id_categoria);
+      }
+
+      setMensaje("Orden de subcategorías guardado correctamente");
+      setTimeout(() => setMensaje(""), 2000);
+    } catch (error) {
+      setMensaje("Error al guardar el orden");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const guardarOrdenCategorias = async () => {
+    setGuardando(true);
+    setMensaje("");
+    
+    try {
+      for (let i = 0; i < todasMacroCategorias.length; i++) {
+        await supabase
+          .from("macro_categorias")
+          .update({ orden: i + 1 })
+          .eq("id", todasMacroCategorias[i].id);
+      }
+
+      setMensaje("Orden de categorías guardado correctamente");
+      setTimeout(() => setMensaje(""), 2000);
+    } catch (error) {
+      setMensaje("Error al guardar el orden");
+    } finally {
+      setGuardando(false);
+    }
+  };
 
   return (
     <motion.div
-      key="ordenar-productos"
+      key="ordenar-vista"
       className="min-h-screen pb-20"
       initial={{ opacity: 0, x: 40 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -40 }}
     >
       <BackBtn onBack={() => {
-        setCategoriaSeleccionada(null);
-        setProductos([]);
+        if (categoriaSeleccionada || macroCategoriaSeleccionada) {
+          setCategoriaSeleccionada(null);
+          setMacroCategoriaSeleccionada(null);
+          setProductos([]);
+          setSubcategorias([]);
+        } else {
+          setVistaPerfil("menu");
+        }
       }} />
       
-      <h2 className="text-xl font-bold text-zinc-900 mb-2">
-        {categoriaSeleccionada.nombre_categoria}
+      <h2 className="text-xl font-bold text-zinc-900 mb-6">
+        Ordenar Elementos
       </h2>
-      <p className="text-sm text-zinc-600 mb-6">
-        Arrastra para ordenar los productos
-      </p>
+
+      {/* Pestañas */}
+      <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
+        <button
+          onClick={() => {
+            setPestanaActiva("productos");
+            setCategoriaSeleccionada(null);
+            setMacroCategoriaSeleccionada(null);
+          }}
+          className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
+            pestanaActiva === "productos"
+              ? "bg-orange-500 text-white"
+              : "text-zinc-600 hover:bg-zinc-100"
+          }`}
+        >
+          PRODUCTOS
+        </button>
+        <button
+          onClick={() => {
+            setPestanaActiva("subcategorias");
+            setCategoriaSeleccionada(null);
+            setMacroCategoriaSeleccionada(null);
+          }}
+          className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
+            pestanaActiva === "subcategorias"
+              ? "bg-orange-500 text-white"
+              : "text-zinc-600 hover:bg-zinc-100"
+          }`}
+        >
+          SUBCATEGORÍAS
+        </button>
+        <button
+          onClick={() => {
+            setPestanaActiva("categorias");
+            setCategoriaSeleccionada(null);
+            setMacroCategoriaSeleccionada(null);
+          }}
+          className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
+            pestanaActiva === "categorias"
+              ? "bg-orange-500 text-white"
+              : "text-zinc-600 hover:bg-zinc-100"
+          }`}
+        >
+          CATEGORÍAS
+        </button>
+      </div>
 
       {mensaje && (
         <div className={`mb-4 p-3 rounded-lg text-sm ${
@@ -3477,78 +3570,292 @@ if (error) {
         </div>
       )}
 
-      <div className="space-y-2 mb-4">
-        {productos.map((prod, index) => (
-          <div
-            key={prod.id}
-            className="flex items-center gap-3 p-3 bg-white rounded-xl border border-zinc-200 shadow-sm"
-          >
-            <div className="flex flex-col gap-1">
-              <button
-  onClick={() => moverProducto(index, "arriba")}
-  disabled={index === 0}
-  className="
-    w-8 h-8 rounded flex items-center justify-center
-    bg-zinc-200 text-zinc-700
-    disabled:bg-zinc-100 disabled:text-zinc-300 disabled:opacity-100
-  "
->
-  ▲
-</button>
+      {/* VISTA PRODUCTOS */}
+      {pestanaActiva === "productos" && !categoriaSeleccionada && (
+        <div>
+          <p className="text-sm text-zinc-600 mb-4">
+            Selecciona una subcategoría para ordenar sus productos:
+          </p>
+          {cargando ? (
+            <div className="flex justify-center py-10">
+              <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {categorias.map((cat) => (
+                <div
+                  key={cat.id_categoria}
+                  onClick={() => {
+                    setCategoriaSeleccionada(cat);
+                    cargarProductos(cat.id_categoria);
+                  }}
+                  className="flex items-center justify-between p-4 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition bg-white"
+                >
+                  <span className="font-semibold text-zinc-800">
+                    {cat.nombre_categoria}
+                  </span>
+                  <span className="text-zinc-400">›</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-              <button
-                onClick={() => moverProducto(index, "abajo")}
-                disabled={index === productos.length - 1}
-               className="
-    w-8 h-8 rounded flex items-center justify-center
-    bg-zinc-200 text-zinc-700
-    disabled:bg-zinc-100 disabled:text-zinc-300 disabled:opacity-100
-  "
+      {pestanaActiva === "productos" && categoriaSeleccionada && (
+        <div>
+          <h3 className="text-lg font-bold text-zinc-900 mb-2">
+            {categoriaSeleccionada.nombre_categoria}
+          </h3>
+          <p className="text-sm text-zinc-600 mb-6">
+            Usa las flechas para ordenar los productos
+          </p>
+
+          <div className="space-y-2 mb-4">
+            {productos.map((prod, index) => (
+              <div
+                key={prod.id}
+                className="flex items-center gap-3 p-3 bg-white rounded-xl border border-zinc-200 shadow-sm"
               >
-                ▼
-              </button>
-            </div>
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={() => moverItem(productos, setProductos, index, "arriba")}
+                    disabled={index === 0}
+                      className="w-8 h-8 rounded flex items-center justify-center
+    bg-zinc-100 text-zinc-700
+    hover:bg-zinc-200
+    disabled:bg-zinc-200
+    disabled:text-zinc-400
+    disabled:cursor-not-allowed"
 
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm text-zinc-800 truncate">
-                {prod.TITULO}
-              </p>
-              <p className="text-xs text-zinc-500">
-                Código: {prod.CODIGO}
-              </p>
-              <div className="flex gap-2 mt-1">
-                {!prod.visible && (
-                  <span className="text-xs bg-zinc-200 text-zinc-700 px-2 py-0.5 rounded">
-                    Oculto
-                  </span>
-                )}
-                {prod.liquidacion && (
-                  <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
-                    Liquidación
-                  </span>
-                )}
-                {prod.top_ventas && (
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-                    Top Ventas
-                  </span>
-                )}
+                  >
+                    ▲
+                  </button>
+                  <button
+                    onClick={() => moverItem(productos, setProductos, index, "abajo")}
+                    disabled={index === productos.length - 1}
+                     className="w-8 h-8 rounded flex items-center justify-center
+    bg-zinc-100 text-zinc-700
+    hover:bg-zinc-200
+    disabled:bg-zinc-200
+    disabled:text-zinc-400
+    disabled:cursor-not-allowed"
+
+                  >
+                    ▼
+                  </button>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-zinc-800 truncate">
+                    {prod.TITULO}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    Código: {prod.CODIGO}
+                  </p>
+                  <div className="flex gap-2 mt-1">
+                    {!prod.visible && (
+                      <span className="text-xs bg-zinc-200 text-zinc-700 px-2 py-0.5 rounded">
+                        Oculto
+                      </span>
+                    )}
+                    {prod.liquidacion && (
+                      <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
+                        Liquidación
+                      </span>
+                    )}
+                    {prod.top_ventas && (
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                        Top Ventas
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <span className="text-zinc-400 font-mono text-sm">
+                  #{index + 1}
+                </span>
               </div>
-            </div>
-
-            <span className="text-zinc-400 font-mono text-sm">
-              #{index + 1}
-            </span>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <button
-        onClick={guardarOrden}
-        disabled={guardando}
-        className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
-      >
-        {guardando ? "Guardando..." : "Guardar Orden"}
-      </button>
+          <button
+            onClick={guardarOrdenProductos}
+            disabled={guardando}
+            className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
+          >
+            {guardando ? "Guardando..." : "Guardar Orden"}
+          </button>
+        </div>
+      )}
+
+      {/* VISTA SUBCATEGORÍAS */}
+      {pestanaActiva === "subcategorias" && !macroCategoriaSeleccionada && (
+        <div>
+          <p className="text-sm text-zinc-600 mb-4">
+            Selecciona una categoría para ordenar sus subcategorías:
+          </p>
+          {cargando ? (
+            <div className="flex justify-center py-10">
+              <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {macroCategorias.map((macro) => (
+                <div
+                  key={macro.id}
+                  onClick={() => {
+                    setMacroCategoriaSeleccionada(macro);
+                    cargarSubcategorias(macro.id);
+                  }}
+                  className="flex items-center justify-between p-4 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition bg-white"
+                >
+                  <span className="font-semibold text-zinc-800">
+                    {macro.nombre}
+                  </span>
+                  <span className="text-zinc-400">›</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {pestanaActiva === "subcategorias" && macroCategoriaSeleccionada && (
+        <div>
+          <h3 className="text-lg font-bold text-zinc-900 mb-2">
+            {macroCategoriaSeleccionada.nombre}
+          </h3>
+          <p className="text-sm text-zinc-600 mb-6">
+            Usa las flechas para ordenar las subcategorías
+          </p>
+
+          <div className="space-y-2 mb-4">
+            {subcategorias.map((sub, index) => (
+              <div
+                key={sub.id_categoria}
+                className="flex items-center gap-3 p-3 bg-white rounded-xl border border-zinc-200 shadow-sm"
+              >
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={() => moverItem(subcategorias, setSubcategorias, index, "arriba")}
+                    disabled={index === 0}
+                     className="w-8 h-8 rounded flex items-center justify-center
+    bg-zinc-100 text-zinc-700
+    hover:bg-zinc-200
+    disabled:bg-zinc-200
+    disabled:text-zinc-400
+    disabled:cursor-not-allowed"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    onClick={() => moverItem(subcategorias, setSubcategorias, index, "abajo")}
+                    disabled={index === subcategorias.length - 1}
+                    className="w-8 h-8 rounded flex items-center justify-center
+    bg-zinc-100 text-zinc-700
+    hover:bg-zinc-200
+    disabled:bg-zinc-200
+    disabled:text-zinc-400
+    disabled:cursor-not-allowed"
+                  >
+                    ▼
+                  </button>
+                </div>
+
+                <div className="flex-1">
+                  <p className="font-semibold text-sm text-zinc-800">
+                    {sub.nombre_categoria}
+                  </p>
+                </div>
+
+                <span className="text-zinc-400 font-mono text-sm">
+                  #{index + 1}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={guardarOrdenSubcategorias}
+            disabled={guardando}
+            className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
+          >
+            {guardando ? "Guardando..." : "Guardar Orden"}
+          </button>
+        </div>
+      )}
+
+      {/* VISTA CATEGORÍAS */}
+      {pestanaActiva === "categorias" && (
+        <div>
+          <p className="text-sm text-zinc-600 mb-6">
+            Usa las flechas para ordenar las categorías
+          </p>
+
+          {cargando ? (
+            <div className="flex justify-center py-10">
+              <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2 mb-4">
+                {todasMacroCategorias.map((macro, index) => (
+                  <div
+                    key={macro.id}
+                    className="flex items-center gap-3 p-3 bg-white rounded-xl border border-zinc-200 shadow-sm"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => moverItem(todasMacroCategorias, setTodasMacroCategorias, index, "arriba")}
+                        disabled={index === 0}
+                        className="w-8 h-8 rounded flex items-center justify-center
+    bg-zinc-100 text-zinc-700
+    hover:bg-zinc-200
+    disabled:bg-zinc-200
+    disabled:text-zinc-400
+    disabled:cursor-not-allowed"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        onClick={() => moverItem(todasMacroCategorias, setTodasMacroCategorias, index, "abajo")}
+                        disabled={index === todasMacroCategorias.length - 1}
+                         className="w-8 h-8 rounded flex items-center justify-center
+    bg-zinc-100 text-zinc-700
+    hover:bg-zinc-200
+    disabled:bg-zinc-200
+    disabled:text-zinc-400
+    disabled:cursor-not-allowed"
+                      >
+                        ▼
+                      </button>
+                    </div>
+
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm text-zinc-800">
+                        {macro.nombre}
+                      </p>
+                    </div>
+
+                    <span className="text-zinc-400 font-mono text-sm">
+                      #{index + 1}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={guardarOrdenCategorias}
+                disabled={guardando}
+                className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
+              >
+                {guardando ? "Guardando..." : "Guardar Orden"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </motion.div>
   );
 };
@@ -3633,7 +3940,10 @@ if (error) {
                 <div className="flex items-center gap-3">
                   <div className="relative w-12 h-12 rounded-lg overflow-hidden">
                     <Image
-                      src={cat.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                      src={
+                        cat.img ||
+                        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                      }
                       alt={cat.nombre_categoria}
                       fill
                       className="object-cover"
@@ -4229,49 +4539,47 @@ if (error) {
       monto: "",
     });
     const [latitud, setLatitud] = useState("");
-const [longitud, setLongitud] = useState("");
-
+    const [longitud, setLongitud] = useState("");
 
     useEffect(() => {
       cargarCuentas();
-       if (cuentaSeleccionada) {
-    setLatitud(cuentaSeleccionada.latitud?.toString() ?? "");
-    setLongitud(cuentaSeleccionada.longitud?.toString() ?? "");
-  } else {
-    setLatitud("");
-    setLongitud("");
-  }
-}, [cuentaSeleccionada?.id]);
+      if (cuentaSeleccionada) {
+        setLatitud(cuentaSeleccionada.latitud?.toString() ?? "");
+        setLongitud(cuentaSeleccionada.longitud?.toString() ?? "");
+      } else {
+        setLatitud("");
+        setLongitud("");
+      }
+    }, [cuentaSeleccionada?.id]);
 
     const obtenerCoordenadasDesdeDireccion = async (direccion: string) => {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-        direccion
-      )}`,
-      {
-        headers: {
-          "User-Agent": "TuAppPedidos/1.0",
-        },
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            direccion
+          )}`,
+          {
+            headers: {
+              "User-Agent": "TuAppPedidos/1.0",
+            },
+          }
+        );
+
+        const data = await res.json();
+
+        if (!data || data.length === 0) {
+          return null;
+        }
+
+        return {
+          latitud: parseFloat(data[0].lat),
+          longitud: parseFloat(data[0].lon),
+        };
+      } catch (error) {
+        console.error("Error geocodificando dirección:", error);
+        return null;
       }
-    );
-
-    const data = await res.json();
-
-    if (!data || data.length === 0) {
-      return null;
-    }
-
-    return {
-      latitud: parseFloat(data[0].lat),
-      longitud: parseFloat(data[0].lon),
     };
-  } catch (error) {
-    console.error("Error geocodificando dirección:", error);
-    return null;
-  }
-};
-
 
     const cargarCuentas = async () => {
       setCargando(true);
@@ -4427,8 +4735,8 @@ const [longitud, setLongitud] = useState("");
             tiene_saldo_pendiente: tieneSaldoPendiente,
             ruta: ruta.trim() || null,
             tipo_comprobante: tipoComprobante,
-              latitud: latitud ? parseFloat(latitud) : null,
-    longitud: longitud ? parseFloat(longitud) : null,
+            latitud: latitud ? parseFloat(latitud) : null,
+            longitud: longitud ? parseFloat(longitud) : null,
           })
           .eq("id", cuentaSeleccionada.id);
 
@@ -4975,31 +5283,30 @@ const [longitud, setLongitud] = useState("");
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-6">
-  <div>
-    <label className="text-sm text-zinc-600">Latitud</label>
-    <input
-      type="number"
-      step="any"
-      value={latitud}
-      onChange={(e) => setLatitud(e.target.value)}
-      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-      placeholder="Ej: 25.6866"
-    />
-  </div>
+                <div>
+                  <label className="text-sm text-zinc-600">Latitud</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={latitud}
+                    onChange={(e) => setLatitud(e.target.value)}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="Ej: 25.6866"
+                  />
+                </div>
 
-  <div>
-    <label className="text-sm text-zinc-600">Longitud</label>
-    <input
-      type="number"
-      step="any"
-      value={longitud}
-      onChange={(e) => setLongitud(e.target.value)}
-      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-      placeholder="Ej: -100.3161"
-    />
-  </div>
-</div>
-
+                <div>
+                  <label className="text-sm text-zinc-600">Longitud</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={longitud}
+                    onChange={(e) => setLongitud(e.target.value)}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="Ej: -100.3161"
+                  />
+                </div>
+              </div>
 
               {/* Sección de Horarios de Recepción - Solo si entrega_mismo_dia está activo */}
 
@@ -5853,7 +6160,10 @@ const [longitud, setLongitud] = useState("");
                     <div className="flex items-center gap-3">
                       <div className="relative w-12 h-12 rounded-lg overflow-hidden">
                         <Image
-                          src={cat.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                          src={
+                            cat.img ||
+                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                          }
                           alt={cat.nombre_categoria}
                           fill
                           className="object-cover"
@@ -5944,6 +6254,7 @@ const [longitud, setLongitud] = useState("");
     const [progreso, setProgreso] = useState(0);
     const [resultado, setResultado] = useState<any>(null);
     const [error, setError] = useState("");
+    const [descargando, setDescargando] = useState(false);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -6093,6 +6404,65 @@ const [longitud, setLongitud] = useState("");
         setProcesando(false);
       }
     };
+
+    // funcion de descarga de la tabla productos en .csv
+const descargarProductosCSV = async () => {
+  setDescargando(true);
+  try {
+    let todosLosProductos: any[] = [];
+    let desde = 0;
+    const limite = 1000;
+
+    while (true) {
+      const { data, error } = await supabase
+        .from("productos")
+        .select("*")
+        .order("id", { ascending: true })
+        .range(desde, desde + limite - 1);
+
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+
+      todosLosProductos = [...todosLosProductos, ...data];
+      desde += limite;
+    }
+
+    if (todosLosProductos.length === 0) {
+      alert("No hay productos para descargar");
+      return;
+    }
+
+    const headers = Object.keys(todosLosProductos[0]).join(",");
+    const rows = todosLosProductos.map(p =>
+      Object.values(p)
+        .map(val =>
+          typeof val === "string"
+            ? `"${val.replace(/"/g, '""')}"`
+            : val ?? ""
+        )
+        .join(",")
+    );
+
+    const csv = [headers, ...rows].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `productos_backup_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    alert(`Descargados ${todosLosProductos.length} productos`);
+  } catch (err) {
+    console.error(err);
+    alert("Error al descargar la tabla");
+  } finally {
+    setDescargando(false);
+  }
+};
 
     return (
       <motion.div
@@ -6258,6 +6628,25 @@ const [longitud, setLongitud] = useState("");
               "Actualizar Precios"
             )}
           </button>
+
+        <button
+  onClick={descargarProductosCSV}
+  disabled={descargando}
+  className={`w-full py-3 rounded-xl font-semibold transition mt-4
+    flex items-center justify-center gap-2
+    ${descargando
+      ? "bg-blue-300 cursor-not-allowed"
+      : "bg-blue-500 text-white hover:bg-blue-600"}`}
+>
+  {descargando && (
+    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+  )}
+
+  {descargando
+    ? "Descargando backup..."
+    : "Descargar Tabla de Base de datos (Backup)"}
+</button>
+
         </div>
       </motion.div>
     );
@@ -6703,7 +7092,6 @@ const [longitud, setLongitud] = useState("");
         .map((p) => `${p.CODIGO}*${p.cantidad}`)
         .join("-");
 
-
       // Calcular el total
       const total = carrito.reduce(
         (sum, p) =>
@@ -6983,62 +7371,67 @@ const [longitud, setLongitud] = useState("");
 
       const finalYEnvio = (docEnvio as any).lastAutoTable?.finalY || 100;
 
-// Nota de tipo de entrega (solo en la última página)
-docEnvio.setFontSize(7);
-docEnvio.setFont("helvetica", "normal");
-if (enviarDomicilio) {
-  docEnvio.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYEnvio + 8);
-} else if (recogerLocal) {
-  docEnvio.text("TIPO DE ENTREGA: RECOGER EN LOCAL", 14, finalYEnvio + 8);
-}
+      // Nota de tipo de entrega (solo en la última página)
+      docEnvio.setFontSize(7);
+      docEnvio.setFont("helvetica", "normal");
+      if (enviarDomicilio) {
+        docEnvio.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYEnvio + 8);
+      } else if (recogerLocal) {
+        docEnvio.text("TIPO DE ENTREGA: RECOGER EN LOCAL", 14, finalYEnvio + 8);
+      }
 
-// Verificar espacio disponible en la página
-const pageHeight = docEnvio.internal.pageSize.height;
-const espacioNecesario = 60; // QR (40) + texto (8) + margen (12)
-const espacioDisponible = pageHeight - finalYEnvio - 20;
+      // Verificar espacio disponible en la página
+      const pageHeight = docEnvio.internal.pageSize.height;
+      const espacioNecesario = 60; // QR (40) + texto (8) + margen (12)
+      const espacioDisponible = pageHeight - finalYEnvio - 20;
 
-// Si no hay espacio suficiente, agregar nueva página
-let yBase: number;
-if (espacioDisponible < espacioNecesario) {
-  docEnvio.addPage();
-  dibujarEncabezadoEnvio(docEnvio); // Usar la función correcta según tu código
-  yBase = 70; // Empezar después del encabezado
-} else {
-  yBase = finalYEnvio + 18;
-}
+      // Si no hay espacio suficiente, agregar nueva página
+      let yBase: number;
+      if (espacioDisponible < espacioNecesario) {
+        docEnvio.addPage();
+        dibujarEncabezadoEnvio(docEnvio); // Usar la función correcta según tu código
+        yBase = 70; // Empezar después del encabezado
+      } else {
+        yBase = finalYEnvio + 18;
+      }
 
-// QR DEL LADO IZQUIERDO
-const qrSize = 40;
-const qrX = 14;
-const qrY = yBase;
+      // QR DEL LADO IZQUIERDO
+      const qrSize = 40;
+      const qrX = 14;
+      const qrY = yBase;
 
-docEnvio.addImage(qrBase64, "PNG", qrX, qrY, qrSize, qrSize);
-docEnvio.setFontSize(7);
-docEnvio.setFont("helvetica", "normal");
-docEnvio.setTextColor(0, 0, 0);
-docEnvio.text("Escanea para ver pedido", qrX + qrSize/2, qrY + qrSize + 4, { align: "center" });
+      docEnvio.addImage(qrBase64, "PNG", qrX, qrY, qrSize, qrSize);
+      docEnvio.setFontSize(7);
+      docEnvio.setFont("helvetica", "normal");
+      docEnvio.setTextColor(0, 0, 0);
+      docEnvio.text(
+        "Escanea para ver pedido",
+        qrX + qrSize / 2,
+        qrY + qrSize + 4,
+        { align: "center" }
+      );
 
-// TOTALES DEL LADO DERECHO (misma altura que el QR)
-docEnvio.setFontSize(8);
-docEnvio.setFont("helvetica", "bold");
-docEnvio.setTextColor(0, 0, 0);
+      // TOTALES DEL LADO DERECHO (misma altura que el QR)
+      docEnvio.setFontSize(8);
+      docEnvio.setFont("helvetica", "bold");
+      docEnvio.setTextColor(0, 0, 0);
 
-// Línea separadora
-docEnvio.setLineWidth(0.5);
-docEnvio.line(145, yBase, 196, yBase);
+      // Línea separadora
+      docEnvio.setLineWidth(0.5);
+      docEnvio.line(145, yBase, 196, yBase);
 
-// TOTAL NETO
-docEnvio.setFontSize(9);
-docEnvio.text("TOTAL NETO:", 145, yBase + 8);
-docEnvio.text(
-  `$ ${totalConIVA.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`,
-  195,
-  yBase + 8,
-  { align: "right" }
-);
+      // TOTAL NETO
+      docEnvio.setFontSize(9);
+      docEnvio.text("TOTAL NETO:", 145, yBase + 8);
+      docEnvio.text(
+        `$ ${totalConIVA.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`,
+        195,
+        yBase + 8,
+        { align: "right" }
+      );
 
       // Pie de página con fecha/hora y número de página
       const pageCount2 = (docEnvio as any).getNumberOfPages();
@@ -7100,62 +7493,78 @@ docEnvio.text(
 
       const finalYCliente = (docCliente as any).lastAutoTable?.finalY || 100;
 
-// Tipo de entrega (solo en la última página)
-docCliente.setFontSize(7);
-docCliente.setFont("helvetica", "normal");
-if (enviarDomicilio) {
-  docCliente.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYCliente + 8);
-} else if (recogerLocal) {
-  docCliente.text("TIPO DE ENTREGA: RECOGER EN LOCAL", 14, finalYCliente + 8);
-}
+      // Tipo de entrega (solo en la última página)
+      docCliente.setFontSize(7);
+      docCliente.setFont("helvetica", "normal");
+      if (enviarDomicilio) {
+        docCliente.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalYCliente + 8);
+      } else if (recogerLocal) {
+        docCliente.text(
+          "TIPO DE ENTREGA: RECOGER EN LOCAL",
+          14,
+          finalYCliente + 8
+        );
+      }
 
-// Verificar espacio disponible en la página
-const pageHeightCliente = docCliente.internal.pageSize.height;
-const espacioNecesarioCliente = 60;
-const espacioDisponibleCliente = pageHeightCliente - finalYCliente - 20;
+      // Verificar espacio disponible en la página
+      const pageHeightCliente = docCliente.internal.pageSize.height;
+      const espacioNecesarioCliente = 60;
+      const espacioDisponibleCliente = pageHeightCliente - finalYCliente - 20;
 
-// Si no hay espacio suficiente, agregar nueva página
-let yBaseCliente: number;
-if (espacioDisponibleCliente < espacioNecesarioCliente) {
-  docCliente.addPage();
-  dibujarEncabezadoCliente(docCliente); 
-   yBaseCliente = 70;
-} else {
-   yBaseCliente = finalYCliente + 18;
-}
+      // Si no hay espacio suficiente, agregar nueva página
+      let yBaseCliente: number;
+      if (espacioDisponibleCliente < espacioNecesarioCliente) {
+        docCliente.addPage();
+        dibujarEncabezadoCliente(docCliente);
+        yBaseCliente = 70;
+      } else {
+        yBaseCliente = finalYCliente + 18;
+      }
 
-// QR DEL LADO IZQUIERDO
-const qrSizeCliente = 40;
-const qrXCliente = 14;
-const qrYCliente = yBaseCliente;
+      // QR DEL LADO IZQUIERDO
+      const qrSizeCliente = 40;
+      const qrXCliente = 14;
+      const qrYCliente = yBaseCliente;
 
-docCliente.addImage(qrBase64, "PNG", qrXCliente, qrYCliente, qrSizeCliente, qrSizeCliente);
-docCliente.setFontSize(7);
-docCliente.setFont("helvetica", "normal");
-docCliente.setTextColor(0, 0, 0);
-docCliente.text("", qrXCliente + qrSizeCliente/2, qrYCliente + qrSizeCliente + 4, { align: "center" });
+      docCliente.addImage(
+        qrBase64,
+        "PNG",
+        qrXCliente,
+        qrYCliente,
+        qrSizeCliente,
+        qrSizeCliente
+      );
+      docCliente.setFontSize(7);
+      docCliente.setFont("helvetica", "normal");
+      docCliente.setTextColor(0, 0, 0);
+      docCliente.text(
+        "",
+        qrXCliente + qrSizeCliente / 2,
+        qrYCliente + qrSizeCliente + 4,
+        { align: "center" }
+      );
 
-// TOTALES DEL LADO DERECHO (misma altura que el QR)
-docCliente.setFontSize(8);
-docCliente.setFont("helvetica", "bold");
-docCliente.setTextColor(0, 0, 0);
+      // TOTALES DEL LADO DERECHO (misma altura que el QR)
+      docCliente.setFontSize(8);
+      docCliente.setFont("helvetica", "bold");
+      docCliente.setTextColor(0, 0, 0);
 
-// Línea separadora
-docCliente.setLineWidth(0.5);
-docCliente.line(145, yBaseCliente, 196, yBaseCliente);
+      // Línea separadora
+      docCliente.setLineWidth(0.5);
+      docCliente.line(145, yBaseCliente, 196, yBaseCliente);
 
-// TOTAL NETO
-docCliente.setFontSize(9);
-docCliente.text("TOTAL NETO:", 145, yBaseCliente + 8);
-docCliente.text(
-  `$ ${totalConIVA.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`,
-  195,
-  yBaseCliente + 8,
-  { align: "right" }
-);
+      // TOTAL NETO
+      docCliente.setFontSize(9);
+      docCliente.text("TOTAL NETO:", 145, yBaseCliente + 8);
+      docCliente.text(
+        `$ ${totalConIVA.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`,
+        195,
+        yBaseCliente + 8,
+        { align: "right" }
+      );
 
       // Pie de página
       const pageCount = (docCliente as any).getNumberOfPages();
@@ -7252,52 +7661,52 @@ docCliente.text(
     }, [estadoActual]);
 
     const estados = [
-  {
-    valor: "nuevo_pedido",
-    label: "Nuevo pedido",
-    color: "bg-yellow-100 text-yellow-800",
-  },
-  // {
-  //   valor: "recibido",
-  //   label: "Recibido",
-  //   color: "bg-blue-100 text-blue-800",
-  // },
-  {
-    valor: "surtiendo",
-    label: "Surtiendo",
-    color: "bg-purple-100 text-purple-800",
-  },
-  {
-    valor: "por_revisar",
-    label: "Por revisar",
-    color: "bg-orange-100 text-orange-800",
-  },
-  {
-    valor: "revisando",
-    label: "Revisando",
-    color: "bg-amber-100 text-amber-800",
-  },
-  {
-    valor: "encajado",
-    label: "Encajado",
-    color: "bg-indigo-100 text-indigo-800",
-  },
-  {
-    valor: "en_ruta",
-    label: "En ruta",
-    color: "bg-cyan-100 text-cyan-800",
-  },
-  {
-    valor: "completado",
-    label: "Completado",
-    color: "bg-green-100 text-green-800",
-  },
-  {
-    valor: "listo_para_recoger",
-    label: "Listo para recoger",
-    color: "bg-emerald-100 text-emerald-800",
-  },
-];
+      {
+        valor: "nuevo_pedido",
+        label: "Nuevo pedido",
+        color: "bg-yellow-100 text-yellow-800",
+      },
+      // {
+      //   valor: "recibido",
+      //   label: "Recibido",
+      //   color: "bg-blue-100 text-blue-800",
+      // },
+      {
+        valor: "surtiendo",
+        label: "Surtiendo",
+        color: "bg-purple-100 text-purple-800",
+      },
+      {
+        valor: "por_revisar",
+        label: "Por revisar",
+        color: "bg-orange-100 text-orange-800",
+      },
+      {
+        valor: "revisando",
+        label: "Revisando",
+        color: "bg-amber-100 text-amber-800",
+      },
+      {
+        valor: "encajado",
+        label: "Encajado",
+        color: "bg-indigo-100 text-indigo-800",
+      },
+      {
+        valor: "en_ruta",
+        label: "En ruta",
+        color: "bg-cyan-100 text-cyan-800",
+      },
+      {
+        valor: "completado",
+        label: "Completado",
+        color: "bg-green-100 text-green-800",
+      },
+      {
+        valor: "listo_para_recoger",
+        label: "Listo para recoger",
+        color: "bg-emerald-100 text-emerald-800",
+      },
+    ];
 
     const cambiarEstado = async (nuevoEstado: string) => {
       if (nuevoEstado === estadoLocal) return;
@@ -7351,69 +7760,74 @@ docCliente.text(
     );
   };
 
-const BadgeEstado = ({ estado }: any) => {
-  // Determinar si es vista admin/empleado/rutas
-  const esVistaAdmin = esAdmin || esEmpleado || esRutas;
+  const BadgeEstado = ({ estado }: any) => {
+    // Determinar si es vista admin/empleado/rutas
+    const esVistaAdmin = esAdmin || esEmpleado || esRutas;
 
-  const estados: Record<string, { label: string; labelAdmin: string; color: string }> = {
-    nuevo_pedido: {
-      label: "Recibido", 
-      labelAdmin: "Nuevo pedido",
-      color: "bg-yellow-100 text-yellow-800 border-yellow-200",
-    },
-    recibido: {
-      label: "Recibido",
-      labelAdmin: "Nuevo pedido",
-      color: "bg-blue-100 text-blue-800 border-blue-200",
-    },
-    surtiendo: {
-      label: "Surtiendo",
-      labelAdmin: "Surtiendo",
-      color: "bg-purple-100 text-purple-800 border-purple-200",
-    },
-    por_revisar: {
-      label: "Surtiendo", 
-      labelAdmin: "Por revisar",
-      color: "bg-orange-100 text-orange-800 border-orange-200",
-    },
-    revisando: {
-      label: "En mesa de revisión",
-      labelAdmin: "Revisando",
-      color: "bg-amber-100 text-amber-800 border-amber-200",
-    },
-    encajado: {
-      label: "Encajado",
-      labelAdmin: "Encajado",
-      color: "bg-indigo-100 text-indigo-800 border-indigo-200",
-    },
-    en_ruta: {
-      label: "En Camino",
-      labelAdmin: "En ruta",
-      color: "bg-cyan-100 text-cyan-800 border-cyan-200",
-    },
-    completado: {
-      label: "Completado",
-      labelAdmin: "Completado",
-      color: "bg-green-100 text-green-800 border-green-200",
-    },
-    listo_para_recoger: {
-      label: "Listo para recoger",
-      labelAdmin: "Listo para recoger",
-      color: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    },
+    const estados: Record<
+      string,
+      { label: string; labelAdmin: string; color: string }
+    > = {
+      nuevo_pedido: {
+        label: "Recibido",
+        labelAdmin: "Nuevo pedido",
+        color: "bg-yellow-100 text-yellow-800 border-yellow-200",
+      },
+      recibido: {
+        label: "Recibido",
+        labelAdmin: "Nuevo pedido",
+        color: "bg-blue-100 text-blue-800 border-blue-200",
+      },
+      surtiendo: {
+        label: "Surtiendo",
+        labelAdmin: "Surtiendo",
+        color: "bg-purple-100 text-purple-800 border-purple-200",
+      },
+      por_revisar: {
+        label: "Surtiendo",
+        labelAdmin: "Por revisar",
+        color: "bg-orange-100 text-orange-800 border-orange-200",
+      },
+      revisando: {
+        label: "En mesa de revisión",
+        labelAdmin: "Revisando",
+        color: "bg-amber-100 text-amber-800 border-amber-200",
+      },
+      encajado: {
+        label: "Encajado",
+        labelAdmin: "Encajado",
+        color: "bg-indigo-100 text-indigo-800 border-indigo-200",
+      },
+      en_ruta: {
+        label: "En Camino",
+        labelAdmin: "En ruta",
+        color: "bg-cyan-100 text-cyan-800 border-cyan-200",
+      },
+      completado: {
+        label: "Completado",
+        labelAdmin: "Completado",
+        color: "bg-green-100 text-green-800 border-green-200",
+      },
+      listo_para_recoger: {
+        label: "Listo para recoger",
+        labelAdmin: "Listo para recoger",
+        color: "bg-emerald-100 text-emerald-800 border-emerald-200",
+      },
+    };
+
+    const estadoInfo = estados[estado] ?? estados["recibido"];
+    const labelMostrar = esVistaAdmin
+      ? estadoInfo.labelAdmin
+      : estadoInfo.label;
+
+    return (
+      <span
+        className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${estadoInfo.color}`}
+      >
+        {labelMostrar}
+      </span>
+    );
   };
-
-  const estadoInfo = estados[estado] ?? estados["recibido"];
-  const labelMostrar = esVistaAdmin ? estadoInfo.labelAdmin : estadoInfo.label;
-
-  return (
-    <span
-      className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${estadoInfo.color}`}
-    >
-      {labelMostrar}
-    </span>
-  );
-};
 
   const HistorialPedidos = ({ cuenta, setVistaPerfil }: any) => {
     const [pedidos, setPedidos] = useState<any[]>([]);
@@ -8349,19 +8763,18 @@ const BadgeEstado = ({ estado }: any) => {
             )}
           </div>
 
-          
           {pedidoSeleccionado?.cuentas?.latitud &&
- pedidoSeleccionado?.cuentas?.longitud ? (
-  <MapaUbicacion
-    lat={pedidoSeleccionado.cuentas.latitud}
-    lng={pedidoSeleccionado.cuentas.longitud}
-    nombreLocal={pedidoSeleccionado.cuentas.ferreteria}
-  />
-) : (
-  <div className="bg-yellow-50 text-yellow-700 p-3 rounded-lg text-sm mt-2">
-    ⚠️ Esta cuenta no tiene ubicación configurada
-  </div>
-)}
+          pedidoSeleccionado?.cuentas?.longitud ? (
+            <MapaUbicacion
+              lat={pedidoSeleccionado.cuentas.latitud}
+              lng={pedidoSeleccionado.cuentas.longitud}
+              nombreLocal={pedidoSeleccionado.cuentas.ferreteria}
+            />
+          ) : (
+            <div className="bg-yellow-50 text-yellow-700 p-3 rounded-lg text-sm mt-2">
+              ⚠️ Esta cuenta no tiene ubicación configurada
+            </div>
+          )}
 
           {pedidoSeleccionado.pdf_url && (
             <div className="space-y-3">
@@ -8375,13 +8788,9 @@ const BadgeEstado = ({ estado }: any) => {
               </div>
             </div>
           )}
-
-
-
         </motion.div>
       );
     }
-    
 
     // VISTA LISTA DE RUTAS
     return (
@@ -8496,531 +8905,636 @@ const BadgeEstado = ({ estado }: any) => {
   };
 
   const VistaSurtir = ({ setVistaPerfil }: any) => {
-  const [pedidosPendientes, setPedidosPendientes] = useState<any[]>([]);
-  const [cargando, setCargando] = useState(true);
+    const [pedidosPendientes, setPedidosPendientes] = useState<any[]>([]);
+    const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    cargarPedidosPendientes();
+    useEffect(() => {
+      cargarPedidosPendientes();
 
-    const channel = supabase
-      .channel("pedidos-surtir-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "pedidos" },
-        () => cargarPedidosPendientes()
-      )
-      .subscribe();
+      const channel = supabase
+        .channel("pedidos-surtir-realtime")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "pedidos" },
+          () => cargarPedidosPendientes()
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }, []);
 
- const cargarPedidosPendientes = async () => {
-  const { data } = await supabase
-    .from("pedidos")
-    .select(`
+    const cargarPedidosPendientes = async () => {
+      const { data } = await supabase
+        .from("pedidos")
+        .select(
+          `
       id, created_at, total, estado,
       cuentas (cliente, ferreteria, numero_cuenta)
-    `)
-    .in("estado", ["nuevo_pedido", "recibido", "surtiendo"]) 
-    .order("created_at", { ascending: true });
+    `
+        )
+        .in("estado", ["nuevo_pedido", "recibido", "surtiendo"])
+        .order("created_at", { ascending: true });
 
-  setPedidosPendientes(data || []);
-  setCargando(false);
-};
+      setPedidosPendientes(data || []);
+      setCargando(false);
+    };
 
-const iniciarSurtido = async (pedido: any) => {
-    const { data: pedidoData } = await supabase
-      .from("pedidos")
-      .select("lista_productos") 
-      .eq("id", pedido.id)
-      .single();
+    const iniciarSurtido = async (pedido: any) => {
+      const { data: pedidoData } = await supabase
+        .from("pedidos")
+        .select("lista_productos")
+        .eq("id", pedido.id)
+        .single();
 
-    if (pedidoData?.lista_productos) {
-      try {
+      if (pedidoData?.lista_productos) {
+        try {
+          const items = pedidoData.lista_productos
+            .split("-")
+            .map((item: string) => {
+              const [codigo, cantidad] = item.split("*");
+              return { codigo, cantidad: parseInt(cantidad) };
+            });
 
-        const items = pedidoData.lista_productos.split("-").map((item: string) => {
-          const [codigo, cantidad] = item.split("*");
-          return { codigo, cantidad: parseInt(cantidad) };
-        });
+          const codigos = items.map((i: any) => i.codigo);
 
-        const codigos = items.map((i: any) => i.codigo);
+          const { data: productos } = await supabase
+            .from("productos")
+            .select("*")
+            .in("CODIGO", codigos);
 
-        const { data: productos } = await supabase
-          .from("productos")
-          .select("*")
-          .in("CODIGO", codigos);
+          if (!productos) {
+            console.error("No se encontraron productos");
+            return;
+          }
 
-        if (!productos) {
-           console.error("No se encontraron productos");
-           return;
+          const productosSurtir = items
+            .map((item: any) => {
+              const prod = productos.find((p) => p.CODIGO === item.codigo);
+
+              if (!prod) return null;
+
+              return {
+                ...prod,
+                cantidad: item.cantidad,
+                producto_id: prod.id,
+              };
+            })
+            .filter(Boolean);
+
+          // Actualizar estados para cambiar de vista
+          setPedidoSurtir(pedido);
+          setProductosSurtir(productosSurtir);
+          setProductosSurtidos(new Map());
+          setVistaSurtir("surtiendo");
+
+          // Actualizar estado del pedido a "surtiendo" en BD
+          await supabase
+            .from("pedidos")
+            .update({ estado: "surtiendo" })
+            .eq("id", pedido.id);
+        } catch (error) {
+          console.error("Error procesando surtido:", error);
+          alert("Error al procesar los productos del pedido");
         }
-
-        const productosSurtir = items.map((item: any) => {
-          const prod = productos.find((p) => p.CODIGO === item.codigo);
-          
-          if (!prod) return null; 
-
-          return {
-            ...prod,
-            cantidad: item.cantidad,
-            producto_id: prod.id,
-          };
-        }).filter(Boolean); 
-
-        // Actualizar estados para cambiar de vista
-        setPedidoSurtir(pedido);
-        setProductosSurtir(productosSurtir);
-        setProductosSurtidos(new Map());
-        setVistaSurtir("surtiendo");
-
-        // Actualizar estado del pedido a "surtiendo" en BD
-        await supabase
-          .from("pedidos")
-          .update({ estado: "surtiendo" })
-          .eq("id", pedido.id);
-
-      } catch (error) {
-        console.error("Error procesando surtido:", error);
-        alert("Error al procesar los productos del pedido");
+      } else {
+        alert(
+          "Este pedido es antiguo o no contiene la lista de productos guardada."
+        );
       }
-    } else {
-      alert("Este pedido es antiguo o no contiene la lista de productos guardada.");
+    };
+
+    if (vistaSurtir === "surtiendo" && pedidoSurtir) {
+      return <VistaSurtiendoPedido />;
     }
+
+    return (
+      <motion.div
+        key="vista-surtir"
+        className="min-h-screen pb-10"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+      >
+        <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+        <h2 className="text-xl font-bold text-zinc-900 mb-4">Surtir Pedidos</h2>
+
+        {cargando ? (
+          <div className="flex justify-center py-10">
+            <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+          </div>
+        ) : pedidosPendientes.length === 0 ? (
+          <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
+            <Box size={40} className="mx-auto text-zinc-300 mb-2" />
+            <p className="text-zinc-500">No hay pedidos pendientes de surtir</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pedidosPendientes.map((pedido) => (
+              <div
+                key={pedido.id}
+                className="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <p className="font-bold text-zinc-900">
+                      Pedido #{pedido.id}
+                    </p>
+                    <p className="text-sm text-zinc-600">
+                      {pedido.cuentas?.cliente}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {pedido.cuentas?.ferreteria}
+                    </p>
+                  </div>
+                  <BadgeEstado estado={pedido.estado} />
+                </div>
+
+                <button
+                  onClick={() => iniciarSurtido(pedido)}
+                  className="w-full mt-3 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-semibold transition"
+                >
+                  {pedido.estado === "surtiendo"
+                    ? "Continuar Surtido"
+                    : "Iniciar Surtido"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    );
   };
 
-  if (vistaSurtir === "surtiendo" && pedidoSurtir) {
-    return <VistaSurtiendoPedido />;
-  }
+  const VistaSurtiendoPedido = () => {
+    const totalProductos = productosSurtir.reduce(
+      (sum, item) => sum + item.cantidad,
+      0
+    );
+    const productosSurtidosTotal = Array.from(
+      productosSurtidos.values()
+    ).reduce((sum, val) => sum + val, 0);
+    const progreso =
+      totalProductos > 0 ? (productosSurtidosTotal / totalProductos) * 100 : 0;
+    const estaCompleto =
+      productosSurtidosTotal >= totalProductos && totalProductos > 0;
+    const [mensajeError, setMensajeError] = useState("");
+    const [ultimoEscaneo, setUltimoEscaneo] = useState("");
+    const [bufferEscaneo, setBufferEscaneo] = useState("");
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [mostrarModalCompletado, setMostrarModalCompletado] = useState(false);
+    const [guardandoCierre, setGuardandoCierre] = useState(false);
+    const [modalAlerta, setModalAlerta] = useState<{
+      visible: boolean;
+      titulo: string;
+      mensaje: string;
+      tipo: "error" | "warning";
+    } | null>(null);
 
-  return (
-    <motion.div
-      key="vista-surtir"
-      className="min-h-screen pb-10"
-      initial={{ opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -40 }}
-    >
-      <BackBtn onBack={() => setVistaPerfil("menu")} />
-      
-      <h2 className="text-xl font-bold text-zinc-900 mb-4">
-        Surtir Pedidos
-      </h2>
+    useEffect(() => {
+      if (estaCompleto) {
+        const timer = setTimeout(() => {
+          setMostrarModalCompletado(true);
+          if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }, [productosSurtidosTotal, totalProductos, estaCompleto]);
 
-      {cargando ? (
-        <div className="flex justify-center py-10">
-          <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-        </div>
-      ) : pedidosPendientes.length === 0 ? (
-        <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
-          <Box size={40} className="mx-auto text-zinc-300 mb-2" />
-          <p className="text-zinc-500">No hay pedidos pendientes de surtir</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {pedidosPendientes.map((pedido) => (
-            <div
-              key={pedido.id}
-              className="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"
-            >
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <p className="font-bold text-zinc-900">Pedido #{pedido.id}</p>
-                  <p className="text-sm text-zinc-600">{pedido.cuentas?.cliente}</p>
-                  <p className="text-xs text-zinc-500">{pedido.cuentas?.ferreteria}</p>
-                </div>
-                <BadgeEstado estado={pedido.estado} />
-              </div>
+    // Lógica del Escáner
+    useEffect(() => {
+      const handleKeyPress = (e: KeyboardEvent) => {
+        // Si el modal de completado ya está abierto, ignorar escaneos
+        if (mostrarModalCompletado) return;
 
-              <button
-                onClick={() => iniciarSurtido(pedido)}
-                className="w-full mt-3 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-semibold transition"
-              >
-                {pedido.estado === "surtiendo" ? "Continuar Surtido" : "Iniciar Surtido"}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </motion.div>
-  );
-};
-
-const VistaSurtiendoPedido = () => {
-  const totalProductos = productosSurtir.reduce((sum, item) => sum + item.cantidad, 0);
-  const productosSurtidosTotal = Array.from(productosSurtidos.values()).reduce((sum, val) => sum + val, 0);
-  const progreso = totalProductos > 0 ? (productosSurtidosTotal / totalProductos) * 100 : 0;
-  const estaCompleto = productosSurtidosTotal >= totalProductos && totalProductos > 0;
-  const [mensajeError, setMensajeError] = useState("");
-  const [ultimoEscaneo, setUltimoEscaneo] = useState("");
-  const [bufferEscaneo, setBufferEscaneo] = useState("");
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [mostrarModalCompletado, setMostrarModalCompletado] = useState(false);
-  const [guardandoCierre, setGuardandoCierre] = useState(false);
-  const [modalAlerta, setModalAlerta] = useState<{
-    visible: boolean;
-    titulo: string;
-    mensaje: string;
-    tipo: "error" | "warning"; 
-  } | null>(null);
-
-  useEffect(() => {
-    if (estaCompleto) {
-      const timer = setTimeout(() => {
-        setMostrarModalCompletado(true);
-        if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [productosSurtidosTotal, totalProductos, estaCompleto]);
-
-  // Lógica del Escáner 
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Si el modal de completado ya está abierto, ignorar escaneos
-      if (mostrarModalCompletado) return;
-
-      if (e.key === "Enter") {
-        if (bufferEscaneo.trim()) {
-          procesarEscaneo(bufferEscaneo.trim());
-          setBufferEscaneo("");
+        if (e.key === "Enter") {
+          if (bufferEscaneo.trim()) {
+            procesarEscaneo(bufferEscaneo.trim());
+            setBufferEscaneo("");
+          }
+          return;
         }
+        setBufferEscaneo((prev) => prev + e.key);
+
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+          if (bufferEscaneo.trim()) {
+            procesarEscaneo(bufferEscaneo.trim());
+            setBufferEscaneo("");
+          }
+        }, 100);
+      };
+
+      window.addEventListener("keypress", handleKeyPress);
+      return () => {
+        window.removeEventListener("keypress", handleKeyPress);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      };
+    }, [
+      bufferEscaneo,
+      productosSurtir,
+      productosSurtidos,
+      mostrarModalCompletado,
+    ]);
+
+    const procesarEscaneo = (codigoEscaneado: string) => {
+      setUltimoEscaneo(codigoEscaneado);
+
+      const itemEncontrado = productosSurtir.find(
+        (item) =>
+          item.CODIGO === codigoEscaneado || item.C_PRODUCTO === codigoEscaneado
+      );
+
+      if (!itemEncontrado) {
+        if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+        setModalAlerta({
+          visible: true,
+          titulo: "Producto Incorrecto",
+          mensaje: `El código "${codigoEscaneado}" no pertenece a este pedido.`,
+          tipo: "error",
+        });
         return;
       }
-      setBufferEscaneo((prev) => prev + e.key);
-      
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => {
-        if (bufferEscaneo.trim()) {
-          procesarEscaneo(bufferEscaneo.trim());
-          setBufferEscaneo("");
-        }
-      }, 100);
-    };
 
-    window.addEventListener("keypress", handleKeyPress);
-    return () => {
-      window.removeEventListener("keypress", handleKeyPress);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [bufferEscaneo, productosSurtir, productosSurtidos, mostrarModalCompletado]);
+      const cantidadSurtida =
+        productosSurtidos.get(itemEncontrado.producto_id) || 0;
 
-  const procesarEscaneo = (codigoEscaneado: string) => {
-  setUltimoEscaneo(codigoEscaneado);
-  
-  const itemEncontrado = productosSurtir.find(
-    item => item.CODIGO === codigoEscaneado || item.C_PRODUCTO === codigoEscaneado
-  );
-
-  if (!itemEncontrado) {
-    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-    setModalAlerta({
-      visible: true,
-      titulo: "Producto Incorrecto",
-      mensaje: `El código "${codigoEscaneado}" no pertenece a este pedido.`,
-      tipo: "error"
-    });
-    return;
-  }
-
-    const cantidadSurtida = productosSurtidos.get(itemEncontrado.producto_id) || 0;
-
-    if (cantidadSurtida >= itemEncontrado.cantidad) {
-      if ("vibrate" in navigator) navigator.vibrate([100, 100]);
-      setModalAlerta({
-        visible: true,
-        titulo: "Producto Completo",
-        mensaje: `El producto "${itemEncontrado.TITULO}" ya tiene la cantidad requerida completa.`,
-        tipo: "warning"
-      });
-      return;
-    }
-
-    // Actualizar conteo
-    const nuevaCantidad = cantidadSurtida + 1;
-    const nuevoMapa = new Map(productosSurtidos);
-    nuevoMapa.set(itemEncontrado.producto_id, nuevaCantidad);
-    setProductosSurtidos(nuevoMapa);
-
-    if ("vibrate" in navigator) navigator.vibrate(50); 
-    setMensajeError(`✓ Agregado: ${itemEncontrado.TITULO}`);
-    setTimeout(() => setMensajeError(""), 1500);
-  };
-
-  const confirmarCompletado = async () => {
-    setGuardandoCierre(true);
-    try {
-      const { error } = await supabase
-        .from("pedidos")
-        .update({ estado: "por_revisar" }) 
-        .eq("id", pedidoSurtir.id);
-      
-      if(error) {
-        console.error("Error al finalizar:", error);
-        alert("Error al finalizar el pedido. Verifica tu conexión.");
-      } else {
-        setMostrarModalCompletado(false);
-        setVistaSurtir("seleccionar");
-        setPedidoSurtir(null);
+      if (cantidadSurtida >= itemEncontrado.cantidad) {
+        if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+        setModalAlerta({
+          visible: true,
+          titulo: "Producto Completo",
+          mensaje: `El producto "${itemEncontrado.TITULO}" ya tiene la cantidad requerida completa.`,
+          tipo: "warning",
+        });
+        return;
       }
-    } catch (err) {
-      console.error("Error de red:", err);
-    } finally {
-      setGuardandoCierre(false);
-    }
-  };
 
-  return (
-    <motion.div className="min-h-screen pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <BackBtn onBack={() => {
-        setVistaSurtir("seleccionar");
-        setPedidoSurtir(null);
-      }} />
+      // Actualizar conteo
+      const nuevaCantidad = cantidadSurtida + 1;
+      const nuevoMapa = new Map(productosSurtidos);
+      nuevoMapa.set(itemEncontrado.producto_id, nuevaCantidad);
+      setProductosSurtidos(nuevoMapa);
 
-      <h2 className="text-xl font-bold text-zinc-900 mb-2">
-        Surtiendo Pedido #{pedidoSurtir.id}
-      </h2>
+      if ("vibrate" in navigator) navigator.vibrate(50);
+      setMensajeError(`✓ Agregado: ${itemEncontrado.TITULO}`);
+      setTimeout(() => setMensajeError(""), 1500);
+    };
 
-      {/* Barra de progreso */}
-      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-        <div className="flex justify-between mb-2">
-          <span className="text-sm font-semibold text-zinc-700">Progreso</span>
-          <span className={`text-sm font-bold ${estaCompleto ? "text-green-600" : "text-orange-600"}`}>
-            {productosSurtidosTotal} / {totalProductos}
-          </span>
-        </div>
-        <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${progreso}%` }}
-            className={`h-full rounded-full transition-colors duration-300 ${
-              estaCompleto 
-                ? "bg-gradient-to-r from-green-500 to-green-600" 
-                : "bg-gradient-to-r from-orange-500 to-orange-600"
-            }`}
-          />
-        </div>
-        
-        {/*Solo aparece si está completo */}
-        {estaCompleto && (
-          <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            onClick={() => setMostrarModalCompletado(true)}
-            className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold shadow-md transition"
-          >
-            CONFIRMAR FINALIZADO
-          </motion.button>
-        )}
-      </div>
+    const confirmarCompletado = async () => {
+      setGuardandoCierre(true);
+      try {
+        const { error } = await supabase
+          .from("pedidos")
+          .update({ estado: "por_revisar" })
+          .eq("id", pedidoSurtir.id);
 
-      {/* Indicador de escaneo activo */}
-      {!estaCompleto && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center gap-3">
-          <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-          <span className="text-sm text-blue-800 font-medium">
-            Esperando escaneo del código de barras...
-          </span>
-        </div>
-      )}
+        if (error) {
+          console.error("Error al finalizar:", error);
+          alert("Error al finalizar el pedido. Verifica tu conexión.");
+        } else {
+          setMostrarModalCompletado(false);
+          setVistaSurtir("seleccionar");
+          setPedidoSurtir(null);
+        }
+      } catch (err) {
+        console.error("Error de red:", err);
+      } finally {
+        setGuardandoCierre(false);
+      }
+    };
 
-      {/* Feedback Visual */}
-      <AnimatePresence>
-        {mensajeError && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="mb-4 p-3 rounded-lg text-sm font-semibold bg-green-50 text-green-700 border border-green-200"
-          >
-            {mensajeError}
-          </motion.div>
-        )}
-      </AnimatePresence>
+    return (
+      <motion.div
+        className="min-h-screen pb-10"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <BackBtn
+          onBack={() => {
+            setVistaSurtir("seleccionar");
+            setPedidoSurtir(null);
+          }}
+        />
 
-      {/* Lista de productos */}
-      <div className="space-y-2 pb-20">
-        {productosSurtir.map((item) => {
-          const cantidadSurtida = productosSurtidos.get(item.producto_id) || 0;
-          const completado = cantidadSurtida >= item.cantidad;
-          const ultimoEscaneado = ultimoEscaneo === item.CODIGO || ultimoEscaneo === item.C_PRODUCTO;
+        <h2 className="text-xl font-bold text-zinc-900 mb-2">
+          Surtiendo Pedido #{pedidoSurtir.id}
+        </h2>
 
-          return (
-            <motion.div
-              key={item.producto_id}
-              animate={{
-                scale: ultimoEscaneado ? [1, 1.02, 1] : 1,
-                backgroundColor: completado ? "#dcfce7" : "#ffffff",
-                borderColor: completado ? "#22c55e" : "#e4e4e7"
-              }}
-              className="border-2 rounded-xl p-3 shadow-sm transition-colors duration-300"
+        {/* Barra de progreso */}
+        <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+          <div className="flex justify-between mb-2">
+            <span className="text-sm font-semibold text-zinc-700">
+              Progreso
+            </span>
+            <span
+              className={`text-sm font-bold ${
+                estaCompleto ? "text-green-600" : "text-orange-600"
+              }`}
             >
-              <div className="flex items-center gap-3">
-                <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
-                  <Image
-                    src={item.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
-                    alt={item.TITULO}
-                    fill
-                    className="object-contain"
-                  />
-                </div>
+              {productosSurtidosTotal} / {totalProductos}
+            </span>
+          </div>
+          <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${progreso}%` }}
+              className={`h-full rounded-full transition-colors duration-300 ${
+                estaCompleto
+                  ? "bg-gradient-to-r from-green-500 to-green-600"
+                  : "bg-gradient-to-r from-orange-500 to-orange-600"
+              }`}
+            />
+          </div>
 
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
-                    {item.TITULO}
-                  </p>
-                  <p className="text-xs text-zinc-500 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">
-                    {item.CODIGO}
-                  </p>
-                  <p className="text-xs text-zinc-500">
-  {item.ubicacion || "Sin ubicación"}
-</p>
- 
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="flex-1 bg-zinc-200 h-2 rounded-full overflow-hidden">
-                       <div 
-                         className={`h-full ${completado ? 'bg-green-500' : 'bg-orange-500'}`} 
-                         style={{ width: `${Math.min((cantidadSurtida / item.cantidad) * 100, 100)}%` }}
-                       />
-                    </div>
-                    <span className={`text-sm font-bold ${
-                      completado ? "text-green-600" : "text-zinc-600"
-                    }`}>
-                      {cantidadSurtida}/{item.cantidad}
-                    </span>
-                  </div>
-                </div>
-                
-                {completado && (
-                   <div className="bg-green-100 p-1 rounded-full text-green-600">
-                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-                       <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                     </svg>
-                   </div>
-                )}
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+          {/*Solo aparece si está completo */}
+          {estaCompleto && (
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => setMostrarModalCompletado(true)}
+              className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold shadow-md transition"
+            >
+              CONFIRMAR FINALIZADO
+            </motion.button>
+          )}
+        </div>
 
-      {/* Alerta Error/Warning */}
-      {typeof document !== 'undefined' && createPortal(
+        {/* Indicador de escaneo activo */}
+        {!estaCompleto && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center gap-3">
+            <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+            <span className="text-sm text-blue-800 font-medium">
+              Esperando escaneo del código de barras...
+            </span>
+          </div>
+        )}
+
+        {/* Feedback Visual */}
         <AnimatePresence>
-          {modalAlerta && modalAlerta.visible && (
+          {mensajeError && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
-              style={{ zIndex: 50000 }}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mb-4 p-3 rounded-lg text-sm font-semibold bg-green-50 text-green-700 border border-green-200"
             >
+              {mensajeError}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Lista de productos */}
+        <div className="space-y-2 pb-20">
+          {productosSurtir.map((item) => {
+            const cantidadSurtida =
+              productosSurtidos.get(item.producto_id) || 0;
+            const completado = cantidadSurtida >= item.cantidad;
+            const ultimoEscaneado =
+              ultimoEscaneo === item.CODIGO ||
+              ultimoEscaneo === item.C_PRODUCTO;
+
+            return (
               <motion.div
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.5, opacity: 0 }}
-                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
-                onClick={(e) => e.stopPropagation()}
+                key={item.producto_id}
+                animate={{
+                  scale: ultimoEscaneado ? [1, 1.02, 1] : 1,
+                  backgroundColor: completado ? "#dcfce7" : "#ffffff",
+                  borderColor: completado ? "#22c55e" : "#e4e4e7",
+                }}
+                className="border-2 rounded-xl p-3 shadow-sm transition-colors duration-300"
               >
-                <div className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${
-                  modalAlerta.tipo === "error" ? "bg-red-100" : "bg-yellow-100"
-                }`}>
-                  {modalAlerta.tipo === "error" ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-10 h-10 text-red-600">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-10 h-10 text-yellow-600">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                    </svg>
+                <div className="flex items-center gap-3">
+                  <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
+                    <Image
+                      src={
+                        item.IMAGEN ||
+                        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                      }
+                      alt={item.TITULO}
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
+                      {item.TITULO}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">
+                      {item.CODIGO}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {item.ubicacion || "Sin ubicación"}
+                    </p>
+
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="flex-1 bg-zinc-200 h-2 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${
+                            completado ? "bg-green-500" : "bg-orange-500"
+                          }`}
+                          style={{
+                            width: `${Math.min(
+                              (cantidadSurtida / item.cantidad) * 100,
+                              100
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                      <span
+                        className={`text-sm font-bold ${
+                          completado ? "text-green-600" : "text-zinc-600"
+                        }`}
+                      >
+                        {cantidadSurtida}/{item.cantidad}
+                      </span>
+                    </div>
+                  </div>
+
+                  {completado && (
+                    <div className="bg-green-100 p-1 rounded-full text-green-600">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="w-5 h-5"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
                   )}
                 </div>
-
-                <h3 className={`text-2xl font-bold mb-2 ${
-                  modalAlerta.tipo === "error" ? "text-red-600" : "text-zinc-800"
-                }`}>
-                  {modalAlerta.titulo}
-                </h3>
-                
-                <p className="text-zinc-600 text-lg mb-8 leading-relaxed">
-                  {modalAlerta.mensaje}
-                </p>
-
-                <button
-                  onClick={() => setModalAlerta(null)}
-                  className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg active:scale-95 transition-transform ${
-                     modalAlerta.tipo === "error" 
-                     ? "bg-red-500 hover:bg-red-600 shadow-red-200" 
-                     : "bg-zinc-800 hover:bg-zinc-900 shadow-zinc-200"
-                  }`}
-                >
-                  ENTENDIDO
-                </button>
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
-      
+            );
+          })}
+        </div>
 
-      {/* Modal pedido completado  */}
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {mostrarModalCompletado && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
-              style={{ zIndex: 50000 }}
-            >
-              <motion.div
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.5, opacity: 0 }}
-                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-14 h-14 text-green-600">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                  </svg>
-                </div>
-
-                <h3 className="text-2xl font-bold mb-2 text-zinc-900">
-                  ¡Surtido Completo!
-                </h3>
-                
-                <p className="text-zinc-600 text-lg mb-8">
-                  Has escaneado todos los productos del pedido <strong>#{pedidoSurtir?.id}</strong>.
-                </p>
-
-                <button
-                  onClick={confirmarCompletado}
-                  disabled={guardandoCierre}
-                  className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+        {/* Alerta Error/Warning */}
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {modalAlerta && modalAlerta.visible && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+                  style={{ zIndex: 50000 }}
                 >
-                  {guardandoCierre ? "GUARDANDO..." : "FINALIZAR PEDIDO"}
-                </button>
-                
-                <button 
-                  onClick={() => setMostrarModalCompletado(false)}
-                  className="mt-4 text-zinc-400 text-sm hover:text-zinc-600 underline"
-                  disabled={guardandoCierre}
-                >
-                  Revisar lista de nuevo
-                </button>
-              </motion.div>
-            </motion.div>
+                  <motion.div
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div
+                      className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${
+                        modalAlerta.tipo === "error"
+                          ? "bg-red-100"
+                          : "bg-yellow-100"
+                      }`}
+                    >
+                      {modalAlerta.tipo === "error" ? (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={3}
+                          stroke="currentColor"
+                          className="w-10 h-10 text-red-600"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={3}
+                          stroke="currentColor"
+                          className="w-10 h-10 text-yellow-600"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                          />
+                        </svg>
+                      )}
+                    </div>
+
+                    <h3
+                      className={`text-2xl font-bold mb-2 ${
+                        modalAlerta.tipo === "error"
+                          ? "text-red-600"
+                          : "text-zinc-800"
+                      }`}
+                    >
+                      {modalAlerta.titulo}
+                    </h3>
+
+                    <p className="text-zinc-600 text-lg mb-8 leading-relaxed">
+                      {modalAlerta.mensaje}
+                    </p>
+
+                    <button
+                      onClick={() => setModalAlerta(null)}
+                      className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg active:scale-95 transition-transform ${
+                        modalAlerta.tipo === "error"
+                          ? "bg-red-500 hover:bg-red-600 shadow-red-200"
+                          : "bg-zinc-800 hover:bg-zinc-900 shadow-zinc-200"
+                      }`}
+                    >
+                      ENTENDIDO
+                    </button>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body
           )}
-        </AnimatePresence>,
-        document.body
-      )}
-    </motion.div>
-  );
-};
+
+        {/* Modal pedido completado  */}
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {mostrarModalCompletado && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+                  style={{ zIndex: 50000 }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={3}
+                        stroke="currentColor"
+                        className="w-14 h-14 text-green-600"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M4.5 12.75l6 6 9-13.5"
+                        />
+                      </svg>
+                    </div>
+
+                    <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                      ¡Surtido Completo!
+                    </h3>
+
+                    <p className="text-zinc-600 text-lg mb-8">
+                      Has escaneado todos los productos del pedido{" "}
+                      <strong>#{pedidoSurtir?.id}</strong>.
+                    </p>
+
+                    <button
+                      onClick={confirmarCompletado}
+                      disabled={guardandoCierre}
+                      className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {guardandoCierre ? "GUARDANDO..." : "FINALIZAR PEDIDO"}
+                    </button>
+
+                    <button
+                      onClick={() => setMostrarModalCompletado(false)}
+                      className="mt-4 text-zinc-400 text-sm hover:text-zinc-600 underline"
+                      disabled={guardandoCierre}
+                    >
+                      Revisar lista de nuevo
+                    </button>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body
+          )}
+      </motion.div>
+    );
+  };
 
   interface ToggleVisibilidadParams {
     productoId: number;
@@ -9134,7 +9648,7 @@ const VistaSurtiendoPedido = () => {
 
         if (error) throw error;
       } else {
-        // Crear nuevo registro 
+        // Crear nuevo registro
         const { error } = await supabase
           .from("productos_visibilidad_cuenta")
           .insert({
@@ -9431,10 +9945,10 @@ const VistaSurtiendoPedido = () => {
   );
 
   return (
-  <>
-    <InstallPWA />
-    <AnimatePresence mode="wait">
-      {!cuentaActiva ? (
+    <>
+      <InstallPWA />
+      <AnimatePresence mode="wait">
+        {!cuentaActiva ? (
           <motion.div
             key="login"
             initial={{ opacity: 1, scale: 1 }}
@@ -10195,7 +10709,10 @@ const VistaSurtiendoPedido = () => {
                               >
                                 <div className="relative w-full h-40">
                                   <SkeletonImage
-                                    src={macro.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                                    src={
+                                      macro.img ||
+                                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                                    }
                                     alt={macro.nombre}
                                     className="object-contain"
                                   />
@@ -10228,37 +10745,55 @@ const VistaSurtiendoPedido = () => {
                             {marcas.map((marca) => (
                               <div
                                 key={marca.id}
-                               onClick={async () => {
-  localStorage.setItem("scrollPos", window.scrollY.toString());
-  if (window.scrollY > 100) {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }
-  setArticulos([]);
-  setMarcaSeleccionada(marca);
+                                onClick={async () => {
+                                  localStorage.setItem(
+                                    "scrollPos",
+                                    window.scrollY.toString()
+                                  );
+                                  if (window.scrollY > 100) {
+                                    window.scrollTo({
+                                      top: 0,
+                                      behavior: "instant",
+                                    });
+                                  }
+                                  setArticulos([]);
+                                  setMarcaSeleccionada(marca);
 
-  const { data, error } = await supabase
-    .from("productos")
-    .select(
-      "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
-    )
-    .eq("marca_id", marca.id)
-    .order("orden_categoria", { ascending: true }); // AGREGA ESTA LÍNEA
+                                  const { data, error } = await supabase
+                                    .from("productos")
+                                    .select(
+                                      "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
+                                    )
+                                    .eq("marca_id", marca.id)
+                                    .order("orden_categoria", {
+                                      ascending: true,
+                                    }); // AGREGA ESTA LÍNEA
 
-  const productosNormalizados = (data || []).map((producto) => ({
-    ...producto,
-    visible: producto.visible ?? true,
-  }));
+                                  const productosNormalizados = (
+                                    data || []
+                                  ).map((producto) => ({
+                                    ...producto,
+                                    visible: producto.visible ?? true,
+                                  }));
 
-  setArticulos(error ? [] : productosNormalizados);
-  requestAnimationFrame(() => {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  });
-}}
+                                  setArticulos(
+                                    error ? [] : productosNormalizados
+                                  );
+                                  requestAnimationFrame(() => {
+                                    window.scrollTo({
+                                      top: 0,
+                                      behavior: "instant",
+                                    });
+                                  });
+                                }}
                                 className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
                               >
                                 <div className="relative w-full h-28 sm:h-36 md:h-40 overflow-hidden">
                                   <SkeletonImage
-                                    src={marca.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                                    src={
+                                      marca.img ||
+                                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                                    }
                                     alt={marca.nombre_marca}
                                     className="object-contain object-center w-full h-full"
                                   />
@@ -10300,36 +10835,52 @@ const VistaSurtiendoPedido = () => {
                             <div
                               key={cat.id_categoria}
                               onClick={async () => {
-  localStorage.setItem("scrollPos", window.scrollY.toString());
-  if (window.scrollY > 100) {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }
-  setArticulos([]);
-  setCategoriaSeleccionada(cat);
+                                localStorage.setItem(
+                                  "scrollPos",
+                                  window.scrollY.toString()
+                                );
+                                if (window.scrollY > 100) {
+                                  window.scrollTo({
+                                    top: 0,
+                                    behavior: "instant",
+                                  });
+                                }
+                                setArticulos([]);
+                                setCategoriaSeleccionada(cat);
 
-  const { data, error } = await supabase
-    .from("productos")
-    .select("*")
-    .eq("CATEGORIA_ID", cat.id_categoria)
-    .order("orden_categoria", { ascending: true }); 
+                                const { data, error } = await supabase
+                                  .from("productos")
+                                  .select("*")
+                                  .eq("CATEGORIA_ID", cat.id_categoria)
+                                  .order("orden_categoria", {
+                                    ascending: true,
+                                  });
 
-  const productosNormalizados = (data || []).map(
-    (producto) => ({
-      ...producto,
-      visible: producto.visible ?? true,
-    })
-  );
+                                const productosNormalizados = (data || []).map(
+                                  (producto) => ({
+                                    ...producto,
+                                    visible: producto.visible ?? true,
+                                  })
+                                );
 
-  setArticulos(error ? [] : productosNormalizados);
-  requestAnimationFrame(() => {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  });
-}}
+                                setArticulos(
+                                  error ? [] : productosNormalizados
+                                );
+                                requestAnimationFrame(() => {
+                                  window.scrollTo({
+                                    top: 0,
+                                    behavior: "instant",
+                                  });
+                                });
+                              }}
                               className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
                             >
                               <div className="relative w-full h-40">
                                 <SkeletonImage
-                                  src={cat.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                                  src={
+                                    cat.img ||
+                                    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                                  }
                                   alt={cat.nombre_categoria}
                                   className="object-contain"
                                 />
@@ -10476,7 +11027,10 @@ const VistaSurtiendoPedido = () => {
                                   >
                                     <div className="relative w-full h-40 bg-white">
                                       <SkeletonImage
-                                        src={art.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                                        src={
+                                          art.IMAGEN ||
+                                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                                        }
                                         alt={art.TITULO}
                                         className="object-contain"
                                       />
@@ -10493,7 +11047,70 @@ const VistaSurtiendoPedido = () => {
                                           </span>
                                         )}
                                       </div>
+
+   {!esAdmin && !esMostrador && !esMostrador2 && (
+  <motion.button
+    initial={{ scale: 0, opacity: 0 }}
+    animate={{ scale: 1, opacity: 1 }}
+    whileTap={{ scale: 0.85 }}
+    onClick={(e) => {
+      e.stopPropagation();
+      if ("vibrate" in navigator) navigator.vibrate(50);
+
+      setCarrito((prev) => {
+        const existe = prev.find((p) => p.id === art.id);
+        if (existe) {
+          return prev.map((p) =>
+            p.id === art.id
+              ? {
+                  ...p,
+                  cantidad: p.cantidad + 1,
+                  subtotal: (p.cantidad + 1) * p.P_MAYOREO,
+                }
+              : p
+          );
+        } else {
+          return [
+            ...prev,
+            {
+              ...art,
+              cantidad: 1,
+              subtotal: art.P_MAYOREO,
+            },
+          ];
+        }
+      });
+    }}
+    className="
+      absolute bottom-2 right-2
+      w-10 h-10
+      bg-zinc-100 hover:bg-zinc-200
+      rounded-full shadow-lg
+      flex items-center justify-center
+      transition-colors z-10
+    "
+  >
+    {/* Carrito */}
+    <ShoppingCart className="w-5 h-5 text-orange-500" strokeWidth={2.2} />
+
+    {/* Badge + */}
+    <span
+      className="
+        absolute -top-1 -right-1
+        w-4 h-4
+        bg-orange-500
+        rounded-full
+        flex items-center justify-center
+        shadow
+      "
+    >
+      <Plus className="w-3 h-3 text-white" strokeWidth={3} />
+    </span>
+  </motion.button>
+)}
                                     </div>
+
+                                    
                                     <div className="p-2">
                                       <p className="text-xs text-orange-500 font-medium">
                                         {getNombreMarca(art.marca_id)}
@@ -10957,7 +11574,10 @@ const VistaSurtiendoPedido = () => {
                                     {/* Imagen del producto */}
                                     <div className="relative w-20 h-20 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
                                       <Image
-                                        src={item.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                                        src={
+                                          item.IMAGEN ||
+                                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                                        }
                                         alt={item.TITULO}
                                         fill
                                         className="object-contain"
@@ -11058,7 +11678,10 @@ const VistaSurtiendoPedido = () => {
                                       }}
                                     >
                                       <Image
-                                        src={item.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                                        src={
+                                          item.IMAGEN ||
+                                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                                        }
                                         alt={item.TITULO}
                                         fill
                                         className="object-contain"
@@ -11462,16 +12085,19 @@ const VistaSurtiendoPedido = () => {
                             />
                           )}
 
-{esAdmin && (
-  <MenuItem
-    label="Ordenar Productos por Categoría"
-    icon={<FilePenLine size={20} />}
-    onClick={() => {
-      window.scrollTo({ top: 0, behavior: "instant" });
-      setVistaPerfil("ordenar-productos");
-    }}
-  />
-)}
+                          {esAdmin && (
+                            <MenuItem
+                              label="Ordenar Posicion de elementos"
+                              icon={<ListOrdered  size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("ordenar-productos");
+                              }}
+                            />
+                          )}
 
                           {esAdmin && (
                             <MenuItem
@@ -11512,15 +12138,18 @@ const VistaSurtiendoPedido = () => {
                           )}
 
                           {esEmpleado && (
-  <MenuItem
-    label="Surtir Pedidos"
-    icon={<Box size={20} />}
-    onClick={() => {
-      window.scrollTo({ top: 0, behavior: "instant" });
-      setVistaPerfil("surtir");
-    }}
-  />
-)}
+                            <MenuItem
+                              label="Surtir Pedidos"
+                              icon={<Box size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("surtir");
+                              }}
+                            />
+                          )}
 
                           {/* Ubicación */}
                           {!esAdmin && (
@@ -11783,8 +12412,8 @@ const VistaSurtiendoPedido = () => {
                     )}
 
                     {vistaPerfil === "ordenar-productos" && (
-  <VistaOrdenarProductos setVistaPerfil={setVistaPerfil} />
-)}
+                      <VistaOrdenarProductos setVistaPerfil={setVistaPerfil} />
+                    )}
 
                     {vistaPerfil === "asignar-categorias" && (
                       <AsignarCategoriasView setVistaPerfil={setVistaPerfil} />
@@ -11799,8 +12428,8 @@ const VistaSurtiendoPedido = () => {
                     )}
 
                     {vistaPerfil === "surtir" && esEmpleado && (
-  <VistaSurtir setVistaPerfil={setVistaPerfil} />
-)}
+                      <VistaSurtir setVistaPerfil={setVistaPerfil} />
+                    )}
 
                     {vistaPerfil === "gestionar-banner" && (
                       <GestionarBannerView setVistaPerfil={setVistaPerfil} />
@@ -12274,7 +12903,10 @@ const VistaSurtiendoPedido = () => {
                               >
                                 <div className="relative w-full h-40 bg-white">
                                   <Image
-                                    src={prod.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                                    src={
+                                      prod.IMAGEN ||
+                                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                                    }
                                     alt={prod.TITULO}
                                     fill
                                     className="object-contain"
@@ -12508,7 +13140,7 @@ const VistaSurtiendoPedido = () => {
             </nav>
           </motion.div>
         )}
-          </AnimatePresence>
-  </>
-);
+      </AnimatePresence>
+    </>
+  );
 }
