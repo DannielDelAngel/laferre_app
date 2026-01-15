@@ -170,6 +170,9 @@ const VistaProducto = ({
   const ID_CUENTA_M2 = "41";
 
   const [ubicacion, setUbicacion] = useState(producto.ubicacion || "");
+const [categoriaQuery, setCategoriaQuery] = useState("");
+const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<any>(null);
+const [mostrarResultados, setMostrarResultados] = useState(false);
 
   const handleToggleMostrador = async (mostrador: "M1" | "M2") => {
     setActualizandoToggle(true);
@@ -205,6 +208,25 @@ const VistaProducto = ({
       setActualizandoToggle(false);
     }
   };
+
+  const categoriasFiltradas = categoriasAdmin.filter((cat: any) =>
+  cat.nombre_categoria
+    .toLowerCase()
+    .includes(categoriaQuery.toLowerCase())
+);
+useEffect(() => {
+  if (!categoriaId || !categoriasAdmin?.length) return;
+
+  const categoria = categoriasAdmin.find(
+    (cat: any) => String(cat.id_categoria) === String(categoriaId)
+  );
+
+  if (categoria) {
+    setCategoriaQuery(categoria.nombre_categoria);
+    setCategoriaSeleccionada(categoria);
+  }
+}, [categoriaId, categoriasAdmin]);
+
 
   const handleToggleVisible = async () => {
     setActualizandoToggle(true);
@@ -886,27 +908,52 @@ const VistaProducto = ({
                 />
               </div>
 
-              {/* Categoría */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Categoría
-                </label>
-                <select
-                  value={categoriaId}
-                  onChange={(e) => setCategoriaId(e.target.value)}
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-                >
-                  <option value="">Seleccionar categoría</option>
-                  {categoriasAdmin.map((cat: any) => (
-                    <option
-                      key={cat.id_categoria}
-                      value={String(cat.id_categoria)}
-                    >
-                      {cat.nombre_categoria}
-                    </option>
-                  ))}
-                </select>
-              </div>
+             {/* Categoría (buscador) */}
+<div className="mb-4 relative">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Categoría
+  </label>
+
+  <input
+    type="text"
+    value={categoriaQuery}
+    onChange={(e) => {
+      setCategoriaQuery(e.target.value);
+      setMostrarResultados(true);
+      setCategoriaSeleccionada(null);
+    }}
+    onFocus={() => setMostrarResultados(true)}
+    placeholder="Escribe el nombre de la categoría..."
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+  />
+
+  {mostrarResultados && categoriaQuery && (
+    <div className="absolute z-20 mt-1 w-full bg-white border border-zinc-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+      {categoriasFiltradas.length > 0 ? (
+        categoriasFiltradas.map((cat: any) => (
+          <button
+            type="button"
+            key={cat.id_categoria}
+            onClick={() => {
+              setCategoriaQuery(cat.nombre_categoria);
+              setCategoriaSeleccionada(cat);
+              setCategoriaId(String(cat.id_categoria)); 
+              setMostrarResultados(false);
+            }}
+            className="w-full text-left px-3 py-2 text-sm text-zinc-700 hover:bg-orange-50 hover:text-orange-700"
+          >
+            {cat.nombre_categoria}
+          </button>
+        ))
+      ) : (
+        <div className="px-3 py-2 text-sm text-zinc-500">
+          No se encontraron categorías
+        </div>
+      )}
+    </div>
+  )}
+</div>
+
 
               {/* Marca */}
               <div className="mb-4">
@@ -11048,7 +11095,7 @@ const descargarProductosCSV = async () => {
                                         )}
                                       </div>
 
-   {!esAdmin && !esMostrador && !esMostrador2 && (
+   
   <motion.button
     initial={{ scale: 0, opacity: 0 }}
     animate={{ scale: 1, opacity: 1 }}
@@ -11107,7 +11154,7 @@ const descargarProductosCSV = async () => {
       <Plus className="w-3 h-3 text-white" strokeWidth={3} />
     </span>
   </motion.button>
-)}
+
                                     </div>
 
                                     
