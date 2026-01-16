@@ -1,6 +1,5 @@
 "use client";
 
-
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
 import {
@@ -21,6 +20,8 @@ import {
   FileQuestionMark,
   LogOut,
   UserCog,
+  Lock,
+  Unlock,
   EyeOff,
   Eye,
   DatabaseBackup,
@@ -36,7 +37,7 @@ import {
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
-import { AnimatePresence, motion, MotionConfig } from "framer-motion";
+import { AnimatePresence, motion, Reorder, MotionConfig } from "framer-motion";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { createPortal } from "react-dom";
@@ -173,6 +174,21 @@ const VistaProducto = ({
 const [categoriaQuery, setCategoriaQuery] = useState("");
 const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<any>(null);
 const [mostrarResultados, setMostrarResultados] = useState(false);
+
+const [codigo, setCodigo] = useState(producto.CODIGO || "");
+  const [precio, setPrecio] = useState(producto.P_MAYOREO ? String(producto.P_MAYOREO) : "");
+  const [edicionAvanzada, setEdicionAvanzada] = useState(() => {
+  if (typeof window !== "undefined") {
+    const guardado = localStorage.getItem("modoEdicionAvanzada");
+    return guardado === "true"; 
+  }
+  return false;
+});
+
+  const [mostrarModalPassword, setMostrarModalPassword] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [errorPassword, setErrorPassword] = useState("");
+  const PASSWORD_MAESTRA = "12345";
 
   const handleToggleMostrador = async (mostrador: "M1" | "M2") => {
     setActualizandoToggle(true);
@@ -512,6 +528,8 @@ useEffect(() => {
           marca_id: marcaId ? parseInt(marcaId) : null,
           IMAGEN: urlImagen,
           ubicacion: ubicacion,
+          CODIGO: codigo, 
+          P_MAYOREO: parseFloat(precio),
         })
         .eq("id", producto.id);
 
@@ -528,6 +546,8 @@ useEffect(() => {
         producto.marca_id = marcaId ? parseInt(marcaId) : null;
         producto.IMAGEN = urlImagen;
         producto.ubicacion = ubicacion;
+        producto.CODIGO = codigo;
+        producto.P_MAYOREO = parseFloat(precio);
 
         setImagenFile(null);
 
@@ -645,6 +665,26 @@ useEffect(() => {
 
   const cantidadNum = parseInt(cantidad) || 1;
 
+  const handleCandadoClick = () => {
+  if (edicionAvanzada) {
+    setEdicionAvanzada(false);
+    localStorage.setItem("modoEdicionAvanzada", "false"); 
+  } else {
+    setPasswordInput("");
+    setErrorPassword("");
+    setMostrarModalPassword(true);
+  }
+};
+
+const verificarPassword = () => {
+  if (passwordInput === PASSWORD_MAESTRA) {
+    setEdicionAvanzada(true);
+    localStorage.setItem("modoEdicionAvanzada", "true"); 
+    setMostrarModalPassword(false);
+  } else {
+    setErrorPassword("Contraseña incorrecta");
+  }
+};
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -882,31 +922,68 @@ useEffect(() => {
                 />
               </div>
 
+              <div className="flex items-center justify-between mb-4 bg-zinc-50 p-3 rounded-lg border border-zinc-200">
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-zinc-800">
+                    Datos Sensibles
+                  </span>
+                  <span className="text-xs text-zinc-500">
+                    Habilitar edición de Código y Precio
+                  </span>
+                </div>
+                <button
+  type="button" 
+  onClick={handleCandadoClick} 
+  className={`p-2 rounded-lg transition-colors ${
+    edicionAvanzada
+      ? "bg-red-100 text-red-600"
+      : "bg-zinc-200 text-zinc-600"
+  }`}
+>
+  {edicionAvanzada ? <Unlock size={20} /> : <Lock size={20} />}
+</button>
+              </div>
+
               {/* Código */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Código (no editable)
+                  Código {edicionAvanzada ? "(Editable)" : "(Bloqueado)"}
                 </label>
                 <input
                   type="text"
-                  value={producto.CODIGO}
-                  disabled
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                  disabled={!edicionAvanzada}
+                  className={`w-full border rounded-lg px-3 py-2 transition-colors ${
+                    edicionAvanzada
+                      ? "border-orange-500 bg-white text-zinc-900"
+                      : "border-zinc-300 bg-zinc-100 text-zinc-500"
+                  }`}
                 />
               </div>
 
               {/* Precio */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Precio (no editable)
+                  Precio Mayoreo {edicionAvanzada ? "(Editable)" : "(Bloqueado)"}
                 </label>
-                <input
-                  type="text"
-                  value={`$${producto.P_MAYOREO?.toFixed(2)}`}
-                  disabled
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-500 bg-zinc-100"
-                />
+                <div className="relative">
+                  <span className={`absolute left-3 top-2.5 ${edicionAvanzada ? 'text-zinc-700' : 'text-zinc-400'}`}>$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={precio}
+                    onChange={(e) => setPrecio(e.target.value)}
+                    disabled={!edicionAvanzada}
+                    className={`w-full border rounded-lg pl-7 pr-3 py-2 transition-colors ${
+                      edicionAvanzada
+                        ? "border-orange-500 bg-white text-zinc-900"
+                        : "border-zinc-300 bg-zinc-100 text-zinc-500"
+                    }`}
+                  />
+                </div>
               </div>
+             
 
              {/* Categoría (buscador) */}
 <div className="mb-4 relative">
@@ -1008,6 +1085,8 @@ useEffect(() => {
                       setModoEdicion(false);
                       setTitulo(producto.TITULO || "");
                       setDescripcion(producto.DESCRIPCION || "");
+                      setCodigo(producto.CODIGO || "");
+  setPrecio(producto.P_MAYOREO ? String(producto.P_MAYOREO) : "");
                       setCategoriaId(
                         producto.CATEGORIA_ID
                           ? String(producto.CATEGORIA_ID)
@@ -1571,6 +1650,66 @@ useEffect(() => {
                     ) : (
                       "Eliminar"
                     )}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+          {/* MODAL DE CONTRASEÑA */}
+          {mostrarModalPassword && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[10000]">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-2xl w-[90%] max-w-xs p-6 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex justify-center mb-4">
+                  <div className="bg-orange-100 p-3 rounded-full">
+                    <Lock size={24} className="text-orange-600" />
+                  </div>
+                </div>
+                
+                <h3 className="text-lg font-bold text-zinc-900 text-center mb-2">
+                  Seguridad Requerida
+                </h3>
+                <p className="text-xs text-zinc-500 text-center mb-4">
+                  Ingresa la contraseña maestra para editar precios y códigos.
+                </p>
+
+                <input
+                  type="password"
+                  autoFocus
+                  value={passwordInput}
+                  onChange={(e) => {
+                    setPasswordInput(e.target.value);
+                    setErrorPassword("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") verificarPassword();
+                  }}
+                  placeholder="Contraseña"
+                  className="w-full border border-zinc-300 rounded-xl px-4 py-3 text-center text-zinc-800 text-lg mb-2 focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+
+                {errorPassword && (
+                  <p className="text-red-500 text-xs text-center mb-3 font-semibold">
+                    {errorPassword}
+                  </p>
+                )}
+
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => setMostrarModalPassword(false)}
+                    className="flex-1 py-3 rounded-xl font-semibold text-zinc-500 hover:bg-zinc-100 transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={verificarPassword}
+                    className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition shadow-lg shadow-orange-200"
+                  >
+                    Desbloquear
                   </button>
                 </div>
               </motion.div>
@@ -2984,6 +3123,338 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
     );
   };
 
+  const EliminacionMasivaView = ({ setVistaPerfil }: any) => {
+  const [productos, setProductos] = useState<any[]>([]);
+  const [productosSeleccionados, setProductosSeleccionados] = useState<Set<number>>(new Set());
+  const [cargando, setCargando] = useState(true);
+  const [buscando, setBuscando] = useState(false);
+  const [terminoBusqueda, setTerminoBusqueda] = useState("");
+  const [mostrarModalConfirmar, setMostrarModalConfirmar] = useState(false);
+  const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
+  const [errorEliminar, setErrorEliminar] = useState("");
+  const [eliminando, setEliminando] = useState(false);
+  const [busquedaEjecutada, setBusquedaEjecutada] = useState(false);
+
+
+ const buscarProductos = async () => {
+  if (!terminoBusqueda.trim()) {
+    setProductos([]);
+    setBusquedaEjecutada(false);
+    return;
+  }
+
+  setBuscando(true);
+  setBusquedaEjecutada(true);
+
+  try {
+    const { data, error } = await supabase
+      .from("productos")
+      .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, marca_id")
+      .or(`TITULO.ilike.%${terminoBusqueda}%,CODIGO.ilike.%${terminoBusqueda}%`)
+      .limit(50);
+
+    if (!error) {
+      setProductos(data ?? []);
+    }
+  } catch (error) {
+    console.error("Error buscando productos:", error);
+  } finally {
+    setBuscando(false);
+    setCargando(false);
+  }
+};
+
+
+  const toggleSeleccion = (productoId: number) => {
+    setProductosSeleccionados(prev => {
+      const nuevo = new Set(prev);
+      if (nuevo.has(productoId)) {
+        nuevo.delete(productoId);
+      } else {
+        nuevo.add(productoId);
+      }
+      return nuevo;
+    });
+  };
+
+  const seleccionarTodos = () => {
+    if (productosSeleccionados.size === productos.length) {
+      setProductosSeleccionados(new Set());
+    } else {
+      setProductosSeleccionados(new Set(productos.map(p => p.id)));
+    }
+  };
+
+const obtenerPathStorage = (url: string) => {
+  const partes = url.split("/imagenes_productos/");
+  return partes[1]; 
+};
+
+const eliminarProductos = async () => {
+  if (numeroCuentaConfirm !== cuenta?.numero_cuenta) {
+    setErrorEliminar("Número de cuenta incorrecto");
+    return;
+  }
+
+  setEliminando(true);
+  setErrorEliminar("");
+
+  try {
+    const ids = Array.from(productosSeleccionados);
+    const productosAEliminar = productos.filter(p => ids.includes(p.id));
+
+    // imágenes adicionales
+    const { data: imagenesExtra, error: errorImgs } = await supabase
+      .from("imagenes_producto")
+      .select("url")
+      .in("producto_id", ids);
+
+    if (errorImgs) throw errorImgs;
+
+    // rutas reales del storage
+    const archivosAEliminar: string[] = [];
+
+    // Imagen principal
+    for (const p of productosAEliminar) {
+      if (p.IMAGEN?.includes("/imagenes_productos/")) {
+        archivosAEliminar.push(obtenerPathStorage(p.IMAGEN));
+      }
+    }
+
+    // Imágenes adicionales
+    if (imagenesExtra) {
+      for (const img of imagenesExtra) {
+        if (img.url?.includes("/imagenes_productos/")) {
+          archivosAEliminar.push(obtenerPathStorage(img.url));
+        }
+      }
+    }
+
+    // Eliminar imágenes del Storage (en lote)
+    if (archivosAEliminar.length > 0) {
+      await supabase.storage
+        .from("imagenes_productos")
+        .remove([...new Set(archivosAEliminar)]);
+    }
+    await supabase
+      .from("imagenes_producto")
+      .delete()
+      .in("producto_id", ids);
+
+    await supabase
+      .from("productos")
+      .delete()
+      .in("id", ids);
+
+    setProductos(prev => prev.filter(p => !ids.includes(p.id)));
+    setProductosSeleccionados(new Set());
+    setMostrarModalConfirmar(false);
+    setNumeroCuentaConfirm("");
+
+  } catch (err) {
+    console.error(err);
+    setErrorEliminar("Error al eliminar productos");
+  } finally {
+    setEliminando(false);
+  }
+};
+
+  return (
+    <motion.div
+      key="eliminacion-masiva"
+      className="min-h-screen pb-20"
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -40 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+    >
+      <div className="px-6 py-6">
+        <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+        <h2 className="text-xl font-bold text-zinc-900 mb-4">
+          Eliminación Masiva de Productos
+        </h2>
+
+        {/* Buscador */}
+        <div className="mb-4">
+          <div className="relative">
+            <input
+              type="text"
+              value={terminoBusqueda}
+              onChange={(e) => setTerminoBusqueda(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") buscarProductos();
+              }}
+              placeholder="Buscar productos..."
+              className="w-full border border-zinc-300 rounded-lg px-3 py-2 pr-10 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
+          </div>
+          <button
+            onClick={buscarProductos}
+            disabled={buscando}
+            className="w-full mt-2 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-semibold transition disabled:opacity-50"
+          >
+            {buscando ? "Buscando..." : "Buscar"}
+          </button>
+        </div>
+
+        {/* Contador y botón seleccionar todos */}
+        {productos.length > 0 && (
+          <div className="mb-4 flex items-center justify-between bg-white rounded-lg border border-zinc-200 p-3">
+            <span className="text-sm text-zinc-700">
+              {productosSeleccionados.size} de {productos.length} seleccionados
+            </span>
+            <button
+              onClick={seleccionarTodos}
+              className="text-sm text-orange-500 font-semibold hover:text-orange-600"
+            >
+              {productosSeleccionados.size === productos.length ? "Deseleccionar todos" : "Seleccionar todos"}
+            </button>
+          </div>
+        )}
+
+        {/* Lista de productos */}
+        <div className="space-y-2">
+          {productos.map((prod) => (
+            <div
+              key={prod.id}
+              onClick={() => toggleSeleccion(prod.id)}
+              className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${
+                productosSeleccionados.has(prod.id)
+                  ? "border-red-500 bg-red-50"
+                  : "border-zinc-200 hover:border-red-300 bg-white"
+              }`}
+            >
+              <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-zinc-100">
+                <Image
+                  src={prod.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                  alt={prod.TITULO}
+                  fill
+                  className="object-contain"
+                />
+              </div>
+
+              <div className="flex-1">
+                <p className="font-semibold text-sm text-zinc-800">{prod.TITULO}</p>
+                <p className="text-xs text-zinc-500">Código: {prod.CODIGO}</p>
+                <p className="text-xs text-orange-500 font-semibold">
+                  ${prod.P_MAYOREO?.toFixed(2)}
+                </p>
+              </div>
+
+              {productosSeleccionados.has(prod.id) && (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-6 h-6 text-red-500"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Botón eliminar */}
+        {productosSeleccionados.size > 0 && (
+          <div className="fixed bottom-24 left-0 right-0 px-6">
+            <button
+              onClick={() => setMostrarModalConfirmar(true)}
+              className="w-full bg-red-500 hover:bg-red-600 text-white py-4 rounded-xl font-bold shadow-lg transition"
+            >
+              Eliminar {productosSeleccionados.size} producto{productosSeleccionados.size !== 1 ? "s" : ""}
+            </button>
+          </div>
+        )}
+
+        {/* Modal de confirmación */}
+        {mostrarModalConfirmar && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-2xl w-[90%] max-w-md p-6 shadow-2xl"
+            >
+              <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-8 h-8 text-red-600"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+              </div>
+
+              <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
+                ¿Eliminar {productosSeleccionados.size} producto{productosSeleccionados.size !== 1 ? "s" : ""}?
+              </h3>
+
+              <p className="text-sm text-zinc-600 text-center mb-6">
+                Esta acción no se puede deshacer. Los productos y sus imágenes serán eliminados permanentemente.
+              </p>
+
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                  Confirma tu número de cuenta para continuar
+                </label>
+                <input
+                  type="password"
+                  value={numeroCuentaConfirm}
+                  onChange={(e) => {
+                    setNumeroCuentaConfirm(e.target.value);
+                    setErrorEliminar("");
+                  }}
+                  placeholder="Ingresa tu número de cuenta"
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  disabled={eliminando}
+                />
+                {errorEliminar && (
+                  <p className="text-red-500 text-sm mt-2">{errorEliminar}</p>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setMostrarModalConfirmar(false);
+                    setNumeroCuentaConfirm("");
+                    setErrorEliminar("");
+                  }}
+                  disabled={eliminando}
+                  className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={eliminarProductos}
+                  disabled={eliminando || !numeroCuentaConfirm}
+                  className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {eliminando ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                      Eliminando...
+                    </span>
+                  ) : (
+                    "Eliminar"
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
   const GestionarMacroCategoriasView = ({ setVistaPerfil }: any) => {
     const [nombre, setNombre] = useState("");
     const [orden, setOrden] = useState("");
@@ -3425,13 +3896,13 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
     if (pestanaActiva === "productos") {
       const { data } = await supabase
         .from("categorias")
-        .select("id_categoria, nombre_categoria")
+        .select("img, id_categoria, nombre_categoria")
         .order("nombre_categoria", { ascending: true });
       setCategorias(data || []);
     } else if (pestanaActiva === "subcategorias") {
       const { data } = await supabase
         .from("macro_categorias")
-        .select("id, nombre")
+        .select("img, id, nombre")
         .order("nombre", { ascending: true });
       setMacroCategorias(data || []);
     } else if (pestanaActiva === "categorias") {
@@ -3448,7 +3919,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
   const cargarProductos = async (categoriaId: number) => {
     const { data } = await supabase
       .from("productos")
-      .select("id, TITULO, CODIGO, visible, liquidacion, top_ventas, orden_categoria")
+      .select("*")
       .eq("CATEGORIA_ID", categoriaId)
       .order("orden_categoria", { ascending: true });
     setProductos(data || []);
@@ -3457,22 +3928,10 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
   const cargarSubcategorias = async (macroId: number) => {
     const { data } = await supabase
       .from("categorias")
-      .select("id_categoria, nombre_categoria, orden")
+      .select("*")
       .eq("macro_categoria_id", macroId)
       .order("orden", { ascending: true });
     setSubcategorias(data || []);
-  };
-
-  const moverItem = (items: any[], setItems: any, index: number, direccion: "arriba" | "abajo") => {
-    const nuevosItems = [...items];
-    const nuevoIndex = direccion === "arriba" ? index - 1 : index + 1;
-    
-    if (nuevoIndex < 0 || nuevoIndex >= nuevosItems.length) return;
-    
-    [nuevosItems[index], nuevosItems[nuevoIndex]] = 
-    [nuevosItems[nuevoIndex], nuevosItems[index]];
-    
-    setItems(nuevosItems);
   };
 
   const guardarOrdenProductos = async () => {
@@ -3608,13 +4067,17 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
       </div>
 
       {mensaje && (
-        <div className={`mb-4 p-3 rounded-lg text-sm ${
-          mensaje.includes("Error")
-            ? "bg-red-50 text-red-700 border border-red-200"
-            : "bg-green-50 text-green-700 border border-green-200"
-        }`}>
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mb-4 p-3 rounded-lg text-sm ${
+            mensaje.includes("Error")
+              ? "bg-red-50 text-red-700 border border-red-200"
+              : "bg-green-50 text-green-700 border border-green-200"
+          }`}
+        >
           {mensaje}
-        </div>
+        </motion.div>
       )}
 
       {/* VISTA PRODUCTOS */}
@@ -3630,19 +4093,38 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
           ) : (
             <div className="space-y-2">
               {categorias.map((cat) => (
-                <div
+                <motion.div
                   key={cat.id_categoria}
                   onClick={() => {
                     setCategoriaSeleccionada(cat);
                     cargarProductos(cat.id_categoria);
                   }}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
                   className="flex items-center justify-between p-4 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition bg-white"
                 >
+                   <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                    {cat.img ? (
+                      <img
+                        src={cat.img}
+                        alt={cat.TITULO}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+
+                  
                   <span className="font-semibold text-zinc-800">
                     {cat.nombre_categoria}
                   </span>
                   <span className="text-zinc-400">›</span>
-                </div>
+                </motion.div>
               ))}
             </div>
           )}
@@ -3655,76 +4137,90 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
             {categoriaSeleccionada.nombre_categoria}
           </h3>
           <p className="text-sm text-zinc-600 mb-6">
-            Usa las flechas para ordenar los productos
+            Mantén presionado y arrastra para reordenar los productos
           </p>
 
-          <div className="space-y-2 mb-4">
+          <Reorder.Group
+            axis="y"
+            values={productos}
+            onReorder={setProductos}
+            className="space-y-3 mb-4"
+          >
             {productos.map((prod, index) => (
-              <div
+              <Reorder.Item
                 key={prod.id}
-                className="flex items-center gap-3 p-3 bg-white rounded-xl border border-zinc-200 shadow-sm"
+                value={prod}
+                className="touch-none"
               >
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => moverItem(productos, setProductos, index, "arriba")}
-                    disabled={index === 0}
-                      className="w-8 h-8 rounded flex items-center justify-center
-    bg-zinc-100 text-zinc-700
-    hover:bg-zinc-200
-    disabled:bg-zinc-200
-    disabled:text-zinc-400
-    disabled:cursor-not-allowed"
-
-                  >
-                    ▲
-                  </button>
-                  <button
-                    onClick={() => moverItem(productos, setProductos, index, "abajo")}
-                    disabled={index === productos.length - 1}
-                     className="w-8 h-8 rounded flex items-center justify-center
-    bg-zinc-100 text-zinc-700
-    hover:bg-zinc-200
-    disabled:bg-zinc-200
-    disabled:text-zinc-400
-    disabled:cursor-not-allowed"
-
-                  >
-                    ▼
-                  </button>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-zinc-800 truncate">
-                    {prod.TITULO}
-                  </p>
-                  <p className="text-xs text-zinc-500">
-                    Código: {prod.CODIGO}
-                  </p>
-                  <div className="flex gap-2 mt-1">
-                    {!prod.visible && (
-                      <span className="text-xs bg-zinc-200 text-zinc-700 px-2 py-0.5 rounded">
-                        Oculto
-                      </span>
-                    )}
-                    {prod.liquidacion && (
-                      <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
-                        Liquidación
-                      </span>
-                    )}
-                    {prod.top_ventas && (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-                        Top Ventas
-                      </span>
+                <motion.div
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition"
+                >
+                  {/* Imagen del producto */}
+                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                    {prod.IMAGEN ? (
+                      <img
+                        src={prod.IMAGEN}
+                        alt={prod.TITULO}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
                     )}
                   </div>
-                </div>
 
-                <span className="text-zinc-400 font-mono text-sm">
-                  #{index + 1}
-                </span>
-              </div>
+                  {/* Información del producto */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-zinc-800 truncate">
+                      {prod.TITULO}
+                    </p>
+                    {prod.P_MAYOREO && (
+                      <p className="text-lg font-bold text-orange-600 mt-1">
+                        ${parseFloat(prod.P_MAYOREO).toFixed(2)}
+                      </p>
+                    )}
+                    <p className="text-xs text-zinc-500">
+                      Código: {prod.CODIGO}
+                    </p>
+                    <div className="flex gap-2 mt-1 flex-wrap">
+                      {!prod.visible && (
+                        <span className="text-xs bg-zinc-200 text-zinc-700 px-2 py-0.5 rounded">
+                          Oculto
+                        </span>
+                      )}
+                      {prod.liquidacion && (
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
+                          Liquidación
+                        </span>
+                      )}
+                      {prod.top_ventas && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                          Top Ventas
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Indicador de posición y drag handle */}
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-zinc-400 font-mono text-sm">
+                      #{index + 1}
+                    </span>
+                    <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                      </svg>
+                    </div>
+                  </div>
+                </motion.div>
+              </Reorder.Item>
             ))}
-          </div>
+          </Reorder.Group>
 
           <button
             onClick={guardarOrdenProductos}
@@ -3749,19 +4245,38 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
           ) : (
             <div className="space-y-2">
               {macroCategorias.map((macro) => (
-                <div
+                <motion.div
                   key={macro.id}
                   onClick={() => {
                     setMacroCategoriaSeleccionada(macro);
                     cargarSubcategorias(macro.id);
                   }}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
                   className="flex items-center justify-between p-4 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition bg-white"
                 >
+                
+                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                    {macro.img ? (
+                      <img
+                        src={macro.img}
+                        alt={macro.TITULO}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+
                   <span className="font-semibold text-zinc-800">
                     {macro.nombre}
                   </span>
                   <span className="text-zinc-400">›</span>
-                </div>
+                </motion.div>
               ))}
             </div>
           )}
@@ -3774,54 +4289,63 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
             {macroCategoriaSeleccionada.nombre}
           </h3>
           <p className="text-sm text-zinc-600 mb-6">
-            Usa las flechas para ordenar las subcategorías
+            Mantén presionado y arrastra para reordenar las subcategorías
           </p>
 
-          <div className="space-y-2 mb-4">
+          <Reorder.Group
+            axis="y"
+            values={subcategorias}
+            onReorder={setSubcategorias}
+            className="space-y-3 mb-4"
+          >
             {subcategorias.map((sub, index) => (
-              <div
+              <Reorder.Item
                 key={sub.id_categoria}
-                className="flex items-center gap-3 p-3 bg-white rounded-xl border border-zinc-200 shadow-sm"
+                value={sub}
+                className="touch-none"
               >
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => moverItem(subcategorias, setSubcategorias, index, "arriba")}
-                    disabled={index === 0}
-                     className="w-8 h-8 rounded flex items-center justify-center
-    bg-zinc-100 text-zinc-700
-    hover:bg-zinc-200
-    disabled:bg-zinc-200
-    disabled:text-zinc-400
-    disabled:cursor-not-allowed"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    onClick={() => moverItem(subcategorias, setSubcategorias, index, "abajo")}
-                    disabled={index === subcategorias.length - 1}
-                    className="w-8 h-8 rounded flex items-center justify-center
-    bg-zinc-100 text-zinc-700
-    hover:bg-zinc-200
-    disabled:bg-zinc-200
-    disabled:text-zinc-400
-    disabled:cursor-not-allowed"
-                  >
-                    ▼
-                  </button>
-                </div>
+                <motion.div
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition"
+                >
 
-                <div className="flex-1">
-                  <p className="font-semibold text-sm text-zinc-800">
-                    {sub.nombre_categoria}
-                  </p>
-                </div>
+                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                    {sub.img ? (
+                      <img
+                        src={sub.img}
+                        alt={sub.TITULO}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
 
-                <span className="text-zinc-400 font-mono text-sm">
-                  #{index + 1}
-                </span>
-              </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm text-zinc-800">
+                      {sub.nombre_categoria}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-zinc-400 font-mono text-sm">
+                      #{index + 1}
+                    </span>
+                    <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                      </svg>
+                    </div>
+                  </div>
+                </motion.div>
+              </Reorder.Item>
             ))}
-          </div>
+          </Reorder.Group>
 
           <button
             onClick={guardarOrdenSubcategorias}
@@ -3837,7 +4361,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
       {pestanaActiva === "categorias" && (
         <div>
           <p className="text-sm text-zinc-600 mb-6">
-            Usa las flechas para ordenar las categorías
+            Mantén presionado y arrastra para reordenar las categorías
           </p>
 
           {cargando ? (
@@ -3846,51 +4370,58 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
             </div>
           ) : (
             <>
-              <div className="space-y-2 mb-4">
+              <Reorder.Group
+                axis="y"
+                values={todasMacroCategorias}
+                onReorder={setTodasMacroCategorias}
+                className="space-y-3 mb-4"
+              >
                 {todasMacroCategorias.map((macro, index) => (
-                  <div
+                  <Reorder.Item
                     key={macro.id}
-                    className="flex items-center gap-3 p-3 bg-white rounded-xl border border-zinc-200 shadow-sm"
+                    value={macro}
+                    className="touch-none"
                   >
-                    <div className="flex flex-col gap-1">
-                      <button
-                        onClick={() => moverItem(todasMacroCategorias, setTodasMacroCategorias, index, "arriba")}
-                        disabled={index === 0}
-                        className="w-8 h-8 rounded flex items-center justify-center
-    bg-zinc-100 text-zinc-700
-    hover:bg-zinc-200
-    disabled:bg-zinc-200
-    disabled:text-zinc-400
-    disabled:cursor-not-allowed"
-                      >
-                        ▲
-                      </button>
-                      <button
-                        onClick={() => moverItem(todasMacroCategorias, setTodasMacroCategorias, index, "abajo")}
-                        disabled={index === todasMacroCategorias.length - 1}
-                         className="w-8 h-8 rounded flex items-center justify-center
-    bg-zinc-100 text-zinc-700
-    hover:bg-zinc-200
-    disabled:bg-zinc-200
-    disabled:text-zinc-400
-    disabled:cursor-not-allowed"
-                      >
-                        ▼
-                      </button>
-                    </div>
-
-                    <div className="flex-1">
-                      <p className="font-semibold text-sm text-zinc-800">
-                        {macro.nombre}
-                      </p>
-                    </div>
-
-                    <span className="text-zinc-400 font-mono text-sm">
-                      #{index + 1}
-                    </span>
+                    <motion.div
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition"
+                    >
+                       <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                    {macro.img ? (
+                      <img
+                        src={macro.img}
+                        alt={macro.TITULO}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
                   </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm text-zinc-800">
+                          {macro.nombre}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col items-center gap-2">
+                        <span className="text-zinc-400 font-mono text-sm">
+                          #{index + 1}
+                        </span>
+                        <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                          </svg>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </Reorder.Item>
                 ))}
-              </div>
+              </Reorder.Group>
 
               <button
                 onClick={guardarOrdenCategorias}
@@ -12160,6 +12691,17 @@ const descargarProductosCSV = async () => {
                             />
                           )}
 
+                          {esAdmin && (
+  <MenuItem
+    label="Eliminación Masiva de Productos"
+    icon={<X size={20} />}
+    onClick={() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      setVistaPerfil("eliminacion-masiva");
+    }}
+  />
+)}
+
                           {/* personal info  */}
                           <MenuItem
                             label="Informacion Personal"
@@ -12481,6 +13023,10 @@ const descargarProductosCSV = async () => {
                     {vistaPerfil === "gestionar-banner" && (
                       <GestionarBannerView setVistaPerfil={setVistaPerfil} />
                     )}
+
+                    {vistaPerfil === "eliminacion-masiva" && (
+  <EliminacionMasivaView setVistaPerfil={setVistaPerfil} />
+)}
 
                     {/* CONFIGURACIÓN */}
                     {vistaPerfil === "settings" && (
