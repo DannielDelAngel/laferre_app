@@ -3123,300 +3123,409 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
     );
   };
 
-  const EliminacionMasivaView = ({ setVistaPerfil }: any) => {
-  const [productos, setProductos] = useState<any[]>([]);
-  const [productosSeleccionados, setProductosSeleccionados] = useState<Set<number>>(new Set());
-  const [cargando, setCargando] = useState(true);
-  const [buscando, setBuscando] = useState(false);
-  const [terminoBusqueda, setTerminoBusqueda] = useState("");
-  const [mostrarModalConfirmar, setMostrarModalConfirmar] = useState(false);
-  const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
-  const [errorEliminar, setErrorEliminar] = useState("");
-  const [eliminando, setEliminando] = useState(false);
-  const [busquedaEjecutada, setBusquedaEjecutada] = useState(false);
+ const EliminacionMasivaView = ({ setVistaPerfil }: any) => {
+    
+    const [nivel, setNivel] = useState<"macros" | "categorias" | "productos">("macros");
+    const [macros, setMacros] = useState<any[]>([]);
+    const [categorias, setCategorias] = useState<any[]>([]);
+    const [productos, setProductos] = useState<any[]>([]);
+    const [macroSeleccionada, setMacroSeleccionada] = useState<any>(null);
+    const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<any>(null);
+    const [productosSeleccionados, setProductosSeleccionados] = useState<Set<number>>(new Set());
+    const [productosDetalle, setProductosDetalle] = useState<Map<number, any>>(new Map()); 
+    const [cargando, setCargando] = useState(true);
+    const [mostrarModalConfirmar, setMostrarModalConfirmar] = useState(false);
+    const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
+    const [errorEliminar, setErrorEliminar] = useState("");
+    const [eliminando, setEliminando] = useState(false);
 
+    useEffect(() => {
+      const cargarMacros = async () => {
+        const { data } = await supabase
+          .from("macro_categorias")
+          .select("*")
+          .order("orden", { ascending: true });
+        setMacros(data || []);
+        setCargando(false);
+      };
+      cargarMacros();
+    }, []);
 
- const buscarProductos = async () => {
-  if (!terminoBusqueda.trim()) {
-    setProductos([]);
-    setBusquedaEjecutada(false);
-    return;
-  }
+    const cargarCategorias = async (macroId: number) => {
+      setCargando(true);
+      const { data } = await supabase
+        .from("categorias")
+        .select("*")
+        .eq("macro_categoria_id", macroId)
+        .order("orden", { ascending: true });
+      setCategorias(data || []);
+      setCargando(false);
+      setNivel("categorias");
+    };
 
-  setBuscando(true);
-  setBusquedaEjecutada(true);
+    const cargarProductos = async (categoriaId: number) => {
+      setCargando(true);
+      const { data } = await supabase
+        .from("productos")
+        .select("*")
+        .eq("CATEGORIA_ID", categoriaId)
+        .order("TITULO", { ascending: true });
+      setProductos(data || []);
+      setCargando(false);
+      setNivel("productos");
+    };
 
-  try {
-    const { data, error } = await supabase
-      .from("productos")
-      .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, marca_id")
-      .or(`TITULO.ilike.%${terminoBusqueda}%,CODIGO.ilike.%${terminoBusqueda}%`)
-      .limit(50);
+    const toggleSeleccion = (producto: any) => {
+      setProductosSeleccionados((prev) => {
+        const nuevo = new Set(prev);
+        const nuevoDetalle = new Map(productosDetalle);
 
-    if (!error) {
-      setProductos(data ?? []);
-    }
-  } catch (error) {
-    console.error("Error buscando productos:", error);
-  } finally {
-    setBuscando(false);
-    setCargando(false);
-  }
-};
-
-
-  const toggleSeleccion = (productoId: number) => {
-    setProductosSeleccionados(prev => {
-      const nuevo = new Set(prev);
-      if (nuevo.has(productoId)) {
-        nuevo.delete(productoId);
-      } else {
-        nuevo.add(productoId);
-      }
-      return nuevo;
-    });
-  };
-
-  const seleccionarTodos = () => {
-    if (productosSeleccionados.size === productos.length) {
-      setProductosSeleccionados(new Set());
-    } else {
-      setProductosSeleccionados(new Set(productos.map(p => p.id)));
-    }
-  };
-
-const obtenerPathStorage = (url: string) => {
-  const partes = url.split("/imagenes_productos/");
-  return partes[1]; 
-};
-
-const eliminarProductos = async () => {
-  if (numeroCuentaConfirm !== cuenta?.numero_cuenta) {
-    setErrorEliminar("Número de cuenta incorrecto");
-    return;
-  }
-
-  setEliminando(true);
-  setErrorEliminar("");
-
-  try {
-    const ids = Array.from(productosSeleccionados);
-    const productosAEliminar = productos.filter(p => ids.includes(p.id));
-
-    // imágenes adicionales
-    const { data: imagenesExtra, error: errorImgs } = await supabase
-      .from("imagenes_producto")
-      .select("url")
-      .in("producto_id", ids);
-
-    if (errorImgs) throw errorImgs;
-
-    // rutas reales del storage
-    const archivosAEliminar: string[] = [];
-
-    // Imagen principal
-    for (const p of productosAEliminar) {
-      if (p.IMAGEN?.includes("/imagenes_productos/")) {
-        archivosAEliminar.push(obtenerPathStorage(p.IMAGEN));
-      }
-    }
-
-    // Imágenes adicionales
-    if (imagenesExtra) {
-      for (const img of imagenesExtra) {
-        if (img.url?.includes("/imagenes_productos/")) {
-          archivosAEliminar.push(obtenerPathStorage(img.url));
+        if (nuevo.has(producto.id)) {
+          nuevo.delete(producto.id);
+          nuevoDetalle.delete(producto.id);
+        } else {
+          nuevo.add(producto.id);
+          nuevoDetalle.set(producto.id, producto);
         }
+        
+        setProductosDetalle(nuevoDetalle);
+        return nuevo;
+      });
+    };
+
+    const seleccionarTodosEnVista = () => {
+      const todosIds = productos.map(p => p.id);
+      const estanTodosSeleccionados = todosIds.every(id => productosSeleccionados.has(id));
+
+      setProductosSeleccionados(prev => {
+        const nuevo = new Set(prev);
+        const nuevoDetalle = new Map(productosDetalle);
+
+        if (estanTodosSeleccionados) {
+          todosIds.forEach(id => {
+            nuevo.delete(id);
+            nuevoDetalle.delete(id);
+          });
+        } else {
+          productos.forEach(p => {
+            nuevo.add(p.id);
+            nuevoDetalle.set(p.id, p);
+          });
+        }
+        
+        setProductosDetalle(nuevoDetalle);
+        return nuevo;
+      });
+    };
+
+    const handleBack = () => {
+      if (nivel === "productos") {
+        setNivel("categorias");
+        setProductos([]);
+        setCategoriaSeleccionada(null);
+      } else if (nivel === "categorias") {
+        setNivel("macros");
+        setCategorias([]);
+        setMacroSeleccionada(null);
+      } else {
+        setVistaPerfil("menu");
       }
-    }
+    };
 
-    // Eliminar imágenes del Storage (en lote)
-    if (archivosAEliminar.length > 0) {
-      await supabase.storage
-        .from("imagenes_productos")
-        .remove([...new Set(archivosAEliminar)]);
-    }
-    await supabase
-      .from("imagenes_producto")
-      .delete()
-      .in("producto_id", ids);
+    const obtenerPathStorage = (url: string) => {
+      if (!url) return null;
+      const partes = url.split("/imagenes_productos/");
+      return partes.length > 1 ? partes[1] : null;
+    };
 
-    await supabase
-      .from("productos")
-      .delete()
-      .in("id", ids);
+    const eliminarProductosMasivo = async () => {
+      if (numeroCuentaConfirm !== cuenta?.numero_cuenta) {
+        setErrorEliminar("Número de cuenta incorrecto");
+        return;
+      }
 
-    setProductos(prev => prev.filter(p => !ids.includes(p.id)));
-    setProductosSeleccionados(new Set());
-    setMostrarModalConfirmar(false);
-    setNumeroCuentaConfirm("");
+      setEliminando(true);
+      setErrorEliminar("");
 
-  } catch (err) {
-    console.error(err);
-    setErrorEliminar("Error al eliminar productos");
-  } finally {
-    setEliminando(false);
-  }
-};
+      try {
+        const ids = Array.from(productosSeleccionados);
+        const productosAEliminar = Array.from(productosDetalle.values());
 
-  return (
-    <motion.div
-      key="eliminacion-masiva"
-      className="min-h-screen pb-20"
-      initial={{ opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -40 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-    >
-      <div className="px-6 py-6">
-        <BackBtn onBack={() => setVistaPerfil("menu")} />
+        const { data: imagenesExtra } = await supabase
+          .from("imagenes_producto")
+          .select("url")
+          .in("producto_id", ids);
 
-        <h2 className="text-xl font-bold text-zinc-900 mb-4">
-          Eliminación Masiva de Productos
-        </h2>
+        const archivosAEliminar: string[] = [];
+        for (const p of productosAEliminar) {
+          const path = obtenerPathStorage(p.IMAGEN);
+          if (path) archivosAEliminar.push(path);
+        }
 
-        {/* Buscador */}
-        <div className="mb-4">
-          <div className="relative">
-            <input
-              type="text"
-              value={terminoBusqueda}
-              onChange={(e) => setTerminoBusqueda(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") buscarProductos();
-              }}
-              placeholder="Buscar productos..."
-              className="w-full border border-zinc-300 rounded-lg px-3 py-2 pr-10 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
+        if (imagenesExtra) {
+          for (const img of imagenesExtra) {
+            const path = obtenerPathStorage(img.url);
+            if (path) archivosAEliminar.push(path);
+          }
+        }
+        if (archivosAEliminar.length > 0) {
+          const uniquePaths = [...new Set(archivosAEliminar)];
+          const chunkSize = 20;
+          for (let i = 0; i < uniquePaths.length; i += chunkSize) {
+            const chunk = uniquePaths.slice(i, i + chunkSize);
+            await supabase.storage.from("imagenes_productos").remove(chunk);
+          }
+        }
+
+        await supabase.from("imagenes_producto").delete().in("producto_id", ids);
+        const { error } = await supabase.from("productos").delete().in("id", ids);
+        if (error) throw error;
+
+        setProductosSeleccionados(new Set());
+        setProductosDetalle(new Map());
+        setMostrarModalConfirmar(false);
+        setNumeroCuentaConfirm("");
+        
+        if (nivel === "productos" && categoriaSeleccionada) {
+          cargarProductos(categoriaSeleccionada.id_categoria);
+        }
+
+      } catch (err) {
+        console.error(err);
+        setErrorEliminar("Error al eliminar productos");
+      } finally {
+        setEliminando(false);
+      }
+    };
+
+    return (
+      <motion.div
+        key="eliminacion-masiva-jerarquica"
+        className="min-h-screen pb-24"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <div className="px-6 py-6">
+          <BackBtn onBack={handleBack} />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-2">
+            Eliminación Masiva
+          </h2>
+          
+          {/* Breadcrumb simple */}
+          <div className="text-xs text-zinc-500 mb-6 flex items-center gap-1">
+            <span className={nivel === "macros" ? "font-bold text-orange-500" : ""}>Categorías</span>
+            {nivel !== "macros" && (
+              <>
+                <span>/</span>
+                <span className={nivel === "categorias" ? "font-bold text-orange-500" : ""}>
+                  {macroSeleccionada?.nombre}
+                </span>
+              </>
+            )}
+            {nivel === "productos" && (
+              <>
+                <span>/</span>
+                <span className="font-bold text-orange-500">
+                  {categoriaSeleccionada?.nombre_categoria}
+                </span>
+              </>
+            )}
           </div>
-          <button
-            onClick={buscarProductos}
-            disabled={buscando}
-            className="w-full mt-2 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-semibold transition disabled:opacity-50"
-          >
-            {buscando ? "Buscando..." : "Buscar"}
-          </button>
-        </div>
 
-        {/* Contador y botón seleccionar todos */}
-        {productos.length > 0 && (
-          <div className="mb-4 flex items-center justify-between bg-white rounded-lg border border-zinc-200 p-3">
-            <span className="text-sm text-zinc-700">
-              {productosSeleccionados.size} de {productos.length} seleccionados
-            </span>
-            <button
-              onClick={seleccionarTodos}
-              className="text-sm text-orange-500 font-semibold hover:text-orange-600"
-            >
-              {productosSeleccionados.size === productos.length ? "Deseleccionar todos" : "Seleccionar todos"}
-            </button>
-          </div>
-        )}
-
-        {/* Lista de productos */}
-        <div className="space-y-2">
-          {productos.map((prod) => (
-            <div
-              key={prod.id}
-              onClick={() => toggleSeleccion(prod.id)}
-              className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${
-                productosSeleccionados.has(prod.id)
-                  ? "border-red-500 bg-red-50"
-                  : "border-zinc-200 hover:border-red-300 bg-white"
-              }`}
-            >
-              <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-zinc-100">
-                <Image
-                  src={prod.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
-                  alt={prod.TITULO}
-                  fill
-                  className="object-contain"
-                />
-              </div>
-
-              <div className="flex-1">
-                <p className="font-semibold text-sm text-zinc-800">{prod.TITULO}</p>
-                <p className="text-xs text-zinc-500">Código: {prod.CODIGO}</p>
-                <p className="text-xs text-orange-500 font-semibold">
-                  ${prod.P_MAYOREO?.toFixed(2)}
-                </p>
-              </div>
-
-              {productosSeleccionados.has(prod.id) && (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                  className="w-6 h-6 text-red-500"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              )}
+          {cargando ? (
+            <div className="flex justify-center py-20">
+              <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
             </div>
-          ))}
+          ) : (
+            <>
+              {/* NIVEL 1: MACRO CATEGORÍAS */}
+              {nivel === "macros" && (
+                <div className="grid grid-cols-2 gap-4">
+                  {macros.map((macro) => (
+                    <div
+                      key={macro.id}
+                      onClick={() => {
+                        setMacroSeleccionada(macro);
+                        cargarCategorias(macro.id);
+                      }}
+                      className="bg-white border border-zinc-200 rounded-xl p-3 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col items-center text-center"
+                    >
+                      <div className="relative w-full h-24 mb-2">
+                        <Image
+                          src={macro.img || "/placeholder.png"}
+                          alt={macro.nombre}
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                      <p className="text-sm font-semibold text-zinc-800">{macro.nombre}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* NIVEL 2: SUBCATEGORÍAS */}
+              {nivel === "categorias" && (
+                <div className="grid grid-cols-2 gap-4">
+                  {categorias.map((cat) => (
+                    <div
+                      key={cat.id_categoria}
+                      onClick={() => {
+                        setCategoriaSeleccionada(cat);
+                        cargarProductos(cat.id_categoria);
+                      }}
+                      className="bg-white border border-zinc-200 rounded-xl p-3 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col items-center text-center"
+                    >
+                      <div className="relative w-full h-24 mb-2">
+                        <Image
+                          src={cat.img || "/placeholder.png"}
+                          alt={cat.nombre_categoria}
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                      <p className="text-sm font-semibold text-zinc-800">{cat.nombre_categoria}</p>
+                    </div>
+                  ))}
+                  {categorias.length === 0 && (
+                    <p className="col-span-2 text-center text-zinc-500 mt-10">No hay subcategorías.</p>
+                  )}
+                </div>
+              )}
+
+              {/* NIVEL 3: PRODUCTOS */}
+              {nivel === "productos" && (
+                <>
+                  <div className="flex justify-between items-center mb-4 bg-zinc-50 p-2 rounded-lg">
+                    <span className="text-sm text-zinc-600">
+                      {productos.length} productos encontrados
+                    </span>
+                    <button 
+                      onClick={seleccionarTodosEnVista}
+                      className="text-sm font-semibold text-orange-500 hover:text-orange-600"
+                    >
+                      {productos.length > 0 && productos.every(p => productosSeleccionados.has(p.id)) 
+                        ? "Deseleccionar todos" 
+                        : "Seleccionar todos"}
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {productos.map((prod) => {
+                      const isSelected = productosSeleccionados.has(prod.id);
+                      return (
+                        <div
+                          key={prod.id}
+                          onClick={() => toggleSeleccion(prod)}
+                          className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${
+                            isSelected
+                              ? "border-red-500 bg-red-50"
+                              : "border-zinc-200 bg-white hover:border-red-200"
+                          }`}
+                        >
+                          {/* Checkbox visual */}
+                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                            isSelected ? "border-red-500 bg-red-500" : "border-zinc-300"
+                          }`}>
+                            {isSelected && <X size={14} className="text-white" />}
+                          </div>
+
+                          <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
+                            <Image
+                              src={prod.IMAGEN || "/placeholder.png"}
+                              alt={prod.TITULO}
+                              fill
+                              className="object-contain"
+                            />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-zinc-800 line-clamp-2">{prod.TITULO}</p>
+                            <p className="text-xs text-zinc-500">Código: {prod.CODIGO}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {productos.length === 0 && (
+                      <p className="text-center text-zinc-500 mt-10">No hay productos en esta categoría.</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </div>
 
-        {/* Botón eliminar */}
-        {productosSeleccionados.size > 0 && (
-          <div className="fixed bottom-24 left-0 right-0 px-6">
-            <button
-              onClick={() => setMostrarModalConfirmar(true)}
-              className="w-full bg-red-500 hover:bg-red-600 text-white py-4 rounded-xl font-bold shadow-lg transition"
+        {/* BARRA INFERIOR FLOTANTE DE ELIMINACIÓN */}
+        <AnimatePresence>
+          {productosSeleccionados.size > 0 && (
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              className="fixed bottom-25 left-0 right-0 p-4 bg-white border-t border-zinc-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40"
             >
-              Eliminar {productosSeleccionados.size} producto{productosSeleccionados.size !== 1 ? "s" : ""}
-            </button>
-          </div>
-        )}
+              <div className="max-w-md mx-auto mb-7 flex items-center justify-between gap-4">
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-red-600">
+                    {productosSeleccionados.size} seleccionados
+                  </span>
+                  <span className="text-xs text-zinc-500">
+                    Listos para eliminar permanentemente
+                  </span>
+                </div>
+                <button
+                  onClick={() => setMostrarModalConfirmar(true)}
+                  className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition flex items-center gap-2"
+                >
+                  <X size={18} />
+                  Eliminar
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Modal de confirmación */}
+        {/* MODAL DE CONFIRMACIÓN */}
         {mostrarModalConfirmar && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] px-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-2xl w-[90%] max-w-md p-6 shadow-2xl"
+              className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl"
             >
               <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                  className="w-8 h-8 text-red-600"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                </svg>
+                <X className="w-8 h-8 text-red-600" />
               </div>
 
               <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">
-                ¿Eliminar {productosSeleccionados.size} producto{productosSeleccionados.size !== 1 ? "s" : ""}?
+                ¿Eliminar {productosSeleccionados.size} productos?
               </h3>
 
               <p className="text-sm text-zinc-600 text-center mb-6">
-                Esta acción no se puede deshacer. Los productos y sus imágenes serán eliminados permanentemente.
+                Esta acción <strong>no se puede deshacer</strong>. Se eliminarán los productos y sus imágenes de la base de datos permanentemente.
               </p>
 
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-zinc-700 mb-2">
-                  Confirma tu número de cuenta para continuar
+                  Confirma tu número de cuenta
                 </label>
                 <input
-                  type="password"
+                  type="password" 
                   value={numeroCuentaConfirm}
                   onChange={(e) => {
                     setNumeroCuentaConfirm(e.target.value);
                     setErrorEliminar("");
                   }}
-                  placeholder="Ingresa tu número de cuenta"
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="Ingresa tu cuenta"
+                  className="w-full border border-zinc-300 rounded-lg px-4 py-3 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500 text-center text-lg"
                   disabled={eliminando}
                 />
                 {errorEliminar && (
-                  <p className="text-red-500 text-sm mt-2">{errorEliminar}</p>
+                  <p className="text-red-500 text-sm mt-2 text-center font-medium">{errorEliminar}</p>
                 )}
               </div>
 
@@ -3428,32 +3537,28 @@ const eliminarProductos = async () => {
                     setErrorEliminar("");
                   }}
                   disabled={eliminando}
-                  className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                  className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition"
                 >
                   Cancelar
                 </button>
                 <button
-                  onClick={eliminarProductos}
+                  onClick={eliminarProductosMasivo}
                   disabled={eliminando || !numeroCuentaConfirm}
-                  className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {eliminando ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                      Eliminando...
-                    </span>
+                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
                   ) : (
-                    "Eliminar"
+                    "Confirmar"
                   )}
                 </button>
               </div>
             </motion.div>
           </div>
         )}
-      </div>
-    </motion.div>
-  );
-};
+      </motion.div>
+    );
+  };
 
   const GestionarMacroCategoriasView = ({ setVistaPerfil }: any) => {
     const [nombre, setNombre] = useState("");
@@ -3866,25 +3971,77 @@ const eliminarProductos = async () => {
     );
   };
 
+  
+ const useAutoScrollOnDrag = () => {
+  const speedRef = useRef(0);
+  const animationFrameId = useRef<number | null>(null);
+
+  const autoScroll = () => {
+    if (speedRef.current === 0) {
+      animationFrameId.current = null;
+      return;
+    }
+
+    window.scrollBy(0, speedRef.current);
+    animationFrameId.current = requestAnimationFrame(autoScroll);
+  };
+
+  const handleDrag = (event: any, info: any) => {
+    const pointerY = event.clientY || (event.touches && event.touches[0].clientY);
+    
+    if (!pointerY) return;
+
+    const vh = window.innerHeight;
+    const edgeSize = 100;
+    const maxSpeed = 15;
+
+    // Detectar si está en el borde superior de la VENTANA
+    if (pointerY < edgeSize) {
+      const intensity = (edgeSize - pointerY) / edgeSize;
+      speedRef.current = -Math.max(5, maxSpeed * intensity);
+    } 
+    // Detectar si está en el borde inferior de la VENTANA
+    else if (pointerY > vh - edgeSize) {
+      const intensity = (pointerY - (vh - edgeSize)) / edgeSize;
+      speedRef.current = Math.max(5, maxSpeed * intensity);
+    } 
+    else {
+      speedRef.current = 0;
+    }
+
+    if (speedRef.current !== 0 && !animationFrameId.current) {
+      animationFrameId.current = requestAnimationFrame(autoScroll);
+    }
+  };
+
+  const handleDragEnd = () => {
+    speedRef.current = 0;
+    if (animationFrameId.current) {
+      cancelAnimationFrame(animationFrameId.current);
+      animationFrameId.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => handleDragEnd();
+  }, []);
+
+  return { handleDrag, handleDragEnd };
+};
+
 const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
   const [pestanaActiva, setPestanaActiva] = useState<"productos" | "subcategorias" | "categorias">("productos");
-  
-  // Estados para Productos
   const [categorias, setCategorias] = useState<any[]>([]);
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<any>(null);
   const [productos, setProductos] = useState<any[]>([]);
-  
-  // Estados para Subcategorías
   const [macroCategorias, setMacroCategorias] = useState<any[]>([]);
   const [macroCategoriaSeleccionada, setMacroCategoriaSeleccionada] = useState<any>(null);
   const [subcategorias, setSubcategorias] = useState<any[]>([]);
-  
-  // Estados para Categorías
   const [todasMacroCategorias, setTodasMacroCategorias] = useState<any[]>([]);
-  
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState("");
+const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
 
   useEffect(() => {
     cargarDatos();
@@ -4151,6 +4308,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
                 key={prod.id}
                 value={prod}
                 className="touch-none"
+                onDrag={handleDrag}
               >
                 <motion.div
                   whileHover={{ scale: 1.01 }}
@@ -4303,6 +4461,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
                 key={sub.id_categoria}
                 value={sub}
                 className="touch-none"
+                onDrag={handleDrag}
               >
                 <motion.div
                   whileHover={{ scale: 1.01 }}
@@ -4381,6 +4540,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
                     key={macro.id}
                     value={macro}
                     className="touch-none"
+                    onDrag={handleDrag}
                   >
                     <motion.div
                       whileHover={{ scale: 1.01 }}
@@ -4444,6 +4604,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
     const [macroSeleccionada, setMacroSeleccionada] = useState("");
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState("");
+    
 
     const asignarMacro = async () => {
       if (!categoriaSeleccionada || !macroSeleccionada) return;
