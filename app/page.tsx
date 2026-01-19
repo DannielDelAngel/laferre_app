@@ -37,7 +37,7 @@ import {
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
-import { AnimatePresence, motion, Reorder, MotionConfig } from "framer-motion";
+import { AnimatePresence, motion, Reorder, useDragControls, MotionConfig } from "framer-motion";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { createPortal } from "react-dom";
@@ -3970,14 +3970,14 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
       </motion.div>
     );
   };
-
   
- const useAutoScrollOnDrag = () => {
+const useAutoScrollOnDrag = () => {
   const speedRef = useRef(0);
   const animationFrameId = useRef<number | null>(null);
+  const isDraggingRef = useRef(false);
 
   const autoScroll = () => {
-    if (speedRef.current === 0) {
+    if (speedRef.current === 0 || !isDraggingRef.current) {
       animationFrameId.current = null;
       return;
     }
@@ -3987,23 +3987,22 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
   };
 
   const handleDrag = (event: any, info: any) => {
-    const pointerY = event.clientY || (event.touches && event.touches[0].clientY);
+    isDraggingRef.current = true;
+    const pointerY = event.clientY || (event.touches && event.touches[0]?.clientY);
     
     if (!pointerY) return;
 
     const vh = window.innerHeight;
-    const edgeSize = 100;
-    const maxSpeed = 15;
+    const edgeSize = 80;
+    const maxSpeed = 8;
 
-    // Detectar si está en el borde superior de la VENTANA
     if (pointerY < edgeSize) {
       const intensity = (edgeSize - pointerY) / edgeSize;
-      speedRef.current = -Math.max(5, maxSpeed * intensity);
+      speedRef.current = -Math.max(3, maxSpeed * intensity);
     } 
-    // Detectar si está en el borde inferior de la VENTANA
     else if (pointerY > vh - edgeSize) {
       const intensity = (pointerY - (vh - edgeSize)) / edgeSize;
-      speedRef.current = Math.max(5, maxSpeed * intensity);
+      speedRef.current = Math.max(3, maxSpeed * intensity);
     } 
     else {
       speedRef.current = 0;
@@ -4015,6 +4014,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
   };
 
   const handleDragEnd = () => {
+    isDraggingRef.current = false;
     speedRef.current = 0;
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
@@ -4041,7 +4041,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState("");
-const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
+  const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
 
   useEffect(() => {
     cargarDatos();
@@ -4177,7 +4177,6 @@ const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
         Ordenar Elementos
       </h2>
 
-      {/* Pestañas */}
       <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
         <button
           onClick={() => {
@@ -4237,7 +4236,6 @@ const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
         </motion.div>
       )}
 
-      {/* VISTA PRODUCTOS */}
       {pestanaActiva === "productos" && !categoriaSeleccionada && (
         <div>
           <p className="text-sm text-zinc-600 mb-4">
@@ -4307,15 +4305,14 @@ const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
               <Reorder.Item
                 key={prod.id}
                 value={prod}
-                className="touch-none"
                 onDrag={handleDrag}
+                onDragEnd={handleDragEnd}
+                dragListener={true}
+                dragControls={undefined}
               >
                 <motion.div
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.98 }}
                   className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition"
                 >
-                  {/* Imagen del producto */}
                   <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
                     {prod.IMAGEN ? (
                       <img
@@ -4332,7 +4329,6 @@ const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
                     )}
                   </div>
 
-                  {/* Información del producto */}
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-zinc-800 truncate">
                       {prod.TITULO}
@@ -4364,7 +4360,6 @@ const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
                     </div>
                   </div>
 
-                  {/* Indicador de posición y drag handle */}
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-zinc-400 font-mono text-sm">
                       #{index + 1}
@@ -4390,7 +4385,6 @@ const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
         </div>
       )}
 
-      {/* VISTA SUBCATEGORÍAS */}
       {pestanaActiva === "subcategorias" && !macroCategoriaSeleccionada && (
         <div>
           <p className="text-sm text-zinc-600 mb-4">
@@ -4460,12 +4454,12 @@ const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
               <Reorder.Item
                 key={sub.id_categoria}
                 value={sub}
-                className="touch-none"
                 onDrag={handleDrag}
+                onDragEnd={handleDragEnd}
+                dragListener={true}
+                dragControls={undefined}
               >
                 <motion.div
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.98 }}
                   className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition"
                 >
 
@@ -4516,7 +4510,6 @@ const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
         </div>
       )}
 
-      {/* VISTA CATEGORÍAS */}
       {pestanaActiva === "categorias" && (
         <div>
           <p className="text-sm text-zinc-600 mb-6">
@@ -4539,12 +4532,12 @@ const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
                   <Reorder.Item
                     key={macro.id}
                     value={macro}
-                    className="touch-none"
                     onDrag={handleDrag}
+                    onDragEnd={handleDragEnd}
+                    dragListener={true}
+                    dragControls={undefined}
                   >
                     <motion.div
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.98 }}
                       className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition"
                     >
                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
