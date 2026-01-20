@@ -12,10 +12,11 @@ import {
   ListOrdered,
   X,
   Megaphone,
-  BookOpenText,
+  Package,
   Star,
   History,
-   Plus, 
+  PackageSearch,
+  Plus,
   Menu,
   FileQuestionMark,
   LogOut,
@@ -37,7 +38,13 @@ import {
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
-import { AnimatePresence, motion, Reorder, useDragControls, MotionConfig } from "framer-motion";
+import {
+  AnimatePresence,
+  motion,
+  Reorder,
+  useDragControls,
+  MotionConfig,
+} from "framer-motion";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { createPortal } from "react-dom";
@@ -45,6 +52,7 @@ import InstallPWA from "@/app/InstallPWA";
 import ContadorEntrega from "@/app/ContadorEntrega";
 import { div } from "framer-motion/client";
 import Barcode from "react-barcode";
+import { updateTag } from "next/cache";
 
 const MapaUbicacion = dynamic(() => import("./MapaUbicacion"), {
   ssr: false,
@@ -105,7 +113,7 @@ const VistaProducto = ({
   categoriasAdmin,
 }: any) => {
   const [esFavoritoLocal, setEsFavoritoLocal] = useState(
-    esFavorito ? esFavorito(producto.id) : false
+    esFavorito ? esFavorito(producto.id) : false,
   );
 
   // Función para obtener el nombre de la marca
@@ -126,7 +134,7 @@ const VistaProducto = ({
   const esDesdeCarrito = !!itemEnCarrito;
 
   const [cantidad, setCantidad] = useState(
-    esDesdeCarrito ? itemEnCarrito.cantidad.toString() : "1"
+    esDesdeCarrito ? itemEnCarrito.cantidad.toString() : "1",
   );
 
   // Estados para edición
@@ -134,10 +142,10 @@ const VistaProducto = ({
   const [titulo, setTitulo] = useState(producto.TITULO || "");
   const [descripcion, setDescripcion] = useState(producto.DESCRIPCION || "");
   const [categoriaId, setCategoriaId] = useState(
-    producto.CATEGORIA_ID ? String(producto.CATEGORIA_ID) : ""
+    producto.CATEGORIA_ID ? String(producto.CATEGORIA_ID) : "",
   );
   const [marcaId, setMarcaId] = useState(
-    producto.marca_id ? String(producto.marca_id) : ""
+    producto.marca_id ? String(producto.marca_id) : "",
   );
 
   const [imagenAmpliada, setImagenAmpliada] = useState(false);
@@ -165,25 +173,27 @@ const VistaProducto = ({
   const [actualizandoToggle, setActualizandoToggle] = useState(false);
   const [visibleM1, setVisibleM1] = useState(producto.visibleMostrador ?? true);
   const [visibleM2, setVisibleM2] = useState(
-    producto.visibleMostrador2 ?? true
+    producto.visibleMostrador2 ?? true,
   );
   const ID_CUENTA_M1 = "49";
   const ID_CUENTA_M2 = "41";
 
   const [ubicacion, setUbicacion] = useState(producto.ubicacion || "");
-const [categoriaQuery, setCategoriaQuery] = useState("");
-const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<any>(null);
-const [mostrarResultados, setMostrarResultados] = useState(false);
+  const [categoriaQuery, setCategoriaQuery] = useState("");
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<any>(null);
+  const [mostrarResultados, setMostrarResultados] = useState(false);
 
-const [codigo, setCodigo] = useState(producto.CODIGO || "");
-  const [precio, setPrecio] = useState(producto.P_MAYOREO ? String(producto.P_MAYOREO) : "");
+  const [codigo, setCodigo] = useState(producto.CODIGO || "");
+  const [precio, setPrecio] = useState(
+    producto.P_MAYOREO ? String(producto.P_MAYOREO) : "",
+  );
   const [edicionAvanzada, setEdicionAvanzada] = useState(() => {
-  if (typeof window !== "undefined") {
-    const guardado = localStorage.getItem("modoEdicionAvanzada");
-    return guardado === "true"; 
-  }
-  return false;
-});
+    if (typeof window !== "undefined") {
+      const guardado = localStorage.getItem("modoEdicionAvanzada");
+      return guardado === "true";
+    }
+    return false;
+  });
 
   const [mostrarModalPassword, setMostrarModalPassword] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -206,7 +216,7 @@ const [codigo, setCodigo] = useState(producto.CODIGO || "");
             cuenta_id: cuentaId,
             visible: nuevoValor,
           },
-          { onConflict: "producto_id,cuenta_id" }
+          { onConflict: "producto_id,cuenta_id" },
         );
 
       if (!error) {
@@ -226,23 +236,20 @@ const [codigo, setCodigo] = useState(producto.CODIGO || "");
   };
 
   const categoriasFiltradas = categoriasAdmin.filter((cat: any) =>
-  cat.nombre_categoria
-    .toLowerCase()
-    .includes(categoriaQuery.toLowerCase())
-);
-useEffect(() => {
-  if (!categoriaId || !categoriasAdmin?.length) return;
-
-  const categoria = categoriasAdmin.find(
-    (cat: any) => String(cat.id_categoria) === String(categoriaId)
+    cat.nombre_categoria.toLowerCase().includes(categoriaQuery.toLowerCase()),
   );
+  useEffect(() => {
+    if (!categoriaId || !categoriasAdmin?.length) return;
 
-  if (categoria) {
-    setCategoriaQuery(categoria.nombre_categoria);
-    setCategoriaSeleccionada(categoria);
-  }
-}, [categoriaId, categoriasAdmin]);
+    const categoria = categoriasAdmin.find(
+      (cat: any) => String(cat.id_categoria) === String(categoriaId),
+    );
 
+    if (categoria) {
+      setCategoriaQuery(categoria.nombre_categoria);
+      setCategoriaSeleccionada(categoria);
+    }
+  }, [categoriaId, categoriasAdmin]);
 
   const handleToggleVisible = async () => {
     setActualizandoToggle(true);
@@ -346,7 +353,7 @@ useEffect(() => {
 
   const handleAdd = (): void =>
     setCantidad((c: string): string =>
-      c === "" ? "1" : (parseInt(c, 10) + 1).toString()
+      c === "" ? "1" : (parseInt(c, 10) + 1).toString(),
     );
 
   const handleSubtract = (): void =>
@@ -369,7 +376,7 @@ useEffect(() => {
                 cantidad: cant,
                 subtotal: cant * p.P_MAYOREO,
               }
-            : p
+            : p,
         );
       });
     } else {
@@ -384,7 +391,7 @@ useEffect(() => {
                   cantidad: p.cantidad + cant,
                   subtotal: (p.cantidad + cant) * p.P_MAYOREO,
                 }
-              : p
+              : p,
           );
         } else {
           return [
@@ -458,7 +465,7 @@ useEffect(() => {
       if (!error) {
         // Actualizar estados locales
         const nuevasImagenesDB = imagenesAdicionalesDB.filter(
-          (img) => img.id !== imagenId
+          (img) => img.id !== imagenId,
         );
         setImagenesAdicionalesDB(nuevasImagenesDB);
         setImagenesProducto([
@@ -528,7 +535,7 @@ useEffect(() => {
           marca_id: marcaId ? parseInt(marcaId) : null,
           IMAGEN: urlImagen,
           ubicacion: ubicacion,
-          CODIGO: codigo, 
+          CODIGO: codigo,
           P_MAYOREO: parseFloat(precio),
         })
         .eq("id", producto.id);
@@ -666,25 +673,25 @@ useEffect(() => {
   const cantidadNum = parseInt(cantidad) || 1;
 
   const handleCandadoClick = () => {
-  if (edicionAvanzada) {
-    setEdicionAvanzada(false);
-    localStorage.setItem("modoEdicionAvanzada", "false"); 
-  } else {
-    setPasswordInput("");
-    setErrorPassword("");
-    setMostrarModalPassword(true);
-  }
-};
+    if (edicionAvanzada) {
+      setEdicionAvanzada(false);
+      localStorage.setItem("modoEdicionAvanzada", "false");
+    } else {
+      setPasswordInput("");
+      setErrorPassword("");
+      setMostrarModalPassword(true);
+    }
+  };
 
-const verificarPassword = () => {
-  if (passwordInput === PASSWORD_MAESTRA) {
-    setEdicionAvanzada(true);
-    localStorage.setItem("modoEdicionAvanzada", "true"); 
-    setMostrarModalPassword(false);
-  } else {
-    setErrorPassword("Contraseña incorrecta");
-  }
-};
+  const verificarPassword = () => {
+    if (passwordInput === PASSWORD_MAESTRA) {
+      setEdicionAvanzada(true);
+      localStorage.setItem("modoEdicionAvanzada", "true");
+      setMostrarModalPassword(false);
+    } else {
+      setErrorPassword("Contraseña incorrecta");
+    }
+  };
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -932,16 +939,16 @@ const verificarPassword = () => {
                   </span>
                 </div>
                 <button
-  type="button" 
-  onClick={handleCandadoClick} 
-  className={`p-2 rounded-lg transition-colors ${
-    edicionAvanzada
-      ? "bg-red-100 text-red-600"
-      : "bg-zinc-200 text-zinc-600"
-  }`}
->
-  {edicionAvanzada ? <Unlock size={20} /> : <Lock size={20} />}
-</button>
+                  type="button"
+                  onClick={handleCandadoClick}
+                  className={`p-2 rounded-lg transition-colors ${
+                    edicionAvanzada
+                      ? "bg-red-100 text-red-600"
+                      : "bg-zinc-200 text-zinc-600"
+                  }`}
+                >
+                  {edicionAvanzada ? <Unlock size={20} /> : <Lock size={20} />}
+                </button>
               </div>
 
               {/* Código */}
@@ -965,10 +972,15 @@ const verificarPassword = () => {
               {/* Precio */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Precio Mayoreo {edicionAvanzada ? "(Editable)" : "(Bloqueado)"}
+                  Precio Mayoreo{" "}
+                  {edicionAvanzada ? "(Editable)" : "(Bloqueado)"}
                 </label>
                 <div className="relative">
-                  <span className={`absolute left-3 top-2.5 ${edicionAvanzada ? 'text-zinc-700' : 'text-zinc-400'}`}>$</span>
+                  <span
+                    className={`absolute left-3 top-2.5 ${edicionAvanzada ? "text-zinc-700" : "text-zinc-400"}`}
+                  >
+                    $
+                  </span>
                   <input
                     type="number"
                     step="0.01"
@@ -983,54 +995,52 @@ const verificarPassword = () => {
                   />
                 </div>
               </div>
-             
 
-             {/* Categoría (buscador) */}
-<div className="mb-4 relative">
-  <label className="block text-sm font-medium text-zinc-700 mb-2">
-    Categoría
-  </label>
+              {/* Categoría (buscador) */}
+              <div className="mb-4 relative">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Categoría
+                </label>
 
-  <input
-    type="text"
-    value={categoriaQuery}
-    onChange={(e) => {
-      setCategoriaQuery(e.target.value);
-      setMostrarResultados(true);
-      setCategoriaSeleccionada(null);
-    }}
-    onFocus={() => setMostrarResultados(true)}
-    placeholder="Escribe el nombre de la categoría..."
-    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-  />
+                <input
+                  type="text"
+                  value={categoriaQuery}
+                  onChange={(e) => {
+                    setCategoriaQuery(e.target.value);
+                    setMostrarResultados(true);
+                    setCategoriaSeleccionada(null);
+                  }}
+                  onFocus={() => setMostrarResultados(true)}
+                  placeholder="Escribe el nombre de la categoría..."
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+                />
 
-  {mostrarResultados && categoriaQuery && (
-    <div className="absolute z-20 mt-1 w-full bg-white border border-zinc-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-      {categoriasFiltradas.length > 0 ? (
-        categoriasFiltradas.map((cat: any) => (
-          <button
-            type="button"
-            key={cat.id_categoria}
-            onClick={() => {
-              setCategoriaQuery(cat.nombre_categoria);
-              setCategoriaSeleccionada(cat);
-              setCategoriaId(String(cat.id_categoria)); 
-              setMostrarResultados(false);
-            }}
-            className="w-full text-left px-3 py-2 text-sm text-zinc-700 hover:bg-orange-50 hover:text-orange-700"
-          >
-            {cat.nombre_categoria}
-          </button>
-        ))
-      ) : (
-        <div className="px-3 py-2 text-sm text-zinc-500">
-          No se encontraron categorías
-        </div>
-      )}
-    </div>
-  )}
-</div>
-
+                {mostrarResultados && categoriaQuery && (
+                  <div className="absolute z-20 mt-1 w-full bg-white border border-zinc-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {categoriasFiltradas.length > 0 ? (
+                      categoriasFiltradas.map((cat: any) => (
+                        <button
+                          type="button"
+                          key={cat.id_categoria}
+                          onClick={() => {
+                            setCategoriaQuery(cat.nombre_categoria);
+                            setCategoriaSeleccionada(cat);
+                            setCategoriaId(String(cat.id_categoria));
+                            setMostrarResultados(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm text-zinc-700 hover:bg-orange-50 hover:text-orange-700"
+                        >
+                          {cat.nombre_categoria}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-zinc-500">
+                        No se encontraron categorías
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Marca */}
               <div className="mb-4">
@@ -1086,14 +1096,16 @@ const verificarPassword = () => {
                       setTitulo(producto.TITULO || "");
                       setDescripcion(producto.DESCRIPCION || "");
                       setCodigo(producto.CODIGO || "");
-  setPrecio(producto.P_MAYOREO ? String(producto.P_MAYOREO) : "");
+                      setPrecio(
+                        producto.P_MAYOREO ? String(producto.P_MAYOREO) : "",
+                      );
                       setCategoriaId(
                         producto.CATEGORIA_ID
                           ? String(producto.CATEGORIA_ID)
-                          : ""
+                          : "",
                       );
                       setMarcaId(
-                        producto.marca_id ? String(producto.marca_id) : ""
+                        producto.marca_id ? String(producto.marca_id) : "",
                       );
                       setImagenFile(null);
                       setImagenPreview(producto.IMAGEN || "");
@@ -1179,7 +1191,7 @@ const verificarPassword = () => {
                     <button
                       onClick={() =>
                         setImagenActualIndex((prev) =>
-                          prev > 0 ? prev - 1 : imagenesProducto.length - 1
+                          prev > 0 ? prev - 1 : imagenesProducto.length - 1,
                         )
                       }
                       className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg z-10"
@@ -1190,7 +1202,7 @@ const verificarPassword = () => {
                     <button
                       onClick={() =>
                         setImagenActualIndex((prev) =>
-                          prev < imagenesProducto.length - 1 ? prev + 1 : 0
+                          prev < imagenesProducto.length - 1 ? prev + 1 : 0,
                         )
                       }
                       className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg z-10"
@@ -1408,7 +1420,7 @@ const verificarPassword = () => {
                         {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
-                        }
+                        },
                       )}
                     </span>
                   </div>
@@ -1669,7 +1681,7 @@ const verificarPassword = () => {
                     <Lock size={24} className="text-orange-600" />
                   </div>
                 </div>
-                
+
                 <h3 className="text-lg font-bold text-zinc-900 text-center mb-2">
                   Seguridad Requerida
                 </h3>
@@ -1742,7 +1754,7 @@ export default function HomePage() {
   const [productos, setProductos] = useState<any[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [productoSeleccionado, setProductoSeleccionado] = useState<any | null>(
-    null
+    null,
   );
   const [carrito, setCarrito] = useState<any[]>([]);
   const [mostrarModalPedido, setMostrarModalPedido] = useState(false);
@@ -1770,7 +1782,9 @@ export default function HomePage() {
   const ID_CUENTA_MOSTRADOR2 = 41;
   const CUENTAS_RUTAS = ["Rutas", "Rutas2"];
 
-const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cuenta) : false;
+  const esRutas = cuenta?.numero_cuenta
+    ? CUENTAS_RUTAS.includes(cuenta.numero_cuenta)
+    : false;
 
   const esEmpleado = cuenta?.numero_cuenta === "Empleado";
   const [mostrar, setMostrar] = useState(false);
@@ -1788,7 +1802,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
     any | null
   >(null);
   const [origenProducto, setOrigenProducto] = useState<"catalogo" | "carrito">(
-    "catalogo"
+    "catalogo",
   );
   const [productosMostrados, setProductosMostrados] = useState(10);
   const [mostrarModalSaldoPendiente, setMostrarModalSaldoPendiente] =
@@ -1927,7 +1941,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
         (payload) => {
           console.log("Cambio en banner detectado:", payload);
           fetchBanner();
-        }
+        },
       )
       .subscribe();
 
@@ -1951,7 +1965,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
     if (cuenta?.numero_cuenta) {
       localStorage.setItem(
         `favoritos_${cuenta.numero_cuenta}`,
-        JSON.stringify(favoritos)
+        JSON.stringify(favoritos),
       );
     }
   }, [favoritos, cuenta]);
@@ -1974,7 +1988,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
     (productoId: number) => {
       return favoritos.some((p) => p.id === productoId);
     },
-    [favoritos]
+    [favoritos],
   );
 
   const buscarStateRef = useRef<{
@@ -2042,7 +2056,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
       const { data } = await supabase
         .from("categorias")
         .select(
-          "id_categoria, nombre_categoria, img, orden, macro_categoria_id"
+          "id_categoria, nombre_categoria, img, orden, macro_categoria_id",
         )
         .order("orden", { ascending: true });
 
@@ -2098,7 +2112,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
           const { data, error } = await supabase
             .from("categorias")
             .select(
-              "id_categoria, nombre_categoria, img, orden, macro_categoria_id"
+              "id_categoria, nombre_categoria, img, orden, macro_categoria_id",
             )
             .order("orden", { ascending: true });
 
@@ -2215,7 +2229,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
           const { data } = await supabase
             .from("categorias")
             .select(
-              "id_categoria, nombre_categoria, img, orden, macro_categoria_id"
+              "id_categoria, nombre_categoria, img, orden, macro_categoria_id",
             )
             .order("orden", { ascending: true });
           setCategorias(data || []);
@@ -2553,7 +2567,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
     if (cuenta?.numero_cuenta) {
       localStorage.setItem(
         `carrito_${cuenta.numero_cuenta}`,
-        JSON.stringify(carrito)
+        JSON.stringify(carrito),
       );
     }
   }, [carrito, cuenta]);
@@ -2598,7 +2612,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
       const { data, error } = await supabase
         .from("categorias")
         .select(
-          "id_categoria, nombre_categoria, img, orden, macro_categoria_id"
+          "id_categoria, nombre_categoria, img, orden, macro_categoria_id",
         )
         .order("orden", { ascending: true });
 
@@ -2667,7 +2681,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
           const { data, error } = await supabase
             .from("productos")
             .select(
-              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
+              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID",
             )
             .in("id", idsVisibles);
 
@@ -2687,7 +2701,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
           const { data, error } = await supabase
             .from("productos")
             .select(
-              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
+              "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID",
             )
             .in("id", idsVisibles);
 
@@ -2814,7 +2828,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
           setMensaje(
             error.code === "23505"
               ? "Ya existe una marca con ese nombre"
-              : "Error al agregar marca"
+              : "Error al agregar marca",
           );
         } else {
           setMensaje("Marca agregada correctamente");
@@ -3123,16 +3137,22 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
     );
   };
 
- const EliminacionMasivaView = ({ setVistaPerfil }: any) => {
-    
-    const [nivel, setNivel] = useState<"macros" | "categorias" | "productos">("macros");
+  const EliminacionMasivaView = ({ setVistaPerfil }: any) => {
+    const [nivel, setNivel] = useState<"macros" | "categorias" | "productos">(
+      "macros",
+    );
     const [macros, setMacros] = useState<any[]>([]);
     const [categorias, setCategorias] = useState<any[]>([]);
     const [productos, setProductos] = useState<any[]>([]);
     const [macroSeleccionada, setMacroSeleccionada] = useState<any>(null);
-    const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<any>(null);
-    const [productosSeleccionados, setProductosSeleccionados] = useState<Set<number>>(new Set());
-    const [productosDetalle, setProductosDetalle] = useState<Map<number, any>>(new Map()); 
+    const [categoriaSeleccionada, setCategoriaSeleccionada] =
+      useState<any>(null);
+    const [productosSeleccionados, setProductosSeleccionados] = useState<
+      Set<number>
+    >(new Set());
+    const [productosDetalle, setProductosDetalle] = useState<Map<number, any>>(
+      new Map(),
+    );
     const [cargando, setCargando] = useState(true);
     const [mostrarModalConfirmar, setMostrarModalConfirmar] = useState(false);
     const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
@@ -3187,32 +3207,34 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
           nuevo.add(producto.id);
           nuevoDetalle.set(producto.id, producto);
         }
-        
+
         setProductosDetalle(nuevoDetalle);
         return nuevo;
       });
     };
 
     const seleccionarTodosEnVista = () => {
-      const todosIds = productos.map(p => p.id);
-      const estanTodosSeleccionados = todosIds.every(id => productosSeleccionados.has(id));
+      const todosIds = productos.map((p) => p.id);
+      const estanTodosSeleccionados = todosIds.every((id) =>
+        productosSeleccionados.has(id),
+      );
 
-      setProductosSeleccionados(prev => {
+      setProductosSeleccionados((prev) => {
         const nuevo = new Set(prev);
         const nuevoDetalle = new Map(productosDetalle);
 
         if (estanTodosSeleccionados) {
-          todosIds.forEach(id => {
+          todosIds.forEach((id) => {
             nuevo.delete(id);
             nuevoDetalle.delete(id);
           });
         } else {
-          productos.forEach(p => {
+          productos.forEach((p) => {
             nuevo.add(p.id);
             nuevoDetalle.set(p.id, p);
           });
         }
-        
+
         setProductosDetalle(nuevoDetalle);
         return nuevo;
       });
@@ -3277,19 +3299,24 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
           }
         }
 
-        await supabase.from("imagenes_producto").delete().in("producto_id", ids);
-        const { error } = await supabase.from("productos").delete().in("id", ids);
+        await supabase
+          .from("imagenes_producto")
+          .delete()
+          .in("producto_id", ids);
+        const { error } = await supabase
+          .from("productos")
+          .delete()
+          .in("id", ids);
         if (error) throw error;
 
         setProductosSeleccionados(new Set());
         setProductosDetalle(new Map());
         setMostrarModalConfirmar(false);
         setNumeroCuentaConfirm("");
-        
+
         if (nivel === "productos" && categoriaSeleccionada) {
           cargarProductos(categoriaSeleccionada.id_categoria);
         }
-
       } catch (err) {
         console.error(err);
         setErrorEliminar("Error al eliminar productos");
@@ -3313,14 +3340,22 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
           <h2 className="text-xl font-bold text-zinc-900 mb-2">
             Eliminación Masiva
           </h2>
-          
+
           {/* Breadcrumb simple */}
           <div className="text-xs text-zinc-500 mb-6 flex items-center gap-1">
-            <span className={nivel === "macros" ? "font-bold text-orange-500" : ""}>Categorías</span>
+            <span
+              className={nivel === "macros" ? "font-bold text-orange-500" : ""}
+            >
+              Categorías
+            </span>
             {nivel !== "macros" && (
               <>
                 <span>/</span>
-                <span className={nivel === "categorias" ? "font-bold text-orange-500" : ""}>
+                <span
+                  className={
+                    nivel === "categorias" ? "font-bold text-orange-500" : ""
+                  }
+                >
                   {macroSeleccionada?.nombre}
                 </span>
               </>
@@ -3361,7 +3396,9 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
                           className="object-contain"
                         />
                       </div>
-                      <p className="text-sm font-semibold text-zinc-800">{macro.nombre}</p>
+                      <p className="text-sm font-semibold text-zinc-800">
+                        {macro.nombre}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -3387,11 +3424,15 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
                           className="object-contain"
                         />
                       </div>
-                      <p className="text-sm font-semibold text-zinc-800">{cat.nombre_categoria}</p>
+                      <p className="text-sm font-semibold text-zinc-800">
+                        {cat.nombre_categoria}
+                      </p>
                     </div>
                   ))}
                   {categorias.length === 0 && (
-                    <p className="col-span-2 text-center text-zinc-500 mt-10">No hay subcategorías.</p>
+                    <p className="col-span-2 text-center text-zinc-500 mt-10">
+                      No hay subcategorías.
+                    </p>
                   )}
                 </div>
               )}
@@ -3403,12 +3444,13 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
                     <span className="text-sm text-zinc-600">
                       {productos.length} productos encontrados
                     </span>
-                    <button 
+                    <button
                       onClick={seleccionarTodosEnVista}
                       className="text-sm font-semibold text-orange-500 hover:text-orange-600"
                     >
-                      {productos.length > 0 && productos.every(p => productosSeleccionados.has(p.id)) 
-                        ? "Deseleccionar todos" 
+                      {productos.length > 0 &&
+                      productos.every((p) => productosSeleccionados.has(p.id))
+                        ? "Deseleccionar todos"
                         : "Seleccionar todos"}
                     </button>
                   </div>
@@ -3427,10 +3469,16 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
                           }`}
                         >
                           {/* Checkbox visual */}
-                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                            isSelected ? "border-red-500 bg-red-500" : "border-zinc-300"
-                          }`}>
-                            {isSelected && <X size={14} className="text-white" />}
+                          <div
+                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                              isSelected
+                                ? "border-red-500 bg-red-500"
+                                : "border-zinc-300"
+                            }`}
+                          >
+                            {isSelected && (
+                              <X size={14} className="text-white" />
+                            )}
                           </div>
 
                           <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
@@ -3443,14 +3491,20 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
                           </div>
 
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-zinc-800 line-clamp-2">{prod.TITULO}</p>
-                            <p className="text-xs text-zinc-500">Código: {prod.CODIGO}</p>
+                            <p className="text-sm font-semibold text-zinc-800 line-clamp-2">
+                              {prod.TITULO}
+                            </p>
+                            <p className="text-xs text-zinc-500">
+                              Código: {prod.CODIGO}
+                            </p>
                           </div>
                         </div>
                       );
                     })}
                     {productos.length === 0 && (
-                      <p className="text-center text-zinc-500 mt-10">No hay productos en esta categoría.</p>
+                      <p className="text-center text-zinc-500 mt-10">
+                        No hay productos en esta categoría.
+                      </p>
                     )}
                   </div>
                 </>
@@ -3506,7 +3560,9 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
               </h3>
 
               <p className="text-sm text-zinc-600 text-center mb-6">
-                Esta acción <strong>no se puede deshacer</strong>. Se eliminarán los productos y sus imágenes de la base de datos permanentemente.
+                Esta acción <strong>no se puede deshacer</strong>. Se eliminarán
+                los productos y sus imágenes de la base de datos
+                permanentemente.
               </p>
 
               <div className="mb-4">
@@ -3514,7 +3570,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
                   Confirma tu número de cuenta
                 </label>
                 <input
-                  type="password" 
+                  type="password"
                   value={numeroCuentaConfirm}
                   onChange={(e) => {
                     setNumeroCuentaConfirm(e.target.value);
@@ -3525,7 +3581,9 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
                   disabled={eliminando}
                 />
                 {errorEliminar && (
-                  <p className="text-red-500 text-sm mt-2 text-center font-medium">{errorEliminar}</p>
+                  <p className="text-red-500 text-sm mt-2 text-center font-medium">
+                    {errorEliminar}
+                  </p>
                 )}
               </div>
 
@@ -3645,7 +3703,7 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
           setMensaje(
             error.code === "23505"
               ? "Ya existe una macro-categoría con ese nombre"
-              : "Error al agregar"
+              : "Error al agregar",
           );
         } else {
           setMensaje("Macro-categoría agregada correctamente");
@@ -3970,626 +4028,702 @@ const esRutas = cuenta?.numero_cuenta ? CUENTAS_RUTAS.includes(cuenta.numero_cue
       </motion.div>
     );
   };
-  
-const useAutoScrollOnDrag = () => {
-  const speedRef = useRef(0);
-  const animationFrameId = useRef<number | null>(null);
-  const isDraggingRef = useRef(false);
 
-  const autoScroll = () => {
-    if (speedRef.current === 0 || !isDraggingRef.current) {
-      animationFrameId.current = null;
-      return;
-    }
+  const useAutoScrollOnDrag = () => {
+    const speedRef = useRef(0);
+    const animationFrameId = useRef<number | null>(null);
+    const isDraggingRef = useRef(false);
 
-    window.scrollBy(0, speedRef.current);
-    animationFrameId.current = requestAnimationFrame(autoScroll);
-  };
+    const autoScroll = () => {
+      if (speedRef.current === 0 || !isDraggingRef.current) {
+        animationFrameId.current = null;
+        return;
+      }
 
-  const handleDrag = (event: any, info: any) => {
-    isDraggingRef.current = true;
-    const pointerY = event.clientY || (event.touches && event.touches[0]?.clientY);
-    
-    if (!pointerY) return;
-
-    const vh = window.innerHeight;
-    const edgeSize = 80;
-    const maxSpeed = 8;
-
-    if (pointerY < edgeSize) {
-      const intensity = (edgeSize - pointerY) / edgeSize;
-      speedRef.current = -Math.max(3, maxSpeed * intensity);
-    } 
-    else if (pointerY > vh - edgeSize) {
-      const intensity = (pointerY - (vh - edgeSize)) / edgeSize;
-      speedRef.current = Math.max(3, maxSpeed * intensity);
-    } 
-    else {
-      speedRef.current = 0;
-    }
-
-    if (speedRef.current !== 0 && !animationFrameId.current) {
+      window.scrollBy(0, speedRef.current);
       animationFrameId.current = requestAnimationFrame(autoScroll);
-    }
+    };
+
+    const handleDrag = (event: any, info: any) => {
+      isDraggingRef.current = true;
+      const pointerY =
+        event.clientY || (event.touches && event.touches[0]?.clientY);
+
+      if (!pointerY) return;
+
+      const vh = window.innerHeight;
+      const edgeSize = 80;
+      const maxSpeed = 8;
+
+      if (pointerY < edgeSize) {
+        const intensity = (edgeSize - pointerY) / edgeSize;
+        speedRef.current = -Math.max(3, maxSpeed * intensity);
+      } else if (pointerY > vh - edgeSize) {
+        const intensity = (pointerY - (vh - edgeSize)) / edgeSize;
+        speedRef.current = Math.max(3, maxSpeed * intensity);
+      } else {
+        speedRef.current = 0;
+      }
+
+      if (speedRef.current !== 0 && !animationFrameId.current) {
+        animationFrameId.current = requestAnimationFrame(autoScroll);
+      }
+    };
+
+    const handleDragEnd = () => {
+      isDraggingRef.current = false;
+      speedRef.current = 0;
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+        animationFrameId.current = null;
+      }
+    };
+
+    useEffect(() => {
+      return () => handleDragEnd();
+    }, []);
+
+    return { handleDrag, handleDragEnd };
   };
 
-  const handleDragEnd = () => {
-    isDraggingRef.current = false;
-    speedRef.current = 0;
-    if (animationFrameId.current) {
-      cancelAnimationFrame(animationFrameId.current);
-      animationFrameId.current = null;
-    }
-  };
+  const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
+    const [pestanaActiva, setPestanaActiva] = useState<
+      "productos" | "subcategorias" | "categorias"
+    >("productos");
+    const [categorias, setCategorias] = useState<any[]>([]);
+    const [categoriaSeleccionada, setCategoriaSeleccionada] =
+      useState<any>(null);
+    const [productos, setProductos] = useState<any[]>([]);
+    const [macroCategorias, setMacroCategorias] = useState<any[]>([]);
+    const [macroCategoriaSeleccionada, setMacroCategoriaSeleccionada] =
+      useState<any>(null);
+    const [subcategorias, setSubcategorias] = useState<any[]>([]);
+    const [todasMacroCategorias, setTodasMacroCategorias] = useState<any[]>([]);
+    const [cargando, setCargando] = useState(true);
+    const [guardando, setGuardando] = useState(false);
+    const [mensaje, setMensaje] = useState("");
+    const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
 
-  useEffect(() => {
-    return () => handleDragEnd();
-  }, []);
+    useEffect(() => {
+      cargarDatos();
+    }, [pestanaActiva]);
 
-  return { handleDrag, handleDragEnd };
-};
+    const cargarDatos = async () => {
+      setCargando(true);
 
-const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
-  const [pestanaActiva, setPestanaActiva] = useState<"productos" | "subcategorias" | "categorias">("productos");
-  const [categorias, setCategorias] = useState<any[]>([]);
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<any>(null);
-  const [productos, setProductos] = useState<any[]>([]);
-  const [macroCategorias, setMacroCategorias] = useState<any[]>([]);
-  const [macroCategoriaSeleccionada, setMacroCategoriaSeleccionada] = useState<any>(null);
-  const [subcategorias, setSubcategorias] = useState<any[]>([]);
-  const [todasMacroCategorias, setTodasMacroCategorias] = useState<any[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [guardando, setGuardando] = useState(false);
-  const [mensaje, setMensaje] = useState("");
-  const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
+      if (pestanaActiva === "productos") {
+        const { data } = await supabase
+          .from("categorias")
+          .select("img, id_categoria, nombre_categoria")
+          .order("nombre_categoria", { ascending: true });
+        setCategorias(data || []);
+      } else if (pestanaActiva === "subcategorias") {
+        const { data } = await supabase
+          .from("macro_categorias")
+          .select("img, id, nombre")
+          .order("nombre", { ascending: true });
+        setMacroCategorias(data || []);
+      } else if (pestanaActiva === "categorias") {
+        const { data } = await supabase
+          .from("macro_categorias")
+          .select("*")
+          .order("orden", { ascending: true });
+        setTodasMacroCategorias(data || []);
+      }
 
-  useEffect(() => {
-    cargarDatos();
-  }, [pestanaActiva]);
+      setCargando(false);
+    };
 
-  const cargarDatos = async () => {
-    setCargando(true);
-    
-    if (pestanaActiva === "productos") {
+    const cargarProductos = async (categoriaId: number) => {
+      const { data } = await supabase
+        .from("productos")
+        .select("*")
+        .eq("CATEGORIA_ID", categoriaId)
+        .order("orden_categoria", { ascending: true });
+      setProductos(data || []);
+    };
+
+    const cargarSubcategorias = async (macroId: number) => {
       const { data } = await supabase
         .from("categorias")
-        .select("img, id_categoria, nombre_categoria")
-        .order("nombre_categoria", { ascending: true });
-      setCategorias(data || []);
-    } else if (pestanaActiva === "subcategorias") {
-      const { data } = await supabase
-        .from("macro_categorias")
-        .select("img, id, nombre")
-        .order("nombre", { ascending: true });
-      setMacroCategorias(data || []);
-    } else if (pestanaActiva === "categorias") {
-      const { data } = await supabase
-        .from("macro_categorias")
         .select("*")
+        .eq("macro_categoria_id", macroId)
         .order("orden", { ascending: true });
-      setTodasMacroCategorias(data || []);
-    }
-    
-    setCargando(false);
-  };
+      setSubcategorias(data || []);
+    };
 
-  const cargarProductos = async (categoriaId: number) => {
-    const { data } = await supabase
-      .from("productos")
-      .select("*")
-      .eq("CATEGORIA_ID", categoriaId)
-      .order("orden_categoria", { ascending: true });
-    setProductos(data || []);
-  };
+    const guardarOrdenProductos = async () => {
+      setGuardando(true);
+      setMensaje("");
 
-  const cargarSubcategorias = async (macroId: number) => {
-    const { data } = await supabase
-      .from("categorias")
-      .select("*")
-      .eq("macro_categoria_id", macroId)
-      .order("orden", { ascending: true });
-    setSubcategorias(data || []);
-  };
-
-  const guardarOrdenProductos = async () => {
-    setGuardando(true);
-    setMensaje("");
-    
-    try {
-      for (let i = 0; i < productos.length; i++) {
-        await supabase
-          .from("productos")
-          .update({ orden_categoria: i + 1 })
-          .eq("id", productos[i].id);
-      }
-
-      setMensaje("Orden de productos guardado correctamente");
-      setTimeout(() => setMensaje(""), 2000);
-    } catch (error) {
-      setMensaje("Error al guardar el orden");
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  const guardarOrdenSubcategorias = async () => {
-    setGuardando(true);
-    setMensaje("");
-    
-    try {
-      for (let i = 0; i < subcategorias.length; i++) {
-        await supabase
-          .from("categorias")
-          .update({ orden: i + 1 })
-          .eq("id_categoria", subcategorias[i].id_categoria);
-      }
-
-      setMensaje("Orden de subcategorías guardado correctamente");
-      setTimeout(() => setMensaje(""), 2000);
-    } catch (error) {
-      setMensaje("Error al guardar el orden");
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  const guardarOrdenCategorias = async () => {
-    setGuardando(true);
-    setMensaje("");
-    
-    try {
-      for (let i = 0; i < todasMacroCategorias.length; i++) {
-        await supabase
-          .from("macro_categorias")
-          .update({ orden: i + 1 })
-          .eq("id", todasMacroCategorias[i].id);
-      }
-
-      setMensaje("Orden de categorías guardado correctamente");
-      setTimeout(() => setMensaje(""), 2000);
-    } catch (error) {
-      setMensaje("Error al guardar el orden");
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  return (
-    <motion.div
-      key="ordenar-vista"
-      className="min-h-screen pb-20"
-      initial={{ opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -40 }}
-    >
-      <BackBtn onBack={() => {
-        if (categoriaSeleccionada || macroCategoriaSeleccionada) {
-          setCategoriaSeleccionada(null);
-          setMacroCategoriaSeleccionada(null);
-          setProductos([]);
-          setSubcategorias([]);
-        } else {
-          setVistaPerfil("menu");
+      try {
+        for (let i = 0; i < productos.length; i++) {
+          await supabase
+            .from("productos")
+            .update({ orden_categoria: i + 1 })
+            .eq("id", productos[i].id);
         }
-      }} />
-      
-      <h2 className="text-xl font-bold text-zinc-900 mb-6">
-        Ordenar Elementos
-      </h2>
 
-      <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
-        <button
-          onClick={() => {
-            setPestanaActiva("productos");
-            setCategoriaSeleccionada(null);
-            setMacroCategoriaSeleccionada(null);
+        setMensaje("Orden de productos guardado correctamente");
+        setTimeout(() => setMensaje(""), 2000);
+      } catch (error) {
+        setMensaje("Error al guardar el orden");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    const guardarOrdenSubcategorias = async () => {
+      setGuardando(true);
+      setMensaje("");
+
+      try {
+        for (let i = 0; i < subcategorias.length; i++) {
+          await supabase
+            .from("categorias")
+            .update({ orden: i + 1 })
+            .eq("id_categoria", subcategorias[i].id_categoria);
+        }
+
+        setMensaje("Orden de subcategorías guardado correctamente");
+        setTimeout(() => setMensaje(""), 2000);
+      } catch (error) {
+        setMensaje("Error al guardar el orden");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    const guardarOrdenCategorias = async () => {
+      setGuardando(true);
+      setMensaje("");
+
+      try {
+        for (let i = 0; i < todasMacroCategorias.length; i++) {
+          await supabase
+            .from("macro_categorias")
+            .update({ orden: i + 1 })
+            .eq("id", todasMacroCategorias[i].id);
+        }
+
+        setMensaje("Orden de categorías guardado correctamente");
+        setTimeout(() => setMensaje(""), 2000);
+      } catch (error) {
+        setMensaje("Error al guardar el orden");
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    return (
+      <motion.div
+        key="ordenar-vista"
+        className="min-h-screen pb-20"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+      >
+        <BackBtn
+          onBack={() => {
+            if (categoriaSeleccionada || macroCategoriaSeleccionada) {
+              setCategoriaSeleccionada(null);
+              setMacroCategoriaSeleccionada(null);
+              setProductos([]);
+              setSubcategorias([]);
+            } else {
+              setVistaPerfil("menu");
+            }
           }}
-          className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
-            pestanaActiva === "productos"
-              ? "bg-orange-500 text-white"
-              : "text-zinc-600 hover:bg-zinc-100"
-          }`}
-        >
-          PRODUCTOS
-        </button>
-        <button
-          onClick={() => {
-            setPestanaActiva("subcategorias");
-            setCategoriaSeleccionada(null);
-            setMacroCategoriaSeleccionada(null);
-          }}
-          className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
-            pestanaActiva === "subcategorias"
-              ? "bg-orange-500 text-white"
-              : "text-zinc-600 hover:bg-zinc-100"
-          }`}
-        >
-          SUBCATEGORÍAS
-        </button>
-        <button
-          onClick={() => {
-            setPestanaActiva("categorias");
-            setCategoriaSeleccionada(null);
-            setMacroCategoriaSeleccionada(null);
-          }}
-          className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
-            pestanaActiva === "categorias"
-              ? "bg-orange-500 text-white"
-              : "text-zinc-600 hover:bg-zinc-100"
-          }`}
-        >
-          CATEGORÍAS
-        </button>
-      </div>
+        />
 
-      {mensaje && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`mb-4 p-3 rounded-lg text-sm ${
-            mensaje.includes("Error")
-              ? "bg-red-50 text-red-700 border border-red-200"
-              : "bg-green-50 text-green-700 border border-green-200"
-          }`}
-        >
-          {mensaje}
-        </motion.div>
-      )}
+        <h2 className="text-xl font-bold text-zinc-900 mb-6">
+          Ordenar Elementos
+        </h2>
 
-      {pestanaActiva === "productos" && !categoriaSeleccionada && (
-        <div>
-          <p className="text-sm text-zinc-600 mb-4">
-            Selecciona una subcategoría para ordenar sus productos:
-          </p>
-          {cargando ? (
-            <div className="flex justify-center py-10">
-              <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {categorias.map((cat) => (
-                <motion.div
-                  key={cat.id_categoria}
-                  onClick={() => {
-                    setCategoriaSeleccionada(cat);
-                    cargarProductos(cat.id_categoria);
-                  }}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                  className="flex items-center justify-between p-4 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition bg-white"
-                >
-                   <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
-                    {cat.img ? (
-                      <img
-                        src={cat.img}
-                        alt={cat.TITULO}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
-                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-
-                  
-                  <span className="font-semibold text-zinc-800">
-                    {cat.nombre_categoria}
-                  </span>
-                  <span className="text-zinc-400">›</span>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {pestanaActiva === "productos" && categoriaSeleccionada && (
-        <div>
-          <h3 className="text-lg font-bold text-zinc-900 mb-2">
-            {categoriaSeleccionada.nombre_categoria}
-          </h3>
-          <p className="text-sm text-zinc-600 mb-6">
-            Mantén presionado y arrastra para reordenar los productos
-          </p>
-
-          <Reorder.Group
-            axis="y"
-            values={productos}
-            onReorder={setProductos}
-            className="space-y-3 mb-4"
-          >
-            {productos.map((prod, index) => (
-              <Reorder.Item
-                key={prod.id}
-                value={prod}
-                onDrag={handleDrag}
-                onDragEnd={handleDragEnd}
-                dragListener={true}
-                dragControls={undefined}
-              >
-                <motion.div
-                  className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition"
-                >
-                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
-                    {prod.IMAGEN ? (
-                      <img
-                        src={prod.IMAGEN}
-                        alt={prod.TITULO}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
-                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-zinc-800 truncate">
-                      {prod.TITULO}
-                    </p>
-                    {prod.P_MAYOREO && (
-                      <p className="text-lg font-bold text-orange-600 mt-1">
-                        ${parseFloat(prod.P_MAYOREO).toFixed(2)}
-                      </p>
-                    )}
-                    <p className="text-xs text-zinc-500">
-                      Código: {prod.CODIGO}
-                    </p>
-                    <div className="flex gap-2 mt-1 flex-wrap">
-                      {!prod.visible && (
-                        <span className="text-xs bg-zinc-200 text-zinc-700 px-2 py-0.5 rounded">
-                          Oculto
-                        </span>
-                      )}
-                      {prod.liquidacion && (
-                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
-                          Liquidación
-                        </span>
-                      )}
-                      {prod.top_ventas && (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-                          Top Ventas
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="text-zinc-400 font-mono text-sm">
-                      #{index + 1}
-                    </span>
-                    <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
-                      <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                      </svg>
-                    </div>
-                  </div>
-                </motion.div>
-              </Reorder.Item>
-            ))}
-          </Reorder.Group>
-
+        <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
           <button
-            onClick={guardarOrdenProductos}
-            disabled={guardando}
-            className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
+            onClick={() => {
+              setPestanaActiva("productos");
+              setCategoriaSeleccionada(null);
+              setMacroCategoriaSeleccionada(null);
+            }}
+            className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
+              pestanaActiva === "productos"
+                ? "bg-orange-500 text-white"
+                : "text-zinc-600 hover:bg-zinc-100"
+            }`}
           >
-            {guardando ? "Guardando..." : "Guardar Orden"}
+            PRODUCTOS
+          </button>
+          <button
+            onClick={() => {
+              setPestanaActiva("subcategorias");
+              setCategoriaSeleccionada(null);
+              setMacroCategoriaSeleccionada(null);
+            }}
+            className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
+              pestanaActiva === "subcategorias"
+                ? "bg-orange-500 text-white"
+                : "text-zinc-600 hover:bg-zinc-100"
+            }`}
+          >
+            SUBCATEGORÍAS
+          </button>
+          <button
+            onClick={() => {
+              setPestanaActiva("categorias");
+              setCategoriaSeleccionada(null);
+              setMacroCategoriaSeleccionada(null);
+            }}
+            className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
+              pestanaActiva === "categorias"
+                ? "bg-orange-500 text-white"
+                : "text-zinc-600 hover:bg-zinc-100"
+            }`}
+          >
+            CATEGORÍAS
           </button>
         </div>
-      )}
 
-      {pestanaActiva === "subcategorias" && !macroCategoriaSeleccionada && (
-        <div>
-          <p className="text-sm text-zinc-600 mb-4">
-            Selecciona una categoría para ordenar sus subcategorías:
-          </p>
-          {cargando ? (
-            <div className="flex justify-center py-10">
-              <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {macroCategorias.map((macro) => (
-                <motion.div
-                  key={macro.id}
-                  onClick={() => {
-                    setMacroCategoriaSeleccionada(macro);
-                    cargarSubcategorias(macro.id);
-                  }}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                  className="flex items-center justify-between p-4 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition bg-white"
-                >
-                
-                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
-                    {macro.img ? (
-                      <img
-                        src={macro.img}
-                        alt={macro.TITULO}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
-                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-
-                  <span className="font-semibold text-zinc-800">
-                    {macro.nombre}
-                  </span>
-                  <span className="text-zinc-400">›</span>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {pestanaActiva === "subcategorias" && macroCategoriaSeleccionada && (
-        <div>
-          <h3 className="text-lg font-bold text-zinc-900 mb-2">
-            {macroCategoriaSeleccionada.nombre}
-          </h3>
-          <p className="text-sm text-zinc-600 mb-6">
-            Mantén presionado y arrastra para reordenar las subcategorías
-          </p>
-
-          <Reorder.Group
-            axis="y"
-            values={subcategorias}
-            onReorder={setSubcategorias}
-            className="space-y-3 mb-4"
+        {mensaje && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`mb-4 p-3 rounded-lg text-sm ${
+              mensaje.includes("Error")
+                ? "bg-red-50 text-red-700 border border-red-200"
+                : "bg-green-50 text-green-700 border border-green-200"
+            }`}
           >
-            {subcategorias.map((sub, index) => (
-              <Reorder.Item
-                key={sub.id_categoria}
-                value={sub}
-                onDrag={handleDrag}
-                onDragEnd={handleDragEnd}
-                dragListener={true}
-                dragControls={undefined}
-              >
-                <motion.div
-                  className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition"
-                >
+            {mensaje}
+          </motion.div>
+        )}
 
-                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
-                    {sub.img ? (
-                      <img
-                        src={sub.img}
-                        alt={sub.TITULO}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
-                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1">
-                    <p className="font-semibold text-sm text-zinc-800">
-                      {sub.nombre_categoria}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="text-zinc-400 font-mono text-sm">
-                      #{index + 1}
-                    </span>
-                    <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
-                      <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                      </svg>
-                    </div>
-                  </div>
-                </motion.div>
-              </Reorder.Item>
-            ))}
-          </Reorder.Group>
-
-          <button
-            onClick={guardarOrdenSubcategorias}
-            disabled={guardando}
-            className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
-          >
-            {guardando ? "Guardando..." : "Guardar Orden"}
-          </button>
-        </div>
-      )}
-
-      {pestanaActiva === "categorias" && (
-        <div>
-          <p className="text-sm text-zinc-600 mb-6">
-            Mantén presionado y arrastra para reordenar las categorías
-          </p>
-
-          {cargando ? (
-            <div className="flex justify-center py-10">
-              <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-            </div>
-          ) : (
-            <>
-              <Reorder.Group
-                axis="y"
-                values={todasMacroCategorias}
-                onReorder={setTodasMacroCategorias}
-                className="space-y-3 mb-4"
-              >
-                {todasMacroCategorias.map((macro, index) => (
-                  <Reorder.Item
-                    key={macro.id}
-                    value={macro}
-                    onDrag={handleDrag}
-                    onDragEnd={handleDragEnd}
-                    dragListener={true}
-                    dragControls={undefined}
+        {pestanaActiva === "productos" && !categoriaSeleccionada && (
+          <div>
+            <p className="text-sm text-zinc-600 mb-4">
+              Selecciona una subcategoría para ordenar sus productos:
+            </p>
+            {cargando ? (
+              <div className="flex justify-center py-10">
+                <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {categorias.map((cat) => (
+                  <motion.div
+                    key={cat.id_categoria}
+                    onClick={() => {
+                      setCategoriaSeleccionada(cat);
+                      cargarProductos(cat.id_categoria);
+                    }}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    className="flex items-center justify-between p-4 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition bg-white"
                   >
-                    <motion.div
-                      className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition"
-                    >
-                       <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
-                    {macro.img ? (
-                      <img
-                        src={macro.img}
-                        alt={macro.TITULO}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
-                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-sm text-zinc-800">
-                          {macro.nombre}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col items-center gap-2">
-                        <span className="text-zinc-400 font-mono text-sm">
-                          #{index + 1}
-                        </span>
-                        <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
-                          <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                      {cat.img ? (
+                        <img
+                          src={cat.img}
+                          alt={cat.TITULO}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                          <svg
+                            className="w-8 h-8"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
                           </svg>
                         </div>
-                      </div>
-                    </motion.div>
-                  </Reorder.Item>
-                ))}
-              </Reorder.Group>
+                      )}
+                    </div>
 
-              <button
-                onClick={guardarOrdenCategorias}
-                disabled={guardando}
-                className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
-              >
-                {guardando ? "Guardando..." : "Guardar Orden"}
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </motion.div>
-  );
-};
+                    <span className="font-semibold text-zinc-800">
+                      {cat.nombre_categoria}
+                    </span>
+                    <span className="text-zinc-400">›</span>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {pestanaActiva === "productos" && categoriaSeleccionada && (
+          <div>
+            <h3 className="text-lg font-bold text-zinc-900 mb-2">
+              {categoriaSeleccionada.nombre_categoria}
+            </h3>
+            <p className="text-sm text-zinc-600 mb-6">
+              Mantén presionado y arrastra para reordenar los productos
+            </p>
+
+            <Reorder.Group
+              axis="y"
+              values={productos}
+              onReorder={setProductos}
+              className="space-y-3 mb-4"
+            >
+              {productos.map((prod, index) => (
+                <Reorder.Item
+                  key={prod.id}
+                  value={prod}
+                  onDrag={handleDrag}
+                  onDragEnd={handleDragEnd}
+                  dragListener={true}
+                  dragControls={undefined}
+                >
+                  <motion.div className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition">
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                      {prod.IMAGEN ? (
+                        <img
+                          src={prod.IMAGEN}
+                          alt={prod.TITULO}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                          <svg
+                            className="w-8 h-8"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-zinc-800 truncate">
+                        {prod.TITULO}
+                      </p>
+                      {prod.P_MAYOREO && (
+                        <p className="text-lg font-bold text-orange-600 mt-1">
+                          ${parseFloat(prod.P_MAYOREO).toFixed(2)}
+                        </p>
+                      )}
+                      <p className="text-xs text-zinc-500">
+                        Código: {prod.CODIGO}
+                      </p>
+                      <div className="flex gap-2 mt-1 flex-wrap">
+                        {!prod.visible && (
+                          <span className="text-xs bg-zinc-200 text-zinc-700 px-2 py-0.5 rounded">
+                            Oculto
+                          </span>
+                        )}
+                        {prod.liquidacion && (
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
+                            Liquidación
+                          </span>
+                        )}
+                        {prod.top_ventas && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                            Top Ventas
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-zinc-400 font-mono text-sm">
+                        #{index + 1}
+                      </span>
+                      <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
+                        <svg
+                          className="w-5 h-5 text-zinc-400"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 8h16M4 16h16"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  </motion.div>
+                </Reorder.Item>
+              ))}
+            </Reorder.Group>
+
+            <button
+              onClick={guardarOrdenProductos}
+              disabled={guardando}
+              className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
+            >
+              {guardando ? "Guardando..." : "Guardar Orden"}
+            </button>
+          </div>
+        )}
+
+        {pestanaActiva === "subcategorias" && !macroCategoriaSeleccionada && (
+          <div>
+            <p className="text-sm text-zinc-600 mb-4">
+              Selecciona una categoría para ordenar sus subcategorías:
+            </p>
+            {cargando ? (
+              <div className="flex justify-center py-10">
+                <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {macroCategorias.map((macro) => (
+                  <motion.div
+                    key={macro.id}
+                    onClick={() => {
+                      setMacroCategoriaSeleccionada(macro);
+                      cargarSubcategorias(macro.id);
+                    }}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    className="flex items-center justify-between p-4 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition bg-white"
+                  >
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                      {macro.img ? (
+                        <img
+                          src={macro.img}
+                          alt={macro.TITULO}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                          <svg
+                            className="w-8 h-8"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+
+                    <span className="font-semibold text-zinc-800">
+                      {macro.nombre}
+                    </span>
+                    <span className="text-zinc-400">›</span>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {pestanaActiva === "subcategorias" && macroCategoriaSeleccionada && (
+          <div>
+            <h3 className="text-lg font-bold text-zinc-900 mb-2">
+              {macroCategoriaSeleccionada.nombre}
+            </h3>
+            <p className="text-sm text-zinc-600 mb-6">
+              Mantén presionado y arrastra para reordenar las subcategorías
+            </p>
+
+            <Reorder.Group
+              axis="y"
+              values={subcategorias}
+              onReorder={setSubcategorias}
+              className="space-y-3 mb-4"
+            >
+              {subcategorias.map((sub, index) => (
+                <Reorder.Item
+                  key={sub.id_categoria}
+                  value={sub}
+                  onDrag={handleDrag}
+                  onDragEnd={handleDragEnd}
+                  dragListener={true}
+                  dragControls={undefined}
+                >
+                  <motion.div className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition">
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                      {sub.img ? (
+                        <img
+                          src={sub.img}
+                          alt={sub.TITULO}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                          <svg
+                            className="w-8 h-8"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm text-zinc-800">
+                        {sub.nombre_categoria}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-zinc-400 font-mono text-sm">
+                        #{index + 1}
+                      </span>
+                      <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
+                        <svg
+                          className="w-5 h-5 text-zinc-400"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 8h16M4 16h16"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  </motion.div>
+                </Reorder.Item>
+              ))}
+            </Reorder.Group>
+
+            <button
+              onClick={guardarOrdenSubcategorias}
+              disabled={guardando}
+              className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
+            >
+              {guardando ? "Guardando..." : "Guardar Orden"}
+            </button>
+          </div>
+        )}
+
+        {pestanaActiva === "categorias" && (
+          <div>
+            <p className="text-sm text-zinc-600 mb-6">
+              Mantén presionado y arrastra para reordenar las categorías
+            </p>
+
+            {cargando ? (
+              <div className="flex justify-center py-10">
+                <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+              </div>
+            ) : (
+              <>
+                <Reorder.Group
+                  axis="y"
+                  values={todasMacroCategorias}
+                  onReorder={setTodasMacroCategorias}
+                  className="space-y-3 mb-4"
+                >
+                  {todasMacroCategorias.map((macro, index) => (
+                    <Reorder.Item
+                      key={macro.id}
+                      value={macro}
+                      onDrag={handleDrag}
+                      onDragEnd={handleDragEnd}
+                      dragListener={true}
+                      dragControls={undefined}
+                    >
+                      <motion.div className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition">
+                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                          {macro.img ? (
+                            <img
+                              src={macro.img}
+                              alt={macro.TITULO}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                              <svg
+                                className="w-8 h-8"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-sm text-zinc-800">
+                            {macro.nombre}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col items-center gap-2">
+                          <span className="text-zinc-400 font-mono text-sm">
+                            #{index + 1}
+                          </span>
+                          <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
+                            <svg
+                              className="w-5 h-5 text-zinc-400"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 8h16M4 16h16"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </Reorder.Item>
+                  ))}
+                </Reorder.Group>
+
+                <button
+                  onClick={guardarOrdenCategorias}
+                  disabled={guardando}
+                  className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
+                >
+                  {guardando ? "Guardando..." : "Guardar Orden"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </motion.div>
+    );
+  };
 
   const AsignarCategoriasView = ({ setVistaPerfil }: any) => {
     const [categoriaSeleccionada, setCategoriaSeleccionada] =
@@ -4597,7 +4731,6 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
     const [macroSeleccionada, setMacroSeleccionada] = useState("");
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState("");
-    
 
     const asignarMacro = async () => {
       if (!categoriaSeleccionada || !macroSeleccionada) return;
@@ -4620,7 +4753,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
           const { data } = await supabase
             .from("categorias")
             .select(
-              "id_categoria, nombre_categoria, img, orden, macro_categoria_id"
+              "id_categoria, nombre_categoria, img, orden, macro_categoria_id",
             )
             .order("orden", { ascending: true });
           setCategorias(data || []);
@@ -4768,7 +4901,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
     const [banners, setBanners] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
     const [modoVista, setModoVista] = useState<"lista" | "agregar" | "editar">(
-      "lista"
+      "lista",
     );
     const [bannerSeleccionado, setBannerSeleccionado] = useState<any>(null);
     const [titulo, setTitulo] = useState("");
@@ -5024,7 +5157,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
 
                       <div
                         className={`p-2 rounded-lg mb-3 ${getClaseColor(
-                          banner.color
+                          banner.color,
                         )}`}
                       >
                         <p className="text-xs font-semibold">Vista previa</p>
@@ -5111,7 +5244,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
                   </label>
                   <div
                     className={`rounded-xl p-4 border-2 ${getClaseColor(
-                      color
+                      color,
                     )}`}
                   >
                     <div className="flex items-start gap-3">
@@ -5195,7 +5328,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
     const [cuentas, setCuentas] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
     const [modoVista, setModoVista] = useState<"lista" | "agregar" | "editar">(
-      "lista"
+      "lista",
     );
     const [cuentaSeleccionada, setCuentaSeleccionada] = useState<any>(null);
     const [numeroCuenta, setNumeroCuenta] = useState("");
@@ -5288,13 +5421,13 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
       try {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-            direccion
+            direccion,
           )}`,
           {
             headers: {
               "User-Agent": "TuAppPedidos/1.0",
             },
-          }
+          },
         );
 
         const data = await res.json();
@@ -5327,7 +5460,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
             c.numero_cuenta !== "admin-M01" &&
             c.numero_cuenta !== "Mostrador" &&
             c.numero_cuenta !== "Mostrador2" &&
-            c.numero_cuenta !== "admin-M02"
+            c.numero_cuenta !== "admin-M02",
         );
         setCuentas(cuentasFiltradas);
       }
@@ -5635,7 +5768,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
 
         if (horariosData && horariosData.length > 0) {
           const horariosMap = new Map(
-            horariosData.map((h: any) => [h.dia_semana, h])
+            horariosData.map((h: any) => [h.dia_semana, h]),
           );
           setHorarios([
             {
@@ -6234,7 +6367,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
                           <button
                             onClick={() => {
                               setDocumentosPendientes((prev) =>
-                                prev.filter((d) => d.id !== doc.id)
+                                prev.filter((d) => d.id !== doc.id),
                               );
                             }}
                             className="text-red-600 hover:text-red-800 transition"
@@ -6255,7 +6388,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
                             {documentosPendientes
                               .reduce(
                                 (sum, doc) => sum + parseFloat(doc.monto),
-                                0
+                                0,
                               )
                               .toFixed(2)}
                           </span>
@@ -7138,63 +7271,63 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
     };
 
     // funcion de descarga de la tabla productos en .csv
-const descargarProductosCSV = async () => {
-  setDescargando(true);
-  try {
-    let todosLosProductos: any[] = [];
-    let desde = 0;
-    const limite = 1000;
+    const descargarProductosCSV = async () => {
+      setDescargando(true);
+      try {
+        let todosLosProductos: any[] = [];
+        let desde = 0;
+        const limite = 1000;
 
-    while (true) {
-      const { data, error } = await supabase
-        .from("productos")
-        .select("*")
-        .order("id", { ascending: true })
-        .range(desde, desde + limite - 1);
+        while (true) {
+          const { data, error } = await supabase
+            .from("productos")
+            .select("*")
+            .order("id", { ascending: true })
+            .range(desde, desde + limite - 1);
 
-      if (error) throw error;
-      if (!data || data.length === 0) break;
+          if (error) throw error;
+          if (!data || data.length === 0) break;
 
-      todosLosProductos = [...todosLosProductos, ...data];
-      desde += limite;
-    }
+          todosLosProductos = [...todosLosProductos, ...data];
+          desde += limite;
+        }
 
-    if (todosLosProductos.length === 0) {
-      alert("No hay productos para descargar");
-      return;
-    }
+        if (todosLosProductos.length === 0) {
+          alert("No hay productos para descargar");
+          return;
+        }
 
-    const headers = Object.keys(todosLosProductos[0]).join(",");
-    const rows = todosLosProductos.map(p =>
-      Object.values(p)
-        .map(val =>
-          typeof val === "string"
-            ? `"${val.replace(/"/g, '""')}"`
-            : val ?? ""
-        )
-        .join(",")
-    );
+        const headers = Object.keys(todosLosProductos[0]).join(",");
+        const rows = todosLosProductos.map((p) =>
+          Object.values(p)
+            .map((val) =>
+              typeof val === "string"
+                ? `"${val.replace(/"/g, '""')}"`
+                : (val ?? ""),
+            )
+            .join(","),
+        );
 
-    const csv = [headers, ...rows].join("\n");
+        const csv = [headers, ...rows].join("\n");
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `productos_backup_${new Date().toISOString().split("T")[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `productos_backup_${new Date().toISOString().split("T")[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
 
-    alert(`Descargados ${todosLosProductos.length} productos`);
-  } catch (err) {
-    console.error(err);
-    alert("Error al descargar la tabla");
-  } finally {
-    setDescargando(false);
-  }
-};
+        alert(`Descargados ${todosLosProductos.length} productos`);
+      } catch (err) {
+        console.error(err);
+        alert("Error al descargar la tabla");
+      } finally {
+        setDescargando(false);
+      }
+    };
 
     return (
       <motion.div
@@ -7333,7 +7466,7 @@ const descargarProductosCSV = async () => {
                     {resultado.productosNoEncontrados.map(
                       (codigo: string, i: number) => (
                         <li key={i}>{codigo}</li>
-                      )
+                      ),
                     )}
                   </ul>
                 </div>
@@ -7361,24 +7494,25 @@ const descargarProductosCSV = async () => {
             )}
           </button>
 
-        <button
-  onClick={descargarProductosCSV}
-  disabled={descargando}
-  className={`w-full py-3 rounded-xl font-semibold transition mt-4
+          <button
+            onClick={descargarProductosCSV}
+            disabled={descargando}
+            className={`w-full py-3 rounded-xl font-semibold transition mt-4
     flex items-center justify-center gap-2
-    ${descargando
-      ? "bg-blue-300 cursor-not-allowed"
-      : "bg-blue-500 text-white hover:bg-blue-600"}`}
->
-  {descargando && (
-    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-  )}
+    ${
+      descargando
+        ? "bg-blue-300 cursor-not-allowed"
+        : "bg-blue-500 text-white hover:bg-blue-600"
+    }`}
+          >
+            {descargando && (
+              <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+            )}
 
-  {descargando
-    ? "Descargando backup..."
-    : "Descargar Tabla de Base de datos (Backup)"}
-</button>
-
+            {descargando
+              ? "Descargando backup..."
+              : "Descargar Tabla de Base de datos (Backup)"}
+          </button>
         </div>
       </motion.div>
     );
@@ -7828,7 +7962,7 @@ const descargarProductosCSV = async () => {
       const total = carrito.reduce(
         (sum, p) =>
           sum + (p.subtotal ?? (p.cantidad ?? 0) * (p.P_MAYOREO ?? 0)),
-        0
+        0,
       );
 
       // Calcular subtotal (sin IVA), IVA y total
@@ -8140,7 +8274,7 @@ const descargarProductosCSV = async () => {
         "Escanea para ver pedido",
         qrX + qrSize / 2,
         qrY + qrSize + 4,
-        { align: "center" }
+        { align: "center" },
       );
 
       // TOTALES DEL LADO DERECHO (misma altura que el QR)
@@ -8162,7 +8296,7 @@ const descargarProductosCSV = async () => {
         })}`,
         195,
         yBase + 8,
-        { align: "right" }
+        { align: "right" },
       );
 
       // Pie de página con fecha/hora y número de página
@@ -8234,7 +8368,7 @@ const descargarProductosCSV = async () => {
         docCliente.text(
           "TIPO DE ENTREGA: RECOGER EN LOCAL",
           14,
-          finalYCliente + 8
+          finalYCliente + 8,
         );
       }
 
@@ -8264,7 +8398,7 @@ const descargarProductosCSV = async () => {
         qrXCliente,
         qrYCliente,
         qrSizeCliente,
-        qrSizeCliente
+        qrSizeCliente,
       );
       docCliente.setFontSize(7);
       docCliente.setFont("helvetica", "normal");
@@ -8273,7 +8407,7 @@ const descargarProductosCSV = async () => {
         "",
         qrXCliente + qrSizeCliente / 2,
         qrYCliente + qrSizeCliente + 4,
-        { align: "center" }
+        { align: "center" },
       );
 
       // TOTALES DEL LADO DERECHO (misma altura que el QR)
@@ -8295,7 +8429,7 @@ const descargarProductosCSV = async () => {
         })}`,
         195,
         yBaseCliente + 8,
-        { align: "right" }
+        { align: "right" },
       );
 
       // Pie de página
@@ -8356,7 +8490,7 @@ const descargarProductosCSV = async () => {
     } catch (error) {
       console.error("Error al enviar pedido:", error);
       setMensajeExito(
-        "Ocurrió un error al enviar el pedido. Intente nuevamente."
+        "Ocurrió un error al enviar el pedido. Intente nuevamente.",
       );
     } finally {
       setEnviando(false);
@@ -8575,6 +8709,9 @@ const descargarProductosCSV = async () => {
     const [eliminando, setEliminando] = useState(false);
     const pedidoSeleccionadoRef = useRef<any>(null);
     const [detallesEmpaque, setDetallesEmpaque] = useState<any>(null);
+    const [stringEncajado, setStringEncajado] = useState("");
+const [productosFaltantes, setProductosFaltantes] = useState<any[]>([]);
+const [creandoBackOrder, setCreandoBackOrder] = useState(false);
 
     const cargarDetallesEmpaque = async (pedidoId: number) => {
       const { data } = await supabase
@@ -8588,7 +8725,7 @@ const descargarProductosCSV = async () => {
           pedido_id: pedidoId,
           detalles_empacado: "",
           observaciones: "",
-        }
+        },
       );
     };
 
@@ -8619,15 +8756,312 @@ const descargarProductosCSV = async () => {
       }
     };
 
-    useEffect(() => {
-      if (
-        pedidoSeleccionado &&
-        esAdmin &&
-        pedidoSeleccionado.estado === "encajado"
-      ) {
-        cargarDetallesEmpaque(pedidoSeleccionado.id);
+const cargarDatosEncajado = async (pedidoId: number) => {
+  const { data: hojas } = await supabase
+    .from("hojas_surtido")
+    .select("*")
+    .eq("pedido_id", pedidoId);
+
+  if (!hojas || hojas.length === 0) return;
+
+  const productosCompletos: any[] = [];
+  const productosParciales: any[] = [];
+  const productosPA: any[] = [];
+
+  for (const hoja of hojas) {
+    const productos = JSON.parse(hoja.productos_asignados);
+
+    for (const prod of productos) {
+      const { data: prodCompleto } = await supabase
+        .from("productos")
+        .select("*")
+        .eq("CODIGO", prod.codigo)
+        .single();
+
+      if (prod.estado === "PA") {
+        productosPA.push({
+          ...prodCompleto,
+          cantidad_pedida: prod.cantidad_pedida,
+          cantidad_faltante: prod.cantidad_pedida,
+        });
+      } else if (prod.estado === "parcial") {
+        const faltante = prod.cantidad_pedida - prod.cantidad_surtida;
+        productosParciales.push({
+          ...prodCompleto,
+          cantidad_pedida: prod.cantidad_pedida,
+          cantidad_surtida: prod.cantidad_surtida,
+          cantidad_faltante: faltante,
+        });
+        
+        // AGREGAR AL STRING: lo que SÍ se surtió
+        productosCompletos.push({
+          codigo: prod.codigo,
+          cantidad: prod.cantidad_surtida,
+        });
+      } else if (prod.estado === "completo" && prod.cantidad_surtida > 0) {
+        // Productos completos
+        productosCompletos.push({
+          codigo: prod.codigo,
+          cantidad: prod.cantidad_surtida,
+        });
       }
-    }, [pedidoSeleccionado]);
+    }
+  }
+
+  // Generar string de encajado (incluye completos Y la parte surtida de parciales)
+  const stringGen = productosCompletos
+    .map((p) => `${p.codigo}*${p.cantidad}`)
+    .join("-");
+  setStringEncajado(stringGen);
+
+  // Combinar faltantes (solo PA + lo que falta de parciales)
+  const todosFaltantes = [...productosPA, ...productosParciales];
+  setProductosFaltantes(todosFaltantes);
+};
+const crearBackOrder = async () => {
+    if (!pedidoSeleccionado || productosFaltantes.length === 0) return;
+
+    setCreandoBackOrder(true);
+    try {
+      // 1. Calcular el total del Back Order
+      const totalBackOrder = productosFaltantes.reduce(
+        (sum, p) => sum + (p.P_MAYOREO || 0) * (p.cantidad_faltante || 0),
+        0
+      );
+      console.log("Total calculado BackOrder:", totalBackOrder);
+
+      if (totalBackOrder <= 0) {
+        alert("El total del Back Order es 0 o inválido.");
+        setCreandoBackOrder(false);
+        return;
+      }
+
+      // 2. Generar String para la base de datos
+      const listaProductosString = productosFaltantes
+        .map((p) => `${p.CODIGO}*${p.cantidad_faltante}`)
+        .join("-");
+
+      // 3. Insertar el nuevo pedido en Supabase
+      const { data: nuevoPedido, error } = await supabase
+        .from("pedidos")
+        .insert({
+          cuenta_id: pedidoSeleccionado.cuenta_id,
+          total: totalBackOrder,
+          estado: "nuevo_pedido",
+          es_domicilio: pedidoSeleccionado.es_domicilio,
+          lista_productos: listaProductosString, // Guardamos la lista aquí directamente
+        })
+        .select(`
+          *,
+          cuentas (
+            numero_cuenta,
+            cliente,
+            ferreteria,
+            numero_tel,
+            direccion,
+            entrega_mismo_dia,
+            tipo_comprobante
+          )
+        `)
+        .single();
+
+      if (error) throw error;
+
+      // --- INICIO GENERACIÓN DE PDF ---
+      
+      // Importar módulos necesarios dinámicamente
+      const jsPDFModule = await import("jspdf");
+      const autoTableModule = await import("jspdf-autotable");
+      const QRCodeModule = await import("qrcode");
+      const { jsPDF } = jsPDFModule;
+
+      const pedidoId = nuevoPedido.id;
+      const numeroCotizacion = pedidoId;
+      const fecha = new Date().toLocaleDateString("es-MX", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+      });
+      const hora = new Date().toLocaleTimeString("es-MX");
+
+      // Generar QR
+      const qrBase64 = await QRCodeModule.default.toDataURL(listaProductosString, {
+        width: 200, margin: 1,
+      });
+
+      // Obtener logo
+      const getImageBase64 = async (url: string): Promise<string> => {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      };
+      const logoBase64 = await getImageBase64("/logo-pdf.png");
+
+      // Datos del cliente (Extraídos del pedido original o del nuevo insertado)
+      const datosCliente = nuevoPedido.cuentas; 
+      const tipoDoc = "BACK ORDER";
+
+      // Función para dibujar encabezado (Replicada para contexto local)
+      const dibujarEncabezadoBackOrder = (doc: any) => {
+        const pageWidth = doc.internal.pageSize.width;
+        
+        // Logo
+        doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
+
+        // Info Empresa
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+        doc.setFont("helvetica", "normal");
+        doc.text("GUGS701012E14", 70, 14);
+        doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
+        doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
+        doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
+
+        // Datos Pedido
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Pedido (Back Order)", 155, 10); // Etiqueta distintiva
+        doc.setFontSize(10);
+        doc.text(numeroCotizacion.toString(), 170, 16);
+        doc.setFontSize(9);
+        doc.text("Fecha", 172, 24);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(fecha, 167, 30);
+
+        doc.setLineWidth(0.3);
+        doc.line(14, 42, 196, 42);
+
+        // Datos Receptor
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("RECEPTOR", 14, 48);
+
+        doc.setFontSize(11);
+        doc.setTextColor(100, 100, 100);
+        doc.text(tipoDoc, pageWidth / 2, 48, { align: "center" });
+
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Nombre: ${datosCliente?.cliente || "N/A"}`, 14, 54);
+        doc.text(`Domicilio: ${datosCliente?.direccion || ""}`, 14, 59);
+        doc.text(`Ferretería: ${datosCliente?.ferreteria || ""}`, 140, 59);
+        doc.text(`Tel: ${datosCliente?.numero_tel || ""}`, 140, 54);
+        doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
+      };
+
+      const doc = new jsPDF();
+
+      // Preparar tabla usando productosFaltantes
+      const productosTabla = productosFaltantes.map((p) => [
+        p.CODIGO || "",
+        p.cantidad_faltante, 
+        p.TITULO,
+        `$ ${p.P_MAYOREO.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+        `$ ${(p.cantidad_faltante * p.P_MAYOREO).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      ]);
+
+      // Generar Tabla
+      autoTableModule.default(doc, {
+        head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+        body: productosTabla,
+        startY: 69,
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: { fillColor: [230, 230, 230], textColor: [0, 0, 0], fontStyle: "bold", halign: "center", fontSize: 7 },
+        columnStyles: {
+          0: { cellWidth: 28, halign: "center" },
+          1: { cellWidth: 15, halign: "center" },
+          2: { cellWidth: 82, halign: "left" },
+          3: { cellWidth: 22, halign: "right" },
+          4: { cellWidth: 22, halign: "right" },
+        },
+        theme: "grid",
+        margin: { left: 14, right: 14, top: 69 },
+        didDrawPage: () => dibujarEncabezadoBackOrder(doc),
+      });
+
+      const finalY = (doc as any).lastAutoTable?.finalY || 100;
+
+      // QR y Totales
+      const qrSize = 40;
+      let yBase = finalY + 10;
+      
+      // Verificar espacio para QR
+      if (doc.internal.pageSize.height - yBase < 60) {
+        doc.addPage();
+        dibujarEncabezadoBackOrder(doc);
+        yBase = 70;
+      }
+
+      doc.addImage(qrBase64, "PNG", 14, yBase, qrSize, qrSize);
+      doc.setFontSize(7);
+      doc.text("Escanea para ver pedido", 14 + qrSize / 2, yBase + qrSize + 4, { align: "center" });
+
+      // Totales
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("TOTAL NETO:", 145, yBase + 10);
+      doc.text(`$ ${totalBackOrder.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, 195, yBase + 10, { align: "right" });
+
+      // Subir PDF a Supabase
+      const pdfBlob = doc.output("blob");
+      const nombreArchivoPDF = `pedido_${nuevoPedido.id}_backorder_${Date.now()}.pdf`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("pedidos-pdf")
+        .upload(nombreArchivoPDF, pdfBlob, {
+          contentType: "application/pdf",
+          cacheControl: "public, max-age=31536000",
+          upsert: true,
+        });
+
+      if (!uploadError) {
+        const { data: { publicUrl } } = supabase.storage.from("pedidos-pdf").getPublicUrl(nombreArchivoPDF);
+        
+        await supabase
+          .from("pedidos")
+          .update({ pdf_url: publicUrl })
+          .eq("id", nuevoPedido.id);
+          
+        console.log("PDF Backorder generado y subido.");
+        const pdfBase64 = doc.output("datauristring");
+        await fetch("/api/enviar-pedido", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+            pdfBase64,
+            correoDestino: "bfmpedidos@gmail.com",
+            asunto: `Nuevo Back Order #${nuevoPedido.id} - ${datosCliente?.cliente}`
+            }),
+        });
+      } else {
+        console.error("Error subiendo PDF Backorder:", uploadError);
+      }
+
+
+      alert(`Back Order creado exitosamente. Pedido #${nuevoPedido.id}`);
+      setPedidoSeleccionado(null);
+      setProductosFaltantes([]);
+
+    } catch (error: any) {
+      console.error("Error creando back order:", error);
+      alert(`Error al crear el back order: ${error.message || error.details}`);
+    } finally {
+      setCreandoBackOrder(false);
+    }
+  };
+
+    useEffect(() => {
+  if (pedidoSeleccionado && esAdmin && pedidoSeleccionado.estado === "encajado") {
+    cargarDetallesEmpaque(pedidoSeleccionado.id);
+    cargarDatosEncajado(pedidoSeleccionado.id);
+  }
+}, [pedidoSeleccionado]);
 
     const eliminarPedido = async () => {
       if (!pedidoAEliminar) return;
@@ -8653,6 +9087,7 @@ const descargarProductosCSV = async () => {
           const { error: deleteFileError } = await supabase.storage
             .from("pedidos-pdf")
             .remove([nombreArchivo]);
+            
 
           if (deleteFileError) {
             console.error("Error eliminando PDF:", deleteFileError);
@@ -8710,7 +9145,7 @@ const descargarProductosCSV = async () => {
           numero_tel,
           entrega_mismo_dia
         )
-      `
+      `,
           )
           .order("created_at", { ascending: false });
 
@@ -8760,7 +9195,7 @@ const descargarProductosCSV = async () => {
                   numero_tel,
                   entrega_mismo_dia
                 )
-              `
+              `,
                 )
                 .eq("id", payload.new.id)
                 .single();
@@ -8768,8 +9203,8 @@ const descargarProductosCSV = async () => {
               if (pedidoActualizado) {
                 setPedidos((prev) =>
                   prev.map((p) =>
-                    p.id === pedidoActualizado.id ? pedidoActualizado : p
-                  )
+                    p.id === pedidoActualizado.id ? pedidoActualizado : p,
+                  ),
                 );
 
                 // Actualizar pedido seleccionado si es el mismo
@@ -8802,7 +9237,7 @@ const descargarProductosCSV = async () => {
                   numero_tel,
                   entrega_mismo_dia
                 )
-              `
+              `,
                 )
                 .eq("id", payload.new.id)
                 .single();
@@ -8819,7 +9254,7 @@ const descargarProductosCSV = async () => {
                 setPedidoSeleccionado(null);
               }
             }
-          }
+          },
         )
         .subscribe();
 
@@ -8947,6 +9382,153 @@ const descargarProductosCSV = async () => {
             )}
           </AnimatePresence>
 
+<AnimatePresence>
+  {esAdmin && pedidoSeleccionado.estado === "encajado" && (
+    <motion.div
+      initial={{ opacity: 0, height: 0, y: -20 }}
+      animate={{ opacity: 1, height: "auto", y: 0 }}
+      exit={{ opacity: 0, height: 0, y: -20 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="overflow-hidden"
+    >
+
+      {/* String de Encajado */}
+      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="p-2 bg-green-100 rounded-full text-green-600">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              className="w-5 h-5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
+              />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-zinc-900">
+            String de Encajado
+          </h3>
+        </div>
+
+        <div className="relative">
+          <textarea
+            value={stringEncajado}
+            readOnly
+            rows={3}
+            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 bg-zinc-50 font-mono text-sm"
+          />
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(stringEncajado);
+              alert("String copiado al portapapeles");
+            }}
+            className="absolute top-2 right-2 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-semibold"
+          >
+            Copiar
+          </button>
+        </div>
+        <p className="text-xs text-zinc-400 mt-2">
+          Formato: CODIGO*CANTIDAD-CODIGO*CANTIDAD
+        </p>
+      </div>
+
+      {/* Productos Faltantes y Back Order */}
+      {productosFaltantes.length > 0 && (
+        <div className="bg-white rounded-xl border border-red-200 p-4 mb-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-2 bg-red-100 rounded-full text-red-600">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                className="w-5 h-5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-zinc-900">
+              Productos Faltantes ({productosFaltantes.length})
+            </h3>
+          </div>
+
+          <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
+            {productosFaltantes.map((prod, idx) => (
+              <div
+                key={idx}
+                className="flex items-center gap-3 p-2 bg-red-50 rounded-lg border border-red-200"
+              >
+                <div className="relative w-12 h-12 bg-white rounded overflow-hidden flex-shrink-0">
+                  <Image
+                    src={
+                      prod.IMAGEN ||
+                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                    }
+                    alt={prod.TITULO}
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-zinc-800 truncate">
+                    {prod.TITULO}
+                  </p>
+                  <p className="text-xs text-zinc-500">{prod.CODIGO}</p>
+                  <p className="text-xs text-red-600 font-semibold mt-1">
+                    Faltante: {prod.cantidad_faltante} unidades
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={crearBackOrder}
+            disabled={creandoBackOrder}
+            className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {creandoBackOrder ? (
+              <>
+                <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                Creando Back Order...
+              </>
+            ) : (
+              <>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-5 h-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4.5v15m7.5-7.5h-15"
+                  />
+                </svg>
+                Crear Back Order con Faltantes
+              </>
+            )}
+          </button>
+        </div>
+      )}
+    </motion.div>
+  )}
+</AnimatePresence>
+
           {/* informacion de entrega */}
           {pedidoSeleccionado && (
             <div className="mt-2 mb-2">
@@ -8999,7 +9581,7 @@ const descargarProductosCSV = async () => {
                     year: "numeric",
                     month: "long",
                     day: "numeric",
-                  }
+                  },
                 )}
               </span>
             </div>
@@ -9337,7 +9919,7 @@ const descargarProductosCSV = async () => {
       longitud
           
         )
-      `
+      `,
         )
 
         .in("estado", ["encajado", "en_ruta"])
@@ -9360,14 +9942,14 @@ const descargarProductosCSV = async () => {
 
     const actualizarEstadoLocal = (nuevoEstado: string) => {
       setPedidoSeleccionado((prev: any) =>
-        prev ? { ...prev, estado: nuevoEstado } : null
+        prev ? { ...prev, estado: nuevoEstado } : null,
       );
 
       setPedidosPorRuta((prevMap) => {
         const nuevoMap = { ...prevMap };
         Object.keys(nuevoMap).forEach((ruta) => {
           nuevoMap[ruta] = nuevoMap[ruta].map((p) =>
-            p.id === pedidoSeleccionado?.id ? { ...p, estado: nuevoEstado } : p
+            p.id === pedidoSeleccionado?.id ? { ...p, estado: nuevoEstado } : p,
           );
         });
         return nuevoMap;
@@ -9385,7 +9967,7 @@ const descargarProductosCSV = async () => {
           (payload) => {
             console.log("Cambio en rutas:", payload);
             cargarPedidosRuta();
-          }
+          },
         )
         .subscribe();
 
@@ -9628,10 +10210,742 @@ const descargarProductosCSV = async () => {
                     )}
                   </AnimatePresence>
                 </div>
-              )
+              ),
             )}
           </div>
         )}
+      </motion.div>
+    );
+  };
+
+  const VistaRevision = ({ setVistaPerfil }: any) => {
+    const [pedidosPorRevisar, setPedidosPorRevisar] = useState<any[]>([]);
+    const [cargando, setCargando] = useState(true);
+    const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
+    const [hojaActual, setHojaActual] = useState<any>(null);
+    const [productosVerificados, setProductosVerificados] = useState<
+      Map<number, number>
+    >(new Map());
+    const [bufferEscaneo, setBufferEscaneo] = useState("");
+    const [ultimoEscaneo, setUltimoEscaneo] = useState("");
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [mostrarModalCompletado, setMostrarModalCompletado] = useState(false);
+    const [guardando, setGuardando] = useState(false);
+    const [hojas, setHojas] = useState<any[]>([]);
+    const [hojasProcesadas, setHojasProcesadas] = useState<Set<number>>(
+      new Set(),
+    );
+const [cambiosEstado, setCambiosEstado] = useState<Map<number, any>>(new Map());
+    useEffect(() => {
+      cargarPedidosPorRevisar();
+
+      const channel = supabase
+        .channel("revision-realtime")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "pedidos" },
+          () => cargarPedidosPorRevisar(),
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }, []);
+
+    const cargarPedidosPorRevisar = async () => {
+      const { data } = await supabase
+        .from("pedidos")
+        .select(
+          `
+        id, created_at, total,
+        cuentas (cliente, ferreteria, numero_cuenta)
+      `,
+        )
+        .in("estado", ["por_revisar", "revisando"])
+        .order("created_at", { ascending: true });
+
+      setPedidosPorRevisar(data || []);
+      setCargando(false);
+    };
+
+    const iniciarRevision = async (pedido: any) => {
+      // Cargar hojas de surtido
+      const { data: hojasData } = await supabase
+        .from("hojas_surtido")
+        .select("*")
+        .eq("pedido_id", pedido.id)
+        .order("numero_hoja", { ascending: true });
+
+      if (!hojasData || hojasData.length === 0) {
+        alert("Este pedido no tiene hojas de surtido");
+        return;
+      }
+
+      // Cargar productos completos para cada hoja
+      const hojasConProductos = await Promise.all(
+        hojasData.map(async (hoja) => {
+          const productosSimplificados = JSON.parse(hoja.productos_asignados);
+          const codigos = productosSimplificados.map((p: any) => p.codigo);
+
+          const { data: productos } = await supabase
+            .from("productos")
+            .select("*")
+            .in("CODIGO", codigos);
+
+          const productosCompletos = productosSimplificados.map((ps: any) => {
+            const prod = productos?.find((p) => p.CODIGO === ps.codigo);
+            return {
+              ...prod,
+              cantidad_pedida: ps.cantidad_pedida,
+              cantidad_surtida: ps.cantidad_surtida,
+              estado: ps.estado,
+              producto_id: prod?.id,
+            };
+          });
+
+          return {
+            ...hoja,
+            productos: productosCompletos,
+          };
+        }),
+      );
+
+      setPedidoSeleccionado(pedido);
+      setHojas(hojasConProductos);
+
+      // Actualizar estado del pedido
+      await supabase
+        .from("pedidos")
+        .update({ estado: "revisando" })
+        .eq("id", pedido.id);
+    };
+
+    const seleccionarHoja = (hoja: any) => {
+      if (hojasProcesadas.has(hoja.id)) {
+        alert("Esta hoja ya fue revisada");
+        return;
+      }
+      setHojaActual(hoja);
+      setProductosVerificados(new Map());
+    };
+
+    // Lógica de escaneo
+    useEffect(() => {
+      if (!hojaActual || mostrarModalCompletado) return;
+
+      const handleKeyPress = (e: KeyboardEvent) => {
+        if (e.key === "Enter") {
+          if (bufferEscaneo.trim()) {
+            procesarEscaneo(bufferEscaneo.trim());
+            setBufferEscaneo("");
+          }
+          return;
+        }
+        setBufferEscaneo((prev) => prev + e.key);
+
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+          if (bufferEscaneo.trim()) {
+            procesarEscaneo(bufferEscaneo.trim());
+            setBufferEscaneo("");
+          }
+        }, 100);
+      };
+
+      window.addEventListener("keypress", handleKeyPress);
+      return () => {
+        window.removeEventListener("keypress", handleKeyPress);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      };
+    }, [
+      bufferEscaneo,
+      hojaActual,
+      productosVerificados,
+      mostrarModalCompletado,
+    ]);
+
+  const procesarEscaneo = (codigoEscaneado: string) => {
+  if (!hojaActual) return;
+
+  setUltimoEscaneo(codigoEscaneado);
+
+  const producto = hojaActual.productos.find(
+    (p: any) =>
+      p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado,
+  );
+
+  if (!producto) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    alert(`Código ${codigoEscaneado} no pertenece a esta hoja`);
+    return;
+  }
+
+  const estadoActual = obtenerEstadoActual(producto);
+  const cantidadEsperada = estadoActual.estado === "PA" ? 0 : estadoActual.cantidad_surtida || 0;
+
+  if (cantidadEsperada === 0) {
+    alert(
+      `Producto ${producto.TITULO} marcado como PA o sin cantidad surtida`,
+    );
+    return;
+  }
+
+  const cantidadVerificada = productosVerificados.get(producto.producto_id) || 0;
+
+  if (cantidadVerificada >= cantidadEsperada) {
+    if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+    alert(`Ya verificaste toda la cantidad de ${producto.TITULO}`);
+    return;
+  }
+
+  // SOLO actualizar verificados, nada más
+  setProductosVerificados(prev => {
+    const nuevaMapa = new Map(prev);
+    nuevaMapa.set(producto.producto_id, cantidadVerificada + 1);
+    return nuevaMapa;
+  });
+
+  if ("vibrate" in navigator) navigator.vibrate(50);
+};
+
+    const togglePA = (producto: any) => {
+  const nuevoCambios = new Map(cambiosEstado);
+  const cambioActual = nuevoCambios.get(producto.producto_id) || {
+    estado: producto.estado,
+    cantidad_surtida: producto.cantidad_surtida,
+  };
+
+  if (cambioActual.estado === "PA") {
+    // Quitar PA - volver a estado normal con cantidad original
+    nuevoCambios.set(producto.producto_id, {
+      estado: "completo",
+      cantidad_surtida: producto.cantidad_pedida,
+    });
+  } else {
+    // Marcar como PA
+    nuevoCambios.set(producto.producto_id, {
+      estado: "PA",
+      cantidad_surtida: 0,
+    });
+    // Limpiar verificaciones de este producto
+    const nuevosVerificados = new Map(productosVerificados);
+    nuevosVerificados.delete(producto.producto_id);
+    setProductosVerificados(nuevosVerificados);
+  }
+
+  setCambiosEstado(nuevoCambios);
+};
+
+const ajustarParcialidad = (producto: any, nuevaCantidad: number) => {
+  if (nuevaCantidad < 0 || nuevaCantidad > producto.cantidad_pedida) return;
+
+  const nuevoCambios = new Map(cambiosEstado);
+  const nuevoEstado =
+    nuevaCantidad === 0
+      ? "PA"
+      : nuevaCantidad < producto.cantidad_pedida
+        ? "parcial"
+        : "completo";
+
+  nuevoCambios.set(producto.producto_id, {
+    estado: nuevoEstado,
+    cantidad_surtida: nuevaCantidad,
+  });
+
+  // Ajustar verificaciones si exceden la nueva cantidad
+  const verificados = productosVerificados.get(producto.producto_id) || 0;
+  if (verificados > nuevaCantidad) {
+    const nuevosVerificados = new Map(productosVerificados);
+    nuevosVerificados.set(producto.producto_id, nuevaCantidad);
+    setProductosVerificados(nuevosVerificados);
+  }
+
+  setCambiosEstado(nuevoCambios);
+};
+
+const obtenerEstadoActual = (producto: any) => {
+  const cambio = cambiosEstado.get(producto.producto_id);
+  return cambio || {
+    estado: producto.estado,
+    cantidad_surtida: producto.cantidad_surtida,
+  };
+};
+
+    // Verificar si la hoja está completa
+    const totalEsperado = hojaActual
+  ? hojaActual.productos.reduce((sum: number, p: any) => {
+      const estadoActual = obtenerEstadoActual(p);
+      return sum + (estadoActual.cantidad_surtida || 0);
+    }, 0)
+  : 0;
+
+    const totalVerificado = hojaActual
+      ? hojaActual.productos.reduce((sum: number, p: any) => {
+          return sum + (productosVerificados.get(p.producto_id) || 0);
+        }, 0)
+      : 0;
+
+    const hojaCompleta = totalVerificado >= totalEsperado && totalEsperado > 0;
+
+    useEffect(() => {
+      if (hojaCompleta && hojaActual) {
+        setMostrarModalCompletado(true);
+        if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+      }
+    }, [hojaCompleta, hojaActual]);
+
+   const completarHoja = async () => {
+  if (!hojaActual) return;
+
+  setGuardando(true);
+  try {
+    // Guardar cambios de estado si hay
+    if (cambiosEstado.size > 0) {
+      const productosActualizados = hojaActual.productos.map((p: any) => {
+        const cambio = cambiosEstado.get(p.producto_id);
+        if (cambio) {
+          return {
+            codigo: p.CODIGO,
+            cantidad_pedida: p.cantidad_pedida,
+            cantidad_surtida: cambio.cantidad_surtida,
+            estado: cambio.estado,
+          };
+        }
+        return {
+          codigo: p.CODIGO,
+          cantidad_pedida: p.cantidad_pedida,
+          cantidad_surtida: p.cantidad_surtida,
+          estado: p.estado,
+        };
+      });
+
+      await supabase
+        .from("hojas_surtido")
+        .update({
+          productos_asignados: JSON.stringify(productosActualizados),
+        })
+        .eq("id", hojaActual.id);
+    }
+
+    // Marcar hoja como procesada localmente
+    const nuevasHojasProcesadas = new Set(hojasProcesadas);
+    nuevasHojasProcesadas.add(hojaActual.id);
+    setHojasProcesadas(nuevasHojasProcesadas);
+
+    setMostrarModalCompletado(false);
+    setHojaActual(null);
+    setProductosVerificados(new Map());
+    setCambiosEstado(new Map());
+
+    // Verificar si todas las hojas fueron procesadas
+    if (nuevasHojasProcesadas.size === hojas.length) {
+      // Cambiar estado del pedido a encajado
+      await supabase
+        .from("pedidos")
+        .update({ estado: "encajado" })
+        .eq("id", pedidoSeleccionado.id);
+
+      alert("¡Pedido completo! Ahora está listo para empacar");
+      setPedidoSeleccionado(null);
+      setHojas([]);
+      setHojasProcesadas(new Set());
+      cargarPedidosPorRevisar();
+    }
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setGuardando(false);
+  }
+};
+    // VISTA: Lista de pedidos
+    if (!pedidoSeleccionado) {
+      return (
+        <motion.div
+          key="revision-lista"
+          className="min-h-screen pb-10"
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -40 }}
+        >
+          <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">
+            Pedidos por Revisar
+          </h2>
+
+          {cargando ? (
+            <div className="flex justify-center py-10">
+              <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+            </div>
+          ) : pedidosPorRevisar.length === 0 ? (
+            <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
+              <PackageSearch size={40} className="mx-auto text-zinc-300 mb-2" />
+              <p className="text-zinc-500">
+                No hay pedidos pendientes de revisión
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pedidosPorRevisar.map((pedido) => (
+                <div
+                  key={pedido.id}
+                  className="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-bold text-zinc-900">
+                        Pedido #{pedido.id}
+                      </p>
+                      <p className="text-sm text-zinc-600">
+                        {pedido.cuentas?.cliente}
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        {pedido.cuentas?.ferreteria}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => iniciarRevision(pedido)}
+                    className="w-full mt-3 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold transition"
+                  >
+                    Iniciar Revisión
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      );
+    }
+
+    // VISTA: Selección de hoja
+    if (pedidoSeleccionado && !hojaActual) {
+      return (
+        <motion.div
+          className="min-h-screen pb-10"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          <BackBtn
+            onBack={() => {
+              setPedidoSeleccionado(null);
+              setHojas([]);
+              setHojasProcesadas(new Set());
+            }}
+          />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-2">
+            Pedido #{pedidoSeleccionado.id} - Selecciona Hoja
+          </h2>
+
+          <div className="space-y-3">
+            {hojas.map((hoja) => {
+              const procesada = hojasProcesadas.has(hoja.id);
+              return (
+                <div
+                  key={hoja.id}
+                  onClick={() => !procesada && seleccionarHoja(hoja)}
+                  className={`border-2 rounded-xl p-4 transition ${
+                    procesada
+                      ? "bg-green-50 border-green-500 cursor-not-allowed"
+                      : "bg-white border-zinc-200 cursor-pointer hover:border-blue-400"
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-zinc-900 text-lg">
+                        Hoja #{hoja.numero_hoja}
+                      </p>
+                      <p className="text-sm text-zinc-600">
+                        {hoja.productos.length} productos
+                      </p>
+                    </div>
+                    <div
+                      className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        procesada
+                          ? "bg-green-500 text-white"
+                          : "bg-zinc-200 text-zinc-700"
+                      }`}
+                    >
+                      {procesada ? "✓ REVISADO" : "PENDIENTE"}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {hojasProcesadas.size === hojas.length && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6 bg-green-50 border-2 border-green-500 rounded-xl p-4 text-center"
+            >
+              <p className="text-green-800 font-bold mb-2">
+                ¡Todas las hojas revisadas!
+              </p>
+              <p className="text-sm text-green-700 mb-4">
+                El pedido ha pasado a estado "Encajado"
+              </p>
+              <button
+                onClick={() => {
+                  setPedidoSeleccionado(null);
+                  setHojas([]);
+                  setHojasProcesadas(new Set());
+                  cargarPedidosPorRevisar();
+                }}
+                className="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold"
+              >
+                Volver a la lista
+              </button>
+            </motion.div>
+          )}
+        </motion.div>
+      );
+    }
+
+    // VISTA: Revisión de productos
+    return (
+      <motion.div
+        className="min-h-screen pb-10"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <BackBtn onBack={() => setHojaActual(null)} />
+
+        <h2 className="text-xl font-bold text-zinc-900 mb-2">
+          Hoja #{hojaActual.numero_hoja} - Revisión
+        </h2>
+
+        {/* Barra de progreso */}
+        <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+          <div className="flex justify-between mb-2">
+            <span className="text-sm font-semibold text-zinc-700">
+              Progreso
+            </span>
+            <span
+              className={`text-sm font-bold ${hojaCompleta ? "text-green-600" : "text-orange-600"}`}
+            >
+              {totalVerificado} / {totalEsperado}
+            </span>
+          </div>
+          <div className="w-full bg-zinc-200 rounded-full h-3">
+            <motion.div
+              animate={{ width: `${(totalVerificado / totalEsperado) * 100}%` }}
+              className={`h-full rounded-full ${hojaCompleta ? "bg-green-500" : "bg-orange-500"}`}
+            />
+          </div>
+        </div>
+
+        {/* Indicador de escaneo */}
+        {!hojaCompleta && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center gap-3">
+            <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+            <span className="text-sm text-blue-800 font-medium">
+              Escaneando productos surtidos...
+            </span>
+          </div>
+        )}
+
+        {/* Lista de productos */}
+        <div className="space-y-2">
+          {hojaActual.productos.map((prod: any) => {
+  const cantidadVerificada = productosVerificados.get(prod.producto_id) || 0;
+  const esUltimoEscaneado =
+    ultimoEscaneo === prod.CODIGO ||
+    ultimoEscaneo === prod.C_PRODUCTO;
+
+  const estadoActual = obtenerEstadoActual(prod);
+  const cantidadEsperada = estadoActual.estado === "PA" ? 0 : estadoActual.cantidad_surtida || 0;
+  const completo = cantidadVerificada >= cantidadEsperada && cantidadEsperada > 0;
+
+            return (
+              <motion.div
+  key={prod.producto_id}
+  animate={{
+    scale: esUltimoEscaneado ? [1, 1.02, 1] : 1,
+    backgroundColor:
+      estadoActual.estado === "PA"
+        ? "#fef3c7"
+        : estadoActual.estado === "parcial"
+          ? "#fed7aa"
+          : completo
+            ? "#dcfce7"
+            : "#ffffff",
+    borderColor:
+      estadoActual.estado === "PA"
+        ? "#fbbf24"
+        : estadoActual.estado === "parcial"
+          ? "#fb923c"
+          : completo
+            ? "#22c55e"
+            : "#e4e4e7",
+  }}
+  className="border-2 rounded-xl p-3 shadow-sm"
+>
+  <div className="flex items-center gap-3">
+    <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
+      <Image
+        src={
+          prod.IMAGEN ||
+          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+        }
+        alt={prod.TITULO}
+        fill
+        className="object-contain"
+      />
+    </div>
+
+    <div className="flex-1">
+      <p className="text-sm font-semibold text-zinc-800 line-clamp-2">
+        {prod.TITULO}
+      </p>
+      <p className="text-xs text-zinc-500 mt-1">{prod.CODIGO}</p>
+
+      {/* Controles de estado */}
+      <div className="flex gap-2 mt-2">
+        <button
+          onClick={() => togglePA(prod)}
+          className={`text-xs font-bold px-2 py-1 rounded ${
+            estadoActual.estado === "PA"
+              ? "bg-yellow-500 text-white"
+              : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300"
+          }`}
+        >
+          {estadoActual.estado === "PA" ? "✓ PA" : "Marcar PA"}
+        </button>
+
+        {estadoActual.estado !== "PA" && (
+          <div className="flex items-center gap-1 bg-zinc-100 rounded px-2">
+            <button
+              onClick={() =>
+                ajustarParcialidad(prod, estadoActual.cantidad_surtida - 1)
+              }
+              className="text-zinc-600 hover:text-zinc-900 font-bold"
+            >
+              −
+            </button>
+            <span className="text-xs font-semibold text-zinc-700 min-w-[40px] text-center">
+              {estadoActual.cantidad_surtida}/{prod.cantidad_pedida}
+            </span>
+            <button
+              onClick={() =>
+                ajustarParcialidad(prod, estadoActual.cantidad_surtida + 1)
+              }
+              className="text-zinc-600 hover:text-zinc-900 font-bold"
+            >
+              +
+            </button>
+          </div>
+        )}
+      </div>
+
+      {estadoActual.estado === "parcial" && (
+        <div className="mt-2 bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+          PARCIAL
+        </div>
+      )}
+
+      {estadoActual.estado !== "PA" && (
+        <div className="flex items-center gap-2 mt-2">
+          <div className="flex-1 bg-zinc-200 h-2 rounded-full overflow-hidden">
+            <div
+              className={`h-full ${completo ? "bg-green-500" : "bg-orange-500"}`}
+              style={{
+                width: `${Math.min((cantidadVerificada / cantidadEsperada) * 100, 100)}%`,
+              }}
+            />
+          </div>
+          <span
+            className={`text-sm font-bold ${completo ? "text-green-600" : "text-zinc-600"}`}
+          >
+            {cantidadVerificada}/{cantidadEsperada}
+          </span>
+        </div>
+      )}
+    </div>
+
+    {completo && (
+      <div className="bg-green-100 p-1 rounded-full text-green-600">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className="w-5 h-5"
+        >
+          <path
+            fillRule="evenodd"
+            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </div>
+    )}
+  </div>
+</motion.div>
+            );
+          })}
+        </div>
+
+        {/* Modal de hoja completada */}
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {mostrarModalCompletado && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+                  style={{ zIndex: 50000 }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={3}
+                        stroke="currentColor"
+                        className="w-14 h-14 text-green-600"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M4.5 12.75l6 6 9-13.5"
+                        />
+                      </svg>
+                    </div>
+
+                    <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                      ¡Hoja Completa!
+                    </h3>
+                    <p className="text-zinc-600 text-lg mb-8">
+                      Has completado la revisión de la{" "}
+                      <strong>Hoja #{hojaActual.numero_hoja}</strong>
+                    </p>
+
+                    <button
+                      onClick={completarHoja}
+                      disabled={guardando}
+                      className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform disabled:opacity-50"
+                    >
+                      {guardando ? "GUARDANDO..." : "CONFIRMAR Y CONTINUAR"}
+                    </button>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body,
+          )}
       </motion.div>
     );
   };
@@ -9648,7 +10962,7 @@ const descargarProductosCSV = async () => {
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "pedidos" },
-          () => cargarPedidosPendientes()
+          () => cargarPedidosPendientes(),
         )
         .subscribe();
 
@@ -9664,7 +10978,7 @@ const descargarProductosCSV = async () => {
           `
       id, created_at, total, estado,
       cuentas (cliente, ferreteria, numero_cuenta)
-    `
+    `,
         )
         .in("estado", ["nuevo_pedido", "recibido", "surtiendo"])
         .order("created_at", { ascending: true });
@@ -9704,9 +11018,7 @@ const descargarProductosCSV = async () => {
           const productosSurtir = items
             .map((item: any) => {
               const prod = productos.find((p) => p.CODIGO === item.codigo);
-
               if (!prod) return null;
-
               return {
                 ...prod,
                 cantidad: item.cantidad,
@@ -9715,24 +11027,26 @@ const descargarProductosCSV = async () => {
             })
             .filter(Boolean);
 
-          // Actualizar estados para cambiar de vista
           setPedidoSurtir(pedido);
           setProductosSurtir(productosSurtir);
-          setProductosSurtidos(new Map());
           setVistaSurtir("surtiendo");
 
-          // Actualizar estado del pedido a "surtiendo" en BD
-          await supabase
-            .from("pedidos")
-            .update({ estado: "surtiendo" })
-            .eq("id", pedido.id);
+          if (
+            pedido.estado === "nuevo_pedido" ||
+            pedido.estado === "recibido"
+          ) {
+            await supabase
+              .from("pedidos")
+              .update({ estado: "surtiendo" })
+              .eq("id", pedido.id);
+          }
         } catch (error) {
           console.error("Error procesando surtido:", error);
           alert("Error al procesar los productos del pedido");
         }
       } else {
         alert(
-          "Este pedido es antiguo o no contiene la lista de productos guardada."
+          "Este pedido es antiguo o no contiene la lista de productos guardada.",
         );
       }
     };
@@ -9759,7 +11073,7 @@ const descargarProductosCSV = async () => {
           </div>
         ) : pedidosPendientes.length === 0 ? (
           <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
-            <Box size={40} className="mx-auto text-zinc-300 mb-2" />
+            <Package size={40} className="mx-auto text-zinc-300 mb-2" />
             <p className="text-zinc-500">No hay pedidos pendientes de surtir</p>
           </div>
         ) : (
@@ -9801,18 +11115,12 @@ const descargarProductosCSV = async () => {
   };
 
   const VistaSurtiendoPedido = () => {
-    const totalProductos = productosSurtir.reduce(
-      (sum, item) => sum + item.cantidad,
-      0
-    );
-    const productosSurtidosTotal = Array.from(
-      productosSurtidos.values()
-    ).reduce((sum, val) => sum + val, 0);
-    const progreso =
-      totalProductos > 0 ? (productosSurtidosTotal / totalProductos) * 100 : 0;
-    const estaCompleto =
-      productosSurtidosTotal >= totalProductos && totalProductos > 0;
-    const [mensajeError, setMensajeError] = useState("");
+    const [hojasPedido, setHojasPedido] = useState<any[]>([]);
+    const [hojaActual, setHojaActual] = useState<any>(null);
+    const [cargandoHojas, setCargandoHojas] = useState(true);
+    const [productosSurtidosHoja, setProductosSurtidosHoja] = useState<
+      Map<number, number>
+    >(new Map());
     const [ultimoEscaneo, setUltimoEscaneo] = useState("");
     const [bufferEscaneo, setBufferEscaneo] = useState("");
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -9824,23 +11132,241 @@ const descargarProductosCSV = async () => {
       mensaje: string;
       tipo: "error" | "warning";
     } | null>(null);
+    const [productosPA, setProductosPA] = useState<Set<number>>(new Set());
+    const [productosParciales, setProductosParciales] = useState<
+      Map<number, { pedida: number; encontrada: number }>
+    >(new Map());
+    const [modalProductoProblema, setModalProductoProblema] = useState<{
+      visible: boolean;
+      producto: any;
+    } | null>(null);
+    const [cantidadParcialInput, setCantidadParcialInput] = useState("");
 
+    // Cargar hojas del pedido
     useEffect(() => {
-      if (estaCompleto) {
-        const timer = setTimeout(() => {
-          setMostrarModalCompletado(true);
-          if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
-        }, 500);
-        return () => clearTimeout(timer);
+      if (!pedidoSurtir) return;
+
+      const cargarHojas = async () => {
+        setCargandoHojas(true);
+
+        const { data: hojasExistentes } = await supabase
+          .from("hojas_surtido")
+          .select("*")
+          .eq("pedido_id", pedidoSurtir.id)
+          .order("numero_hoja", { ascending: true });
+
+        if (hojasExistentes && hojasExistentes.length > 0) {
+          const hojasConProductos = await Promise.all(
+            hojasExistentes.map(async (hoja) => {
+              const itemsJson = JSON.parse(hoja.productos_asignados);
+              const codigos = itemsJson.map((p: any) => p.codigo);
+              const { data: productosDB } = await supabase
+                .from("productos")
+                .select("*")
+                .in("CODIGO", codigos);
+              const productosCompletos = itemsJson
+                .map((itemJson: any) => {
+                  const infoProducto = productosDB?.find(
+                    (p) => p.CODIGO === itemJson.codigo,
+                  );
+
+                  if (!infoProducto) return null;
+
+                  return {
+                    ...infoProducto,
+                    producto_id: infoProducto.id,
+                    cantidad: itemJson.cantidad_pedida,
+                    cantidad_pedida: itemJson.cantidad_pedida,
+                    cantidad_surtida: itemJson.cantidad_surtida || 0,
+                    estado: itemJson.estado || "pendiente",
+                  };
+                })
+                .filter(Boolean);
+
+              return {
+                ...hoja,
+                productos: productosCompletos,
+              };
+            }),
+          );
+
+          setHojasPedido(hojasConProductos);
+        } else {
+          // Lógica de Creación Inicial
+          const hojas: any[] = [];
+          const PRODUCTOS_POR_HOJA = 35;
+
+          for (let i = 0; i < productosSurtir.length; i += PRODUCTOS_POR_HOJA) {
+            const productosHoja = productosSurtir.slice(
+              i,
+              i + PRODUCTOS_POR_HOJA,
+            );
+            const productosSimplificados = productosHoja.map((p: any) => ({
+              codigo: p.CODIGO,
+              cantidad_pedida: p.cantidad,
+              cantidad_surtida: null,
+              estado: "pendiente",
+            }));
+
+            await supabase.from("hojas_surtido").insert({
+              pedido_id: pedidoSurtir.id,
+              numero_hoja: Math.floor(i / PRODUCTOS_POR_HOJA) + 1,
+              productos_asignados: JSON.stringify(productosSimplificados),
+              estado: "pendiente",
+            });
+          }
+          cargarHojas();
+          return;
+        }
+
+        setCargandoHojas(false);
+      };
+
+      cargarHojas();
+
+      const channel = supabase
+        .channel(`hojas-surtido-${pedidoSurtir.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "hojas_surtido",
+            filter: `pedido_id=eq.${pedidoSurtir.id}`,
+          },
+          (payload) => {
+            console.log("Cambio en hojas:", payload);
+            cargarHojas();
+          },
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }, [pedidoSurtir]);
+
+    const seleccionarHoja = async (hoja: any) => {
+      if (hoja.estado === "completado") {
+        setModalAlerta({
+          visible: true,
+          titulo: "Hoja Completada",
+          mensaje: "Esta hoja ya fue surtida completamente.",
+          tipo: "warning",
+        });
+        return;
       }
-    }, [productosSurtidosTotal, totalProductos, estaCompleto]);
 
-    // Lógica del Escáner
+      if (
+        hoja.estado === "surtiendo" &&
+        hoja.empleado_surtiendo !== cuenta?.numero_cuenta
+      ) {
+        setModalAlerta({
+          visible: true,
+          titulo: "Hoja en Uso",
+          mensaje: `Esta hoja está siendo surtida por ${hoja.empleado_surtiendo}`,
+          tipo: "warning",
+        });
+        return;
+      }
+
+      // Marcar hoja como "surtiendo"
+      await supabase
+        .from("hojas_surtido")
+        .update({
+          estado: "surtiendo",
+          empleado_surtiendo: cuenta?.numero_cuenta,
+          fecha_inicio: new Date().toISOString(),
+        })
+        .eq("id", hoja.id);
+      setHojaActual(hoja);
+      setProductosSurtidosHoja(new Map());
+    };
+
+    const volverAHojas = async () => {
+      if (hojaActual && hojaActual.estado !== "completado") {
+        await supabase
+          .from("hojas_surtido")
+          .update({
+            estado: "pendiente",
+            empleado_surtiendo: null,
+          })
+          .eq("id", hojaActual.id);
+      }
+      setHojaActual(null);
+      setProductosSurtidosHoja(new Map());
+    };
+
+    const completarHoja = async () => {
+      if (!hojaActual) return;
+
+      setGuardandoCierre(true);
+      try {
+        // Preparar productos para guardar
+        const productosParaGuardar = hojaActual.productos.map((item: any) => {
+          const esPA = productosPA.has(item.producto_id);
+          const esParcial = productosParciales.has(item.producto_id);
+          const parcialInfo = productosParciales.get(item.producto_id);
+          const cantidadSurtida =
+            productosSurtidosHoja.get(item.producto_id) || 0;
+
+          return {
+            codigo: item.CODIGO,
+            cantidad_pedida: item.cantidad_pedida, // Usar el campo original
+            cantidad_surtida: esPA
+              ? 0
+              : esParcial
+                ? parcialInfo!.encontrada
+                : cantidadSurtida,
+            estado: esPA ? "PA" : esParcial ? "parcial" : "completo",
+          };
+        });
+
+        await supabase
+          .from("hojas_surtido")
+          .update({
+            estado: "completado",
+            fecha_completado: new Date().toISOString(),
+            productos_asignados: JSON.stringify(productosParaGuardar),
+          })
+          .eq("id", hojaActual.id);
+
+        // Verificar si todas las hojas están completas
+        const { data: todasHojas } = await supabase
+          .from("hojas_surtido")
+          .select("estado")
+          .eq("pedido_id", pedidoSurtir.id);
+
+        const todasCompletas = todasHojas?.every(
+          (h) => h.estado === "completado",
+        );
+
+        if (todasCompletas) {
+          await supabase
+            .from("pedidos")
+            .update({ estado: "por_revisar" })
+            .eq("id", pedidoSurtir.id);
+        }
+
+        setMostrarModalCompletado(false);
+        setHojaActual(null);
+        setProductosSurtidosHoja(new Map());
+        setProductosPA(new Set());
+        setProductosParciales(new Map());
+
+        // No necesitamos recargar manual, el realtime subscription lo hará
+      } catch (err) {
+        console.error("Error al completar hoja:", err);
+      } finally {
+        setGuardandoCierre(false);
+      }
+    };
+
+    // Lógica del escáner
     useEffect(() => {
-      const handleKeyPress = (e: KeyboardEvent) => {
-        // Si el modal de completado ya está abierto, ignorar escaneos
-        if (mostrarModalCompletado) return;
+      if (!hojaActual || mostrarModalCompletado) return;
 
+      const handleKeyPress = (e: KeyboardEvent) => {
         if (e.key === "Enter") {
           if (bufferEscaneo.trim()) {
             procesarEscaneo(bufferEscaneo.trim());
@@ -9866,17 +11392,20 @@ const descargarProductosCSV = async () => {
       };
     }, [
       bufferEscaneo,
-      productosSurtir,
-      productosSurtidos,
+      hojaActual,
+      productosSurtidosHoja,
       mostrarModalCompletado,
     ]);
 
     const procesarEscaneo = (codigoEscaneado: string) => {
+      if (!hojaActual) return;
+
       setUltimoEscaneo(codigoEscaneado);
 
-      const itemEncontrado = productosSurtir.find(
-        (item) =>
-          item.CODIGO === codigoEscaneado || item.C_PRODUCTO === codigoEscaneado
+      const itemEncontrado = hojaActual.productos.find(
+        (item: any) =>
+          item.CODIGO === codigoEscaneado ||
+          item.C_PRODUCTO === codigoEscaneado,
       );
 
       if (!itemEncontrado) {
@@ -9884,75 +11413,218 @@ const descargarProductosCSV = async () => {
         setModalAlerta({
           visible: true,
           titulo: "Producto Incorrecto",
-          mensaje: `El código "${codigoEscaneado}" no pertenece a este pedido.`,
+          mensaje: `El código "${codigoEscaneado}" no pertenece a esta hoja.`,
           tipo: "error",
         });
         return;
       }
 
       const cantidadSurtida =
-        productosSurtidos.get(itemEncontrado.producto_id) || 0;
+        productosSurtidosHoja.get(itemEncontrado.producto_id) || 0;
+      const esPA = productosPA.has(itemEncontrado.producto_id);
+      const esParcial = productosParciales.has(itemEncontrado.producto_id);
+      const parcialInfo = productosParciales.get(itemEncontrado.producto_id);
 
-      if (cantidadSurtida >= itemEncontrado.cantidad) {
+      // Determinar cantidad máxima
+      const cantidadMaxima = esPA
+        ? 0
+        : esParcial
+          ? parcialInfo!.encontrada
+          : itemEncontrado.cantidad;
+
+      if (cantidadSurtida >= cantidadMaxima) {
         if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+
+        let mensaje = `El producto "${itemEncontrado.TITULO}" ya tiene la cantidad completa.`;
+        if (esParcial) {
+          mensaje = `El producto "${itemEncontrado.TITULO}" ya alcanzó la cantidad parcial (${parcialInfo!.encontrada}/${parcialInfo!.pedida}).`;
+        } else if (esPA) {
+          mensaje = `El producto "${itemEncontrado.TITULO}" está marcado como PA (agotado).`;
+        }
+
         setModalAlerta({
           visible: true,
           titulo: "Producto Completo",
-          mensaje: `El producto "${itemEncontrado.TITULO}" ya tiene la cantidad requerida completa.`,
+          mensaje,
           tipo: "warning",
         });
         return;
       }
 
-      // Actualizar conteo
       const nuevaCantidad = cantidadSurtida + 1;
-      const nuevoMapa = new Map(productosSurtidos);
+      const nuevoMapa = new Map(productosSurtidosHoja);
       nuevoMapa.set(itemEncontrado.producto_id, nuevaCantidad);
-      setProductosSurtidos(nuevoMapa);
+      setProductosSurtidosHoja(nuevoMapa);
 
       if ("vibrate" in navigator) navigator.vibrate(50);
-      setMensajeError(`✓ Agregado: ${itemEncontrado.TITULO}`);
-      setTimeout(() => setMensajeError(""), 1500);
     };
 
-    const confirmarCompletado = async () => {
-      setGuardandoCierre(true);
-      try {
-        const { error } = await supabase
-          .from("pedidos")
-          .update({ estado: "por_revisar" })
-          .eq("id", pedidoSurtir.id);
+    // Calcular progreso
+    const totalProductosHoja = hojaActual
+      ? hojaActual.productos.reduce((sum: number, item: any) => {
+          const esPA = productosPA.has(item.producto_id);
+          const esParcial = productosParciales.has(item.producto_id);
+          const parcialInfo = productosParciales.get(item.producto_id);
 
-        if (error) {
-          console.error("Error al finalizar:", error);
-          alert("Error al finalizar el pedido. Verifica tu conexión.");
-        } else {
-          setMostrarModalCompletado(false);
-          setVistaSurtir("seleccionar");
-          setPedidoSurtir(null);
-        }
-      } catch (err) {
-        console.error("Error de red:", err);
-      } finally {
-        setGuardandoCierre(false);
+          if (esPA) return sum;
+          if (esParcial) return sum + parcialInfo!.encontrada;
+          return sum + item.cantidad;
+        }, 0)
+      : 0;
+
+    const productosSurtidosTotal = hojaActual
+      ? hojaActual.productos.reduce((sum: number, item: any) => {
+          const esPA = productosPA.has(item.producto_id);
+          const cantidadSurtida =
+            productosSurtidosHoja.get(item.producto_id) || 0;
+
+          if (esPA) return sum;
+          return sum + cantidadSurtida;
+        }, 0)
+      : 0;
+
+    const progreso =
+      totalProductosHoja > 0
+        ? (productosSurtidosTotal / totalProductosHoja) * 100
+        : 0;
+
+    const estaCompleto =
+      productosSurtidosTotal >= totalProductosHoja && totalProductosHoja > 0;
+
+    useEffect(() => {
+      if (!hojaActual) return;
+
+      const todosManejados = hojaActual.productos.every((item: any) => {
+        const esPA = productosPA.has(item.producto_id);
+        const esParcial = productosParciales.has(item.producto_id);
+        const parcialInfo = productosParciales.get(item.producto_id);
+        const cantidadSurtida =
+          productosSurtidosHoja.get(item.producto_id) || 0;
+
+        if (esPA) return true;
+        if (esParcial) return cantidadSurtida >= parcialInfo!.encontrada;
+        return cantidadSurtida >= item.cantidad;
+      });
+
+      if (todosManejados && hojaActual) {
+        const timer = setTimeout(() => {
+          setMostrarModalCompletado(true);
+          if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+        }, 500);
+        return () => clearTimeout(timer);
       }
-    };
+    }, [productosSurtidosHoja, productosPA, productosParciales, hojaActual]);
 
+    if (cargandoHojas) {
+      return (
+        <div className="flex justify-center py-20">
+          <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+        </div>
+      );
+    }
+
+    // Vista selección hojas
+    if (!hojaActual) {
+      const todasCompletas = hojasPedido.every(
+        (h) => h.estado === "completado",
+      );
+
+      return (
+        <motion.div
+          className="min-h-screen pb-10"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          <BackBtn
+            onBack={() => {
+              setVistaSurtir("seleccionar");
+              setPedidoSurtir(null);
+            }}
+          />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-2">
+            Pedido #{pedidoSurtir.id} - Selecciona Hoja
+          </h2>
+
+          {todasCompletas && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
+              <p className="text-sm text-green-800 font-bold">
+                ✓ Todas las hojas completadas. El pedido está listo para
+                revisión.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {hojasPedido.map((hoja) => {
+              const totalUnidades = hoja.productos.reduce(
+                (sum: number, p: any) => sum + p.cantidad,
+                0,
+              );
+
+              return (
+                <div
+                  key={hoja.id}
+                  onClick={() => seleccionarHoja(hoja)}
+                  className={`border-2 rounded-xl p-4 cursor-pointer transition ${
+                    hoja.estado === "completado"
+                      ? "bg-green-50 border-green-500"
+                      : hoja.estado === "surtiendo"
+                        ? "bg-yellow-50 border-yellow-500"
+                        : "bg-white border-zinc-200 hover:border-orange-400"
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-bold text-zinc-900 text-lg">
+                        Hoja #{hoja.numero_hoja}
+                      </p>
+                      <p className="text-sm text-zinc-600">
+                        {hoja.productos.length} productos ({totalUnidades}{" "}
+                        unidades)
+                      </p>
+                      {hoja.empleado_surtiendo &&
+                        hoja.estado === "surtiendo" && (
+                          <p className="text-xs text-yellow-700 mt-1">
+                            Surtiendo: {hoja.empleado_surtiendo}
+                          </p>
+                        )}
+                    </div>
+                    <div
+                      className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        hoja.estado === "completado"
+                          ? "bg-green-500 text-white"
+                          : hoja.estado === "surtiendo"
+                            ? "bg-yellow-500 text-white"
+                            : "bg-zinc-200 text-zinc-700"
+                      }`}
+                    >
+                      {hoja.estado === "completado"
+                        ? "✓ COMPLETO"
+                        : hoja.estado === "surtiendo"
+                          ? "EN PROCESO"
+                          : "PENDIENTE"}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      );
+    }
+
+    // Vista surtido activo
     return (
       <motion.div
         className="min-h-screen pb-10"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
-        <BackBtn
-          onBack={() => {
-            setVistaSurtir("seleccionar");
-            setPedidoSurtir(null);
-          }}
-        />
+        <BackBtn onBack={volverAHojas} />
 
         <h2 className="text-xl font-bold text-zinc-900 mb-2">
-          Surtiendo Pedido #{pedidoSurtir.id}
+          Pedido #{pedidoSurtir.id} - Hoja #{hojaActual.numero_hoja}
         </h2>
 
         {/* Barra de progreso */}
@@ -9966,7 +11638,7 @@ const descargarProductosCSV = async () => {
                 estaCompleto ? "text-green-600" : "text-orange-600"
               }`}
             >
-              {productosSurtidosTotal} / {totalProductos}
+              {productosSurtidosTotal} / {totalProductosHoja}
             </span>
           </div>
           <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
@@ -9981,7 +11653,6 @@ const descargarProductosCSV = async () => {
             />
           </div>
 
-          {/*Solo aparece si está completo */}
           {estaCompleto && (
             <motion.button
               initial={{ opacity: 0, y: 10 }}
@@ -9989,12 +11660,12 @@ const descargarProductosCSV = async () => {
               onClick={() => setMostrarModalCompletado(true)}
               className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold shadow-md transition"
             >
-              CONFIRMAR FINALIZADO
+              CONFIRMAR HOJA COMPLETA
             </motion.button>
           )}
         </div>
 
-        {/* Indicador de escaneo activo */}
+        {/* Indicador de escaneo */}
         {!estaCompleto && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center gap-3">
             <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
@@ -10004,26 +11675,20 @@ const descargarProductosCSV = async () => {
           </div>
         )}
 
-        {/* Feedback Visual */}
-        <AnimatePresence>
-          {mensajeError && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="mb-4 p-3 rounded-lg text-sm font-semibold bg-green-50 text-green-700 border border-green-200"
-            >
-              {mensajeError}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Lista de productos */}
         <div className="space-y-2 pb-20">
-          {productosSurtir.map((item) => {
+          {hojaActual.productos.map((item: any) => {
             const cantidadSurtida =
-              productosSurtidos.get(item.producto_id) || 0;
-            const completado = cantidadSurtida >= item.cantidad;
+              productosSurtidosHoja.get(item.producto_id) || 0;
+            const esPA = productosPA.has(item.producto_id);
+            const esParcial = productosParciales.has(item.producto_id);
+            const parcialInfo = productosParciales.get(item.producto_id);
+
+            const completado =
+              esPA ||
+              (esParcial
+                ? cantidadSurtida >= parcialInfo!.encontrada
+                : cantidadSurtida >= item.cantidad);
             const ultimoEscaneado =
               ultimoEscaneo === item.CODIGO ||
               ultimoEscaneo === item.C_PRODUCTO;
@@ -10033,10 +11698,27 @@ const descargarProductosCSV = async () => {
                 key={item.producto_id}
                 animate={{
                   scale: ultimoEscaneado ? [1, 1.02, 1] : 1,
-                  backgroundColor: completado ? "#dcfce7" : "#ffffff",
-                  borderColor: completado ? "#22c55e" : "#e4e4e7",
+                  backgroundColor: esPA
+                    ? "#fef3c7"
+                    : esParcial
+                      ? "#fed7aa"
+                      : completado
+                        ? "#dcfce7"
+                        : "#ffffff",
+                  borderColor: esPA
+                    ? "#fbbf24"
+                    : esParcial
+                      ? "#fb923c"
+                      : completado
+                        ? "#22c55e"
+                        : "#e4e4e7",
                 }}
                 className="border-2 rounded-xl p-3 shadow-sm transition-colors duration-300"
+                onClick={() => {
+                  if (!completado) {
+                    setModalProductoProblema({ visible: true, producto: item });
+                  }
+                }}
               >
                 <div className="flex items-center gap-3">
                   <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
@@ -10062,28 +11744,42 @@ const descargarProductosCSV = async () => {
                       {item.ubicacion || "Sin ubicación"}
                     </p>
 
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className="flex-1 bg-zinc-200 h-2 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${
-                            completado ? "bg-green-500" : "bg-orange-500"
-                          }`}
-                          style={{
-                            width: `${Math.min(
-                              (cantidadSurtida / item.cantidad) * 100,
-                              100
-                            )}%`,
-                          }}
-                        />
+                    {esPA && (
+                      <div className="mt-2 bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+                        PA - AGOTADO
                       </div>
-                      <span
-                        className={`text-sm font-bold ${
-                          completado ? "text-green-600" : "text-zinc-600"
-                        }`}
-                      >
-                        {cantidadSurtida}/{item.cantidad}
-                      </span>
-                    </div>
+                    )}
+
+                    {esParcial && parcialInfo && (
+                      <div className="mt-2 bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+                        PARCIAL: {parcialInfo.encontrada}/{parcialInfo.pedida}
+                      </div>
+                    )}
+
+                    {!esPA && !esParcial && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex-1 bg-zinc-200 h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${
+                              completado ? "bg-green-500" : "bg-orange-500"
+                            }`}
+                            style={{
+                              width: `${Math.min(
+                                (cantidadSurtida / item.cantidad) * 100,
+                                100,
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                        <span
+                          className={`text-sm font-bold ${
+                            completado ? "text-green-600" : "text-zinc-600"
+                          }`}
+                        >
+                          {cantidadSurtida}/{item.cantidad}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {completado && (
@@ -10108,7 +11804,7 @@ const descargarProductosCSV = async () => {
           })}
         </div>
 
-        {/* Alerta Error/Warning */}
+        {/* Modal de alerta */}
         {typeof document !== "undefined" &&
           createPortal(
             <AnimatePresence>
@@ -10166,7 +11862,6 @@ const descargarProductosCSV = async () => {
                         </svg>
                       )}
                     </div>
-
                     <h3
                       className={`text-2xl font-bold mb-2 ${
                         modalAlerta.tipo === "error"
@@ -10195,10 +11890,142 @@ const descargarProductosCSV = async () => {
                 </motion.div>
               )}
             </AnimatePresence>,
-            document.body
+            document.body,
           )}
 
-        {/* Modal pedido completado  */}
+        {/* Modal de Producto con Problema (PA o Parcial) */}
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {modalProductoProblema && modalProductoProblema.visible && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+                  style={{ zIndex: 50000 }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-100 flex items-center justify-center">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={3}
+                        stroke="currentColor"
+                        className="w-10 h-10 text-yellow-600"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                        />
+                      </svg>
+                    </div>
+
+                    <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                      Problema con Producto
+                    </h3>
+
+                    <p className="text-zinc-600 text-sm mb-2 font-semibold">
+                      {modalProductoProblema.producto?.TITULO}
+                    </p>
+                    <p className="text-zinc-500 text-xs mb-6">
+                      Cantidad pedida:{" "}
+                      {modalProductoProblema.producto?.cantidad}
+                    </p>
+
+                    {/* Opción PA */}
+                    <button
+                      onClick={() => {
+                        const producto = modalProductoProblema.producto;
+                        const nuevosPA = new Set(productosPA);
+                        nuevosPA.add(producto.producto_id);
+                        setProductosPA(nuevosPA);
+                        // Marcar cantidad como 0
+                        const nuevoMapa = new Map(productosSurtidosHoja);
+                        nuevoMapa.set(producto.producto_id, producto.cantidad);
+                        setProductosSurtidosHoja(nuevoMapa);
+
+                        setModalProductoProblema(null);
+                        if ("vibrate" in navigator) navigator.vibrate(50);
+                      }}
+                      className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-yellow-500 hover:bg-yellow-600 active:scale-95 transition-transform mb-3"
+                    >
+                      PA - Producto Agotado
+                    </button>
+
+                    {/* Opción Parcial */}
+                    <div className="mb-3">
+                      <input
+                        type="number"
+                        min="1"
+                        max={modalProductoProblema.producto?.cantidad}
+                        value={cantidadParcialInput}
+                        onChange={(e) =>
+                          setCantidadParcialInput(e.target.value)
+                        }
+                        placeholder="Cantidad encontrada"
+                        className="w-full border-2 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-2 focus:ring-2 focus:ring-orange-500 outline-none"
+                      />
+                      <button
+                        onClick={() => {
+                          const cantidad = parseInt(cantidadParcialInput);
+                          const producto = modalProductoProblema.producto;
+
+                          if (!cantidad || cantidad >= producto.cantidad) {
+                            alert(
+                              "Ingresa una cantidad válida menor a la pedida",
+                            );
+                            return;
+                          }
+
+                          const nuevosParciales = new Map(productosParciales);
+                          nuevosParciales.set(producto.producto_id, {
+                            pedida: producto.cantidad,
+                            encontrada: cantidad,
+                          });
+                          setProductosParciales(nuevosParciales);
+
+                          // Marcar como surtido la cantidad parcial
+                          const nuevoMapa = new Map(productosSurtidosHoja);
+                          nuevoMapa.set(producto.producto_id, cantidad);
+                          setProductosSurtidosHoja(nuevoMapa);
+
+                          setModalProductoProblema(null);
+                          setCantidadParcialInput("");
+                          if ("vibrate" in navigator) navigator.vibrate(50);
+                        }}
+                        disabled={!cantidadParcialInput}
+                        className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-orange-500 hover:bg-orange-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        PARCIAL - Cantidad Encontrada
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setModalProductoProblema(null);
+                        setCantidadParcialInput("");
+                      }}
+                      className="text-zinc-400 text-sm hover:text-zinc-600 underline"
+                    >
+                      Cancelar
+                    </button>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body,
+          )}
+
+        {/* Modal de hoja completada */}
         {typeof document !== "undefined" &&
           createPortal(
             <AnimatePresence>
@@ -10235,20 +12062,23 @@ const descargarProductosCSV = async () => {
                     </div>
 
                     <h3 className="text-2xl font-bold mb-2 text-zinc-900">
-                      ¡Surtido Completo!
+                      ¡Hoja Completa!
                     </h3>
 
                     <p className="text-zinc-600 text-lg mb-8">
-                      Has escaneado todos los productos del pedido{" "}
-                      <strong>#{pedidoSurtir?.id}</strong>.
+                      Has completado la{" "}
+                      <strong>Hoja #{hojaActual.numero_hoja}</strong> del
+                      pedido.
                     </p>
 
                     <button
-                      onClick={confirmarCompletado}
+                      onClick={completarHoja}
                       disabled={guardandoCierre}
                       className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {guardandoCierre ? "GUARDANDO..." : "FINALIZAR PEDIDO"}
+                      {guardandoCierre
+                        ? "GUARDANDO..."
+                        : "CONFIRMAR Y CONTINUAR"}
                     </button>
 
                     <button
@@ -10256,13 +12086,13 @@ const descargarProductosCSV = async () => {
                       className="mt-4 text-zinc-400 text-sm hover:text-zinc-600 underline"
                       disabled={guardandoCierre}
                     >
-                      Revisar lista de nuevo
+                      Revisar de nuevo
                     </button>
                   </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>,
-            document.body
+            document.body,
           )}
       </motion.div>
     );
@@ -10283,7 +12113,7 @@ const descargarProductosCSV = async () => {
 
   const toggleVisibilidad = async (
     productoId: ToggleVisibilidadParams["productoId"],
-    visibleActual: ToggleVisibilidadParams["visibleActual"]
+    visibleActual: ToggleVisibilidadParams["visibleActual"],
   ): Promise<void> => {
     try {
       const { error } = await supabase
@@ -10296,8 +12126,8 @@ const descargarProductosCSV = async () => {
       // Actualizar el estado local para reflejar el cambio
       setArticulos((prevArticulos: Producto[]) =>
         prevArticulos.map((art: Producto) =>
-          art.id === productoId ? { ...art, visible: !visibleActual } : art
-        )
+          art.id === productoId ? { ...art, visible: !visibleActual } : art,
+        ),
       );
 
       console.log("Visibilidad actualizada correctamente");
@@ -10308,7 +12138,7 @@ const descargarProductosCSV = async () => {
 
   const toggleLiquidacion = async (
     productoId: number,
-    liquidacionActual: boolean
+    liquidacionActual: boolean,
   ): Promise<void> => {
     try {
       const { error } = await supabase
@@ -10322,8 +12152,8 @@ const descargarProductosCSV = async () => {
         prevArticulos.map((art: Producto) =>
           art.id === productoId
             ? { ...art, liquidacion: !liquidacionActual }
-            : art
-        )
+            : art,
+        ),
       );
 
       console.log("Liquidación actualizada correctamente");
@@ -10334,7 +12164,7 @@ const descargarProductosCSV = async () => {
 
   const toggleTopVentas = async (
     productoId: number,
-    topVentasActual: boolean
+    topVentasActual: boolean,
   ): Promise<void> => {
     try {
       const { error } = await supabase
@@ -10346,8 +12176,10 @@ const descargarProductosCSV = async () => {
 
       setArticulos((prevArticulos: Producto[]) =>
         prevArticulos.map((art: Producto) =>
-          art.id === productoId ? { ...art, top_ventas: !topVentasActual } : art
-        )
+          art.id === productoId
+            ? { ...art, top_ventas: !topVentasActual }
+            : art,
+        ),
       );
 
       console.log("Top ventas actualizado correctamente");
@@ -10360,7 +12192,7 @@ const descargarProductosCSV = async () => {
   const toggleVisibilidadMostrador = async (
     productoId: number,
     visibleActual: boolean,
-    cuentaId: number
+    cuentaId: number,
   ): Promise<void> => {
     try {
       const { data: existe } = await supabase
@@ -10398,16 +12230,16 @@ const descargarProductosCSV = async () => {
           prevArticulos.map((art: ProductoConVisibilidad) =>
             art.id === productoId
               ? { ...art, visibleMostrador: !visibleActual }
-              : art
-          )
+              : art,
+          ),
         );
       } else if (cuentaId === ID_CUENTA_MOSTRADOR2) {
         setArticulos((prevArticulos: ProductoConVisibilidad[]) =>
           prevArticulos.map((art: ProductoConVisibilidad) =>
             art.id === productoId
               ? { ...art, visibleMostrador2: !visibleActual }
-              : art
-          )
+              : art,
+          ),
         );
       }
 
@@ -10431,7 +12263,7 @@ const descargarProductosCSV = async () => {
           .eq("cuenta_id", cuentaId);
 
         const visibilidadMap = new Map(
-          data?.map((v) => [v.producto_id, v.visible]) || []
+          data?.map((v) => [v.producto_id, v.visible]) || [],
         );
 
         setArticulos((prev) =>
@@ -10440,7 +12272,7 @@ const descargarProductosCSV = async () => {
             ...(esAdminMostrador
               ? { visibleMostrador: visibilidadMap.get(art.id) ?? true }
               : { visibleMostrador2: visibilidadMap.get(art.id) ?? true }),
-          }))
+          })),
         );
       }
     };
@@ -10923,8 +12755,8 @@ const descargarProductosCSV = async () => {
                                   categoriaSeleccionada
                                     ? `Buscar en ${categoriaSeleccionada.nombre_categoria}`
                                     : marcaSeleccionada
-                                    ? `Buscar en ${marcaSeleccionada.nombre_marca}`
-                                    : "Buscar en Bodega Ferretera De Monterrey..."
+                                      ? `Buscar en ${marcaSeleccionada.nombre_marca}`
+                                      : "Buscar en Bodega Ferretera De Monterrey..."
                                 }
                                 value={searchTerm}
                                 onChange={async (e) => {
@@ -10945,18 +12777,18 @@ const descargarProductosCSV = async () => {
                                   if (categoriaSeleccionada) {
                                     query = query.eq(
                                       "CATEGORIA_ID",
-                                      categoriaSeleccionada.id_categoria
+                                      categoriaSeleccionada.id_categoria,
                                     );
                                   } else if (marcaSeleccionada) {
                                     query = query.eq(
                                       "marca_id",
-                                      marcaSeleccionada.id
+                                      marcaSeleccionada.id,
                                     );
                                   }
 
                                   palabras.forEach((palabra) => {
                                     query = query.or(
-                                      `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`
+                                      `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`,
                                     );
                                   });
 
@@ -10967,7 +12799,7 @@ const descargarProductosCSV = async () => {
                                   if (error) {
                                     console.error(
                                       "Error buscando productos:",
-                                      error.message
+                                      error.message,
                                     );
                                   } else {
                                     const productosNormalizados = (
@@ -10986,24 +12818,24 @@ const descargarProductosCSV = async () => {
                                       let query = supabase
                                         .from("productos")
                                         .select(
-                                          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID"
+                                          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, marca_id, CATEGORIA_ID",
                                         );
 
                                       if (categoriaSeleccionada) {
                                         query = query.eq(
                                           "CATEGORIA_ID",
-                                          categoriaSeleccionada.id_categoria
+                                          categoriaSeleccionada.id_categoria,
                                         );
                                       } else if (marcaSeleccionada) {
                                         query = query.eq(
                                           "marca_id",
-                                          marcaSeleccionada.id
+                                          marcaSeleccionada.id,
                                         );
                                       }
 
                                       query = query
                                         .or(
-                                          `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%,C_PRODUCTO.ilike.%${searchTerm}%`
+                                          `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%,C_PRODUCTO.ilike.%${searchTerm}%`,
                                         )
                                         .limit(50);
                                       const { data } = await query;
@@ -11087,7 +12919,7 @@ const descargarProductosCSV = async () => {
                                       {productos
                                         .filter(
                                           (prod) =>
-                                            esAdmin || (prod.visible ?? true)
+                                            esAdmin || (prod.visible ?? true),
                                         )
                                         .slice(0, 10)
                                         .map((prod, index) => (
@@ -11135,7 +12967,7 @@ const descargarProductosCSV = async () => {
                                                       {
                                                         minimumFractionDigits: 2,
                                                         maximumFractionDigits: 2,
-                                                      }
+                                                      },
                                                     )}
                                                   </p>
                                                 )}
@@ -11219,7 +13051,7 @@ const descargarProductosCSV = async () => {
                                     20
                                       ? macroCategoriaSeleccionada.nombre.slice(
                                           0,
-                                          20
+                                          20,
                                         ) + "…"
                                       : macroCategoriaSeleccionada.nombre}
                                   </button>
@@ -11294,12 +13126,12 @@ const descargarProductosCSV = async () => {
                               bannerAnuncio.color === "blue"
                                 ? "bg-blue-50 border-blue-200"
                                 : bannerAnuncio.color === "yellow"
-                                ? "bg-yellow-50 border-yellow-200"
-                                : bannerAnuncio.color === "red"
-                                ? "bg-red-50 border-red-200"
-                                : bannerAnuncio.color === "green"
-                                ? "bg-green-50 border-green-200"
-                                : "bg-blue-50 border-blue-200"
+                                  ? "bg-yellow-50 border-yellow-200"
+                                  : bannerAnuncio.color === "red"
+                                    ? "bg-red-50 border-red-200"
+                                    : bannerAnuncio.color === "green"
+                                      ? "bg-green-50 border-green-200"
+                                      : "bg-blue-50 border-blue-200"
                             }`}
                           >
                             <div className="flex items-start gap-3">
@@ -11313,12 +13145,12 @@ const descargarProductosCSV = async () => {
                                   bannerAnuncio.color === "blue"
                                     ? "text-blue-600"
                                     : bannerAnuncio.color === "yellow"
-                                    ? "text-yellow-600"
-                                    : bannerAnuncio.color === "red"
-                                    ? "text-red-600"
-                                    : bannerAnuncio.color === "green"
-                                    ? "text-green-600"
-                                    : "text-blue-600"
+                                      ? "text-yellow-600"
+                                      : bannerAnuncio.color === "red"
+                                        ? "text-red-600"
+                                        : bannerAnuncio.color === "green"
+                                          ? "text-green-600"
+                                          : "text-blue-600"
                                 }`}
                               >
                                 <path
@@ -11333,12 +13165,12 @@ const descargarProductosCSV = async () => {
                                     bannerAnuncio.color === "blue"
                                       ? "text-blue-900"
                                       : bannerAnuncio.color === "yellow"
-                                      ? "text-yellow-900"
-                                      : bannerAnuncio.color === "red"
-                                      ? "text-red-900"
-                                      : bannerAnuncio.color === "green"
-                                      ? "text-green-900"
-                                      : "text-blue-900"
+                                        ? "text-yellow-900"
+                                        : bannerAnuncio.color === "red"
+                                          ? "text-red-900"
+                                          : bannerAnuncio.color === "green"
+                                            ? "text-green-900"
+                                            : "text-blue-900"
                                   }`}
                                 >
                                   {bannerAnuncio.titulo}
@@ -11348,12 +13180,12 @@ const descargarProductosCSV = async () => {
                                     bannerAnuncio.color === "blue"
                                       ? "text-blue-800"
                                       : bannerAnuncio.color === "yellow"
-                                      ? "text-yellow-800"
-                                      : bannerAnuncio.color === "red"
-                                      ? "text-red-800"
-                                      : bannerAnuncio.color === "green"
-                                      ? "text-green-800"
-                                      : "text-blue-800"
+                                        ? "text-yellow-800"
+                                        : bannerAnuncio.color === "red"
+                                          ? "text-red-800"
+                                          : bannerAnuncio.color === "green"
+                                            ? "text-green-800"
+                                            : "text-blue-800"
                                   }`}
                                 >
                                   {bannerAnuncio.mensaje}
@@ -11409,7 +13241,7 @@ const descargarProductosCSV = async () => {
                                 onClick={async () => {
                                   localStorage.setItem(
                                     "scrollPos",
-                                    window.scrollY.toString()
+                                    window.scrollY.toString(),
                                   );
                                   if (window.scrollY > 100) {
                                     window.scrollTo({
@@ -11424,7 +13256,7 @@ const descargarProductosCSV = async () => {
                                   const { data, error } = await supabase
                                     .from("categorias")
                                     .select(
-                                      "id_categoria, nombre_categoria, img, orden"
+                                      "id_categoria, nombre_categoria, img, orden",
                                     )
                                     .eq("macro_categoria_id", macro.id)
                                     .order("orden", { ascending: true });
@@ -11480,7 +13312,7 @@ const descargarProductosCSV = async () => {
                                 onClick={async () => {
                                   localStorage.setItem(
                                     "scrollPos",
-                                    window.scrollY.toString()
+                                    window.scrollY.toString(),
                                   );
                                   if (window.scrollY > 100) {
                                     window.scrollTo({
@@ -11494,7 +13326,7 @@ const descargarProductosCSV = async () => {
                                   const { data, error } = await supabase
                                     .from("productos")
                                     .select(
-                                      "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID"
+                                      "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID",
                                     )
                                     .eq("marca_id", marca.id)
                                     .order("orden_categoria", {
@@ -11509,7 +13341,7 @@ const descargarProductosCSV = async () => {
                                   }));
 
                                   setArticulos(
-                                    error ? [] : productosNormalizados
+                                    error ? [] : productosNormalizados,
                                   );
                                   requestAnimationFrame(() => {
                                     window.scrollTo({
@@ -11569,7 +13401,7 @@ const descargarProductosCSV = async () => {
                               onClick={async () => {
                                 localStorage.setItem(
                                   "scrollPos",
-                                  window.scrollY.toString()
+                                  window.scrollY.toString(),
                                 );
                                 if (window.scrollY > 100) {
                                   window.scrollTo({
@@ -11592,11 +13424,11 @@ const descargarProductosCSV = async () => {
                                   (producto) => ({
                                     ...producto,
                                     visible: producto.visible ?? true,
-                                  })
+                                  }),
                                 );
 
                                 setArticulos(
-                                  error ? [] : productosNormalizados
+                                  error ? [] : productosNormalizados,
                                 );
                                 requestAnimationFrame(() => {
                                   window.scrollTo({
@@ -11729,11 +13561,11 @@ const descargarProductosCSV = async () => {
                                   return (
                                     (a.TITULO &&
                                       a.TITULO.toLowerCase().includes(
-                                        searchTerm.toLowerCase()
+                                        searchTerm.toLowerCase(),
                                       )) ||
                                     (a.CODIGO &&
                                       a.CODIGO.toLowerCase().includes(
-                                        searchTerm.toLowerCase()
+                                        searchTerm.toLowerCase(),
                                       ))
                                   );
                                 })
@@ -11751,7 +13583,7 @@ const descargarProductosCSV = async () => {
                                       const scrollY = window.scrollY;
                                       localStorage.setItem(
                                         "scrollProducto",
-                                        scrollY.toString()
+                                        scrollY.toString(),
                                       );
                                       setProductoSeleccionado(art);
                                     }}
@@ -11780,40 +13612,44 @@ const descargarProductosCSV = async () => {
                                         )}
                                       </div>
 
-   
-  <motion.button
-    initial={{ scale: 0, opacity: 0 }}
-    animate={{ scale: 1, opacity: 1 }}
-    whileTap={{ scale: 0.85 }}
-    onClick={(e) => {
-      e.stopPropagation();
-      if ("vibrate" in navigator) navigator.vibrate(50);
+                                      <motion.button
+                                        initial={{ scale: 0, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        whileTap={{ scale: 0.85 }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if ("vibrate" in navigator)
+                                            navigator.vibrate(50);
 
-      setCarrito((prev) => {
-        const existe = prev.find((p) => p.id === art.id);
-        if (existe) {
-          return prev.map((p) =>
-            p.id === art.id
-              ? {
-                  ...p,
-                  cantidad: p.cantidad + 1,
-                  subtotal: (p.cantidad + 1) * p.P_MAYOREO,
-                }
-              : p
-          );
-        } else {
-          return [
-            ...prev,
-            {
-              ...art,
-              cantidad: 1,
-              subtotal: art.P_MAYOREO,
-            },
-          ];
-        }
-      });
-    }}
-    className="
+                                          setCarrito((prev) => {
+                                            const existe = prev.find(
+                                              (p) => p.id === art.id,
+                                            );
+                                            if (existe) {
+                                              return prev.map((p) =>
+                                                p.id === art.id
+                                                  ? {
+                                                      ...p,
+                                                      cantidad: p.cantidad + 1,
+                                                      subtotal:
+                                                        (p.cantidad + 1) *
+                                                        p.P_MAYOREO,
+                                                    }
+                                                  : p,
+                                              );
+                                            } else {
+                                              return [
+                                                ...prev,
+                                                {
+                                                  ...art,
+                                                  cantidad: 1,
+                                                  subtotal: art.P_MAYOREO,
+                                                },
+                                              ];
+                                            }
+                                          });
+                                        }}
+                                        className="
       absolute bottom-2 right-2
       w-10 h-10
       bg-zinc-100 hover:bg-zinc-200
@@ -11821,13 +13657,16 @@ const descargarProductosCSV = async () => {
       flex items-center justify-center
       transition-colors z-10
     "
-  >
-    {/* Carrito */}
-    <ShoppingCart className="w-5 h-5 text-orange-500" strokeWidth={2.2} />
+                                      >
+                                        {/* Carrito */}
+                                        <ShoppingCart
+                                          className="w-5 h-5 text-orange-500"
+                                          strokeWidth={2.2}
+                                        />
 
-    {/* Badge + */}
-    <span
-      className="
+                                        {/* Badge + */}
+                                        <span
+                                          className="
         absolute -top-1 -right-1
         w-4 h-4
         bg-orange-500
@@ -11835,14 +13674,15 @@ const descargarProductosCSV = async () => {
         flex items-center justify-center
         shadow
       "
-    >
-      <Plus className="w-3 h-3 text-white" strokeWidth={3} />
-    </span>
-  </motion.button>
-
+                                        >
+                                          <Plus
+                                            className="w-3 h-3 text-white"
+                                            strokeWidth={3}
+                                          />
+                                        </span>
+                                      </motion.button>
                                     </div>
 
-                                    
                                     <div className="p-2">
                                       <p className="text-xs text-orange-500 font-medium">
                                         {getNombreMarca(art.marca_id)}
@@ -11864,7 +13704,7 @@ const descargarProductosCSV = async () => {
                                               {
                                                 minimumFractionDigits: 2,
                                                 maximumFractionDigits: 2,
-                                              }
+                                              },
                                             )}
                                           </p>
                                         )}
@@ -11889,7 +13729,7 @@ const descargarProductosCSV = async () => {
                                                     onChange={() =>
                                                       toggleVisibilidad(
                                                         art.id,
-                                                        art.visible
+                                                        art.visible,
                                                       )
                                                     }
                                                     className="sr-only peer"
@@ -11914,7 +13754,8 @@ const descargarProductosCSV = async () => {
                                                     onChange={() =>
                                                       toggleLiquidacion(
                                                         art.id,
-                                                        art.liquidacion ?? false
+                                                        art.liquidacion ??
+                                                          false,
                                                       )
                                                     }
                                                     className="sr-only peer"
@@ -11939,7 +13780,7 @@ const descargarProductosCSV = async () => {
                                                     onChange={() =>
                                                       toggleTopVentas(
                                                         art.id,
-                                                        art.top_ventas ?? false
+                                                        art.top_ventas ?? false,
                                                       )
                                                     }
                                                     className="sr-only peer"
@@ -11967,7 +13808,7 @@ const descargarProductosCSV = async () => {
                                                       art.id,
                                                       art.visibleMostrador ??
                                                         true,
-                                                      ID_CUENTA_MOSTRADOR
+                                                      ID_CUENTA_MOSTRADOR,
                                                     )
                                                   }
                                                   className="sr-only peer"
@@ -11995,7 +13836,7 @@ const descargarProductosCSV = async () => {
                                                       art.id,
                                                       art.visibleMostrador2 ??
                                                         true,
-                                                      ID_CUENTA_MOSTRADOR2
+                                                      ID_CUENTA_MOSTRADOR2,
                                                     )
                                                   }
                                                   className="sr-only peer"
@@ -12021,11 +13862,11 @@ const descargarProductosCSV = async () => {
                               return (
                                 (a.TITULO &&
                                   a.TITULO.toLowerCase().includes(
-                                    searchTerm.toLowerCase()
+                                    searchTerm.toLowerCase(),
                                   )) ||
                                 (a.CODIGO &&
                                   a.CODIGO.toLowerCase().includes(
-                                    searchTerm.toLowerCase()
+                                    searchTerm.toLowerCase(),
                                   ))
                               );
                             }).length === 0 && (
@@ -12101,7 +13942,7 @@ const descargarProductosCSV = async () => {
                                     setSearchTerm(codigo);
                                     setTimeout(
                                       () => setScannerOpen(false),
-                                      300
+                                      300,
                                     );
 
                                     try {
@@ -12109,20 +13950,20 @@ const descargarProductosCSV = async () => {
                                       const { data, error } = await supabase
                                         .from("productos")
                                         .select(
-                                          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO"
+                                          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO",
                                         )
                                         .or(
-                                          `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%,C_PRODUCTO.ilike.%${codigo}%`
+                                          `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%,C_PRODUCTO.ilike.%${codigo}%`,
                                         )
                                         .limit(50);
 
                                       if (error) {
                                         console.error(
                                           "Error buscando por código:",
-                                          error.message
+                                          error.message,
                                         );
                                         alert(
-                                          "Error al buscar el producto. Intenta de nuevo."
+                                          "Error al buscar el producto. Intenta de nuevo.",
                                         );
                                         return;
                                       }
@@ -12139,20 +13980,20 @@ const descargarProductosCSV = async () => {
                                       setProductosMostrados(10);
                                       if (productosNormalizados.length > 0) {
                                         console.log(
-                                          ` ${productosNormalizados.length} producto(s) encontrado(s)`
+                                          ` ${productosNormalizados.length} producto(s) encontrado(s)`,
                                         );
                                       } else {
                                         alert(
-                                          `No se encontraron productos con el código: ${codigo}`
+                                          `No se encontraron productos con el código: ${codigo}`,
                                         );
                                       }
                                     } catch (error) {
                                       console.error(
                                         "Error procesando código:",
-                                        error
+                                        error,
                                       );
                                       alert(
-                                        "Ocurrió un error al procesar el código escaneado."
+                                        "Ocurrió un error al procesar el código escaneado.",
                                       );
                                     }
                                   }
@@ -12207,7 +14048,7 @@ const descargarProductosCSV = async () => {
                                 const scrollY = window.scrollY;
                                 localStorage.setItem(
                                   "scrollProducto",
-                                  scrollY.toString()
+                                  scrollY.toString(),
                                 );
                                 setProductoSeleccionado(prod);
                               }}
@@ -12240,7 +14081,7 @@ const descargarProductosCSV = async () => {
                                           {
                                             minimumFractionDigits: 2,
                                             maximumFractionDigits: 2,
-                                          }
+                                          },
                                         )}
                                       </p>
                                     )}
@@ -12251,7 +14092,7 @@ const descargarProductosCSV = async () => {
                           ))}
 
                         {productos.filter(
-                          (prod) => esAdmin || (prod.visible ?? true)
+                          (prod) => esAdmin || (prod.visible ?? true),
                         ).length > productosMostrados && (
                           <button
                             onClick={() =>
@@ -12261,7 +14102,7 @@ const descargarProductosCSV = async () => {
                           >
                             Ver más productos (
                             {productos.filter(
-                              (prod) => esAdmin || (prod.visible ?? true)
+                              (prod) => esAdmin || (prod.visible ?? true),
                             ).length - productosMostrados}{" "}
                             restantes)
                           </button>
@@ -12342,7 +14183,7 @@ const descargarProductosCSV = async () => {
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setCarrito((prev) =>
-                                          prev.filter((p) => p.id !== item.id)
+                                          prev.filter((p) => p.id !== item.id),
                                         );
                                       }}
                                       className="w-9 h-9 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
@@ -12383,7 +14224,7 @@ const descargarProductosCSV = async () => {
                                   Total de productos:{" "}
                                   {carrito.reduce(
                                     (sum, item) => sum + item.cantidad,
-                                    0
+                                    0,
                                   )}
                                 </p>
                               </div>
@@ -12404,7 +14245,7 @@ const descargarProductosCSV = async () => {
                                       onClick={() => {
                                         localStorage.setItem(
                                           "scrollProducto",
-                                          scrollY.toString()
+                                          scrollY.toString(),
                                         );
                                         setProductoSeleccionado(item);
                                       }}
@@ -12426,7 +14267,7 @@ const descargarProductosCSV = async () => {
                                       onClick={() => {
                                         localStorage.setItem(
                                           "scrollProducto",
-                                          scrollY.toString()
+                                          scrollY.toString(),
                                         );
                                         setProductoSeleccionado(item);
                                       }}
@@ -12445,7 +14286,7 @@ const descargarProductosCSV = async () => {
                                             {
                                               minimumFractionDigits: 2,
                                               maximumFractionDigits: 2,
-                                            }
+                                            },
                                           )}
                                         </p>
                                         <span className="text-xs text-zinc-400">
@@ -12458,7 +14299,7 @@ const descargarProductosCSV = async () => {
                                             {
                                               minimumFractionDigits: 2,
                                               maximumFractionDigits: 2,
-                                            }
+                                            },
                                           )}
                                         </p>
                                       </div>
@@ -12469,7 +14310,7 @@ const descargarProductosCSV = async () => {
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setCarrito((prev) =>
-                                          prev.filter((p) => p.id !== item.id)
+                                          prev.filter((p) => p.id !== item.id),
                                         );
                                       }}
                                       className="w-9 h-9 bg-orange-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
@@ -12487,16 +14328,16 @@ const descargarProductosCSV = async () => {
                                   (() => {
                                     const totalCarrito = carrito.reduce(
                                       (sum, p) => sum + p.subtotal,
-                                      0
+                                      0,
                                     );
                                     const minimoRequerido = 1000;
                                     const progreso = Math.min(
                                       (totalCarrito / minimoRequerido) * 100,
-                                      100
+                                      100,
                                     );
                                     const faltante = Math.max(
                                       minimoRequerido - totalCarrito,
-                                      0
+                                      0,
                                     );
 
                                     return (
@@ -12546,7 +14387,7 @@ const descargarProductosCSV = async () => {
                                               {
                                                 minimumFractionDigits: 2,
                                                 maximumFractionDigits: 2,
-                                              }
+                                              },
                                             )}
                                           </span>
                                         </div>
@@ -12820,7 +14661,7 @@ const descargarProductosCSV = async () => {
                           {esAdmin && (
                             <MenuItem
                               label="Ordenar Posicion de elementos"
-                              icon={<ListOrdered  size={20} />}
+                              icon={<ListOrdered size={20} />}
                               onClick={() => {
                                 window.scrollTo({
                                   top: 0,
@@ -12846,15 +14687,18 @@ const descargarProductosCSV = async () => {
                           )}
 
                           {esAdmin && (
-  <MenuItem
-    label="Eliminación Masiva de Productos"
-    icon={<X size={20} />}
-    onClick={() => {
-      window.scrollTo({ top: 0, behavior: "instant" });
-      setVistaPerfil("eliminacion-masiva");
-    }}
-  />
-)}
+                            <MenuItem
+                              label="Eliminación Masiva de Productos"
+                              icon={<X size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("eliminacion-masiva");
+                              }}
+                            />
+                          )}
 
                           {/* personal info  */}
                           <MenuItem
@@ -12883,13 +14727,27 @@ const descargarProductosCSV = async () => {
                           {esEmpleado && (
                             <MenuItem
                               label="Surtir Pedidos"
-                              icon={<Box size={20} />}
+                              icon={<Package size={20} />}
                               onClick={() => {
                                 window.scrollTo({
                                   top: 0,
                                   behavior: "instant",
                                 });
                                 setVistaPerfil("surtir");
+                              }}
+                            />
+                          )}
+
+                          {esEmpleado && (
+                            <MenuItem
+                              label="Revisar Pedidos"
+                              icon={<PackageSearch size={20} />}
+                              onClick={() => {
+                                window.scrollTo({
+                                  top: 0,
+                                  behavior: "instant",
+                                });
+                                setVistaPerfil("revision");
                               }}
                             />
                           )}
@@ -13048,7 +14906,7 @@ const descargarProductosCSV = async () => {
                               onClick={() =>
                                 window.open(
                                   "https://wa.me/5218682340531?text=Hola,%20quiero%20más%20información.",
-                                  "_blank"
+                                  "_blank",
                                 )
                               }
                               className="text-green-600 font-semibold text-lg underline"
@@ -13174,13 +15032,17 @@ const descargarProductosCSV = async () => {
                       <VistaSurtir setVistaPerfil={setVistaPerfil} />
                     )}
 
+                    {vistaPerfil === "revision" && esEmpleado && (
+                      <VistaRevision setVistaPerfil={setVistaPerfil} />
+                    )}
+
                     {vistaPerfil === "gestionar-banner" && (
                       <GestionarBannerView setVistaPerfil={setVistaPerfil} />
                     )}
 
                     {vistaPerfil === "eliminacion-masiva" && (
-  <EliminacionMasivaView setVistaPerfil={setVistaPerfil} />
-)}
+                      <EliminacionMasivaView setVistaPerfil={setVistaPerfil} />
+                    )}
 
                     {/* CONFIGURACIÓN */}
                     {vistaPerfil === "settings" && (
@@ -13315,7 +15177,7 @@ const descargarProductosCSV = async () => {
                               {documentosPendientesModal
                                 .reduce(
                                   (sum, doc) => sum + parseFloat(doc.monto),
-                                  0
+                                  0,
                                 )
                                 .toFixed(2)}
                             </span>
@@ -13643,7 +15505,7 @@ const descargarProductosCSV = async () => {
                                   const scrollY = window.scrollY;
                                   localStorage.setItem(
                                     "scrollProducto",
-                                    scrollY.toString()
+                                    scrollY.toString(),
                                   );
                                   setProductoSeleccionado(prod);
                                 }}
@@ -13790,7 +15652,7 @@ const descargarProductosCSV = async () => {
                   onClick={() => {
                     localStorage.setItem(
                       "scrollPos",
-                      window.scrollY.toString()
+                      window.scrollY.toString(),
                     );
                     setActiveTab("carrito");
                   }}
@@ -13828,7 +15690,7 @@ const descargarProductosCSV = async () => {
                         <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center text-xs font-bold bg-orange-500 text-white shadow-md">
                           {carrito.reduce(
                             (sum, item) => sum + item.cantidad,
-                            0
+                            0,
                           )}
                         </span>
                       )}
