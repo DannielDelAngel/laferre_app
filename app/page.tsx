@@ -8924,7 +8924,7 @@ const crearBackOrder = async () => {
         // Datos Pedido
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
-        doc.text("Pedido (Back Order)", 155, 10); // Etiqueta distintiva
+        doc.text("Pedido", 155, 10); 
         doc.setFontSize(10);
         doc.text(numeroCotizacion.toString(), 170, 16);
         doc.setFontSize(9);
@@ -8960,7 +8960,7 @@ const crearBackOrder = async () => {
       // Preparar tabla usando productosFaltantes
       const productosTabla = productosFaltantes.map((p) => [
         p.CODIGO || "",
-        p.cantidad_faltante, 
+        p.cantidad_faltante,
         p.TITULO,
         `$ ${p.P_MAYOREO.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
         `$ ${(p.cantidad_faltante * p.P_MAYOREO).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
@@ -10236,6 +10236,13 @@ const crearBackOrder = async () => {
       new Set(),
     );
 const [cambiosEstado, setCambiosEstado] = useState<Map<number, any>>(new Map());
+const [mostrarModalPedidoCompleto, setMostrarModalPedidoCompleto] = useState(false);
+const [detallesEmpaque, setDetallesEmpaque] = useState({
+  cajas: 0,
+  atados: 0,
+  tubos: 0,
+});
+
     useEffect(() => {
       cargarPedidosPorRevisar();
 
@@ -10495,7 +10502,7 @@ const obtenerEstadoActual = (producto: any) => {
       }
     }, [hojaCompleta, hojaActual]);
 
-   const completarHoja = async () => {
+const completarHoja = async () => {
   if (!hojaActual) return;
 
   setGuardando(true);
@@ -10540,17 +10547,8 @@ const obtenerEstadoActual = (producto: any) => {
 
     // Verificar si todas las hojas fueron procesadas
     if (nuevasHojasProcesadas.size === hojas.length) {
-      // Cambiar estado del pedido a encajado
-      await supabase
-        .from("pedidos")
-        .update({ estado: "encajado" })
-        .eq("id", pedidoSeleccionado.id);
-
-      alert("¡Pedido completo! Ahora está listo para empacar");
-      setPedidoSeleccionado(null);
-      setHojas([]);
-      setHojasProcesadas(new Set());
-      cargarPedidosPorRevisar();
+      // MOSTRAR MODAL DE PEDIDO COMPLETO EN VEZ DE CAMBIAR ESTADO
+      setMostrarModalPedidoCompleto(true);
     }
   } catch (err) {
     console.error(err);
@@ -10558,6 +10556,59 @@ const obtenerEstadoActual = (producto: any) => {
     setGuardando(false);
   }
 };
+
+const completarPedido = async () => {
+  setGuardando(true);
+  try {
+    // Generar texto de detalles de empaque
+    const detallesTexto = `Cajas: ${detallesEmpaque.cajas}\nAtados: ${detallesEmpaque.atados}\nTubos: ${detallesEmpaque.tubos}`;
+
+    // Guardar detalles de empaque
+    const { data: existe } = await supabase
+      .from("detalles_empaque")
+      .select("id")
+      .eq("pedido_id", pedidoSeleccionado.id)
+      .single();
+
+    if (existe) {
+      await supabase
+        .from("detalles_empaque")
+        .update({
+          detalles_empacado: detallesTexto,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("pedido_id", pedidoSeleccionado.id);
+    } else {
+      await supabase.from("detalles_empaque").insert({
+        pedido_id: pedidoSeleccionado.id,
+        detalles_empacado: detallesTexto,
+        observaciones: "",
+      });
+    }
+
+    // Cambiar estado del pedido a encajado
+    await supabase
+      .from("pedidos")
+      .update({ estado: "encajado" })
+      .eq("id", pedidoSeleccionado.id);
+
+    alert("¡Pedido completado y marcado como encajado!");
+    
+    // Limpiar todo
+    setMostrarModalPedidoCompleto(false);
+    setPedidoSeleccionado(null);
+    setHojas([]);
+    setHojasProcesadas(new Set());
+    setDetallesEmpaque({ cajas: 0, atados: 0, tubos: 0 });
+    cargarPedidosPorRevisar();
+  } catch (err) {
+    console.error(err);
+    alert("Error al completar el pedido");
+  } finally {
+    setGuardando(false);
+  }
+};
+
     // VISTA: Lista de pedidos
     if (!pedidoSeleccionado) {
       return (
@@ -10678,30 +10729,198 @@ const obtenerEstadoActual = (producto: any) => {
           </div>
 
           {hojasProcesadas.size === hojas.length && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-6 bg-green-50 border-2 border-green-500 rounded-xl p-4 text-center"
-            >
-              <p className="text-green-800 font-bold mb-2">
-                ¡Todas las hojas revisadas!
-              </p>
-              <p className="text-sm text-green-700 mb-4">
-                El pedido ha pasado a estado "Encajado"
-              </p>
-              <button
-                onClick={() => {
-                  setPedidoSeleccionado(null);
-                  setHojas([]);
-                  setHojasProcesadas(new Set());
-                  cargarPedidosPorRevisar();
-                }}
-                className="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold"
-              >
-                Volver a la lista
-              </button>
-            </motion.div>
-          )}
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="mt-6 bg-green-50 border-2 border-green-500 rounded-xl p-6"
+  >
+    <div className="flex items-center justify-center gap-2 mb-4">
+      <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={3}
+          stroke="currentColor"
+          className="w-7 h-7 text-white"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M4.5 12.75l6 6 9-13.5"
+          />
+        </svg>
+      </div>
+      <h3 className="text-xl font-bold text-green-800">
+        ¡Todas las hojas revisadas!
+      </h3>
+    </div>
+
+    <p className="text-sm text-green-700 mb-6 text-center">
+      Ingresa los detalles de empaque antes de completar
+    </p>
+
+    {/* Selectores de empaque */}
+    <div className="space-y-3 mb-6">
+      {/* Cajas */}
+      <div className="bg-white rounded-lg p-3 border border-green-200">
+        <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+          Cajas
+        </label>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() =>
+              setDetallesEmpaque((prev) => ({
+                ...prev,
+                cajas: Math.max(0, prev.cajas - 1),
+              }))
+            }
+            className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+          >
+            −
+          </button>
+          <input
+            type="number"
+            value={detallesEmpaque.cajas}
+            onChange={(e) =>
+              setDetallesEmpaque((prev) => ({
+                ...prev,
+                cajas: Math.max(0, parseInt(e.target.value) || 0),
+              }))
+            }
+            className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+          />
+          <button
+            onClick={() =>
+              setDetallesEmpaque((prev) => ({
+                ...prev,
+                cajas: prev.cajas + 1,
+              }))
+            }
+            className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+          >
+            +
+          </button>
+        </div>
+      </div>
+
+      {/* Atados */}
+      <div className="bg-white rounded-lg p-3 border border-green-200">
+        <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+          Atados
+        </label>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() =>
+              setDetallesEmpaque((prev) => ({
+                ...prev,
+                atados: Math.max(0, prev.atados - 1),
+              }))
+            }
+            className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+          >
+            −
+          </button>
+          <input
+            type="number"
+            value={detallesEmpaque.atados}
+            onChange={(e) =>
+              setDetallesEmpaque((prev) => ({
+                ...prev,
+                atados: Math.max(0, parseInt(e.target.value) || 0),
+              }))
+            }
+            className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+          />
+          <button
+            onClick={() =>
+              setDetallesEmpaque((prev) => ({
+                ...prev,
+                atados: prev.atados + 1,
+              }))
+            }
+            className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+          >
+            +
+          </button>
+        </div>
+      </div>
+
+      {/* Tubos */}
+      <div className="bg-white rounded-lg p-3 border border-green-200">
+        <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+          Tubos
+        </label>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() =>
+              setDetallesEmpaque((prev) => ({
+                ...prev,
+                tubos: Math.max(0, prev.tubos - 1),
+              }))
+            }
+            className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+          >
+            −
+          </button>
+          <input
+            type="number"
+            value={detallesEmpaque.tubos}
+            onChange={(e) =>
+              setDetallesEmpaque((prev) => ({
+                ...prev,
+                tubos: Math.max(0, parseInt(e.target.value) || 0),
+              }))
+            }
+            className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+          />
+          <button
+            onClick={() =>
+              setDetallesEmpaque((prev) => ({
+                ...prev,
+                tubos: prev.tubos + 1,
+              }))
+            }
+            className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+          >
+            +
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {/* Botones */}
+    <div className="space-y-3">
+      <button
+        onClick={async () => {
+  await fetch("http://192.168.100.34:3005/print", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      cliente: pedidoSeleccionado.cuentas.cliente,
+      pedido: pedidoSeleccionado.id,
+      cajas: detallesEmpaque.cajas,
+      atados: detallesEmpaque.atados,
+      tubos: detallesEmpaque.tubos
+    })
+  });
+}}
+
+        className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-blue-500 hover:bg-blue-600 active:scale-95 transition-transform"
+      >
+        IMPRIMIR ETIQUETAS
+      </button>
+
+      <button
+        onClick={completarPedido}
+        disabled={guardando}
+        className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-green-600 hover:bg-green-700 active:scale-95 transition-transform disabled:opacity-50"
+      >
+        {guardando ? "COMPLETANDO..." : "ACEPTAR Y MARCAR COMO ENCAJADO"}
+      </button>
+    </div>
+  </motion.div>
+)}
         </motion.div>
       );
     }
@@ -11720,6 +11939,9 @@ const obtenerEstadoActual = (producto: any) => {
                   }
                 }}
               >
+                <p className="text-sm font-semibold text-zinc-800 mb-2 line-clamp-3 leading-tight">
+                      {item.TITULO}
+                    </p>
                 <div className="flex items-center gap-3">
                   <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
                     <Image
@@ -11734,9 +11956,7 @@ const obtenerEstadoActual = (producto: any) => {
                   </div>
 
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
-                      {item.TITULO}
-                    </p>
+                    
                     <p className="text-xs text-zinc-500 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">
                       {item.CODIGO}
                     </p>
@@ -11972,7 +12192,7 @@ const obtenerEstadoActual = (producto: any) => {
                           setCantidadParcialInput(e.target.value)
                         }
                         placeholder="Cantidad encontrada"
-                        className="w-full border-2 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-2 focus:ring-2 focus:ring-orange-500 outline-none"
+                        className="w-full border-2 text-zinc-600 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-2 focus:ring-2 focus:ring-orange-500 outline-none"
                       />
                       <button
                         onClick={() => {
