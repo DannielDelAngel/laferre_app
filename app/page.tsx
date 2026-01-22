@@ -10276,58 +10276,70 @@ const [detallesEmpaque, setDetallesEmpaque] = useState({
       setCargando(false);
     };
 
-    const iniciarRevision = async (pedido: any) => {
-      // Cargar hojas de surtido
-      const { data: hojasData } = await supabase
-        .from("hojas_surtido")
+ const iniciarRevision = async (pedido: any) => {
+  // Cargar hojas de surtido
+  const { data: hojasData } = await supabase
+    .from("hojas_surtido")
+    .select("*")
+    .eq("pedido_id", pedido.id)
+    .order("numero_hoja", { ascending: true });
+
+  if (!hojasData || hojasData.length === 0) {
+    alert("Este pedido no tiene hojas de surtido");
+    return;
+  }
+
+  // Cargar productos completos para cada hoja
+  const hojasConProductos = await Promise.all(
+    hojasData.map(async (hoja) => {
+      const productosSimplificados = JSON.parse(hoja.productos_asignados);
+      const codigos = productosSimplificados.map((p: any) => p.codigo);
+
+      const { data: productos } = await supabase
+        .from("productos")
         .select("*")
-        .eq("pedido_id", pedido.id)
-        .order("numero_hoja", { ascending: true });
+        .in("CODIGO", codigos);
 
-      if (!hojasData || hojasData.length === 0) {
-        alert("Este pedido no tiene hojas de surtido");
-        return;
-      }
+      const productosCompletos = productosSimplificados.map((ps: any) => {
+        const prod = productos?.find((p) => p.CODIGO === ps.codigo);
+        return {
+          ...prod,
+          cantidad_pedida: ps.cantidad_pedida,
+          cantidad_surtida: ps.cantidad_surtida,
+          estado: ps.estado,
+          producto_id: prod?.id,
+        };
+      });
 
-      // Cargar productos completos para cada hoja
-      const hojasConProductos = await Promise.all(
-        hojasData.map(async (hoja) => {
-          const productosSimplificados = JSON.parse(hoja.productos_asignados);
-          const codigos = productosSimplificados.map((p: any) => p.codigo);
+      return {
+        ...hoja,
+        productos: productosCompletos,
+      };
+    }),
+  );
 
-          const { data: productos } = await supabase
-            .from("productos")
-            .select("*")
-            .in("CODIGO", codigos);
+  setPedidoSeleccionado(pedido);
+  setHojas(hojasConProductos);
 
-          const productosCompletos = productosSimplificados.map((ps: any) => {
-            const prod = productos?.find((p) => p.CODIGO === ps.codigo);
-            return {
-              ...prod,
-              cantidad_pedida: ps.cantidad_pedida,
-              cantidad_surtida: ps.cantidad_surtida,
-              estado: ps.estado,
-              producto_id: prod?.id,
-            };
-          });
+  // NUEVO: Cargar hojas que ya fueron revisadas desde la base de datos
+  const { data: hojasRevisadas } = await supabase
+    .from("hojas_revision")
+    .select("hoja_id")
+    .eq("pedido_id", pedido.id);
 
-          return {
-            ...hoja,
-            productos: productosCompletos,
-          };
-        }),
-      );
+  if (hojasRevisadas && hojasRevisadas.length > 0) {
+    const idsRevisados = new Set(hojasRevisadas.map(h => h.hoja_id));
+    setHojasProcesadas(idsRevisados);
+  } else {
+    setHojasProcesadas(new Set());
+  }
 
-      setPedidoSeleccionado(pedido);
-      setHojas(hojasConProductos);
-
-      // Actualizar estado del pedido
-      await supabase
-        .from("pedidos")
-        .update({ estado: "revisando" })
-        .eq("id", pedido.id);
-    };
-
+  // Actualizar estado del pedido
+  await supabase
+    .from("pedidos")
+    .update({ estado: "revisando" })
+    .eq("id", pedido.id);
+};
     const seleccionarHoja = (hoja: any) => {
       if (hojasProcesadas.has(hoja.id)) {
         alert("Esta hoja ya fue revisada");
@@ -10535,10 +10547,17 @@ const completarHoja = async () => {
         .eq("id", hojaActual.id);
     }
 
-    // Marcar hoja como procesada localmente
-    const nuevasHojasProcesadas = new Set(hojasProcesadas);
-    nuevasHojasProcesadas.add(hojaActual.id);
-    setHojasProcesadas(nuevasHojasProcesadas);
+    // Marcar hoja como procesada localmente Y en la base de datos
+const nuevasHojasProcesadas = new Set(hojasProcesadas);
+nuevasHojasProcesadas.add(hojaActual.id);
+setHojasProcesadas(nuevasHojasProcesadas);
+
+// Guardar en la base de datos que esta hoja fue revisada
+await supabase.from("hojas_revision").upsert({
+  pedido_id: pedidoSeleccionado.id,
+  hoja_id: hojaActual.id,
+  revisado_por: cuenta?.numero_cuenta || "desconocido",
+});
 
     setMostrarModalCompletado(false);
     setHojaActual(null);
