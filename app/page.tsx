@@ -8712,6 +8712,8 @@ export default function HomePage() {
     const [stringEncajado, setStringEncajado] = useState("");
 const [productosFaltantes, setProductosFaltantes] = useState<any[]>([]);
 const [creandoBackOrder, setCreandoBackOrder] = useState(false);
+const [cargandoEncajado, setCargandoEncajado] = useState(false);
+const [totalNetoEncajado, setTotalNetoEncajado] = useState(0);
 
     const cargarDetallesEmpaque = async (pedidoId: number) => {
       const { data } = await supabase
@@ -8757,67 +8759,84 @@ const [creandoBackOrder, setCreandoBackOrder] = useState(false);
     };
 
 const cargarDatosEncajado = async (pedidoId: number) => {
-  const { data: hojas } = await supabase
-    .from("hojas_surtido")
-    .select("*")
-    .eq("pedido_id", pedidoId);
+  setCargandoEncajado(true);
+  try {
+    const { data: hojas } = await supabase
+      .from("hojas_surtido")
+      .select("*")
+      .eq("pedido_id", pedidoId);
 
-  if (!hojas || hojas.length === 0) return;
+    if (!hojas || hojas.length === 0) return;
 
-  const productosCompletos: any[] = [];
-  const productosParciales: any[] = [];
-  const productosPA: any[] = [];
+    const productosCompletos: any[] = [];
+    const productosParciales: any[] = [];
+    const productosPA: any[] = [];
+    let totalNeto = 0;
 
-  for (const hoja of hojas) {
-    const productos = JSON.parse(hoja.productos_asignados);
+    for (const hoja of hojas) {
+      const productos = JSON.parse(hoja.productos_asignados);
 
-    for (const prod of productos) {
-      const { data: prodCompleto } = await supabase
-        .from("productos")
-        .select("*")
-        .eq("CODIGO", prod.codigo)
-        .single();
+      for (const prod of productos) {
+        const { data: prodCompleto } = await supabase
+          .from("productos")
+          .select("*")
+          .eq("CODIGO", prod.codigo)
+          .single();
 
-      if (prod.estado === "PA") {
-        productosPA.push({
-          ...prodCompleto,
-          cantidad_pedida: prod.cantidad_pedida,
-          cantidad_faltante: prod.cantidad_pedida,
-        });
-      } else if (prod.estado === "parcial") {
-        const faltante = prod.cantidad_pedida - prod.cantidad_surtida;
-        productosParciales.push({
-          ...prodCompleto,
-          cantidad_pedida: prod.cantidad_pedida,
-          cantidad_surtida: prod.cantidad_surtida,
-          cantidad_faltante: faltante,
-        });
-        
-        // AGREGAR AL STRING: lo que SÍ se surtió
-        productosCompletos.push({
-          codigo: prod.codigo,
-          cantidad: prod.cantidad_surtida,
-        });
-      } else if (prod.estado === "completo" && prod.cantidad_surtida > 0) {
-        // Productos completos
-        productosCompletos.push({
-          codigo: prod.codigo,
-          cantidad: prod.cantidad_surtida,
-        });
+        if (prod.estado === "PA") {
+          productosPA.push({
+            ...prodCompleto,
+            cantidad_pedida: prod.cantidad_pedida,
+            cantidad_faltante: prod.cantidad_pedida,
+          });
+        } else if (prod.estado === "parcial") {
+          const faltante = prod.cantidad_pedida - prod.cantidad_surtida;
+          productosParciales.push({
+            ...prodCompleto,
+            cantidad_pedida: prod.cantidad_pedida,
+            cantidad_surtida: prod.cantidad_surtida,
+            cantidad_faltante: faltante,
+          });
+          
+          // AGREGAR AL STRING: lo que SÍ se surtió
+          productosCompletos.push({
+            codigo: prod.codigo,
+            cantidad: prod.cantidad_surtida,
+          });
+          
+          // SUMAR AL TOTAL NETO
+          totalNeto += (prodCompleto?.P_MAYOREO || 0) * prod.cantidad_surtida;
+        } else if (prod.estado === "completo" && prod.cantidad_surtida > 0) {
+          // Productos completos
+          productosCompletos.push({
+            codigo: prod.codigo,
+            cantidad: prod.cantidad_surtida,
+          });
+          
+          // SUMAR AL TOTAL NETO
+          totalNeto += (prodCompleto?.P_MAYOREO || 0) * prod.cantidad_surtida;
+        }
       }
     }
+
+    // Generar string de encajado (incluye completos Y la parte surtida de parciales)
+    const stringGen = productosCompletos
+      .map((p) => `${p.codigo}*${p.cantidad}`)
+      .join("-");
+    setStringEncajado(stringGen);
+    setTotalNetoEncajado(totalNeto);
+
+    // Combinar faltantes (solo PA + lo que falta de parciales)
+    const todosFaltantes = [...productosPA, ...productosParciales];
+    setProductosFaltantes(todosFaltantes);
+  } catch (error) {
+    console.error("Error cargando datos de encajado:", error);
+  } finally {
+    setCargandoEncajado(false);
   }
-
-  // Generar string de encajado (incluye completos Y la parte surtida de parciales)
-  const stringGen = productosCompletos
-    .map((p) => `${p.codigo}*${p.cantidad}`)
-    .join("-");
-  setStringEncajado(stringGen);
-
-  // Combinar faltantes (solo PA + lo que falta de parciales)
-  const todosFaltantes = [...productosPA, ...productosParciales];
-  setProductosFaltantes(todosFaltantes);
 };
+
+
 const crearBackOrder = async () => {
     if (!pedidoSeleccionado || productosFaltantes.length === 0) return;
 
@@ -9142,6 +9161,7 @@ const crearBackOrder = async () => {
           numero_cuenta,
           cliente,
           ferreteria,
+          tipo_comprobante,
           numero_tel,
           entrega_mismo_dia
         )
@@ -9340,8 +9360,8 @@ const crearBackOrder = async () => {
               <BadgeEstado estado={pedidoSeleccionado.estado} />
             </div>
           )}
-
-          {/* Detalles de empaque */}
+          
+           {/* Detalles de empaque */}
           <AnimatePresence>
             {esAdmin && pedidoSeleccionado.estado === "encajado" && (
               <motion.div
@@ -9382,7 +9402,7 @@ const crearBackOrder = async () => {
             )}
           </AnimatePresence>
 
-<AnimatePresence>
+      <AnimatePresence>
   {esAdmin && pedidoSeleccionado.estado === "encajado" && (
     <motion.div
       initial={{ opacity: 0, height: 0, y: -20 }}
@@ -9392,119 +9412,43 @@ const crearBackOrder = async () => {
       className="overflow-hidden"
     >
 
-      {/* String de Encajado */}
-      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="p-2 bg-green-100 rounded-full text-green-600">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-              className="w-5 h-5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
-              />
-            </svg>
+      {cargandoEncajado ? (
+        <div className="bg-white rounded-xl border border-zinc-200 p-8 mb-4 shadow-sm">
+          <div className="flex flex-col items-center justify-center gap-3">
+            <div className="animate-spin h-10 w-10 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+            <p className="text-zinc-600 font-medium">Cargando datos de encajado...</p>
           </div>
-          <h3 className="text-lg font-semibold text-zinc-900">
-            String de Encajado
-          </h3>
         </div>
+      ) : (
+        <>
+         {/* Información del cliente y tipo de comprobante */}
+  <div className="bg-zinc-50 rounded-lg p-3 mb-3 border border-zinc-200">
+    <div className="flex justify-between items-center">
+      <span className="text-sm text-zinc-600">Tipo de comprobante:</span>
+      <span className="font-semibold text-zinc-900">
+        {cuentaPedido?.tipo_comprobante || "Nota de Remisión"}
+      </span>
+    </div>
+  </div>
 
-        <div className="relative">
-          <textarea
-            value={stringEncajado}
-            readOnly
-            rows={3}
-            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 bg-zinc-50 font-mono text-sm"
-          />
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(stringEncajado);
-              alert("String copiado al portapapeles");
-            }}
-            className="absolute top-2 right-2 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-semibold"
-          >
-            Copiar
-          </button>
-        </div>
-        <p className="text-xs text-zinc-400 mt-2">
-          Formato: CODIGO*CANTIDAD-CODIGO*CANTIDAD
-        </p>
-      </div>
-
-      {/* Productos Faltantes y Back Order */}
-      {productosFaltantes.length > 0 && (
-        <div className="bg-white rounded-xl border border-red-200 p-4 mb-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 bg-red-100 rounded-full text-red-600">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-                className="w-5 h-5"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-zinc-900">
-              Productos Faltantes ({productosFaltantes.length})
-            </h3>
-          </div>
-
-          <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
-            {productosFaltantes.map((prod, idx) => (
-              <div
-                key={idx}
-                className="flex items-center gap-3 p-2 bg-red-50 rounded-lg border border-red-200"
-              >
-                <div className="relative w-12 h-12 bg-white rounded overflow-hidden flex-shrink-0">
-                  <Image
-                    src={
-                      prod.IMAGEN ||
-                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
-                    }
-                    alt={prod.TITULO}
-                    fill
-                    className="object-contain"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-zinc-800 truncate">
-                    {prod.TITULO}
-                  </p>
-                  <p className="text-xs text-zinc-500">{prod.CODIGO}</p>
-                  <p className="text-xs text-red-600 font-semibold mt-1">
-                    Faltante: {prod.cantidad_faltante} unidades
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <button
-            onClick={crearBackOrder}
-            disabled={creandoBackOrder}
-            className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {creandoBackOrder ? (
-              <>
-                <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                Creando Back Order...
-              </>
-            ) : (
-              <>
+  {/* Total Neto */}
+  <div className="bg-green-50 rounded-lg p-3 mb-3 border border-green-200">
+    <div className="flex justify-between items-center">
+      <span className="text-sm font-semibold text-green-800">
+        Total Neto Encajado:
+      </span>
+      <span className="text-xl font-bold text-green-600">
+        ${totalNetoEncajado.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}
+      </span>
+    </div>
+  </div>
+          {/* String de Encajado */}
+          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 bg-green-100 rounded-full text-green-600">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
@@ -9516,18 +9460,131 @@ const crearBackOrder = async () => {
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    d="M12 4.5v15m7.5-7.5h-15"
+                    d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
                   />
                 </svg>
-                Crear Back Order con Faltantes
-              </>
-            )}
-          </button>
-        </div>
+              </div>
+              <h3 className="text-lg font-semibold text-zinc-900">
+                String de Encajado
+              </h3>
+            </div>
+
+            <div className="relative">
+              <textarea
+                value={stringEncajado}
+                readOnly
+                rows={3}
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 bg-zinc-50 font-mono text-sm"
+              />
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(stringEncajado);
+                  alert("String copiado al portapapeles");
+                }}
+                className="absolute top-2 right-2 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-semibold"
+              >
+                Copiar
+              </button>
+            </div>
+            <p className="text-xs text-zinc-400 mt-2">
+              Formato: CODIGO*CANTIDAD-CODIGO*CANTIDAD
+            </p>
+          </div>
+
+          {/* Productos Faltantes y Back Order */}
+          {productosFaltantes.length > 0 && (
+            <div className="bg-white rounded-xl border border-red-200 p-4 mb-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 bg-red-100 rounded-full text-red-600">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="w-5 h-5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-zinc-900">
+                  Productos Faltantes ({productosFaltantes.length})
+                </h3>
+              </div>
+
+              <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
+                {productosFaltantes.map((prod, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-3 p-2 bg-red-50 rounded-lg border border-red-200"
+                  >
+                    <div className="relative w-12 h-12 bg-white rounded overflow-hidden flex-shrink-0">
+                      <Image
+                        src={
+                          prod.IMAGEN ||
+                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                        }
+                        alt={prod.TITULO}
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-zinc-800 truncate">
+                        {prod.TITULO}
+                      </p>
+                      <p className="text-xs text-zinc-500">{prod.CODIGO}</p>
+                      <p className="text-xs text-red-600 font-semibold mt-1">
+                        Faltante: {prod.cantidad_faltante} unidades
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={crearBackOrder}
+                disabled={creandoBackOrder}
+                className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {creandoBackOrder ? (
+                  <>
+                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                    Creando Back Order...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-5 h-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 4.5v15m7.5-7.5h-15"
+                      />
+                    </svg>
+                    Crear Back Order con Faltantes
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </motion.div>
   )}
 </AnimatePresence>
+  
+
 
           {/* informacion de entrega */}
           {pedidoSeleccionado && (
