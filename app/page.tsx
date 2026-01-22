@@ -12181,53 +12181,53 @@ const completarPedido = async () => {
                       PA - Producto Agotado
                     </button>
 
-                    {/* Opción Parcial */}
-                    <div className="mb-3">
-                      <input
-                        type="number"
-                        min="1"
-                        max={modalProductoProblema.producto?.cantidad}
-                        value={cantidadParcialInput}
-                        onChange={(e) =>
-                          setCantidadParcialInput(e.target.value)
-                        }
-                        placeholder="Cantidad encontrada"
-                        className="w-full border-2 text-zinc-600 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-2 focus:ring-2 focus:ring-orange-500 outline-none"
-                      />
-                      <button
-                        onClick={() => {
-                          const cantidad = parseInt(cantidadParcialInput);
-                          const producto = modalProductoProblema.producto;
+                   {/* Opción Parcial */}
+<div className="mb-3">
+  <input
+    type="number"
+    min="1"
+    max={modalProductoProblema.producto?.cantidad}
+    value={cantidadParcialInput}
+    onChange={(e) =>
+      setCantidadParcialInput(e.target.value)
+    }
+    placeholder="Cantidad encontrada"
+    className="w-full border-2 text-zinc-600 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-2 focus:ring-2 focus:ring-orange-500 outline-none"
+  />
+  <button
+    onClick={() => {
+      const cantidad = parseInt(cantidadParcialInput);
+      const producto = modalProductoProblema.producto;
 
-                          if (!cantidad || cantidad >= producto.cantidad) {
-                            alert(
-                              "Ingresa una cantidad válida menor a la pedida",
-                            );
-                            return;
-                          }
+      if (!cantidad || cantidad > producto.cantidad || cantidad < 1) {
+        alert(
+          "Ingresa una cantidad válida entre 1 y " + producto.cantidad
+        );
+        return;
+      }
 
-                          const nuevosParciales = new Map(productosParciales);
-                          nuevosParciales.set(producto.producto_id, {
-                            pedida: producto.cantidad,
-                            encontrada: cantidad,
-                          });
-                          setProductosParciales(nuevosParciales);
+      const nuevosParciales = new Map(productosParciales);
+      nuevosParciales.set(producto.producto_id, {
+        pedida: producto.cantidad,
+        encontrada: cantidad,
+      });
+      setProductosParciales(nuevosParciales);
 
-                          // Marcar como surtido la cantidad parcial
-                          const nuevoMapa = new Map(productosSurtidosHoja);
-                          nuevoMapa.set(producto.producto_id, cantidad);
-                          setProductosSurtidosHoja(nuevoMapa);
+      // Marcar como surtido la cantidad parcial
+      const nuevoMapa = new Map(productosSurtidosHoja);
+      nuevoMapa.set(producto.producto_id, cantidad);
+      setProductosSurtidosHoja(nuevoMapa);
 
-                          setModalProductoProblema(null);
-                          setCantidadParcialInput("");
-                          if ("vibrate" in navigator) navigator.vibrate(50);
-                        }}
-                        disabled={!cantidadParcialInput}
-                        className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-orange-500 hover:bg-orange-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        PARCIAL - Cantidad Encontrada
-                      </button>
-                    </div>
+      setModalProductoProblema(null);
+      setCantidadParcialInput("");
+      if ("vibrate" in navigator) navigator.vibrate(50);
+    }}
+    disabled={!cantidadParcialInput}
+    className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-orange-500 hover:bg-orange-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+  >
+    PARCIAL - Cantidad Encontrada
+  </button>
+</div>
 
                     <button
                       onClick={() => {
