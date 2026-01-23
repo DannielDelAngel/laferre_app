@@ -10298,7 +10298,18 @@ const [detallesEmpaque, setDetallesEmpaque] = useState({
   cajas: 0,
   atados: 0,
   tubos: 0,
+  bolsas: 0,
+  rollos: 0,
+  galones: 0,
+  cubetas: 0,
+  losalit: 0,
+  porron: 0,
+  pieza: 0,
+  cilindro: 0,
 });
+const [modalCantidad, setModalCantidad] = useState<any>(null);
+const [cantidadManual, setCantidadManual] = useState("");
+
 
     useEffect(() => {
       cargarPedidosPorRevisar();
@@ -10540,6 +10551,41 @@ const ajustarParcialidad = (producto: any, nuevaCantidad: number) => {
   setCambiosEstado(nuevoCambios);
 };
 
+const abrirModalCantidad = (producto: any) => {
+  const estadoActual = obtenerEstadoActual(producto);
+  if (estadoActual.estado === "PA") {
+    alert("Este producto está marcado como PA");
+    return;
+  }
+  const cantidadVerificada = productosVerificados.get(producto.producto_id) || 0;
+  setModalCantidad(producto);
+  setCantidadManual(cantidadVerificada.toString());
+};
+
+const aplicarCantidadManual = () => {
+  if (!modalCantidad) return;
+  
+  const estadoActual = obtenerEstadoActual(modalCantidad);
+  const cantidadEsperada = estadoActual.cantidad_surtida || 0;
+  const cantidad = parseInt(cantidadManual) || 0;
+  
+  if (cantidad < 0 || cantidad > cantidadEsperada) {
+    alert(`La cantidad debe estar entre 0 y ${cantidadEsperada}`);
+    return;
+  }
+  
+  setProductosVerificados(prev => {
+    const nuevaMapa = new Map(prev);
+    nuevaMapa.set(modalCantidad.producto_id, cantidad);
+    return nuevaMapa;
+  });
+  
+  setModalCantidad(null);
+  setCantidadManual("");
+  
+  if ("vibrate" in navigator) navigator.vibrate(50);
+};
+
 const obtenerEstadoActual = (producto: any) => {
   const cambio = cambiosEstado.get(producto.producto_id);
   return cambio || {
@@ -10637,7 +10683,22 @@ const completarPedido = async () => {
   setGuardando(true);
   try {
     // Generar texto de detalles de empaque
-    const detallesTexto = `Cajas: ${detallesEmpaque.cajas}\nAtados: ${detallesEmpaque.atados}\nTubos: ${detallesEmpaque.tubos}`;
+    const detallesTexto = [
+  ["Cajas", detallesEmpaque.cajas],
+  ["Atados", detallesEmpaque.atados],
+  ["Tubos", detallesEmpaque.tubos],
+  ["Bolsas", detallesEmpaque.bolsas],
+  ["Rollos", detallesEmpaque.rollos],
+  ["Galones", detallesEmpaque.galones],
+  ["Cubetas", detallesEmpaque.cubetas],
+  ["Losalit", detallesEmpaque.losalit],
+  ["Porron", detallesEmpaque.porron],
+  ["Pieza", detallesEmpaque.pieza],
+  ["Cilindro", detallesEmpaque.cilindro],
+]
+  .filter(([_, cantidad]) => Number(cantidad) > 0)  
+  .map(([nombre, cantidad]) => `${nombre}: ${cantidad}`)
+  .join("\n");
 
     // Guardar detalles de empaque
     const { data: existe } = await supabase
@@ -10675,7 +10736,7 @@ const completarPedido = async () => {
     setPedidoSeleccionado(null);
     setHojas([]);
     setHojasProcesadas(new Set());
-    setDetallesEmpaque({ cajas: 0, atados: 0, tubos: 0 });
+    setDetallesEmpaque({ cajas: 0, atados: 0, tubos: 0, bolsas: 0, rollos: 0, galones: 0, cubetas: 0, losalit: 0, porron: 0, pieza: 0, cilindro: 0 });
     cargarPedidosPorRevisar();
   } catch (err) {
     console.error(err);
@@ -10963,38 +11024,392 @@ const completarPedido = async () => {
           </button>
         </div>
       </div>
+
+      {/* Bolsas */}
+<div className="bg-white rounded-lg p-3 border border-green-200">
+  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+    Bolsas
+  </label>
+  <div className="flex items-center gap-3">
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          bolsas: Math.max(0, prev.bolsas - 1),
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      −
+    </button>
+    <input
+      type="number"
+      value={detallesEmpaque.bolsas}
+      onChange={(e) =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          bolsas: Math.max(0, parseInt(e.target.value) || 0),
+        }))
+      }
+      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+    />
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          bolsas: prev.bolsas + 1,
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      +
+    </button>
+  </div>
+</div>
+
+{/* Rollos */}
+<div className="bg-white rounded-lg p-3 border border-green-200">
+  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+    Rollos
+  </label>
+  <div className="flex items-center gap-3">
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          rollos: Math.max(0, prev.rollos - 1),
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      −
+    </button>
+    <input
+      type="number"
+      value={detallesEmpaque.rollos}
+      onChange={(e) =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          rollos: Math.max(0, parseInt(e.target.value) || 0),
+        }))
+      }
+      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+    />
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          rollos: prev.rollos + 1,
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      +
+    </button>
+  </div>
+</div>
+
+{/* Galones */}
+<div className="bg-white rounded-lg p-3 border border-green-200">
+  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+    Galones
+  </label>
+  <div className="flex items-center gap-3">
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          galones: Math.max(0, prev.galones - 1),
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      −
+    </button>
+    <input
+      type="number"
+      value={detallesEmpaque.galones}
+      onChange={(e) =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          galones: Math.max(0, parseInt(e.target.value) || 0),
+        }))
+      }
+      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+    />
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          galones: prev.galones + 1,
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      +
+    </button>
+  </div>
+</div>
+
+{/* Cubetas */}
+<div className="bg-white rounded-lg p-3 border border-green-200">
+  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+    Cubetas
+  </label>
+  <div className="flex items-center gap-3">
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          cubetas: Math.max(0, prev.cubetas - 1),
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      −
+    </button>
+    <input
+      type="number"
+      value={detallesEmpaque.cubetas}
+      onChange={(e) =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          cubetas: Math.max(0, parseInt(e.target.value) || 0),
+        }))
+      }
+      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+    />
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          cubetas: prev.cubetas + 1,
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      +
+    </button>
+  </div>
+</div>
+
+{/* Losalit */}
+<div className="bg-white rounded-lg p-3 border border-green-200">
+  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+    Losalit
+  </label>
+  <div className="flex items-center gap-3">
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          losalit: Math.max(0, prev.losalit - 1),
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      −
+    </button>
+    <input
+      type="number"
+      value={detallesEmpaque.losalit}
+      onChange={(e) =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          losalit: Math.max(0, parseInt(e.target.value) || 0),
+        }))
+      }
+      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+    />
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          losalit: prev.losalit + 1,
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      +
+    </button>
+  </div>
+</div>
+
+{/* Porrón */}
+<div className="bg-white rounded-lg p-3 border border-green-200">
+  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+    Porrón
+  </label>
+  <div className="flex items-center gap-3">
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          porron: Math.max(0, prev.porron - 1),
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      −
+    </button>
+    <input
+      type="number"
+      value={detallesEmpaque.porron}
+      onChange={(e) =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          porron: Math.max(0, parseInt(e.target.value) || 0),
+        }))
+      }
+      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+    />
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          porron: prev.porron + 1,
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      +
+    </button>
+  </div>
+</div>
+
+{/* Pieza */}
+<div className="bg-white rounded-lg p-3 border border-green-200">
+  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+    Pieza
+  </label>
+  <div className="flex items-center gap-3">
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          pieza: Math.max(0, prev.pieza - 1),
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      −
+    </button>
+    <input
+      type="number"
+      value={detallesEmpaque.pieza}
+      onChange={(e) =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          pieza: Math.max(0, parseInt(e.target.value) || 0),
+        }))
+      }
+      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+    />
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          pieza: prev.pieza + 1,
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      +
+    </button>
+  </div>
+</div>
+
+{/* Cilindro */}
+<div className="bg-white rounded-lg p-3 border border-green-200">
+  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+    Cilindro
+  </label>
+  <div className="flex items-center gap-3">
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          cilindro: Math.max(0, prev.cilindro - 1),
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      −
+    </button>
+    <input
+      type="number"
+      value={detallesEmpaque.cilindro}
+      onChange={(e) =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          cilindro: Math.max(0, parseInt(e.target.value) || 0),
+        }))
+      }
+      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+    />
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          cilindro: prev.cilindro + 1,
+        }))
+      }
+      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+    >
+      +
+    </button>
+  </div>
+</div>
+
     </div>
 
     {/* Botones */}
-    <div className="space-y-3">
-      <button
-        onClick={async () => {
-  await fetch("http://192.168.100.34:3005/print", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      cliente: pedidoSeleccionado.cuentas.cliente,
-      pedido: pedidoSeleccionado.id,
-      cajas: detallesEmpaque.cajas,
-      atados: detallesEmpaque.atados,
-      tubos: detallesEmpaque.tubos
-    })
-  });
-}}
+    <button
+  onClick={async () => {
+    try {
+      const response = await fetch("http://192.168.100.34:3005/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cliente: pedidoSeleccionado.cuentas.cliente,
+          pedido: pedidoSeleccionado.id,
+          ...detallesEmpaque,
+        }),
+      });
 
-        className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-blue-500 hover:bg-blue-600 active:scale-95 transition-transform"
-      >
-        IMPRIMIR ETIQUETAS
-      </button>
+      const data = await response.json();
+      
+      if (data.ok && data.codigosGenerados) {
+        // Guardar códigos en Supabase
+        const codigosParaInsertar = data.codigosGenerados.map((c: any) => ({
+          pedido_id: pedidoSeleccionado.id,
+          codigo: c.codigo,
+          tipo: c.tipo,
+          numero: c.numero,
+        }));
 
-      <button
+        await supabase
+          .from("codigos_etiquetas")
+          .insert(codigosParaInsertar);
+
+        alert(`Etiquetas impresas: ${data.copias} (${data.codigosGenerados.length} con código)`);
+      }
+    } catch (error) {
+      console.error("Error imprimiendo:", error);
+      alert("Error al imprimir etiquetas");
+    }
+  }}
+  className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-blue-500 hover:bg-blue-600 active:scale-95 transition-transform"
+>
+  IMPRIMIR ETIQUETAS
+</button>
+ <button
         onClick={completarPedido}
         disabled={guardando}
-        className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-green-600 hover:bg-green-700 active:scale-95 transition-transform disabled:opacity-50"
+        className="w-full py-3 mt-3 wunded-xl text-white font-bold shadow-lg bg-green-600 hover:bg-green-700 active:scale-95 transition-transform disabled:opacity-50"
       >
         {guardando ? "COMPLETANDO..." : "ACEPTAR Y MARCAR COMO ENCAJADO"}
       </button>
-    </div>
   </motion.div>
 )}
         </motion.div>
@@ -11078,7 +11493,8 @@ const completarPedido = async () => {
             ? "#22c55e"
             : "#e4e4e7",
   }}
-  className="border-2 rounded-xl p-3 shadow-sm"
+  className="border-2 rounded-xl p-3 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+onClick={() => abrirModalCantidad(prod)}
 >
   <div className="flex items-center gap-3">
     <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
@@ -11183,6 +11599,78 @@ const completarPedido = async () => {
             );
           })}
         </div>
+
+        {/* Modal de cantidad manual */}
+{typeof document !== "undefined" &&
+  createPortal(
+    <AnimatePresence>
+      {modalCantidad && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => {
+            setModalCantidad(null);
+            setCantidadManual("");
+          }}
+          className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+          style={{ zIndex: 50000 }}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl"
+          >
+            <h3 className="text-xl font-bold text-zinc-900 mb-2">
+              Ingresar Cantidad Verificada
+            </h3>
+            <p className="text-sm text-zinc-600 mb-1 line-clamp-2">
+              {modalCantidad.TITULO}
+            </p>
+            <p className="text-xs text-zinc-500 mb-4">
+              Cantidad esperada: {obtenerEstadoActual(modalCantidad).cantidad_surtida}
+            </p>
+
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                Cantidad verificada
+              </label>
+              <input
+                type="number"
+                value={cantidadManual}
+                onChange={(e) => setCantidadManual(e.target.value)}
+                className="w-full text-3xl font-bold text-center text-zinc-900 bg-zinc-50 border-2 border-zinc-300 rounded-xl py-4 focus:border-blue-500 focus:outline-none"
+                autoFocus
+                min="0"
+                max={obtenerEstadoActual(modalCantidad).cantidad_surtida}
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setModalCantidad(null);
+                  setCantidadManual("");
+                }}
+                className="flex-1 py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={aplicarCantidadManual}
+                className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 transition"
+              >
+                Aplicar
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
+  )}
 
         {/* Modal de hoja completada */}
         {typeof document !== "undefined" &&
