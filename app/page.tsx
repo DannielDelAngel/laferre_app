@@ -10310,6 +10310,12 @@ const [detallesEmpaque, setDetallesEmpaque] = useState({
 const [modalCantidad, setModalCantidad] = useState<any>(null);
 const [cantidadManual, setCantidadManual] = useState("");
 
+const [modalProductoActivo, setModalProductoActivo] = useState<{
+  visible: boolean;
+  producto: any;
+  cantidadActual: number;
+  cantidadObjetivo: number;
+} | null>(null);
 
     useEffect(() => {
       cargarPedidosPorRevisar();
@@ -10327,6 +10333,39 @@ const [cantidadManual, setCantidadManual] = useState("");
         supabase.removeChannel(channel);
       };
     }, []);
+
+    const limpiarEstadoLocal = () => {
+      localStorage.removeItem('revision_estado');
+    };
+
+    // Funciones para guardar/cargar estado local por hoja
+    const guardarEstadoLocalHoja = (hojaId: number, estado: any) => {
+      try {
+        localStorage.setItem(`hoja_revision_${hojaId}_progreso`, JSON.stringify(estado));
+      } catch (error) {
+        console.error("Error guardando estado:", error);
+      }
+    };
+
+    const cargarEstadoLocalHoja = (hojaId: number) => {
+      try {
+        const guardado = localStorage.getItem(`hoja_revision_${hojaId}_progreso`);
+        if (guardado) {
+          return JSON.parse(guardado);
+        }
+      } catch (error) {
+        console.error("Error cargando estado:", error);
+      }
+      return null;
+    };
+
+    const limpiarEstadoLocalHoja = (hojaId: number) => {
+      try {
+        localStorage.removeItem(`hoja_revision_${hojaId}_progreso`);
+      } catch (error) {
+        console.error("Error limpiando estado:", error);
+      }
+    };
 
     const cargarPedidosPorRevisar = async () => {
       const { data } = await supabase
@@ -10390,7 +10429,7 @@ const [cantidadManual, setCantidadManual] = useState("");
   setPedidoSeleccionado(pedido);
   setHojas(hojasConProductos);
 
-  // NUEVO: Cargar hojas que ya fueron revisadas desde la base de datos
+  // Cargar hojas que ya fueron revisadas desde la base de datos
   const { data: hojasRevisadas } = await supabase
     .from("hojas_revision")
     .select("hoja_id")
@@ -10414,8 +10453,27 @@ const [cantidadManual, setCantidadManual] = useState("");
         alert("Esta hoja ya fue revisada");
         return;
       }
+      
       setHojaActual(hoja);
-      setProductosVerificados(new Map());
+
+      // Cargar estado guardado si existe
+      const estadoGuardado = cargarEstadoLocalHoja(hoja.id);
+      if (estadoGuardado) {
+        const mapaVerificados = new Map();
+        (estadoGuardado.productosVerificados || []).forEach(([key, value]: [number, number]) => {
+          mapaVerificados.set(key, value);
+        });
+        setProductosVerificados(mapaVerificados);
+
+        const mapaCambios = new Map();
+        (estadoGuardado.cambiosEstado || []).forEach(([key, value]: [number, any]) => {
+          mapaCambios.set(key, value);
+        });
+        setCambiosEstado(mapaCambios);
+      } else {
+        setProductosVerificados(new Map());
+        setCambiosEstado(new Map());
+      }
     };
 
     // Lógica de escaneo
@@ -10453,7 +10511,7 @@ const [cantidadManual, setCantidadManual] = useState("");
       mostrarModalCompletado,
     ]);
 
-  const procesarEscaneo = (codigoEscaneado: string) => {
+const procesarEscaneo = (codigoEscaneado: string) => {
   if (!hojaActual) return;
 
   setUltimoEscaneo(codigoEscaneado);
@@ -10487,7 +10545,15 @@ const [cantidadManual, setCantidadManual] = useState("");
     return;
   }
 
-  // SOLO actualizar verificados, nada más
+  // mostrar modal
+  setModalProductoActivo({
+    visible: true,
+    producto: producto,
+    cantidadActual: cantidadVerificada + 1,
+    cantidadObjetivo: cantidadEsperada,
+  });
+
+  // Actualizar verificados
   setProductosVerificados(prev => {
     const nuevaMapa = new Map(prev);
     nuevaMapa.set(producto.producto_id, cantidadVerificada + 1);
@@ -10495,9 +10561,19 @@ const [cantidadManual, setCantidadManual] = useState("");
   });
 
   if ("vibrate" in navigator) navigator.vibrate(50);
+  
+  // Auto-cerrar si completó
+  if (cantidadVerificada + 1 >= cantidadEsperada) {
+    setTimeout(() => {
+      setModalProductoActivo(null);
+    }, 1500);
+  }
 };
 
-    const togglePA = (producto: any) => {
+   const togglePA = (producto: any) => {
+  // Detener propagación del evento para evitar que se abra el modal
+  event?.stopPropagation();
+  
   const nuevoCambios = new Map(cambiosEstado);
   const cambioActual = nuevoCambios.get(producto.producto_id) || {
     estado: producto.estado,
@@ -10510,7 +10586,7 @@ const [cantidadManual, setCantidadManual] = useState("");
     nuevoCambios.set(producto.producto_id, {
       estado: "completo",
       cantidad_surtida: producto.cantidad_pedida,
-       ingreso_manual: producto.ingreso_manual || false,
+      ingreso_manual: producto.ingreso_manual || false,
     });
   } else {
     // Marcar como PA
@@ -10622,6 +10698,18 @@ const obtenerEstadoActual = (producto: any) => {
       }
     }, [hojaCompleta, hojaActual]);
 
+    // Guardar progreso automáticamente cuando cambie
+    useEffect(() => {
+      if (!hojaActual) return;
+
+      const estadoActual = {
+        productosVerificados: Array.from(productosVerificados.entries()),
+        cambiosEstado: Array.from(cambiosEstado.entries()),
+      };
+
+      guardarEstadoLocalHoja(hojaActual.id, estadoActual);
+    }, [productosVerificados, cambiosEstado, hojaActual]);
+
 const completarHoja = async () => {
   if (!hojaActual) return;
 
@@ -10670,6 +10758,7 @@ await supabase.from("hojas_revision").upsert({
 });
 
     setMostrarModalCompletado(false);
+    limpiarEstadoLocalHoja(hojaActual.id);
     setHojaActual(null);
     setProductosVerificados(new Map());
     setCambiosEstado(new Map());
@@ -10739,6 +10828,7 @@ const completarPedido = async () => {
     alert("¡Pedido completado y marcado como encajado!");
     
     // Limpiar todo
+    limpiarEstadoLocal();
     setMostrarModalPedidoCompleto(false);
     setPedidoSeleccionado(null);
     setHojas([]);
@@ -10825,6 +10915,7 @@ const completarPedido = async () => {
         >
           <BackBtn
             onBack={() => {
+              limpiarEstadoLocal();
               setPedidoSeleccionado(null);
               setHojas([]);
               setHojasProcesadas(new Set());
@@ -11522,44 +11613,55 @@ onClick={() => abrirModalCantidad(prod)}
       </p>
       <p className="text-xs text-zinc-500 mt-1">{prod.CODIGO}</p>
 
-      {/* Controles de estado */}
-      <div className="flex gap-2 mt-2">
-        <button
-          onClick={() => togglePA(prod)}
-          className={`text-xs font-bold px-2 py-1 rounded ${
-            estadoActual.estado === "PA"
-              ? "bg-yellow-500 text-white"
-              : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300"
-          }`}
-        >
-          {estadoActual.estado === "PA" ? "✓ PA" : "Marcar PA"}
-        </button>
+     {/* Controles de estado */}
+<div className="flex gap-2 mt-2">
+  <button
+    onClick={(e) => {
+      e.stopPropagation(); 
+      togglePA(prod);
+    }}
+    className={`text-xs font-bold px-2 py-1 rounded ${
+      estadoActual.estado === "PA"
+        ? "bg-yellow-500 text-white"
+        : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300"
+    }`}
+  >
+    {estadoActual.estado === "PA" ? "✓ PA" : "Marcar PA"}
+  </button>
 
-        {estadoActual.estado !== "PA" && (
-          <div className="flex items-center gap-1 bg-zinc-100 rounded px-2">
-            <button
-              onClick={() =>
-                ajustarParcialidad(prod, estadoActual.cantidad_surtida - 1)
-              }
-              className="text-zinc-600 hover:text-zinc-900 font-bold"
-            >
-              −
-            </button>
-            <span className="text-xs font-semibold text-zinc-700 min-w-[40px] text-center">
-              {estadoActual.cantidad_surtida}/{prod.cantidad_pedida}
-            </span>
-            <button
-              onClick={() =>
-                ajustarParcialidad(prod, estadoActual.cantidad_surtida + 1)
-              }
-              className="text-zinc-600 hover:text-zinc-900 font-bold"
-            >
-              +
-            </button>
-          </div>
-        )}
-      </div>
+  {/* Mostrar cantidad pedida cuando está en PA */}
+  {estadoActual.estado === "PA" && (
+    <span className="text-xs text-yellow-700 font-semibold bg-yellow-100 px-2 py-1 rounded">
+      Pedidos: {prod.cantidad_pedida}
+    </span>
+  )}
 
+  {estadoActual.estado !== "PA" && (
+    <div className="flex items-center gap-1 bg-zinc-100 rounded px-2">
+      <button
+        onClick={(e) => {
+          e.stopPropagation(); 
+          ajustarParcialidad(prod, estadoActual.cantidad_surtida - 1);
+        }}
+        className="text-zinc-600 hover:text-zinc-900 font-bold"
+      >
+        −
+      </button>
+      <span className="text-xs font-semibold text-zinc-700 min-w-[40px] text-center">
+        {estadoActual.cantidad_surtida}/{prod.cantidad_pedida}
+      </span>
+      <button
+        onClick={(e) => {
+          e.stopPropagation(); 
+          ajustarParcialidad(prod, estadoActual.cantidad_surtida + 1);
+        }}
+        className="text-zinc-600 hover:text-zinc-900 font-bold"
+      >
+        +
+      </button>
+    </div>
+  )}
+</div>
       {estadoActual.estado === "parcial" && (
   <div className="mt-2 flex gap-2 items-center flex-wrap">
     <div className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
@@ -11752,6 +11854,131 @@ onClick={() => abrirModalCantidad(prod)}
             </AnimatePresence>,
             document.body,
           )}
+
+          {/* Modal de Producto Activo */}
+{typeof document !== "undefined" &&
+  createPortal(
+    <AnimatePresence>
+      {modalProductoActivo && modalProductoActivo.visible && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setModalProductoActivo(null)}
+          className="fixed inset-0 bg-black/90 z-[60000] flex items-center justify-center p-4"
+          style={{ zIndex: 60000 }}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl relative"
+          >
+            {/* Botón cerrar */}
+            <button
+              onClick={() => setModalProductoActivo(null)}
+              className="absolute top-4 right-4 w-10 h-10 bg-zinc-100 hover:bg-zinc-200 rounded-full flex items-center justify-center transition"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2.5}
+                stroke="currentColor"
+                className="w-5 h-5 text-zinc-600"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+
+            {/* Imagen del producto */}
+            <div className="relative w-48 h-48 mx-auto mb-6 bg-zinc-100 rounded-2xl overflow-hidden">
+              <Image
+                src={
+                  modalProductoActivo.producto?.IMAGEN ||
+                  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                }
+                alt={modalProductoActivo.producto?.TITULO}
+                fill
+                className="object-contain p-4"
+              />
+            </div>
+
+            {/* Título del producto */}
+            <h3 className="text-xl font-bold text-zinc-900 text-center mb-2 leading-tight">
+              {modalProductoActivo.producto?.TITULO}
+            </h3>
+            
+            <p className="text-sm text-zinc-500 text-center mb-6 font-mono">
+              {modalProductoActivo.producto?.CODIGO}
+            </p>
+
+            {/* Contador grande */}
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-8 mb-6">
+              <p className="text-sm text-green-700 font-semibold text-center mb-2">
+                Cantidad Escaneada
+              </p>
+              <div className="flex items-center justify-center gap-4">
+                <motion.span
+                  key={modalProductoActivo.cantidadActual}
+                  initial={{ scale: 1.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="text-6xl font-black text-green-600"
+                >
+                  {modalProductoActivo.cantidadActual}
+                </motion.span>
+                <span className="text-4xl font-bold text-green-400">/</span>
+                <span className="text-4xl font-bold text-green-700">
+                  {modalProductoActivo.cantidadObjetivo}
+                </span>
+              </div>
+            </div>
+
+            {/* Barra de progreso */}
+            <div className="w-full bg-zinc-200 rounded-full h-4 overflow-hidden mb-4">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{
+                  width: `${(modalProductoActivo.cantidadActual / modalProductoActivo.cantidadObjetivo) * 100}%`,
+                }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="h-full bg-gradient-to-r from-green-500 to-green-600"
+              />
+            </div>
+
+            {/* Estado */}
+            {modalProductoActivo.cantidadActual >= modalProductoActivo.cantidadObjetivo ? (
+              <div className="flex items-center justify-center gap-2 text-green-600">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <span className="font-bold text-lg">¡COMPLETADO!</span>
+              </div>
+            ) : (
+              <p className="text-center text-zinc-500 font-medium">
+                Continúa escaneando...
+              </p>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
+  )}
       </motion.div>
     );
   };
@@ -11948,7 +12175,12 @@ onClick={() => abrirModalCantidad(prod)}
     } | null>(null);
     const [cantidadParcialInput, setCantidadParcialInput] = useState("");
     const [productosIngresoManual, setProductosIngresoManual] = useState<Set<number>>(new Set());
-
+const [modalProductoActivo, setModalProductoActivo] = useState<{
+  visible: boolean;
+  producto: any;
+  cantidadActual: number;
+  cantidadObjetivo: number;
+} | null>(null);
 
     // Funciones para guardar/cargar estado local
 const guardarEstadoLocal = (hojaId: number, estado: any) => {
@@ -12135,7 +12367,7 @@ useEffect(() => {
   
   setHojaActual(hoja);
 
-  // NUEVO: Cargar estado guardado si existe
+  // Cargar estado guardado si existe
   const estadoGuardado = cargarEstadoLocal(hoja.id);
   if (estadoGuardado) {
     setProductosSurtidosHoja(new Map(estadoGuardado.productosSurtidos || []));
@@ -12493,6 +12725,8 @@ limpiarEstadoLocal(hojaActual.id);
               );
             })}
           </div>
+
+          
         </motion.div>
       );
     }
@@ -12997,6 +13231,131 @@ limpiarEstadoLocal(hojaActual.id);
             </AnimatePresence>,
             document.body,
           )}
+
+          {/* Modal de Producto Activo */}
+{typeof document !== "undefined" &&
+  createPortal(
+    <AnimatePresence>
+      {modalProductoActivo && modalProductoActivo.visible && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setModalProductoActivo(null)}
+          className="fixed inset-0 bg-black/90 z-[60000] flex items-center justify-center p-4"
+          style={{ zIndex: 60000 }}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl relative"
+          >
+            {/* Botón cerrar */}
+            <button
+              onClick={() => setModalProductoActivo(null)}
+              className="absolute top-4 right-4 w-10 h-10 bg-zinc-100 hover:bg-zinc-200 rounded-full flex items-center justify-center transition"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2.5}
+                stroke="currentColor"
+                className="w-5 h-5 text-zinc-600"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+
+            {/* Imagen del producto */}
+            <div className="relative w-48 h-48 mx-auto mb-6 bg-zinc-100 rounded-2xl overflow-hidden">
+              <Image
+                src={
+                  modalProductoActivo.producto?.IMAGEN ||
+                  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                }
+                alt={modalProductoActivo.producto?.TITULO}
+                fill
+                className="object-contain p-4"
+              />
+            </div>
+
+            {/* Título del producto */}
+            <h3 className="text-xl font-bold text-zinc-900 text-center mb-2 leading-tight">
+              {modalProductoActivo.producto?.TITULO}
+            </h3>
+            
+            <p className="text-sm text-zinc-500 text-center mb-6 font-mono">
+              {modalProductoActivo.producto?.CODIGO}
+            </p>
+
+            {/* Contador grande */}
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-8 mb-6">
+              <p className="text-sm text-green-700 font-semibold text-center mb-2">
+                Cantidad Escaneada
+              </p>
+              <div className="flex items-center justify-center gap-4">
+                <motion.span
+                  key={modalProductoActivo.cantidadActual}
+                  initial={{ scale: 1.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="text-6xl font-black text-green-600"
+                >
+                  {modalProductoActivo.cantidadActual}
+                </motion.span>
+                <span className="text-4xl font-bold text-green-400">/</span>
+                <span className="text-4xl font-bold text-green-700">
+                  {modalProductoActivo.cantidadObjetivo}
+                </span>
+              </div>
+            </div>
+
+            {/* Barra de progreso */}
+            <div className="w-full bg-zinc-200 rounded-full h-4 overflow-hidden mb-4">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{
+                  width: `${(modalProductoActivo.cantidadActual / modalProductoActivo.cantidadObjetivo) * 100}%`,
+                }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="h-full bg-gradient-to-r from-green-500 to-green-600"
+              />
+            </div>
+
+            {/* Estado */}
+            {modalProductoActivo.cantidadActual >= modalProductoActivo.cantidadObjetivo ? (
+              <div className="flex items-center justify-center gap-2 text-green-600">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <span className="font-bold text-lg">¡COMPLETADO!</span>
+              </div>
+            ) : (
+              <p className="text-center text-zinc-500 font-medium">
+                Continúa escaneando...
+              </p>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
+  )}
       </motion.div>
     );
   };
