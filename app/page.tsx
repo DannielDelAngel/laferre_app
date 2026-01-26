@@ -11925,6 +11925,50 @@ onClick={() => abrirModalCantidad(prod)}
     } | null>(null);
     const [cantidadParcialInput, setCantidadParcialInput] = useState("");
 
+
+    // Funciones para guardar/cargar estado local
+const guardarEstadoLocal = (hojaId: number, estado: any) => {
+  try {
+    localStorage.setItem(`hoja_${hojaId}_progreso`, JSON.stringify(estado));
+  } catch (error) {
+    console.error("Error guardando estado:", error);
+  }
+};
+
+const cargarEstadoLocal = (hojaId: number) => {
+  try {
+    const guardado = localStorage.getItem(`hoja_${hojaId}_progreso`);
+    if (guardado) {
+      return JSON.parse(guardado);
+    }
+  } catch (error) {
+    console.error("Error cargando estado:", error);
+  }
+  return null;
+};
+
+const limpiarEstadoLocal = (hojaId: number) => {
+  try {
+    localStorage.removeItem(`hoja_${hojaId}_progreso`);
+  } catch (error) {
+    console.error("Error limpiando estado:", error);
+  }
+};
+
+// Guardar progreso automáticamente cuando cambie
+useEffect(() => {
+  if (!hojaActual) return;
+
+  const estadoActual = {
+    productosSurtidos: Array.from(productosSurtidosHoja.entries()),
+    productosPA: Array.from(productosPA),
+    productosParciales: Array.from(productosParciales.entries()),
+  };
+
+  guardarEstadoLocal(hojaActual.id, estadoActual);
+}, [productosSurtidosHoja, productosPA, productosParciales, hojaActual]);
+
+
     // Cargar hojas del pedido
     useEffect(() => {
       if (!pedidoSurtir) return;
@@ -12030,55 +12074,72 @@ onClick={() => abrirModalCantidad(prod)}
     }, [pedidoSurtir]);
 
     const seleccionarHoja = async (hoja: any) => {
-      if (hoja.estado === "completado") {
-        setModalAlerta({
-          visible: true,
-          titulo: "Hoja Completada",
-          mensaje: "Esta hoja ya fue surtida completamente.",
-          tipo: "warning",
-        });
-        return;
-      }
+  if (hoja.estado === "completado") {
+    setModalAlerta({
+      visible: true,
+      titulo: "Hoja Completada",
+      mensaje: "Esta hoja ya fue surtida completamente.",
+      tipo: "warning",
+    });
+    return;
+  }
 
-      if (
-        hoja.estado === "surtiendo" &&
-        hoja.empleado_surtiendo !== cuenta?.numero_cuenta
-      ) {
-        setModalAlerta({
-          visible: true,
-          titulo: "Hoja en Uso",
-          mensaje: `Esta hoja está siendo surtida por ${hoja.empleado_surtiendo}`,
-          tipo: "warning",
-        });
-        return;
-      }
+  if (
+    hoja.estado === "surtiendo" &&
+    hoja.empleado_surtiendo !== cuenta?.numero_cuenta
+  ) {
+    setModalAlerta({
+      visible: true,
+      titulo: "Hoja en Uso",
+      mensaje: `Esta hoja está siendo surtida por ${hoja.empleado_surtiendo}`,
+      tipo: "warning",
+    });
+    return;
+  }
 
-      // Marcar hoja como "surtiendo"
-      await supabase
-        .from("hojas_surtido")
-        .update({
-          estado: "surtiendo",
-          empleado_surtiendo: cuenta?.numero_cuenta,
-          fecha_inicio: new Date().toISOString(),
-        })
-        .eq("id", hoja.id);
-      setHojaActual(hoja);
-      setProductosSurtidosHoja(new Map());
-    };
+  // Marcar hoja como "surtiendo"
+  await supabase
+    .from("hojas_surtido")
+    .update({
+      estado: "surtiendo",
+      empleado_surtiendo: cuenta?.numero_cuenta,
+      fecha_inicio: new Date().toISOString(),
+    })
+    .eq("id", hoja.id);
+  
+  setHojaActual(hoja);
+
+  // NUEVO: Cargar estado guardado si existe
+  const estadoGuardado = cargarEstadoLocal(hoja.id);
+  if (estadoGuardado) {
+    setProductosSurtidosHoja(new Map(estadoGuardado.productosSurtidos || []));
+    setProductosPA(new Set(estadoGuardado.productosPA || []));
+    setProductosParciales(new Map(estadoGuardado.productosParciales || []));
+  } else {
+    setProductosSurtidosHoja(new Map());
+    setProductosPA(new Set());
+    setProductosParciales(new Map());
+  }
+};
 
     const volverAHojas = async () => {
-      if (hojaActual && hojaActual.estado !== "completado") {
-        await supabase
-          .from("hojas_surtido")
-          .update({
-            estado: "pendiente",
-            empleado_surtiendo: null,
-          })
-          .eq("id", hojaActual.id);
-      }
-      setHojaActual(null);
-      setProductosSurtidosHoja(new Map());
-    };
+  if (hojaActual && hojaActual.estado !== "completado") {
+    // descomentar para borrar progreso al salir
+    // limpiarEstadoLocal(hojaActual.id);
+    
+    await supabase
+      .from("hojas_surtido")
+      .update({
+        estado: "pendiente",
+        empleado_surtiendo: null,
+      })
+      .eq("id", hojaActual.id);
+  }
+  setHojaActual(null);
+  setProductosSurtidosHoja(new Map());
+  setProductosPA(new Set());
+  setProductosParciales(new Map());
+};
 
     const completarHoja = async () => {
       if (!hojaActual) return;
@@ -12095,7 +12156,7 @@ onClick={() => abrirModalCantidad(prod)}
 
           return {
             codigo: item.CODIGO,
-            cantidad_pedida: item.cantidad_pedida, // Usar el campo original
+            cantidad_pedida: item.cantidad_pedida, 
             cantidad_surtida: esPA
               ? 0
               : esParcial
@@ -12136,8 +12197,10 @@ onClick={() => abrirModalCantidad(prod)}
         setProductosSurtidosHoja(new Map());
         setProductosPA(new Set());
         setProductosParciales(new Map());
+        // Limpiar estado local guardado
+limpiarEstadoLocal(hojaActual.id);
 
-        // No necesitamos recargar manual, el realtime subscription lo hará
+        
       } catch (err) {
         console.error("Error al completar hoja:", err);
       } finally {
