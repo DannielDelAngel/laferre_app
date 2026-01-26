@@ -10376,6 +10376,7 @@ const [cantidadManual, setCantidadManual] = useState("");
           cantidad_surtida: ps.cantidad_surtida,
           estado: ps.estado,
           producto_id: prod?.id,
+           ingreso_manual: ps.ingreso_manual || false,
         };
       });
 
@@ -10501,6 +10502,7 @@ const [cantidadManual, setCantidadManual] = useState("");
   const cambioActual = nuevoCambios.get(producto.producto_id) || {
     estado: producto.estado,
     cantidad_surtida: producto.cantidad_surtida,
+    ingreso_manual: producto.ingreso_manual || false,
   };
 
   if (cambioActual.estado === "PA") {
@@ -10508,12 +10510,14 @@ const [cantidadManual, setCantidadManual] = useState("");
     nuevoCambios.set(producto.producto_id, {
       estado: "completo",
       cantidad_surtida: producto.cantidad_pedida,
+       ingreso_manual: producto.ingreso_manual || false,
     });
   } else {
     // Marcar como PA
     nuevoCambios.set(producto.producto_id, {
       estado: "PA",
       cantidad_surtida: 0,
+      ingreso_manual: false,
     });
     // Limpiar verificaciones de este producto
     const nuevosVerificados = new Map(productosVerificados);
@@ -10538,6 +10542,7 @@ const ajustarParcialidad = (producto: any, nuevaCantidad: number) => {
   nuevoCambios.set(producto.producto_id, {
     estado: nuevoEstado,
     cantidad_surtida: nuevaCantidad,
+    ingreso_manual: producto.ingreso_manual || false, 
   });
 
   // Ajustar verificaciones si exceden la nueva cantidad
@@ -10632,6 +10637,7 @@ const completarHoja = async () => {
             cantidad_pedida: p.cantidad_pedida,
             cantidad_surtida: cambio.cantidad_surtida,
             estado: cambio.estado,
+            ingreso_manual: cambio.ingreso_manual || p.ingreso_manual || false,
           };
         }
         return {
@@ -10639,6 +10645,7 @@ const completarHoja = async () => {
           cantidad_pedida: p.cantidad_pedida,
           cantidad_surtida: p.cantidad_surtida,
           estado: p.estado,
+          ingreso_manual: p.ingreso_manual || false,
         };
       });
 
@@ -11554,10 +11561,26 @@ onClick={() => abrirModalCantidad(prod)}
       </div>
 
       {estadoActual.estado === "parcial" && (
-        <div className="mt-2 bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
-          PARCIAL
-        </div>
-      )}
+  <div className="mt-2 flex gap-2 items-center flex-wrap">
+    <div className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+      PARCIAL
+    </div>
+    {prod.ingreso_manual && (
+      <div className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+        INGRESO MANUAL
+      </div>
+    )}
+  </div>
+)}
+
+{/* También mostrar para productos completos con ingreso manual */}
+{estadoActual.estado === "completo" && prod.ingreso_manual && (
+  <div className="mt-2">
+    <div className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+      INGRESO MANUAL
+    </div>
+  </div>
+)}
 
       {estadoActual.estado !== "PA" && (
         <div className="flex items-center gap-2 mt-2">
@@ -11917,13 +11940,14 @@ onClick={() => abrirModalCantidad(prod)}
     } | null>(null);
     const [productosPA, setProductosPA] = useState<Set<number>>(new Set());
     const [productosParciales, setProductosParciales] = useState<
-      Map<number, { pedida: number; encontrada: number }>
+      Map<number, { pedida: number; encontrada: number; esManual?: boolean }>
     >(new Map());
     const [modalProductoProblema, setModalProductoProblema] = useState<{
       visible: boolean;
       producto: any;
     } | null>(null);
     const [cantidadParcialInput, setCantidadParcialInput] = useState("");
+    const [productosIngresoManual, setProductosIngresoManual] = useState<Set<number>>(new Set());
 
 
     // Funciones para guardar/cargar estado local
@@ -11963,6 +11987,7 @@ useEffect(() => {
     productosSurtidos: Array.from(productosSurtidosHoja.entries()),
     productosPA: Array.from(productosPA),
     productosParciales: Array.from(productosParciales.entries()),
+     productosIngresoManual: Array.from(productosIngresoManual),
   };
 
   guardarEstadoLocal(hojaActual.id, estadoActual);
@@ -12006,6 +12031,7 @@ useEffect(() => {
                     cantidad_pedida: itemJson.cantidad_pedida,
                     cantidad_surtida: itemJson.cantidad_surtida || 0,
                     estado: itemJson.estado || "pendiente",
+                    ingreso_manual: itemJson.ingreso_manual || false,
                   };
                 })
                 .filter(Boolean);
@@ -12115,6 +12141,7 @@ useEffect(() => {
     setProductosSurtidosHoja(new Map(estadoGuardado.productosSurtidos || []));
     setProductosPA(new Set(estadoGuardado.productosPA || []));
     setProductosParciales(new Map(estadoGuardado.productosParciales || []));
+     setProductosIngresoManual(new Set(estadoGuardado.productosIngresoManual || []));
   } else {
     setProductosSurtidosHoja(new Map());
     setProductosPA(new Set());
@@ -12147,24 +12174,34 @@ useEffect(() => {
       setGuardandoCierre(true);
       try {
         // Preparar productos para guardar
-        const productosParaGuardar = hojaActual.productos.map((item: any) => {
-          const esPA = productosPA.has(item.producto_id);
-          const esParcial = productosParciales.has(item.producto_id);
-          const parcialInfo = productosParciales.get(item.producto_id);
-          const cantidadSurtida =
-            productosSurtidosHoja.get(item.producto_id) || 0;
+      const productosParaGuardar = hojaActual.productos.map((item: any) => {
+  const esPA = productosPA.has(item.producto_id);
+  const esParcial = productosParciales.has(item.producto_id);
+  const parcialInfo = productosParciales.get(item.producto_id);
+  const cantidadSurtida = productosSurtidosHoja.get(item.producto_id) || 0;
+  const esIngresoManual = productosIngresoManual.has(item.producto_id); 
 
-          return {
-            codigo: item.CODIGO,
-            cantidad_pedida: item.cantidad_pedida, 
-            cantidad_surtida: esPA
-              ? 0
-              : esParcial
-                ? parcialInfo!.encontrada
-                : cantidadSurtida,
-            estado: esPA ? "PA" : esParcial ? "parcial" : "completo",
-          };
-        });
+  let estadoFinal = "completo";
+  let cantidadFinal = cantidadSurtida;
+
+  if (esPA) {
+    estadoFinal = "PA";
+    cantidadFinal = 0;
+  } else if (esParcial) {
+    estadoFinal = "parcial";
+    cantidadFinal = parcialInfo!.encontrada;
+  } else if (cantidadSurtida === item.cantidad_pedida) {
+    estadoFinal = "completo";
+  }
+
+  return {
+    codigo: item.CODIGO,
+    cantidad_pedida: item.cantidad_pedida,
+    cantidad_surtida: cantidadFinal,
+    estado: estadoFinal,
+    ingreso_manual: esIngresoManual, 
+  };
+});
 
         await supabase
           .from("hojas_surtido")
@@ -12598,10 +12635,21 @@ limpiarEstadoLocal(hojaActual.id);
                     )}
 
                     {esParcial && parcialInfo && (
-                      <div className="mt-2 bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
-                        PARCIAL: {parcialInfo.encontrada}/{parcialInfo.pedida}
-                      </div>
-                    )}
+  <div className="mt-2 flex gap-2 items-center flex-wrap">
+    <div className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+      PARCIAL: {parcialInfo.encontrada}/{parcialInfo.pedida}
+    </div>
+  </div>
+)}
+
+{/* Mostrar ingreso manual para productos completos también */}
+{!esPA && !esParcial && productosIngresoManual.has(item.producto_id) && (
+  <div className="mt-2">
+    <div className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+      INGRESO MANUAL
+    </div>
+  </div>
+)}
 
                     {!esPA && !esParcial && (
                       <div className="flex items-center gap-2 mt-2">
@@ -12823,32 +12871,40 @@ limpiarEstadoLocal(hojaActual.id);
   />
   <button
     onClick={() => {
-      const cantidad = parseInt(cantidadParcialInput);
-      const producto = modalProductoProblema.producto;
+  const cantidad = parseInt(cantidadParcialInput);
+  const producto = modalProductoProblema.producto;
 
-      if (!cantidad || cantidad > producto.cantidad || cantidad < 1) {
-        alert(
-          "Ingresa una cantidad válida entre 1 y " + producto.cantidad
-        );
-        return;
-      }
+  if (!cantidad || cantidad > producto.cantidad || cantidad < 1) {
+    alert("Ingresa una cantidad válida entre 1 y " + producto.cantidad);
+    return;
+  }
 
-      const nuevosParciales = new Map(productosParciales);
-      nuevosParciales.set(producto.producto_id, {
-        pedida: producto.cantidad,
-        encontrada: cantidad,
-      });
-      setProductosParciales(nuevosParciales);
+  const nuevoEstado = cantidad === producto.cantidad ? "completo" : "parcial";
+  const nuevosParciales = new Map(productosParciales);
+  
+  const nuevosIngresoManual = new Set(productosIngresoManual);
+  nuevosIngresoManual.add(producto.producto_id);
+  setProductosIngresoManual(nuevosIngresoManual);
 
-      // Marcar como surtido la cantidad parcial
-      const nuevoMapa = new Map(productosSurtidosHoja);
-      nuevoMapa.set(producto.producto_id, cantidad);
-      setProductosSurtidosHoja(nuevoMapa);
+  if (nuevoEstado === "parcial") {
+    nuevosParciales.set(producto.producto_id, {
+      pedida: producto.cantidad,
+      encontrada: cantidad,
+    });
+  } else {
+    nuevosParciales.delete(producto.producto_id);
+  }
+  setProductosParciales(nuevosParciales);
 
-      setModalProductoProblema(null);
-      setCantidadParcialInput("");
-      if ("vibrate" in navigator) navigator.vibrate(50);
-    }}
+  // Marcar como surtido la cantidad
+  const nuevoMapa = new Map(productosSurtidosHoja);
+  nuevoMapa.set(producto.producto_id, cantidad);
+  setProductosSurtidosHoja(nuevoMapa);
+
+  setModalProductoProblema(null);
+  setCantidadParcialInput("");
+  if ("vibrate" in navigator) navigator.vibrate(50);
+}}
     disabled={!cantidadParcialInput}
     className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-orange-500 hover:bg-orange-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
   >
