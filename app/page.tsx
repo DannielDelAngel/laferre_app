@@ -11,6 +11,7 @@ import {
   Hammer,
   ListOrdered,
   X,
+  PackageX,
   Megaphone,
   Package,
   Star,
@@ -8714,6 +8715,9 @@ const [productosFaltantes, setProductosFaltantes] = useState<any[]>([]);
 const [creandoBackOrder, setCreandoBackOrder] = useState(false);
 const [cargandoEncajado, setCargandoEncajado] = useState(false);
 const [totalNetoEncajado, setTotalNetoEncajado] = useState(0);
+const [backOrders, setBackOrders] = useState<any[]>([]);
+    const [cargandoBackOrders, setCargandoBackOrders] = useState(false);
+    const [vistaBackOrders, setVistaBackOrders] = useState(false);
 
     const cargarDetallesEmpaque = async (pedidoId: number) => {
       const { data } = await supabase
@@ -8836,18 +8840,15 @@ const cargarDatosEncajado = async (pedidoId: number) => {
   }
 };
 
-
 const crearBackOrder = async () => {
     if (!pedidoSeleccionado || productosFaltantes.length === 0) return;
 
     setCreandoBackOrder(true);
     try {
-      // 1. Calcular el total del Back Order
       const totalBackOrder = productosFaltantes.reduce(
         (sum, p) => sum + (p.P_MAYOREO || 0) * (p.cantidad_faltante || 0),
         0
       );
-      console.log("Total calculado BackOrder:", totalBackOrder);
 
       if (totalBackOrder <= 0) {
         alert("El total del Back Order es 0 o inválido.");
@@ -8855,215 +8856,27 @@ const crearBackOrder = async () => {
         return;
       }
 
-      // 2. Generar String para la base de datos
       const listaProductosString = productosFaltantes
         .map((p) => `${p.CODIGO}*${p.cantidad_faltante}`)
         .join("-");
 
-      // 3. Insertar el nuevo pedido en Supabase
-      const { data: nuevoPedido, error } = await supabase
-        .from("pedidos")
+      // guarda en back_orders
+      const { data: nuevoBackOrder, error } = await supabase
+        .from("back_orders")
         .insert({
           cuenta_id: pedidoSeleccionado.cuenta_id,
+          pedido_origen_id: pedidoSeleccionado.id,
           total: totalBackOrder,
-          estado: "nuevo_pedido",
-          es_domicilio: pedidoSeleccionado.es_domicilio,
-          lista_productos: listaProductosString, // Guardamos la lista aquí directamente
+          lista_productos: listaProductosString,
+          productos_detalles: JSON.stringify(productosFaltantes),
+          estado: "pendiente",
         })
-        .select(`
-          *,
-          cuentas (
-            numero_cuenta,
-            cliente,
-            ferreteria,
-            numero_tel,
-            direccion,
-            entrega_mismo_dia,
-            tipo_comprobante
-          )
-        `)
+        .select()
         .single();
 
       if (error) throw error;
 
-      // --- INICIO GENERACIÓN DE PDF ---
-      
-      // Importar módulos necesarios dinámicamente
-      const jsPDFModule = await import("jspdf");
-      const autoTableModule = await import("jspdf-autotable");
-      const QRCodeModule = await import("qrcode");
-      const { jsPDF } = jsPDFModule;
-
-      const pedidoId = nuevoPedido.id;
-      const numeroCotizacion = pedidoId;
-      const fecha = new Date().toLocaleDateString("es-MX", {
-        day: "2-digit", month: "2-digit", year: "numeric",
-      });
-      const hora = new Date().toLocaleTimeString("es-MX");
-
-      // Generar QR
-      const qrBase64 = await QRCodeModule.default.toDataURL(listaProductosString, {
-        width: 200, margin: 1,
-      });
-
-      // Obtener logo
-      const getImageBase64 = async (url: string): Promise<string> => {
-        const response = await fetch(url);
-        const blob = await response.blob();
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      };
-      const logoBase64 = await getImageBase64("/logo-pdf.png");
-
-      // Datos del cliente (Extraídos del pedido original o del nuevo insertado)
-      const datosCliente = nuevoPedido.cuentas; 
-      const tipoDoc = "BACK ORDER";
-
-      // Función para dibujar encabezado (Replicada para contexto local)
-      const dibujarEncabezadoBackOrder = (doc: any) => {
-        const pageWidth = doc.internal.pageSize.width;
-        
-        // Logo
-        doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
-
-        // Info Empresa
-        doc.setFontSize(7);
-        doc.setFont("helvetica", "bold");
-        doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
-        doc.setFont("helvetica", "normal");
-        doc.text("GUGS701012E14", 70, 14);
-        doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
-        doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
-        doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
-
-        // Datos Pedido
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "bold");
-        doc.text("Pedido", 155, 10); 
-        doc.setFontSize(10);
-        doc.text(numeroCotizacion.toString(), 170, 16);
-        doc.setFontSize(9);
-        doc.text("Fecha", 172, 24);
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "normal");
-        doc.text(fecha, 167, 30);
-
-        doc.setLineWidth(0.3);
-        doc.line(14, 42, 196, 42);
-
-        // Datos Receptor
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "bold");
-        doc.text("RECEPTOR", 14, 48);
-
-        doc.setFontSize(11);
-        doc.setTextColor(100, 100, 100);
-        doc.text(tipoDoc, pageWidth / 2, 48, { align: "center" });
-
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(7);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Nombre: ${datosCliente?.cliente || "N/A"}`, 14, 54);
-        doc.text(`Domicilio: ${datosCliente?.direccion || ""}`, 14, 59);
-        doc.text(`Ferretería: ${datosCliente?.ferreteria || ""}`, 140, 59);
-        doc.text(`Tel: ${datosCliente?.numero_tel || ""}`, 140, 54);
-        doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
-      };
-
-      const doc = new jsPDF();
-
-      // Preparar tabla usando productosFaltantes
-      const productosTabla = productosFaltantes.map((p) => [
-        p.CODIGO || "",
-        p.cantidad_faltante,
-        p.TITULO,
-        `$ ${p.P_MAYOREO.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-        `$ ${(p.cantidad_faltante * p.P_MAYOREO).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-      ]);
-
-      // Generar Tabla
-      autoTableModule.default(doc, {
-        head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
-        body: productosTabla,
-        startY: 69,
-        styles: { fontSize: 7, cellPadding: 1.5 },
-        headStyles: { fillColor: [230, 230, 230], textColor: [0, 0, 0], fontStyle: "bold", halign: "center", fontSize: 7 },
-        columnStyles: {
-          0: { cellWidth: 28, halign: "center" },
-          1: { cellWidth: 15, halign: "center" },
-          2: { cellWidth: 82, halign: "left" },
-          3: { cellWidth: 22, halign: "right" },
-          4: { cellWidth: 22, halign: "right" },
-        },
-        theme: "grid",
-        margin: { left: 14, right: 14, top: 69 },
-        didDrawPage: () => dibujarEncabezadoBackOrder(doc),
-      });
-
-      const finalY = (doc as any).lastAutoTable?.finalY || 100;
-
-      // QR y Totales
-      const qrSize = 40;
-      let yBase = finalY + 10;
-      
-      // Verificar espacio para QR
-      if (doc.internal.pageSize.height - yBase < 60) {
-        doc.addPage();
-        dibujarEncabezadoBackOrder(doc);
-        yBase = 70;
-      }
-
-      doc.addImage(qrBase64, "PNG", 14, yBase, qrSize, qrSize);
-      doc.setFontSize(7);
-      doc.text("Escanea para ver pedido", 14 + qrSize / 2, yBase + qrSize + 4, { align: "center" });
-
-      // Totales
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "bold");
-      doc.text("TOTAL NETO:", 145, yBase + 10);
-      doc.text(`$ ${totalBackOrder.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, 195, yBase + 10, { align: "right" });
-
-      // Subir PDF a Supabase
-      const pdfBlob = doc.output("blob");
-      const nombreArchivoPDF = `pedido_${nuevoPedido.id}_backorder_${Date.now()}.pdf`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("pedidos-pdf")
-        .upload(nombreArchivoPDF, pdfBlob, {
-          contentType: "application/pdf",
-          cacheControl: "public, max-age=31536000",
-          upsert: true,
-        });
-
-      if (!uploadError) {
-        const { data: { publicUrl } } = supabase.storage.from("pedidos-pdf").getPublicUrl(nombreArchivoPDF);
-        
-        await supabase
-          .from("pedidos")
-          .update({ pdf_url: publicUrl })
-          .eq("id", nuevoPedido.id);
-          
-        console.log("PDF Backorder generado y subido.");
-        const pdfBase64 = doc.output("datauristring");
-        await fetch("/api/enviar-pedido", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-            pdfBase64,
-            correoDestino: "bfmpedidos@gmail.com",
-            asunto: `Nuevo Back Order #${nuevoPedido.id} - ${datosCliente?.cliente}`
-            }),
-        });
-      } else {
-        console.error("Error subiendo PDF Backorder:", uploadError);
-      }
-
-
-      alert(`Back Order creado exitosamente. Pedido #${nuevoPedido.id}`);
+      alert(`Back Order creado exitosamente. Será visible en la sección de Back Orders.`);
       setPedidoSeleccionado(null);
       setProductosFaltantes([]);
 
@@ -9074,6 +8887,241 @@ const crearBackOrder = async () => {
       setCreandoBackOrder(false);
     }
   };
+
+  const cargarBackOrders = async () => {
+  if (!cuenta?.id && !esAdmin) return;
+  
+  setCargandoBackOrders(true);
+  try {
+    let query = supabase
+      .from("back_orders")
+      .select(`
+        *,
+        cuentas (
+          numero_cuenta,
+          cliente,
+          ferreteria,
+          tipo_comprobante
+        )
+      `)
+      .eq("estado", "pendiente")
+      .order("created_at", { ascending: false });
+
+    if (!esAdmin) {
+      query = query.eq("cuenta_id", cuenta.id);
+    }
+
+    const { data, error } = await query;
+    if (!error && data) {
+      setBackOrders(data);
+    }
+  } catch (error) {
+    console.error("Error cargando back orders:", error);
+  } finally {
+    setCargandoBackOrders(false);
+  }
+};
+
+const confirmarBackOrder = async (backOrder: any) => {
+  if (!backOrder) return;
+
+  try {
+    // Importar módulos necesarios
+    const jsPDFModule = await import("jspdf");
+    const autoTableModule = await import("jspdf-autotable");
+    const QRCodeModule = await import("qrcode");
+    const { jsPDF } = jsPDFModule;
+
+    // Crear el pedido real
+    const { data: nuevoPedido, error: errorPedido } = await supabase
+      .from("pedidos")
+      .insert({
+        cuenta_id: backOrder.cuenta_id,
+        total: backOrder.total,
+        estado: "nuevo_pedido",
+        es_domicilio: false,
+        lista_productos: backOrder.lista_productos,
+      })
+      .select(`
+        *,
+        cuentas (
+          numero_cuenta,
+          cliente,
+          ferreteria,
+          numero_tel,
+          direccion,
+          entrega_mismo_dia,
+          tipo_comprobante
+        )
+      `)
+      .single();
+
+    if (errorPedido) throw errorPedido;
+
+    // Generar PDF 
+    const pedidoId = nuevoPedido.id;
+    const numeroCotizacion = pedidoId;
+    const fecha = new Date().toLocaleDateString("es-MX", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+    });
+
+    const qrBase64 = await QRCodeModule.default.toDataURL(backOrder.lista_productos, {
+      width: 200, margin: 1,
+    });
+
+    const getImageBase64 = async (url: string): Promise<string> => {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    };
+    const logoBase64 = await getImageBase64("/logo-pdf.png");
+
+    const datosCliente = nuevoPedido.cuentas;
+    const tipoDoc = "BACK ORDER";
+
+    const dibujarEncabezado = (doc: any) => {
+      doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
+      doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+      doc.setFont("helvetica", "normal");
+      doc.text("GUGS701012E14", 70, 14);
+      doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
+      doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
+      doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("Pedido", 155, 10);
+      doc.setFontSize(10);
+      doc.text(numeroCotizacion.toString(), 170, 16);
+      doc.setFontSize(9);
+      doc.text("Fecha", 172, 24);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text(fecha, 167, 30);
+
+      doc.setLineWidth(0.3);
+      doc.line(14, 42, 196, 42);
+
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.text("RECEPTOR", 14, 48);
+
+      doc.setFontSize(11);
+      doc.setTextColor(100, 100, 100);
+      doc.text(tipoDoc, doc.internal.pageSize.width / 2, 48, { align: "center" });
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Nombre: ${datosCliente?.cliente || "N/A"}`, 14, 54);
+      doc.text(`Domicilio: ${datosCliente?.direccion || ""}`, 14, 59);
+      doc.text(`Ferretería: ${datosCliente?.ferreteria || ""}`, 140, 59);
+      doc.text(`Tel: ${datosCliente?.numero_tel || ""}`, 140, 54);
+      doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
+    };
+
+    const doc = new jsPDF();
+    
+    const productosDetalles = JSON.parse(backOrder.productos_detalles);
+    const productosTabla = productosDetalles.map((p: any) => [
+      p.CODIGO || "",
+      p.cantidad_faltante,
+      p.TITULO,
+      `$ ${p.P_MAYOREO.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      `$ ${(p.cantidad_faltante * p.P_MAYOREO).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+    ]);
+
+    autoTableModule.default(doc, {
+      head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+      body: productosTabla,
+      startY: 69,
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [230, 230, 230], textColor: [0, 0, 0], fontStyle: "bold", halign: "center", fontSize: 7 },
+      columnStyles: {
+        0: { cellWidth: 28, halign: "center" },
+        1: { cellWidth: 15, halign: "center" },
+        2: { cellWidth: 82, halign: "left" },
+        3: { cellWidth: 22, halign: "right" },
+        4: { cellWidth: 22, halign: "right" },
+      },
+      theme: "grid",
+      margin: { left: 14, right: 14, top: 69 },
+      didDrawPage: () => dibujarEncabezado(doc),
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY || 100;
+    const qrSize = 40;
+    let yBase = finalY + 10;
+
+    if (doc.internal.pageSize.height - yBase < 60) {
+      doc.addPage();
+      dibujarEncabezado(doc);
+      yBase = 70;
+    }
+
+    doc.addImage(qrBase64, "PNG", 14, yBase, qrSize, qrSize);
+    doc.setFontSize(7);
+    doc.text("Escanea para ver pedido", 14 + qrSize / 2, yBase + qrSize + 4, { align: "center" });
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("TOTAL NETO:", 145, yBase + 10);
+    doc.text(`$ ${backOrder.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, 195, yBase + 10, { align: "right" });
+
+    // Subir PDF
+    const pdfBlob = doc.output("blob");
+    const nombreArchivoPDF = `pedido_${nuevoPedido.id}_backorder_${Date.now()}.pdf`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("pedidos-pdf")
+      .upload(nombreArchivoPDF, pdfBlob, {
+        contentType: "application/pdf",
+        cacheControl: "public, max-age=31536000",
+        upsert: true,
+      });
+
+    if (!uploadError) {
+      const { data: { publicUrl } } = supabase.storage.from("pedidos-pdf").getPublicUrl(nombreArchivoPDF);
+      
+      await supabase
+        .from("pedidos")
+        .update({ pdf_url: publicUrl })
+        .eq("id", nuevoPedido.id);
+
+      const pdfBase64 = doc.output("datauristring");
+      await fetch("/api/enviar-pedido", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pdfBase64,
+          correoDestino: "bfmpedidos@gmail.com",
+          asunto: `Nuevo Pedido Back Order #${nuevoPedido.id} - ${datosCliente?.cliente}`
+        }),
+      });
+    }
+
+    // Marcar back order como confirmado
+    await supabase
+      .from("back_orders")
+      .update({ estado: "confirmado", pedido_final_id: nuevoPedido.id })
+      .eq("id", backOrder.id);
+
+    alert(`¡Back Order confirmado! Pedido #${nuevoPedido.id} creado exitosamente.`);
+    cargarBackOrders();
+    setVistaBackOrders(false);
+
+  } catch (error: any) {
+    console.error("Error confirmando back order:", error);
+    alert(`Error: ${error.message || error.details}`);
+  }
+};
 
     useEffect(() => {
   if (pedidoSeleccionado && esAdmin && pedidoSeleccionado.estado === "encajado") {
@@ -9942,6 +9990,440 @@ const crearBackOrder = async () => {
     );
   };
 
+const VistaBackOrders = ({ cuenta, setVistaPerfil }: any) => {
+  const [backOrders, setBackOrders] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [backOrderSeleccionado, setBackOrderSeleccionado] = useState<any>(null);
+  
+  // Nuevo estado para el loading del botón
+  const [procesandoConfirmacion, setProcesandoConfirmacion] = useState(false);
+
+  // Definir si es admin
+  const esAdmin = cuenta?.numero_cuenta === "Admin01";
+
+  useEffect(() => {
+    cargarBackOrders();
+  }, [cuenta]);
+
+  const cargarBackOrders = async () => {
+    if (!cuenta?.id && !esAdmin) return;
+
+    setCargando(true);
+    try {
+      let query = supabase
+        .from("back_orders")
+        .select(`
+          *,
+          cuentas (
+            numero_cuenta,
+            cliente,
+            ferreteria,
+            tipo_comprobante
+          )
+        `)
+        .eq("estado", "pendiente")
+        .order("created_at", { ascending: false });
+
+      if (!esAdmin) {
+        query = query.eq("cuenta_id", cuenta.id);
+      }
+
+      const { data, error } = await query;
+      if (!error && data) {
+        setBackOrders(data);
+      }
+    } catch (error) {
+      console.error("Error cargando back orders:", error);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const confirmarBackOrder = async (backOrder: any) => {
+    if (!backOrder) return;
+
+    // 1. Activar estado de carga
+    setProcesandoConfirmacion(true);
+
+    try {
+      const jsPDFModule = await import("jspdf");
+      const autoTableModule = await import("jspdf-autotable");
+      const QRCodeModule = await import("qrcode");
+      const { jsPDF } = jsPDFModule;
+
+      // Crear el pedido real
+      const { data: nuevoPedido, error: errorPedido } = await supabase
+        .from("pedidos")
+        .insert({
+          cuenta_id: backOrder.cuenta_id,
+          total: backOrder.total,
+          estado: "nuevo_pedido",
+          es_domicilio: false,
+          lista_productos: backOrder.lista_productos,
+        })
+        .select(`
+          *,
+          cuentas (
+            numero_cuenta,
+            cliente,
+            ferreteria,
+            numero_tel,
+            direccion,
+            entrega_mismo_dia,
+            tipo_comprobante
+          )
+        `)
+        .single();
+
+      if (errorPedido) throw errorPedido;
+
+      // --- GENERACIÓN DEL PDF ---
+      const pedidoId = nuevoPedido.id;
+      const numeroCotizacion = pedidoId;
+      const fecha = new Date().toLocaleDateString("es-MX", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+      });
+
+      const qrBase64 = await QRCodeModule.default.toDataURL(backOrder.lista_productos, {
+        width: 200, margin: 1,
+      });
+
+      const getImageBase64 = async (url: string): Promise<string> => {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      };
+      
+      // Intentar cargar logo, fallback si falla
+      let logoBase64 = "";
+      try {
+         logoBase64 = await getImageBase64("/logo-pdf.png");
+      } catch (e) {
+         console.warn("No se pudo cargar el logo");
+      }
+
+      const datosCliente = nuevoPedido.cuentas;
+      const tipoDoc = "BACK ORDER";
+
+      const dibujarEncabezado = (doc: any) => {
+        if(logoBase64) doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
+        
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+        doc.setFont("helvetica", "normal");
+        doc.text("GUGS701012E14", 70, 14);
+        doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
+        doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
+        doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
+
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Pedido", 155, 10);
+        doc.setFontSize(10);
+        doc.text(numeroCotizacion.toString(), 170, 16);
+        doc.setFontSize(9);
+        doc.text("Fecha", 172, 24);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(fecha, 167, 30);
+
+        doc.setLineWidth(0.3);
+        doc.line(14, 42, 196, 42);
+
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("RECEPTOR", 14, 48);
+
+        doc.setFontSize(11);
+        doc.setTextColor(100, 100, 100);
+        doc.text(tipoDoc, doc.internal.pageSize.width / 2, 48, { align: "center" });
+
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Nombre: ${datosCliente?.cliente || "N/A"}`, 14, 54);
+        doc.text(`Domicilio: ${datosCliente?.direccion || ""}`, 14, 59);
+        doc.text(`Ferretería: ${datosCliente?.ferreteria || ""}`, 140, 59);
+        doc.text(`Tel: ${datosCliente?.numero_tel || ""}`, 140, 54);
+        doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
+      };
+
+      const doc = new jsPDF();
+      
+      const productosDetalles = JSON.parse(backOrder.productos_detalles);
+      const productosTabla = productosDetalles.map((p: any) => [
+        p.CODIGO || "",
+        p.cantidad_faltante,
+        p.TITULO,
+        `$ ${p.P_MAYOREO.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+        `$ ${(p.cantidad_faltante * p.P_MAYOREO).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      ]);
+
+      autoTableModule.default(doc, {
+        head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+        body: productosTabla,
+        startY: 69,
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: { fillColor: [230, 230, 230], textColor: [0, 0, 0], fontStyle: "bold", halign: "center", fontSize: 7 },
+        columnStyles: {
+          0: { cellWidth: 28, halign: "center" },
+          1: { cellWidth: 15, halign: "center" },
+          2: { cellWidth: 82, halign: "left" },
+          3: { cellWidth: 22, halign: "right" },
+          4: { cellWidth: 22, halign: "right" },
+        },
+        theme: "grid",
+        margin: { left: 14, right: 14, top: 69 },
+        didDrawPage: () => dibujarEncabezado(doc),
+      });
+
+      const finalY = (doc as any).lastAutoTable?.finalY || 100;
+      const qrSize = 40;
+      let yBase = finalY + 10;
+
+      if (doc.internal.pageSize.height - yBase < 60) {
+        doc.addPage();
+        dibujarEncabezado(doc);
+        yBase = 70;
+      }
+
+      doc.addImage(qrBase64, "PNG", 14, yBase, qrSize, qrSize);
+      doc.setFontSize(7);
+      doc.text("Escanea para ver pedido", 14 + qrSize / 2, yBase + qrSize + 4, { align: "center" });
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("TOTAL NETO:", 145, yBase + 10);
+      doc.text(`$ ${backOrder.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, 195, yBase + 10, { align: "right" });
+
+      // Subir PDF
+      const pdfBlob = doc.output("blob");
+      const nombreArchivoPDF = `pedido_${nuevoPedido.id}_backorder_${Date.now()}.pdf`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("pedidos-pdf")
+        .upload(nombreArchivoPDF, pdfBlob, {
+          contentType: "application/pdf",
+          cacheControl: "public, max-age=31536000",
+          upsert: true,
+        });
+
+      if (!uploadError) {
+        const { data: { publicUrl } } = supabase.storage.from("pedidos-pdf").getPublicUrl(nombreArchivoPDF);
+        
+        await supabase
+          .from("pedidos")
+          .update({ pdf_url: publicUrl })
+          .eq("id", nuevoPedido.id);
+
+        const pdfBase64 = doc.output("datauristring");
+        // Enviar correo (sin esperar respuesta para no bloquear)
+        fetch("/api/enviar-pedido", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pdfBase64,
+            correoDestino: "bfmpedidos@gmail.com",
+            asunto: `Nuevo Pedido Back Order #${nuevoPedido.id} - ${datosCliente?.cliente}`
+          }),
+        }).catch(err => console.error("Error envío correo:", err));
+      }
+
+      // Marcar back order como confirmado
+      await supabase
+        .from("back_orders")
+        .update({ estado: "confirmado", pedido_final_id: nuevoPedido.id })
+        .eq("id", backOrder.id);
+
+      // --- ACTUALIZACIÓN DE LA UI ---
+      
+      // 1. Eliminar de la lista local inmediatamente
+      setBackOrders(prev => prev.filter(bo => bo.id !== backOrder.id));
+      
+      // 2. Cerrar vista de detalle
+      setBackOrderSeleccionado(null);
+
+      alert(`¡Back Order confirmado! Pedido #${nuevoPedido.id} creado exitosamente.`);
+
+    } catch (error: any) {
+      console.error("Error confirmando back order:", error);
+      alert(`Error: ${error.message || error.details}`);
+    } finally {
+      // 3. Desactivar estado de carga
+      setProcesandoConfirmacion(false);
+    }
+  };
+
+  if (backOrderSeleccionado) {
+    const productosDetalles = JSON.parse(backOrderSeleccionado.productos_detalles);
+    
+    return (
+      <motion.div
+        className="min-h-screen"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+      >
+        <BackBtn onBack={() => setBackOrderSeleccionado(null)} />
+
+        <h2 className="text-xl font-bold text-zinc-900 mb-4">
+          Detalle del Back Order
+        </h2>
+
+        <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+          <div className="flex justify-between mb-2">
+            <span className="text-sm text-zinc-600">Back Order #</span>
+            <span className="font-semibold text-zinc-900">{backOrderSeleccionado.id}</span>
+          </div>
+          
+          {/* Mostrar cliente si es admin */}
+          {esAdmin && backOrderSeleccionado.cuentas && (
+             <div className="flex justify-between mb-2">
+                <span className="text-sm text-zinc-600">Cliente</span>
+                <span className="font-semibold text-blue-600 text-right">
+                   {backOrderSeleccionado.cuentas.cliente} <br/>
+                   <span className="text-xs text-zinc-500">{backOrderSeleccionado.cuentas.numero_cuenta}</span>
+                </span>
+             </div>
+          )}
+
+          <div className="flex justify-between mb-2">
+            <span className="text-sm text-zinc-600">Pedido Origen #</span>
+            <span className="font-semibold text-zinc-900">{backOrderSeleccionado.pedido_origen_id}</span>
+          </div>
+          <div className="flex justify-between mb-2">
+            <span className="text-sm text-zinc-600">Fecha</span>
+            <span className="font-semibold text-zinc-900">
+              {new Date(backOrderSeleccionado.created_at).toLocaleDateString("es-MX")}
+            </span>
+          </div>
+          <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
+            <span className="font-bold text-zinc-900">Total</span>
+            <span className="font-bold text-orange-500 text-lg">
+              ${backOrderSeleccionado.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+        </div>
+
+        <h3 className="text-lg font-semibold text-zinc-900 mb-3">Productos Faltantes</h3>
+
+        <div className="space-y-2 mb-6">
+          {productosDetalles.map((prod: any, idx: number) => (
+            <div key={idx} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-zinc-200">
+              <div className="relative w-14 h-14 bg-zinc-100 rounded overflow-hidden flex-shrink-0">
+                <Image
+                  src={prod.IMAGEN || "/placeholder.svg"}
+                  alt={prod.TITULO}
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-zinc-800">{prod.TITULO}</p>
+                <p className="text-xs text-zinc-500">{prod.CODIGO}</p>
+                <p className="text-xs text-red-600 font-semibold mt-1">
+                  Cantidad: {prod.cantidad_faltante}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Botón con estado de carga */}
+        <button
+          onClick={() => confirmarBackOrder(backOrderSeleccionado)}
+          disabled={procesandoConfirmacion}
+          className={`w-full py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 text-white
+            ${procesandoConfirmacion 
+              ? "bg-zinc-400 cursor-not-allowed" 
+              : "bg-green-500 hover:bg-green-600"
+            }`}
+        >
+          {procesandoConfirmacion ? (
+            <>
+              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+              GENERANDO PEDIDO...
+            </>
+          ) : (
+            "CONFIRMAR Y CREAR PEDIDO"
+          )}
+        </button>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      className="min-h-screen"
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -40 }}
+    >
+      <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+      <h2 className="text-xl font-bold text-zinc-900 mb-4">
+        {esAdmin ? "Todos los Back Orders" : "Back Orders Pendientes"}
+      </h2>
+
+      {cargando ? (
+        <div className="flex justify-center py-10">
+          <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+        </div>
+      ) : backOrders.length === 0 ? (
+        <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
+          <p className="text-zinc-500">No tienes Back Orders pendientes</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {backOrders.map((bo) => (
+            <div
+              key={bo.id}
+              onClick={() => setBackOrderSeleccionado(bo)}
+              className="border border-zinc-200 rounded-xl p-4 bg-white shadow-sm cursor-pointer hover:bg-zinc-50 transition"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-semibold text-zinc-900">Back Order #{bo.id}</p>
+                  
+                  {/* Mostrar cliente si es admin */}
+                  {bo.cuentas && (
+                    <p className="text-xs font-bold text-blue-600 mt-1">
+                      {bo.cuentas.cliente || "Cliente"} ({bo.cuentas.numero_cuenta})
+                    </p>
+                  )}
+
+                  <p className="text-sm text-zinc-500 mt-1">
+                    {new Date(bo.created_at).toLocaleDateString("es-MX")}
+                  </p>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Origen: Pedido #{bo.pedido_origen_id}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-orange-500 font-bold">
+                    ${bo.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </span>
+                   <div className="mt-2 text-right">
+                    <span className="inline-block px-2 py-1 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700 border border-yellow-200">
+                      PENDIENTE
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
   const VistaRutas = ({ setVistaPerfil }: any) => {
     const [pedidosPorRuta, setPedidosPorRuta] = useState<{
       [key: string]: any[];
@@ -10310,6 +10792,11 @@ const [detallesEmpaque, setDetallesEmpaque] = useState({
 const [modalCantidad, setModalCantidad] = useState<any>(null);
 const [cantidadManual, setCantidadManual] = useState("");
 
+
+useEffect(() => {
+  window.scrollTo(0, 0);
+}, [pedidoSeleccionado, hojaActual]);
+
 const [modalProductoActivo, setModalProductoActivo] = useState<{
   visible: boolean;
   producto: any;
@@ -10634,27 +11121,51 @@ const ajustarParcialidad = (producto: any, nuevaCantidad: number) => {
 
 const abrirModalCantidad = (producto: any) => {
   const estadoActual = obtenerEstadoActual(producto);
-  if (estadoActual.estado === "PA") {
-    alert("Este producto está marcado como PA");
-    return;
-  }
   const cantidadVerificada = productosVerificados.get(producto.producto_id) || 0;
   setModalCantidad(producto);
-  setCantidadManual(cantidadVerificada.toString());
+  
+  
+  if (estadoActual.estado === "PA") {
+    setCantidadManual("0");
+  } else if (estadoActual.estado === "parcial") {
+    setCantidadManual(estadoActual.cantidad_surtida.toString());
+  } else {
+    setCantidadManual(cantidadVerificada.toString());
+  }
 };
 
 const aplicarCantidadManual = () => {
   if (!modalCantidad) return;
   
-  const estadoActual = obtenerEstadoActual(modalCantidad);
-  const cantidadEsperada = estadoActual.cantidad_surtida || 0;
   const cantidad = parseInt(cantidadManual) || 0;
+  const cantidadPedida = modalCantidad.cantidad_pedida;
   
-  if (cantidad < 0 || cantidad > cantidadEsperada) {
-    alert(`La cantidad debe estar entre 0 y ${cantidadEsperada}`);
+  if (cantidad < 0 || cantidad > cantidadPedida) {
+    alert(`La cantidad debe estar entre 0 y ${cantidadPedida}`);
     return;
   }
   
+  // Determinar el nuevo estado según la cantidad
+  const nuevoCambios = new Map(cambiosEstado);
+  let nuevoEstado: string;
+  
+  if (cantidad === 0) {
+    nuevoEstado = "PA";
+  } else if (cantidad < cantidadPedida) {
+    nuevoEstado = "parcial";
+  } else {
+    nuevoEstado = "completo";
+  }
+  
+  // Actualizar el estado del producto
+  nuevoCambios.set(modalCantidad.producto_id, {
+    estado: nuevoEstado,
+    cantidad_surtida: cantidad,
+    ingreso_manual: modalCantidad.ingreso_manual || true,
+  });
+  setCambiosEstado(nuevoCambios);
+  
+  // Actualizar las verificaciones al valor ingresado
   setProductosVerificados(prev => {
     const nuevaMapa = new Map(prev);
     nuevaMapa.set(modalCantidad.producto_id, cantidad);
@@ -11594,7 +12105,11 @@ const completarPedido = async () => {
   className="border-2 rounded-xl p-3 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
 onClick={() => abrirModalCantidad(prod)}
 >
-  <div className="flex items-center gap-3">
+   <p className="text-sm text-zinc-700 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">{prod.CODIGO}</p>
+    <p className="text-sm font-semibold text-zinc-800 line-clamp-3">
+        {prod.TITULO}
+      </p>
+  <div className="flex items-center gap-3">  
     <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
       <Image
         src={
@@ -11606,28 +12121,16 @@ onClick={() => abrirModalCantidad(prod)}
         className="object-contain"
       />
     </div>
-
     <div className="flex-1">
-      <p className="text-sm font-semibold text-zinc-800 line-clamp-2">
-        {prod.TITULO}
-      </p>
-      <p className="text-xs text-zinc-500 mt-1">{prod.CODIGO}</p>
+     
 
      {/* Controles de estado */}
 <div className="flex gap-2 mt-2">
-  <button
-    onClick={(e) => {
-      e.stopPropagation(); 
-      togglePA(prod);
-    }}
-    className={`text-xs font-bold px-2 py-1 rounded ${
-      estadoActual.estado === "PA"
-        ? "bg-yellow-500 text-white"
-        : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300"
-    }`}
-  >
-    {estadoActual.estado === "PA" ? "✓ PA" : "Marcar PA"}
-  </button>
+{estadoActual.estado === "PA" && (
+    <span className="text-xs font-bold px-2 py-1 rounded bg-yellow-500 text-white">
+      ✓ PA
+    </span> 
+)}
 
   {/* Mostrar cantidad pedida cuando está en PA */}
   {estadoActual.estado === "PA" && (
@@ -11636,31 +12139,6 @@ onClick={() => abrirModalCantidad(prod)}
     </span>
   )}
 
-  {estadoActual.estado !== "PA" && (
-    <div className="flex items-center gap-1 bg-zinc-100 rounded px-2">
-      <button
-        onClick={(e) => {
-          e.stopPropagation(); 
-          ajustarParcialidad(prod, estadoActual.cantidad_surtida - 1);
-        }}
-        className="text-zinc-600 hover:text-zinc-900 font-bold"
-      >
-        −
-      </button>
-      <span className="text-xs font-semibold text-zinc-700 min-w-[40px] text-center">
-        {estadoActual.cantidad_surtida}/{prod.cantidad_pedida}
-      </span>
-      <button
-        onClick={(e) => {
-          e.stopPropagation(); 
-          ajustarParcialidad(prod, estadoActual.cantidad_surtida + 1);
-        }}
-        className="text-zinc-600 hover:text-zinc-900 font-bold"
-      >
-        +
-      </button>
-    </div>
-  )}
 </div>
       {estadoActual.estado === "parcial" && (
   <div className="mt-2 flex gap-2 items-center flex-wrap">
@@ -11748,8 +12226,32 @@ onClick={() => abrirModalCantidad(prod)}
             onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl"
           >
+            {/* Botón cerrar */}
+            <button
+              onClick={() => {
+                setModalCantidad(null);
+                setCantidadManual("");
+              }}
+              className="absolute top-4 right-4 w-10 h-10 bg-zinc-100 hover:bg-zinc-200 rounded-full flex items-center justify-center transition"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2.5}
+                stroke="currentColor"
+                className="w-5 h-5 text-zinc-600"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+
             <h3 className="text-xl font-bold text-zinc-900 mb-2">
-              Ingresar Cantidad Verificada
+              Ajustar Cantidad
             </h3>
             <p className="text-sm text-zinc-600 mb-1 line-clamp-2">
               {modalCantidad.TITULO}
@@ -11758,9 +12260,22 @@ onClick={() => abrirModalCantidad(prod)}
               Cantidad esperada: {obtenerEstadoActual(modalCantidad).cantidad_surtida}
             </p>
 
-            <div className="mb-6">
+            {/* Botón PA */}
+            <button
+              onClick={() => {
+                togglePA(modalCantidad);
+                setModalCantidad(null);
+                setCantidadManual("");
+              }}
+              className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-yellow-500 hover:bg-yellow-600 active:scale-95 transition-transform mb-3"
+            >
+              PA - Producto Agotado
+            </button>
+
+            {/* Input de cantidad */}
+            <div className="mb-4">
               <label className="block text-sm font-semibold text-zinc-700 mb-2">
-                Cantidad verificada
+                Cantidad encontrada
               </label>
               <input
                 type="number"
@@ -11769,7 +12284,8 @@ onClick={() => abrirModalCantidad(prod)}
                 className="w-full text-3xl font-bold text-center text-zinc-900 bg-zinc-50 border-2 border-zinc-300 rounded-xl py-4 focus:border-blue-500 focus:outline-none"
                 autoFocus
                 min="0"
-                max={obtenerEstadoActual(modalCantidad).cantidad_surtida}
+                max={modalCantidad.cantidad_pedida}
+                placeholder="0"
               />
             </div>
 
@@ -11987,6 +12503,10 @@ onClick={() => abrirModalCantidad(prod)}
     const [pedidosPendientes, setPedidosPendientes] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
 
+useEffect(() => {
+  window.scrollTo(0, 0);
+}, []);
+
     useEffect(() => {
       cargarPedidosPendientes();
 
@@ -12181,6 +12701,11 @@ const [modalProductoActivo, setModalProductoActivo] = useState<{
   cantidadActual: number;
   cantidadObjetivo: number;
 } | null>(null);
+
+
+useEffect(() => {
+  window.scrollTo(0, 0);
+}, [hojaActual]);
 
     // Funciones para guardar/cargar estado local
 const guardarEstadoLocal = (hojaId: number, estado: any) => {
@@ -12401,81 +12926,91 @@ useEffect(() => {
 };
 
     const completarHoja = async () => {
-      if (!hojaActual) return;
+  if (!hojaActual) return;
 
-      setGuardandoCierre(true);
-      try {
-        // Preparar productos para guardar
-      const productosParaGuardar = hojaActual.productos.map((item: any) => {
-  const esPA = productosPA.has(item.producto_id);
-  const esParcial = productosParciales.has(item.producto_id);
-  const parcialInfo = productosParciales.get(item.producto_id);
-  const cantidadSurtida = productosSurtidosHoja.get(item.producto_id) || 0;
-  const esIngresoManual = productosIngresoManual.has(item.producto_id); 
+  setGuardandoCierre(true);
+  try {
+    // Preparar productos para guardar
+    const productosParaGuardar = hojaActual.productos.map((item: any) => {
+      const esPA = productosPA.has(item.producto_id);
+      const esParcial = productosParciales.has(item.producto_id);
+      const parcialInfo = productosParciales.get(item.producto_id);
+      const cantidadSurtida = productosSurtidosHoja.get(item.producto_id) || 0;
+      const esIngresoManual = productosIngresoManual.has(item.producto_id);
 
-  let estadoFinal = "completo";
-  let cantidadFinal = cantidadSurtida;
+      let estadoFinal = "completo";
+      let cantidadFinal = cantidadSurtida;
 
-  if (esPA) {
-    estadoFinal = "PA";
-    cantidadFinal = 0;
-  } else if (esParcial) {
-    estadoFinal = "parcial";
-    cantidadFinal = parcialInfo!.encontrada;
-  } else if (cantidadSurtida === item.cantidad_pedida) {
-    estadoFinal = "completo";
-  }
-
-  return {
-    codigo: item.CODIGO,
-    cantidad_pedida: item.cantidad_pedida,
-    cantidad_surtida: cantidadFinal,
-    estado: estadoFinal,
-    ingreso_manual: esIngresoManual, 
-  };
-});
-
-        await supabase
-          .from("hojas_surtido")
-          .update({
-            estado: "completado",
-            fecha_completado: new Date().toISOString(),
-            productos_asignados: JSON.stringify(productosParaGuardar),
-          })
-          .eq("id", hojaActual.id);
-
-        // Verificar si todas las hojas están completas
-        const { data: todasHojas } = await supabase
-          .from("hojas_surtido")
-          .select("estado")
-          .eq("pedido_id", pedidoSurtir.id);
-
-        const todasCompletas = todasHojas?.every(
-          (h) => h.estado === "completado",
-        );
-
-        if (todasCompletas) {
-          await supabase
-            .from("pedidos")
-            .update({ estado: "por_revisar" })
-            .eq("id", pedidoSurtir.id);
-        }
-
-        setMostrarModalCompletado(false);
-        setHojaActual(null);
-        setProductosSurtidosHoja(new Map());
-        setProductosPA(new Set());
-        setProductosParciales(new Map());
-        // Limpiar estado local guardado
-limpiarEstadoLocal(hojaActual.id);
-
-        
-      } catch (err) {
-        console.error("Error al completar hoja:", err);
-      } finally {
-        setGuardandoCierre(false);
+      if (esPA) {
+        estadoFinal = "PA";
+        cantidadFinal = 0;
+      } else if (esParcial) {
+        estadoFinal = "parcial";
+        cantidadFinal = parcialInfo!.encontrada;
+      } else if (cantidadSurtida === item.cantidad_pedida) {
+        estadoFinal = "completo";
       }
-    };
+
+      return {
+        codigo: item.CODIGO,
+        cantidad_pedida: item.cantidad_pedida,
+        cantidad_surtida: cantidadFinal,
+        estado: estadoFinal,
+        ingreso_manual: esIngresoManual,
+      };
+    });
+
+    await supabase
+      .from("hojas_surtido")
+      .update({
+        estado: "completado",
+        fecha_completado: new Date().toISOString(),
+        productos_asignados: JSON.stringify(productosParaGuardar),
+      })
+      .eq("id", hojaActual.id);
+
+    // ACTUALIZAR EL ESTADO LOCAL DE HOJAS
+    setHojasPedido(prevHojas => 
+      prevHojas.map(hoja => 
+        hoja.id === hojaActual.id 
+          ? { ...hoja, estado: "completado" }
+          : hoja
+      )
+    );
+
+    // Verificar si todas las hojas están completas
+    const { data: todasHojas } = await supabase
+      .from("hojas_surtido")
+      .select("estado")
+      .eq("pedido_id", pedidoSurtir.id);
+
+    const todasCompletas = todasHojas?.every(
+      (h) => h.estado === "completado",
+    );
+
+    if (todasCompletas) {
+      await supabase
+        .from("pedidos")
+        .update({ estado: "por_revisar" })
+        .eq("id", pedidoSurtir.id);
+    }
+
+    setMostrarModalCompletado(false);
+    setHojaActual(null);
+    setProductosSurtidosHoja(new Map());
+    setProductosPA(new Set());
+    setProductosParciales(new Map());
+    setProductosIngresoManual(new Set());
+    
+    // Limpiar estado local guardado
+    limpiarEstadoLocal(hojaActual.id);
+    
+  } catch (err) {
+    console.error("Error al completar hoja:", err);
+  } finally {
+    setGuardandoCierre(false);
+  }
+};
 
     // Lógica del escáner
     useEffect(() => {
@@ -12512,67 +13047,80 @@ limpiarEstadoLocal(hojaActual.id);
       mostrarModalCompletado,
     ]);
 
-    const procesarEscaneo = (codigoEscaneado: string) => {
-      if (!hojaActual) return;
+   const procesarEscaneo = (codigoEscaneado: string) => {
+  if (!hojaActual) return;
 
-      setUltimoEscaneo(codigoEscaneado);
+  setUltimoEscaneo(codigoEscaneado);
 
-      const itemEncontrado = hojaActual.productos.find(
-        (item: any) =>
-          item.CODIGO === codigoEscaneado ||
-          item.C_PRODUCTO === codigoEscaneado,
-      );
+  const itemEncontrado = hojaActual.productos.find(
+    (item: any) =>
+      item.CODIGO === codigoEscaneado || item.C_PRODUCTO === codigoEscaneado
+  );
 
-      if (!itemEncontrado) {
-        if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-        setModalAlerta({
-          visible: true,
-          titulo: "Producto Incorrecto",
-          mensaje: `El código "${codigoEscaneado}" no pertenece a esta hoja.`,
-          tipo: "error",
-        });
-        return;
-      }
+  if (!itemEncontrado) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    setModalAlerta({
+      visible: true,
+      titulo: "Producto Incorrecto",
+      mensaje: `El código "${codigoEscaneado}" no pertenece a esta hoja.`,
+      tipo: "error",
+    });
+    return;
+  }
 
-      const cantidadSurtida =
-        productosSurtidosHoja.get(itemEncontrado.producto_id) || 0;
-      const esPA = productosPA.has(itemEncontrado.producto_id);
-      const esParcial = productosParciales.has(itemEncontrado.producto_id);
-      const parcialInfo = productosParciales.get(itemEncontrado.producto_id);
+  const cantidadSurtida = productosSurtidosHoja.get(itemEncontrado.producto_id) || 0;
+  const esPA = productosPA.has(itemEncontrado.producto_id);
+  const esParcial = productosParciales.has(itemEncontrado.producto_id);
+  const parcialInfo = productosParciales.get(itemEncontrado.producto_id);
 
-      // Determinar cantidad máxima
-      const cantidadMaxima = esPA
-        ? 0
-        : esParcial
-          ? parcialInfo!.encontrada
-          : itemEncontrado.cantidad;
+  // Determinar cantidad máxima
+  const cantidadMaxima = esPA
+    ? 0
+    : esParcial
+    ? parcialInfo!.encontrada
+    : itemEncontrado.cantidad;
 
-      if (cantidadSurtida >= cantidadMaxima) {
-        if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+  if (cantidadSurtida >= cantidadMaxima) {
+    if ("vibrate" in navigator) navigator.vibrate([100, 100]);
 
-        let mensaje = `El producto "${itemEncontrado.TITULO}" ya tiene la cantidad completa.`;
-        if (esParcial) {
-          mensaje = `El producto "${itemEncontrado.TITULO}" ya alcanzó la cantidad parcial (${parcialInfo!.encontrada}/${parcialInfo!.pedida}).`;
-        } else if (esPA) {
-          mensaje = `El producto "${itemEncontrado.TITULO}" está marcado como PA (agotado).`;
-        }
+    let mensaje = `El producto "${itemEncontrado.TITULO}" ya tiene la cantidad completa.`;
+    if (esParcial) {
+      mensaje = `El producto "${itemEncontrado.TITULO}" ya alcanzó la cantidad parcial (${parcialInfo!.encontrada}/${parcialInfo!.pedida}).`;
+    } else if (esPA) {
+      mensaje = `El producto "${itemEncontrado.TITULO}" está marcado como PA (agotado).`;
+    }
 
-        setModalAlerta({
-          visible: true,
-          titulo: "Producto Completo",
-          mensaje,
-          tipo: "warning",
-        });
-        return;
-      }
+    setModalAlerta({
+      visible: true,
+      titulo: "Producto Completo",
+      mensaje,
+      tipo: "warning",
+    });
+    return;
+  }
 
-      const nuevaCantidad = cantidadSurtida + 1;
-      const nuevoMapa = new Map(productosSurtidosHoja);
-      nuevoMapa.set(itemEncontrado.producto_id, nuevaCantidad);
-      setProductosSurtidosHoja(nuevoMapa);
+  const nuevaCantidad = cantidadSurtida + 1;
+  const nuevoMapa = new Map(productosSurtidosHoja);
+  nuevoMapa.set(itemEncontrado.producto_id, nuevaCantidad);
+  setProductosSurtidosHoja(nuevoMapa);
 
-      if ("vibrate" in navigator) navigator.vibrate(50);
-    };
+  // Activamos el modal visualmente
+  setModalProductoActivo({
+    visible: true,
+    producto: itemEncontrado,
+    cantidadActual: nuevaCantidad,
+    cantidadObjetivo: cantidadMaxima,
+  });
+
+  // Auto-cerrar el modal si se completa la cantidad
+  if (nuevaCantidad >= cantidadMaxima) {
+    setTimeout(() => {
+      setModalProductoActivo(null);
+    }, 1500);
+  }
+
+  if ("vibrate" in navigator) navigator.vibrate(50);
+};
 
     // Calcular progreso
     const totalProductosHoja = hojaActual
@@ -12837,6 +13385,9 @@ limpiarEstadoLocal(hojaActual.id);
                   }
                 }}
               >
+                <p className="text-sm text-zinc-700 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">
+                      {item.CODIGO}
+                    </p>
                 <p className="text-sm font-semibold text-zinc-800 mb-2 line-clamp-3 leading-tight">
                       {item.TITULO}
                     </p>
@@ -12854,10 +13405,6 @@ limpiarEstadoLocal(hojaActual.id);
                   </div>
 
                   <div className="flex-1">
-                    
-                    <p className="text-xs text-zinc-500 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">
-                      {item.CODIGO}
-                    </p>
                     <p className="text-xs text-zinc-500">
                       {item.ubicacion || "Sin ubicación"}
                     </p>
@@ -15809,6 +16356,15 @@ limpiarEstadoLocal(hojaActual.id);
                             }}
                           />
 
+                          <MenuItem
+                            icon={<PackageX size={20} />}
+                            label="Back Orders"
+                            onClick={() => {
+                              window.scrollTo({ top: 0, behavior: "instant" });
+                              setVistaPerfil("back-orders");
+                            }}
+                          />
+
                           {esAdmin && (
                             <MenuItem
                               label="Actualizar base de datos"
@@ -16249,6 +16805,13 @@ limpiarEstadoLocal(hojaActual.id);
                         setVistaPerfil={setVistaPerfil}
                       />
                     )}
+
+                    {vistaPerfil === "back-orders" && (
+  <VistaBackOrders 
+    cuenta={cuenta} 
+    setVistaPerfil={setVistaPerfil} 
+  />
+)}
 
                     {vistaPerfil === "actualizar-bd" && (
                       <ActualizarBDView setVistaPerfil={setVistaPerfil} />
