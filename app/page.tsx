@@ -8712,11 +8712,11 @@ export default function HomePage() {
     const pedidoSeleccionadoRef = useRef<any>(null);
     const [detallesEmpaque, setDetallesEmpaque] = useState<any>(null);
     const [stringEncajado, setStringEncajado] = useState("");
-const [productosFaltantes, setProductosFaltantes] = useState<any[]>([]);
-const [creandoBackOrder, setCreandoBackOrder] = useState(false);
-const [cargandoEncajado, setCargandoEncajado] = useState(false);
-const [totalNetoEncajado, setTotalNetoEncajado] = useState(0);
-const [backOrders, setBackOrders] = useState<any[]>([]);
+    const [productosFaltantes, setProductosFaltantes] = useState<any[]>([]);
+    const [creandoBackOrder, setCreandoBackOrder] = useState(false);
+    const [cargandoEncajado, setCargandoEncajado] = useState(false);
+    const [totalNetoEncajado, setTotalNetoEncajado] = useState(0);
+    const [backOrders, setBackOrders] = useState<any[]>([]);
     const [cargandoBackOrders, setCargandoBackOrders] = useState(false);
     const [vistaBackOrders, setVistaBackOrders] = useState(false);
 
@@ -8763,140 +8763,149 @@ const [backOrders, setBackOrders] = useState<any[]>([]);
       }
     };
 
-const cargarDatosEncajado = async (pedidoId: number) => {
-  setCargandoEncajado(true);
-  try {
-    const { data: hojas } = await supabase
-      .from("hojas_surtido")
-      .select("*")
-      .eq("pedido_id", pedidoId);
-
-    if (!hojas || hojas.length === 0) return;
-
-    const productosCompletos: any[] = [];
-    const productosParciales: any[] = [];
-    const productosPA: any[] = [];
-    let totalNeto = 0;
-
-    for (const hoja of hojas) {
-      const productos = JSON.parse(hoja.productos_asignados);
-
-      for (const prod of productos) {
-        const { data: prodCompleto } = await supabase
-          .from("productos")
+    const cargarDatosEncajado = async (pedidoId: number) => {
+      setCargandoEncajado(true);
+      try {
+        const { data: hojas } = await supabase
+          .from("hojas_surtido")
           .select("*")
-          .eq("CODIGO", prod.codigo)
+          .eq("pedido_id", pedidoId);
+
+        if (!hojas || hojas.length === 0) return;
+
+        const productosCompletos: any[] = [];
+        const productosParciales: any[] = [];
+        const productosPA: any[] = [];
+        let totalNeto = 0;
+
+        for (const hoja of hojas) {
+          const productos = JSON.parse(hoja.productos_asignados);
+
+          for (const prod of productos) {
+            const { data: prodCompleto } = await supabase
+              .from("productos")
+              .select("*")
+              .eq("CODIGO", prod.codigo)
+              .single();
+
+            if (prod.estado === "PA") {
+              productosPA.push({
+                ...prodCompleto,
+                cantidad_pedida: prod.cantidad_pedida,
+                cantidad_faltante: prod.cantidad_pedida,
+              });
+            } else if (prod.estado === "parcial") {
+              const faltante = prod.cantidad_pedida - prod.cantidad_surtida;
+              productosParciales.push({
+                ...prodCompleto,
+                cantidad_pedida: prod.cantidad_pedida,
+                cantidad_surtida: prod.cantidad_surtida,
+                cantidad_faltante: faltante,
+              });
+
+              // AGREGAR AL STRING: lo que SÍ se surtió
+              productosCompletos.push({
+                codigo: prod.codigo,
+                cantidad: prod.cantidad_surtida,
+              });
+
+              // SUMAR AL TOTAL NETO
+              totalNeto +=
+                (prodCompleto?.P_MAYOREO || 0) * prod.cantidad_surtida;
+            } else if (
+              prod.estado === "completo" &&
+              prod.cantidad_surtida > 0
+            ) {
+              // Productos completos
+              productosCompletos.push({
+                codigo: prod.codigo,
+                cantidad: prod.cantidad_surtida,
+              });
+
+              // SUMAR AL TOTAL NETO
+              totalNeto +=
+                (prodCompleto?.P_MAYOREO || 0) * prod.cantidad_surtida;
+            }
+          }
+        }
+
+        // Generar string de encajado (incluye completos Y la parte surtida de parciales)
+        const stringGen = productosCompletos
+          .map((p) => `${p.codigo}*${p.cantidad}`)
+          .join("-");
+        setStringEncajado(stringGen);
+        setTotalNetoEncajado(totalNeto);
+
+        // Combinar faltantes (solo PA + lo que falta de parciales)
+        const todosFaltantes = [...productosPA, ...productosParciales];
+        setProductosFaltantes(todosFaltantes);
+      } catch (error) {
+        console.error("Error cargando datos de encajado:", error);
+      } finally {
+        setCargandoEncajado(false);
+      }
+    };
+
+    const crearBackOrder = async () => {
+      if (!pedidoSeleccionado || productosFaltantes.length === 0) return;
+
+      setCreandoBackOrder(true);
+      try {
+        const totalBackOrder = productosFaltantes.reduce(
+          (sum, p) => sum + (p.P_MAYOREO || 0) * (p.cantidad_faltante || 0),
+          0,
+        );
+
+        if (totalBackOrder <= 0) {
+          alert("El total del Back Order es 0 o inválido.");
+          setCreandoBackOrder(false);
+          return;
+        }
+
+        const listaProductosString = productosFaltantes
+          .map((p) => `${p.CODIGO}*${p.cantidad_faltante}`)
+          .join("-");
+
+        // guarda en back_orders
+        const { data: nuevoBackOrder, error } = await supabase
+          .from("back_orders")
+          .insert({
+            cuenta_id: pedidoSeleccionado.cuenta_id,
+            pedido_origen_id: pedidoSeleccionado.id,
+            total: totalBackOrder,
+            lista_productos: listaProductosString,
+            productos_detalles: JSON.stringify(productosFaltantes),
+            estado: "pendiente",
+          })
+          .select()
           .single();
 
-        if (prod.estado === "PA") {
-          productosPA.push({
-            ...prodCompleto,
-            cantidad_pedida: prod.cantidad_pedida,
-            cantidad_faltante: prod.cantidad_pedida,
-          });
-        } else if (prod.estado === "parcial") {
-          const faltante = prod.cantidad_pedida - prod.cantidad_surtida;
-          productosParciales.push({
-            ...prodCompleto,
-            cantidad_pedida: prod.cantidad_pedida,
-            cantidad_surtida: prod.cantidad_surtida,
-            cantidad_faltante: faltante,
-          });
-          
-          // AGREGAR AL STRING: lo que SÍ se surtió
-          productosCompletos.push({
-            codigo: prod.codigo,
-            cantidad: prod.cantidad_surtida,
-          });
-          
-          // SUMAR AL TOTAL NETO
-          totalNeto += (prodCompleto?.P_MAYOREO || 0) * prod.cantidad_surtida;
-        } else if (prod.estado === "completo" && prod.cantidad_surtida > 0) {
-          // Productos completos
-          productosCompletos.push({
-            codigo: prod.codigo,
-            cantidad: prod.cantidad_surtida,
-          });
-          
-          // SUMAR AL TOTAL NETO
-          totalNeto += (prodCompleto?.P_MAYOREO || 0) * prod.cantidad_surtida;
-        }
-      }
-    }
+        if (error) throw error;
 
-    // Generar string de encajado (incluye completos Y la parte surtida de parciales)
-    const stringGen = productosCompletos
-      .map((p) => `${p.codigo}*${p.cantidad}`)
-      .join("-");
-    setStringEncajado(stringGen);
-    setTotalNetoEncajado(totalNeto);
-
-    // Combinar faltantes (solo PA + lo que falta de parciales)
-    const todosFaltantes = [...productosPA, ...productosParciales];
-    setProductosFaltantes(todosFaltantes);
-  } catch (error) {
-    console.error("Error cargando datos de encajado:", error);
-  } finally {
-    setCargandoEncajado(false);
-  }
-};
-
-const crearBackOrder = async () => {
-    if (!pedidoSeleccionado || productosFaltantes.length === 0) return;
-
-    setCreandoBackOrder(true);
-    try {
-      const totalBackOrder = productosFaltantes.reduce(
-        (sum, p) => sum + (p.P_MAYOREO || 0) * (p.cantidad_faltante || 0),
-        0
-      );
-
-      if (totalBackOrder <= 0) {
-        alert("El total del Back Order es 0 o inválido.");
+        alert(
+          `Back Order creado exitosamente. Será visible en la sección de Back Orders.`,
+        );
+        setPedidoSeleccionado(null);
+        setProductosFaltantes([]);
+      } catch (error: any) {
+        console.error("Error creando back order:", error);
+        alert(
+          `Error al crear el back order: ${error.message || error.details}`,
+        );
+      } finally {
         setCreandoBackOrder(false);
-        return;
       }
+    };
 
-      const listaProductosString = productosFaltantes
-        .map((p) => `${p.CODIGO}*${p.cantidad_faltante}`)
-        .join("-");
+    const cargarBackOrders = async () => {
+      if (!cuenta?.id && !esAdmin) return;
 
-      // guarda en back_orders
-      const { data: nuevoBackOrder, error } = await supabase
-        .from("back_orders")
-        .insert({
-          cuenta_id: pedidoSeleccionado.cuenta_id,
-          pedido_origen_id: pedidoSeleccionado.id,
-          total: totalBackOrder,
-          lista_productos: listaProductosString,
-          productos_detalles: JSON.stringify(productosFaltantes),
-          estado: "pendiente",
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      alert(`Back Order creado exitosamente. Será visible en la sección de Back Orders.`);
-      setPedidoSeleccionado(null);
-      setProductosFaltantes([]);
-
-    } catch (error: any) {
-      console.error("Error creando back order:", error);
-      alert(`Error al crear el back order: ${error.message || error.details}`);
-    } finally {
-      setCreandoBackOrder(false);
-    }
-  };
-
-  const cargarBackOrders = async () => {
-  if (!cuenta?.id && !esAdmin) return;
-  
-  setCargandoBackOrders(true);
-  try {
-    let query = supabase
-      .from("back_orders")
-      .select(`
+      setCargandoBackOrders(true);
+      try {
+        let query = supabase
+          .from("back_orders")
+          .select(
+            `
         *,
         cuentas (
           numero_cuenta,
@@ -8904,46 +8913,48 @@ const crearBackOrder = async () => {
           ferreteria,
           tipo_comprobante
         )
-      `)
-      .eq("estado", "pendiente")
-      .order("created_at", { ascending: false });
+      `,
+          )
+          .eq("estado", "pendiente")
+          .order("created_at", { ascending: false });
 
-    if (!esAdmin) {
-      query = query.eq("cuenta_id", cuenta.id);
-    }
+        if (!esAdmin) {
+          query = query.eq("cuenta_id", cuenta.id);
+        }
 
-    const { data, error } = await query;
-    if (!error && data) {
-      setBackOrders(data);
-    }
-  } catch (error) {
-    console.error("Error cargando back orders:", error);
-  } finally {
-    setCargandoBackOrders(false);
-  }
-};
+        const { data, error } = await query;
+        if (!error && data) {
+          setBackOrders(data);
+        }
+      } catch (error) {
+        console.error("Error cargando back orders:", error);
+      } finally {
+        setCargandoBackOrders(false);
+      }
+    };
 
-const confirmarBackOrder = async (backOrder: any) => {
-  if (!backOrder) return;
+    const confirmarBackOrder = async (backOrder: any) => {
+      if (!backOrder) return;
 
-  try {
-    // Importar módulos necesarios
-    const jsPDFModule = await import("jspdf");
-    const autoTableModule = await import("jspdf-autotable");
-    const QRCodeModule = await import("qrcode");
-    const { jsPDF } = jsPDFModule;
+      try {
+        // Importar módulos necesarios
+        const jsPDFModule = await import("jspdf");
+        const autoTableModule = await import("jspdf-autotable");
+        const QRCodeModule = await import("qrcode");
+        const { jsPDF } = jsPDFModule;
 
-    // Crear el pedido real
-    const { data: nuevoPedido, error: errorPedido } = await supabase
-      .from("pedidos")
-      .insert({
-        cuenta_id: backOrder.cuenta_id,
-        total: backOrder.total,
-        estado: "nuevo_pedido",
-        es_domicilio: false,
-        lista_productos: backOrder.lista_productos,
-      })
-      .select(`
+        // Crear el pedido real
+        const { data: nuevoPedido, error: errorPedido } = await supabase
+          .from("pedidos")
+          .insert({
+            cuenta_id: backOrder.cuenta_id,
+            total: backOrder.total,
+            estado: "nuevo_pedido",
+            es_domicilio: false,
+            lista_productos: backOrder.lista_productos,
+          })
+          .select(
+            `
         *,
         cuentas (
           numero_cuenta,
@@ -8954,182 +8965,216 @@ const confirmarBackOrder = async (backOrder: any) => {
           entrega_mismo_dia,
           tipo_comprobante
         )
-      `)
-      .single();
+      `,
+          )
+          .single();
 
-    if (errorPedido) throw errorPedido;
+        if (errorPedido) throw errorPedido;
 
-    // Generar PDF 
-    const pedidoId = nuevoPedido.id;
-    const numeroCotizacion = pedidoId;
-    const fecha = new Date().toLocaleDateString("es-MX", {
-      day: "2-digit", month: "2-digit", year: "numeric",
-    });
+        // Generar PDF
+        const pedidoId = nuevoPedido.id;
+        const numeroCotizacion = pedidoId;
+        const fecha = new Date().toLocaleDateString("es-MX", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
 
-    const qrBase64 = await QRCodeModule.default.toDataURL(backOrder.lista_productos, {
-      width: 200, margin: 1,
-    });
+        const qrBase64 = await QRCodeModule.default.toDataURL(
+          backOrder.lista_productos,
+          {
+            width: 200,
+            margin: 1,
+          },
+        );
 
-    const getImageBase64 = async (url: string): Promise<string> => {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+        const getImageBase64 = async (url: string): Promise<string> => {
+          const response = await fetch(url);
+          const blob = await response.blob();
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        };
+        const logoBase64 = await getImageBase64("/logo-pdf.png");
+
+        const datosCliente = nuevoPedido.cuentas;
+        const tipoDoc = "BACK ORDER";
+
+        const dibujarEncabezado = (doc: any) => {
+          doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
+          doc.setFontSize(7);
+          doc.setFont("helvetica", "bold");
+          doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+          doc.setFont("helvetica", "normal");
+          doc.text("GUGS701012E14", 70, 14);
+          doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
+          doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
+          doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
+
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+          doc.text("Pedido", 155, 10);
+          doc.setFontSize(10);
+          doc.text(numeroCotizacion.toString(), 170, 16);
+          doc.setFontSize(9);
+          doc.text("Fecha", 172, 24);
+          doc.setFontSize(8);
+          doc.setFont("helvetica", "normal");
+          doc.text(fecha, 167, 30);
+
+          doc.setLineWidth(0.3);
+          doc.line(14, 42, 196, 42);
+
+          doc.setFontSize(8);
+          doc.setFont("helvetica", "bold");
+          doc.text("RECEPTOR", 14, 48);
+
+          doc.setFontSize(11);
+          doc.setTextColor(100, 100, 100);
+          doc.text(tipoDoc, doc.internal.pageSize.width / 2, 48, {
+            align: "center",
+          });
+
+          doc.setTextColor(0, 0, 0);
+          doc.setFontSize(7);
+          doc.setFont("helvetica", "normal");
+          doc.text(`Nombre: ${datosCliente?.cliente || "N/A"}`, 14, 54);
+          doc.text(`Domicilio: ${datosCliente?.direccion || ""}`, 14, 59);
+          doc.text(`Ferretería: ${datosCliente?.ferreteria || ""}`, 140, 59);
+          doc.text(`Tel: ${datosCliente?.numero_tel || ""}`, 140, 54);
+          doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
+        };
+
+        const doc = new jsPDF();
+
+        const productosDetalles = JSON.parse(backOrder.productos_detalles);
+        const productosTabla = productosDetalles.map((p: any) => [
+          p.CODIGO || "",
+          p.cantidad_faltante,
+          p.TITULO,
+          `$ ${p.P_MAYOREO.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+          `$ ${(p.cantidad_faltante * p.P_MAYOREO).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+        ]);
+
+        autoTableModule.default(doc, {
+          head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+          body: productosTabla,
+          startY: 69,
+          styles: { fontSize: 7, cellPadding: 1.5 },
+          headStyles: {
+            fillColor: [230, 230, 230],
+            textColor: [0, 0, 0],
+            fontStyle: "bold",
+            halign: "center",
+            fontSize: 7,
+          },
+          columnStyles: {
+            0: { cellWidth: 28, halign: "center" },
+            1: { cellWidth: 15, halign: "center" },
+            2: { cellWidth: 82, halign: "left" },
+            3: { cellWidth: 22, halign: "right" },
+            4: { cellWidth: 22, halign: "right" },
+          },
+          theme: "grid",
+          margin: { left: 14, right: 14, top: 69 },
+          didDrawPage: () => dibujarEncabezado(doc),
+        });
+
+        const finalY = (doc as any).lastAutoTable?.finalY || 100;
+        const qrSize = 40;
+        let yBase = finalY + 10;
+
+        if (doc.internal.pageSize.height - yBase < 60) {
+          doc.addPage();
+          dibujarEncabezado(doc);
+          yBase = 70;
+        }
+
+        doc.addImage(qrBase64, "PNG", 14, yBase, qrSize, qrSize);
+        doc.setFontSize(7);
+        doc.text(
+          "Escanea para ver pedido",
+          14 + qrSize / 2,
+          yBase + qrSize + 4,
+          { align: "center" },
+        );
+
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("TOTAL NETO:", 145, yBase + 10);
+        doc.text(
+          `$ ${backOrder.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+          195,
+          yBase + 10,
+          { align: "right" },
+        );
+
+        // Subir PDF
+        const pdfBlob = doc.output("blob");
+        const nombreArchivoPDF = `pedido_${nuevoPedido.id}_backorder_${Date.now()}.pdf`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("pedidos-pdf")
+          .upload(nombreArchivoPDF, pdfBlob, {
+            contentType: "application/pdf",
+            cacheControl: "public, max-age=31536000",
+            upsert: true,
+          });
+
+        if (!uploadError) {
+          const {
+            data: { publicUrl },
+          } = supabase.storage
+            .from("pedidos-pdf")
+            .getPublicUrl(nombreArchivoPDF);
+
+          await supabase
+            .from("pedidos")
+            .update({ pdf_url: publicUrl })
+            .eq("id", nuevoPedido.id);
+
+          const pdfBase64 = doc.output("datauristring");
+          await fetch("/api/enviar-pedido", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pdfBase64,
+              correoDestino: "bfmpedidos@gmail.com",
+              asunto: `Nuevo Pedido Back Order #${nuevoPedido.id} - ${datosCliente?.cliente}`,
+            }),
+          });
+        }
+
+        // Marcar back order como confirmado
+        await supabase
+          .from("back_orders")
+          .update({ estado: "confirmado", pedido_final_id: nuevoPedido.id })
+          .eq("id", backOrder.id);
+
+        alert(
+          `¡Back Order confirmado! Pedido #${nuevoPedido.id} creado exitosamente.`,
+        );
+        cargarBackOrders();
+        setVistaBackOrders(false);
+      } catch (error: any) {
+        console.error("Error confirmando back order:", error);
+        alert(`Error: ${error.message || error.details}`);
+      }
     };
-    const logoBase64 = await getImageBase64("/logo-pdf.png");
-
-    const datosCliente = nuevoPedido.cuentas;
-    const tipoDoc = "BACK ORDER";
-
-    const dibujarEncabezado = (doc: any) => {
-      doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "bold");
-      doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
-      doc.setFont("helvetica", "normal");
-      doc.text("GUGS701012E14", 70, 14);
-      doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
-      doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
-      doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
-
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "bold");
-      doc.text("Pedido", 155, 10);
-      doc.setFontSize(10);
-      doc.text(numeroCotizacion.toString(), 170, 16);
-      doc.setFontSize(9);
-      doc.text("Fecha", 172, 24);
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
-      doc.text(fecha, 167, 30);
-
-      doc.setLineWidth(0.3);
-      doc.line(14, 42, 196, 42);
-
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "bold");
-      doc.text("RECEPTOR", 14, 48);
-
-      doc.setFontSize(11);
-      doc.setTextColor(100, 100, 100);
-      doc.text(tipoDoc, doc.internal.pageSize.width / 2, 48, { align: "center" });
-
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Nombre: ${datosCliente?.cliente || "N/A"}`, 14, 54);
-      doc.text(`Domicilio: ${datosCliente?.direccion || ""}`, 14, 59);
-      doc.text(`Ferretería: ${datosCliente?.ferreteria || ""}`, 140, 59);
-      doc.text(`Tel: ${datosCliente?.numero_tel || ""}`, 140, 54);
-      doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
-    };
-
-    const doc = new jsPDF();
-    
-    const productosDetalles = JSON.parse(backOrder.productos_detalles);
-    const productosTabla = productosDetalles.map((p: any) => [
-      p.CODIGO || "",
-      p.cantidad_faltante,
-      p.TITULO,
-      `$ ${p.P_MAYOREO.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-      `$ ${(p.cantidad_faltante * p.P_MAYOREO).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-    ]);
-
-    autoTableModule.default(doc, {
-      head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
-      body: productosTabla,
-      startY: 69,
-      styles: { fontSize: 7, cellPadding: 1.5 },
-      headStyles: { fillColor: [230, 230, 230], textColor: [0, 0, 0], fontStyle: "bold", halign: "center", fontSize: 7 },
-      columnStyles: {
-        0: { cellWidth: 28, halign: "center" },
-        1: { cellWidth: 15, halign: "center" },
-        2: { cellWidth: 82, halign: "left" },
-        3: { cellWidth: 22, halign: "right" },
-        4: { cellWidth: 22, halign: "right" },
-      },
-      theme: "grid",
-      margin: { left: 14, right: 14, top: 69 },
-      didDrawPage: () => dibujarEncabezado(doc),
-    });
-
-    const finalY = (doc as any).lastAutoTable?.finalY || 100;
-    const qrSize = 40;
-    let yBase = finalY + 10;
-
-    if (doc.internal.pageSize.height - yBase < 60) {
-      doc.addPage();
-      dibujarEncabezado(doc);
-      yBase = 70;
-    }
-
-    doc.addImage(qrBase64, "PNG", 14, yBase, qrSize, qrSize);
-    doc.setFontSize(7);
-    doc.text("Escanea para ver pedido", 14 + qrSize / 2, yBase + qrSize + 4, { align: "center" });
-
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.text("TOTAL NETO:", 145, yBase + 10);
-    doc.text(`$ ${backOrder.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, 195, yBase + 10, { align: "right" });
-
-    // Subir PDF
-    const pdfBlob = doc.output("blob");
-    const nombreArchivoPDF = `pedido_${nuevoPedido.id}_backorder_${Date.now()}.pdf`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("pedidos-pdf")
-      .upload(nombreArchivoPDF, pdfBlob, {
-        contentType: "application/pdf",
-        cacheControl: "public, max-age=31536000",
-        upsert: true,
-      });
-
-    if (!uploadError) {
-      const { data: { publicUrl } } = supabase.storage.from("pedidos-pdf").getPublicUrl(nombreArchivoPDF);
-      
-      await supabase
-        .from("pedidos")
-        .update({ pdf_url: publicUrl })
-        .eq("id", nuevoPedido.id);
-
-      const pdfBase64 = doc.output("datauristring");
-      await fetch("/api/enviar-pedido", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pdfBase64,
-          correoDestino: "bfmpedidos@gmail.com",
-          asunto: `Nuevo Pedido Back Order #${nuevoPedido.id} - ${datosCliente?.cliente}`
-        }),
-      });
-    }
-
-    // Marcar back order como confirmado
-    await supabase
-      .from("back_orders")
-      .update({ estado: "confirmado", pedido_final_id: nuevoPedido.id })
-      .eq("id", backOrder.id);
-
-    alert(`¡Back Order confirmado! Pedido #${nuevoPedido.id} creado exitosamente.`);
-    cargarBackOrders();
-    setVistaBackOrders(false);
-
-  } catch (error: any) {
-    console.error("Error confirmando back order:", error);
-    alert(`Error: ${error.message || error.details}`);
-  }
-};
 
     useEffect(() => {
-  if (pedidoSeleccionado && esAdmin && pedidoSeleccionado.estado === "encajado") {
-    cargarDetallesEmpaque(pedidoSeleccionado.id);
-    cargarDatosEncajado(pedidoSeleccionado.id);
-  }
-}, [pedidoSeleccionado]);
+      if (
+        pedidoSeleccionado &&
+        esAdmin &&
+        pedidoSeleccionado.estado === "encajado"
+      ) {
+        cargarDetallesEmpaque(pedidoSeleccionado.id);
+        cargarDatosEncajado(pedidoSeleccionado.id);
+      }
+    }, [pedidoSeleccionado]);
 
     const eliminarPedido = async () => {
       if (!pedidoAEliminar) return;
@@ -9155,7 +9200,6 @@ const confirmarBackOrder = async (backOrder: any) => {
           const { error: deleteFileError } = await supabase.storage
             .from("pedidos-pdf")
             .remove([nombreArchivo]);
-            
 
           if (deleteFileError) {
             console.error("Error eliminando PDF:", deleteFileError);
@@ -9409,8 +9453,8 @@ const confirmarBackOrder = async (backOrder: any) => {
               <BadgeEstado estado={pedidoSeleccionado.estado} />
             </div>
           )}
-          
-           {/* Detalles de empaque */}
+
+          {/* Detalles de empaque */}
           <AnimatePresence>
             {esAdmin && pedidoSeleccionado.estado === "encajado" && (
               <motion.div
@@ -9451,189 +9495,193 @@ const confirmarBackOrder = async (backOrder: any) => {
             )}
           </AnimatePresence>
 
-      <AnimatePresence>
-  {esAdmin && pedidoSeleccionado.estado === "encajado" && (
-    <motion.div
-      initial={{ opacity: 0, height: 0, y: -20 }}
-      animate={{ opacity: 1, height: "auto", y: 0 }}
-      exit={{ opacity: 0, height: 0, y: -20 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-      className="overflow-hidden"
-    >
-
-      {cargandoEncajado ? (
-        <div className="bg-white rounded-xl border border-zinc-200 p-8 mb-4 shadow-sm">
-          <div className="flex flex-col items-center justify-center gap-3">
-            <div className="animate-spin h-10 w-10 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-            <p className="text-zinc-600 font-medium">Cargando datos de encajado...</p>
-          </div>
-        </div>
-      ) : (
-        <>
-         {/* Información del cliente y tipo de comprobante */}
-  <div className="bg-zinc-50 rounded-lg p-3 mb-3 border border-zinc-200">
-    <div className="flex justify-between items-center">
-      <span className="text-sm text-zinc-600">Tipo de comprobante:</span>
-      <span className="font-semibold text-zinc-900">
-        {cuentaPedido?.tipo_comprobante || "Nota de Remisión"}
-      </span>
-    </div>
-  </div>
-
-  {/* Total Neto */}
-  <div className="bg-green-50 rounded-lg p-3 mb-3 border border-green-200">
-    <div className="flex justify-between items-center">
-      <span className="text-sm font-semibold text-green-800">
-        Total Neto Encajado:
-      </span>
-      <span className="text-xl font-bold text-green-600">
-        ${totalNetoEncajado.toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}
-      </span>
-    </div>
-  </div>
-          {/* String de Encajado */}
-          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-2 bg-green-100 rounded-full text-green-600">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                  className="w-5 h-5"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-zinc-900">
-                String de Encajado
-              </h3>
-            </div>
-
-            <div className="relative">
-              <textarea
-                value={stringEncajado}
-                readOnly
-                rows={3}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 bg-zinc-50 font-mono text-sm"
-              />
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(stringEncajado);
-                  alert("String copiado al portapapeles");
-                }}
-                className="absolute top-2 right-2 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-semibold"
+          <AnimatePresence>
+            {esAdmin && pedidoSeleccionado.estado === "encajado" && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, y: -20 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={{ opacity: 0, height: 0, y: -20 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="overflow-hidden"
               >
-                Copiar
-              </button>
-            </div>
-            <p className="text-xs text-zinc-400 mt-2">
-              Formato: CODIGO*CANTIDAD-CODIGO*CANTIDAD
-            </p>
-          </div>
-
-          {/* Productos Faltantes y Back Order */}
-          {productosFaltantes.length > 0 && (
-            <div className="bg-white rounded-xl border border-red-200 p-4 mb-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-2 bg-red-100 rounded-full text-red-600">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                    stroke="currentColor"
-                    className="w-5 h-5"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-zinc-900">
-                  Productos Faltantes ({productosFaltantes.length})
-                </h3>
-              </div>
-
-              <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
-                {productosFaltantes.map((prod, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-3 p-2 bg-red-50 rounded-lg border border-red-200"
-                  >
-                    <div className="relative w-12 h-12 bg-white rounded overflow-hidden flex-shrink-0">
-                      <Image
-                        src={
-                          prod.IMAGEN ||
-                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
-                        }
-                        alt={prod.TITULO}
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-zinc-800 truncate">
-                        {prod.TITULO}
-                      </p>
-                      <p className="text-xs text-zinc-500">{prod.CODIGO}</p>
-                      <p className="text-xs text-red-600 font-semibold mt-1">
-                        Faltante: {prod.cantidad_faltante} unidades
+                {cargandoEncajado ? (
+                  <div className="bg-white rounded-xl border border-zinc-200 p-8 mb-4 shadow-sm">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <div className="animate-spin h-10 w-10 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+                      <p className="text-zinc-600 font-medium">
+                        Cargando datos de encajado...
                       </p>
                     </div>
                   </div>
-                ))}
-              </div>
-
-              <button
-                onClick={crearBackOrder}
-                disabled={creandoBackOrder}
-                className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {creandoBackOrder ? (
-                  <>
-                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                    Creando Back Order...
-                  </>
                 ) : (
                   <>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={2}
-                      stroke="currentColor"
-                      className="w-5 h-5"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 4.5v15m7.5-7.5h-15"
-                      />
-                    </svg>
-                    Crear Back Order con Faltantes
+                    {/* Información del cliente y tipo de comprobante */}
+                    <div className="bg-zinc-50 rounded-lg p-3 mb-3 border border-zinc-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-zinc-600">
+                          Tipo de comprobante:
+                        </span>
+                        <span className="font-semibold text-zinc-900">
+                          {cuentaPedido?.tipo_comprobante || "Nota de Remisión"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Total Neto */}
+                    <div className="bg-green-50 rounded-lg p-3 mb-3 border border-green-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-semibold text-green-800">
+                          Total Neto Encajado:
+                        </span>
+                        <span className="text-xl font-bold text-green-600">
+                          $
+                          {totalNetoEncajado.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                    {/* String de Encajado */}
+                    <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="p-2 bg-green-100 rounded-full text-green-600">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={2}
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
+                            />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-semibold text-zinc-900">
+                          String de Encajado
+                        </h3>
+                      </div>
+
+                      <div className="relative">
+                        <textarea
+                          value={stringEncajado}
+                          readOnly
+                          rows={3}
+                          className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 bg-zinc-50 font-mono text-sm"
+                        />
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(stringEncajado);
+                            alert("String copiado al portapapeles");
+                          }}
+                          className="absolute top-2 right-2 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-semibold"
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                      <p className="text-xs text-zinc-400 mt-2">
+                        Formato: CODIGO*CANTIDAD-CODIGO*CANTIDAD
+                      </p>
+                    </div>
+
+                    {/* Productos Faltantes y Back Order */}
+                    {productosFaltantes.length > 0 && (
+                      <div className="bg-white rounded-xl border border-red-200 p-4 mb-4 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="p-2 bg-red-100 rounded-full text-red-600">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth={2}
+                              stroke="currentColor"
+                              className="w-5 h-5"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                              />
+                            </svg>
+                          </div>
+                          <h3 className="text-lg font-semibold text-zinc-900">
+                            Productos Faltantes ({productosFaltantes.length})
+                          </h3>
+                        </div>
+
+                        <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
+                          {productosFaltantes.map((prod, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-3 p-2 bg-red-50 rounded-lg border border-red-200"
+                            >
+                              <div className="relative w-12 h-12 bg-white rounded overflow-hidden flex-shrink-0">
+                                <Image
+                                  src={
+                                    prod.IMAGEN ||
+                                    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                                  }
+                                  alt={prod.TITULO}
+                                  fill
+                                  className="object-contain"
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-zinc-800 truncate">
+                                  {prod.TITULO}
+                                </p>
+                                <p className="text-xs text-zinc-500">
+                                  {prod.CODIGO}
+                                </p>
+                                <p className="text-xs text-red-600 font-semibold mt-1">
+                                  Faltante: {prod.cantidad_faltante} unidades
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <button
+                          onClick={crearBackOrder}
+                          disabled={creandoBackOrder}
+                          className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {creandoBackOrder ? (
+                            <>
+                              <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                              Creando Back Order...
+                            </>
+                          ) : (
+                            <>
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={2}
+                                stroke="currentColor"
+                                className="w-5 h-5"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M12 4.5v15m7.5-7.5h-15"
+                                />
+                              </svg>
+                              Crear Back Order con Faltantes
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
-              </button>
-            </div>
-          )}
-        </>
-      )}
-    </motion.div>
-  )}
-</AnimatePresence>
-  
-
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* informacion de entrega */}
           {pedidoSeleccionado && (
@@ -9991,29 +10039,31 @@ const confirmarBackOrder = async (backOrder: any) => {
     );
   };
 
-const VistaBackOrders = ({ cuenta, setVistaPerfil }: any) => {
-  const [backOrders, setBackOrders] = useState<any[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [backOrderSeleccionado, setBackOrderSeleccionado] = useState<any>(null);
-  
-  // Nuevo estado para el loading del botón
-  const [procesandoConfirmacion, setProcesandoConfirmacion] = useState(false);
+  const VistaBackOrders = ({ cuenta, setVistaPerfil }: any) => {
+    const [backOrders, setBackOrders] = useState<any[]>([]);
+    const [cargando, setCargando] = useState(true);
+    const [backOrderSeleccionado, setBackOrderSeleccionado] =
+      useState<any>(null);
 
-  // Definir si es admin
-  const esAdmin = cuenta?.numero_cuenta === "Admin01";
+    // Nuevo estado para el loading del botón
+    const [procesandoConfirmacion, setProcesandoConfirmacion] = useState(false);
 
-  useEffect(() => {
-    cargarBackOrders();
-  }, [cuenta]);
+    // Definir si es admin
+    const esAdmin = cuenta?.numero_cuenta === "Admin01";
 
-  const cargarBackOrders = async () => {
-    if (!cuenta?.id && !esAdmin) return;
+    useEffect(() => {
+      cargarBackOrders();
+    }, [cuenta]);
 
-    setCargando(true);
-    try {
-      let query = supabase
-        .from("back_orders")
-        .select(`
+    const cargarBackOrders = async () => {
+      if (!cuenta?.id && !esAdmin) return;
+
+      setCargando(true);
+      try {
+        let query = supabase
+          .from("back_orders")
+          .select(
+            `
           *,
           cuentas (
             numero_cuenta,
@@ -10021,48 +10071,50 @@ const VistaBackOrders = ({ cuenta, setVistaPerfil }: any) => {
             ferreteria,
             tipo_comprobante
           )
-        `)
-        .eq("estado", "pendiente")
-        .order("created_at", { ascending: false });
+        `,
+          )
+          .eq("estado", "pendiente")
+          .order("created_at", { ascending: false });
 
-      if (!esAdmin) {
-        query = query.eq("cuenta_id", cuenta.id);
+        if (!esAdmin) {
+          query = query.eq("cuenta_id", cuenta.id);
+        }
+
+        const { data, error } = await query;
+        if (!error && data) {
+          setBackOrders(data);
+        }
+      } catch (error) {
+        console.error("Error cargando back orders:", error);
+      } finally {
+        setCargando(false);
       }
+    };
 
-      const { data, error } = await query;
-      if (!error && data) {
-        setBackOrders(data);
-      }
-    } catch (error) {
-      console.error("Error cargando back orders:", error);
-    } finally {
-      setCargando(false);
-    }
-  };
+    const confirmarBackOrder = async (backOrder: any) => {
+      if (!backOrder) return;
 
-  const confirmarBackOrder = async (backOrder: any) => {
-    if (!backOrder) return;
+      // 1. Activar estado de carga
+      setProcesandoConfirmacion(true);
 
-    // 1. Activar estado de carga
-    setProcesandoConfirmacion(true);
+      try {
+        const jsPDFModule = await import("jspdf");
+        const autoTableModule = await import("jspdf-autotable");
+        const QRCodeModule = await import("qrcode");
+        const { jsPDF } = jsPDFModule;
 
-    try {
-      const jsPDFModule = await import("jspdf");
-      const autoTableModule = await import("jspdf-autotable");
-      const QRCodeModule = await import("qrcode");
-      const { jsPDF } = jsPDFModule;
-
-      // Crear el pedido real
-      const { data: nuevoPedido, error: errorPedido } = await supabase
-        .from("pedidos")
-        .insert({
-          cuenta_id: backOrder.cuenta_id,
-          total: backOrder.total,
-          estado: "nuevo_pedido",
-          es_domicilio: false,
-          lista_productos: backOrder.lista_productos,
-        })
-        .select(`
+        // Crear el pedido real
+        const { data: nuevoPedido, error: errorPedido } = await supabase
+          .from("pedidos")
+          .insert({
+            cuenta_id: backOrder.cuenta_id,
+            total: backOrder.total,
+            estado: "nuevo_pedido",
+            es_domicilio: false,
+            lista_productos: backOrder.lista_productos,
+          })
+          .select(
+            `
           *,
           cuentas (
             numero_cuenta,
@@ -10073,197 +10125,343 @@ const VistaBackOrders = ({ cuenta, setVistaPerfil }: any) => {
             entrega_mismo_dia,
             tipo_comprobante
           )
-        `)
-        .single();
+        `,
+          )
+          .single();
 
-      if (errorPedido) throw errorPedido;
+        if (errorPedido) throw errorPedido;
 
-      // --- GENERACIÓN DEL PDF ---
-      const pedidoId = nuevoPedido.id;
-      const numeroCotizacion = pedidoId;
-      const fecha = new Date().toLocaleDateString("es-MX", {
-        day: "2-digit", month: "2-digit", year: "numeric",
-      });
-
-      const qrBase64 = await QRCodeModule.default.toDataURL(backOrder.lista_productos, {
-        width: 200, margin: 1,
-      });
-
-      const getImageBase64 = async (url: string): Promise<string> => {
-        const response = await fetch(url);
-        const blob = await response.blob();
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
+        // --- GENERACIÓN DEL PDF ---
+        const pedidoId = nuevoPedido.id;
+        const numeroCotizacion = pedidoId;
+        const fecha = new Date().toLocaleDateString("es-MX", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
         });
-      };
-      
-      // Intentar cargar logo, fallback si falla
-      let logoBase64 = "";
-      try {
-         logoBase64 = await getImageBase64("/logo-pdf.png");
-      } catch (e) {
-         console.warn("No se pudo cargar el logo");
-      }
 
-      const datosCliente = nuevoPedido.cuentas;
-      const tipoDoc = "BACK ORDER";
+        const qrBase64 = await QRCodeModule.default.toDataURL(
+          backOrder.lista_productos,
+          {
+            width: 200,
+            margin: 1,
+          },
+        );
 
-      const dibujarEncabezado = (doc: any) => {
-        if(logoBase64) doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
-        
+        const getImageBase64 = async (url: string): Promise<string> => {
+          const response = await fetch(url);
+          const blob = await response.blob();
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        };
+
+        // Intentar cargar logo, fallback si falla
+        let logoBase64 = "";
+        try {
+          logoBase64 = await getImageBase64("/logo-pdf.png");
+        } catch (e) {
+          console.warn("No se pudo cargar el logo");
+        }
+
+        const datosCliente = nuevoPedido.cuentas;
+        const tipoDoc = "BACK ORDER";
+
+        const dibujarEncabezado = (doc: any) => {
+          if (logoBase64) doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
+
+          doc.setFontSize(7);
+          doc.setFont("helvetica", "bold");
+          doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+          doc.setFont("helvetica", "normal");
+          doc.text("GUGS701012E14", 70, 14);
+          doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
+          doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
+          doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
+
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+          doc.text("Pedido", 155, 10);
+          doc.setFontSize(10);
+          doc.text(numeroCotizacion.toString(), 170, 16);
+          doc.setFontSize(9);
+          doc.text("Fecha", 172, 24);
+          doc.setFontSize(8);
+          doc.setFont("helvetica", "normal");
+          doc.text(fecha, 167, 30);
+
+          doc.setLineWidth(0.3);
+          doc.line(14, 42, 196, 42);
+
+          doc.setFontSize(8);
+          doc.setFont("helvetica", "bold");
+          doc.text("RECEPTOR", 14, 48);
+
+          doc.setFontSize(11);
+          doc.setTextColor(100, 100, 100);
+          doc.text(tipoDoc, doc.internal.pageSize.width / 2, 48, {
+            align: "center",
+          });
+
+          doc.setTextColor(0, 0, 0);
+          doc.setFontSize(7);
+          doc.setFont("helvetica", "normal");
+          doc.text(`Nombre: ${datosCliente?.cliente || "N/A"}`, 14, 54);
+          doc.text(`Domicilio: ${datosCliente?.direccion || ""}`, 14, 59);
+          doc.text(`Ferretería: ${datosCliente?.ferreteria || ""}`, 140, 59);
+          doc.text(`Tel: ${datosCliente?.numero_tel || ""}`, 140, 54);
+          doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
+        };
+
+        const doc = new jsPDF();
+
+        const productosDetalles = JSON.parse(backOrder.productos_detalles);
+        const productosTabla = productosDetalles.map((p: any) => [
+          p.CODIGO || "",
+          p.cantidad_faltante,
+          p.TITULO,
+          `$ ${p.P_MAYOREO.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+          `$ ${(p.cantidad_faltante * p.P_MAYOREO).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+        ]);
+
+        autoTableModule.default(doc, {
+          head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+          body: productosTabla,
+          startY: 69,
+          styles: { fontSize: 7, cellPadding: 1.5 },
+          headStyles: {
+            fillColor: [230, 230, 230],
+            textColor: [0, 0, 0],
+            fontStyle: "bold",
+            halign: "center",
+            fontSize: 7,
+          },
+          columnStyles: {
+            0: { cellWidth: 28, halign: "center" },
+            1: { cellWidth: 15, halign: "center" },
+            2: { cellWidth: 82, halign: "left" },
+            3: { cellWidth: 22, halign: "right" },
+            4: { cellWidth: 22, halign: "right" },
+          },
+          theme: "grid",
+          margin: { left: 14, right: 14, top: 69 },
+          didDrawPage: () => dibujarEncabezado(doc),
+        });
+
+        const finalY = (doc as any).lastAutoTable?.finalY || 100;
+        const qrSize = 40;
+        let yBase = finalY + 10;
+
+        if (doc.internal.pageSize.height - yBase < 60) {
+          doc.addPage();
+          dibujarEncabezado(doc);
+          yBase = 70;
+        }
+
+        doc.addImage(qrBase64, "PNG", 14, yBase, qrSize, qrSize);
         doc.setFontSize(7);
-        doc.setFont("helvetica", "bold");
-        doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
-        doc.setFont("helvetica", "normal");
-        doc.text("GUGS701012E14", 70, 14);
-        doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
-        doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
-        doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
+        doc.text(
+          "Escanea para ver pedido",
+          14 + qrSize / 2,
+          yBase + qrSize + 4,
+          { align: "center" },
+        );
 
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
-        doc.text("Pedido", 155, 10);
-        doc.setFontSize(10);
-        doc.text(numeroCotizacion.toString(), 170, 16);
-        doc.setFontSize(9);
-        doc.text("Fecha", 172, 24);
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "normal");
-        doc.text(fecha, 167, 30);
+        doc.text("TOTAL NETO:", 145, yBase + 10);
+        doc.text(
+          `$ ${backOrder.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+          195,
+          yBase + 10,
+          { align: "right" },
+        );
 
-        doc.setLineWidth(0.3);
-        doc.line(14, 42, 196, 42);
+        // Subir PDF
+        const pdfBlob = doc.output("blob");
+        const nombreArchivoPDF = `pedido_${nuevoPedido.id}_backorder_${Date.now()}.pdf`;
 
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "bold");
-        doc.text("RECEPTOR", 14, 48);
+        const { error: uploadError } = await supabase.storage
+          .from("pedidos-pdf")
+          .upload(nombreArchivoPDF, pdfBlob, {
+            contentType: "application/pdf",
+            cacheControl: "public, max-age=31536000",
+            upsert: true,
+          });
 
-        doc.setFontSize(11);
-        doc.setTextColor(100, 100, 100);
-        doc.text(tipoDoc, doc.internal.pageSize.width / 2, 48, { align: "center" });
+        if (!uploadError) {
+          const {
+            data: { publicUrl },
+          } = supabase.storage
+            .from("pedidos-pdf")
+            .getPublicUrl(nombreArchivoPDF);
 
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(7);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Nombre: ${datosCliente?.cliente || "N/A"}`, 14, 54);
-        doc.text(`Domicilio: ${datosCliente?.direccion || ""}`, 14, 59);
-        doc.text(`Ferretería: ${datosCliente?.ferreteria || ""}`, 140, 59);
-        doc.text(`Tel: ${datosCliente?.numero_tel || ""}`, 140, 54);
-        doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
-      };
+          await supabase
+            .from("pedidos")
+            .update({ pdf_url: publicUrl })
+            .eq("id", nuevoPedido.id);
 
-      const doc = new jsPDF();
-      
-      const productosDetalles = JSON.parse(backOrder.productos_detalles);
-      const productosTabla = productosDetalles.map((p: any) => [
-        p.CODIGO || "",
-        p.cantidad_faltante,
-        p.TITULO,
-        `$ ${p.P_MAYOREO.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-        `$ ${(p.cantidad_faltante * p.P_MAYOREO).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-      ]);
+          const pdfBase64 = doc.output("datauristring");
+          // Enviar correo (sin esperar respuesta para no bloquear)
+          fetch("/api/enviar-pedido", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pdfBase64,
+              correoDestino: "bfmpedidos@gmail.com",
+              asunto: `Nuevo Pedido Back Order #${nuevoPedido.id} - ${datosCliente?.cliente}`,
+            }),
+          }).catch((err) => console.error("Error envío correo:", err));
+        }
 
-      autoTableModule.default(doc, {
-        head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
-        body: productosTabla,
-        startY: 69,
-        styles: { fontSize: 7, cellPadding: 1.5 },
-        headStyles: { fillColor: [230, 230, 230], textColor: [0, 0, 0], fontStyle: "bold", halign: "center", fontSize: 7 },
-        columnStyles: {
-          0: { cellWidth: 28, halign: "center" },
-          1: { cellWidth: 15, halign: "center" },
-          2: { cellWidth: 82, halign: "left" },
-          3: { cellWidth: 22, halign: "right" },
-          4: { cellWidth: 22, halign: "right" },
-        },
-        theme: "grid",
-        margin: { left: 14, right: 14, top: 69 },
-        didDrawPage: () => dibujarEncabezado(doc),
-      });
-
-      const finalY = (doc as any).lastAutoTable?.finalY || 100;
-      const qrSize = 40;
-      let yBase = finalY + 10;
-
-      if (doc.internal.pageSize.height - yBase < 60) {
-        doc.addPage();
-        dibujarEncabezado(doc);
-        yBase = 70;
-      }
-
-      doc.addImage(qrBase64, "PNG", 14, yBase, qrSize, qrSize);
-      doc.setFontSize(7);
-      doc.text("Escanea para ver pedido", 14 + qrSize / 2, yBase + qrSize + 4, { align: "center" });
-
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "bold");
-      doc.text("TOTAL NETO:", 145, yBase + 10);
-      doc.text(`$ ${backOrder.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, 195, yBase + 10, { align: "right" });
-
-      // Subir PDF
-      const pdfBlob = doc.output("blob");
-      const nombreArchivoPDF = `pedido_${nuevoPedido.id}_backorder_${Date.now()}.pdf`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("pedidos-pdf")
-        .upload(nombreArchivoPDF, pdfBlob, {
-          contentType: "application/pdf",
-          cacheControl: "public, max-age=31536000",
-          upsert: true,
-        });
-
-      if (!uploadError) {
-        const { data: { publicUrl } } = supabase.storage.from("pedidos-pdf").getPublicUrl(nombreArchivoPDF);
-        
+        // Marcar back order como confirmado
         await supabase
-          .from("pedidos")
-          .update({ pdf_url: publicUrl })
-          .eq("id", nuevoPedido.id);
+          .from("back_orders")
+          .update({ estado: "confirmado", pedido_final_id: nuevoPedido.id })
+          .eq("id", backOrder.id);
 
-        const pdfBase64 = doc.output("datauristring");
-        // Enviar correo (sin esperar respuesta para no bloquear)
-        fetch("/api/enviar-pedido", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            pdfBase64,
-            correoDestino: "bfmpedidos@gmail.com",
-            asunto: `Nuevo Pedido Back Order #${nuevoPedido.id} - ${datosCliente?.cliente}`
-          }),
-        }).catch(err => console.error("Error envío correo:", err));
+        // --- ACTUALIZACIÓN DE LA UI ---
+
+        // 1. Eliminar de la lista local inmediatamente
+        setBackOrders((prev) => prev.filter((bo) => bo.id !== backOrder.id));
+
+        // 2. Cerrar vista de detalle
+        setBackOrderSeleccionado(null);
+
+        alert(
+          `¡Back Order confirmado! Pedido #${nuevoPedido.id} creado exitosamente.`,
+        );
+      } catch (error: any) {
+        console.error("Error confirmando back order:", error);
+        alert(`Error: ${error.message || error.details}`);
+      } finally {
+        // 3. Desactivar estado de carga
+        setProcesandoConfirmacion(false);
       }
+    };
 
-      // Marcar back order como confirmado
-      await supabase
-        .from("back_orders")
-        .update({ estado: "confirmado", pedido_final_id: nuevoPedido.id })
-        .eq("id", backOrder.id);
+    if (backOrderSeleccionado) {
+      const productosDetalles = JSON.parse(
+        backOrderSeleccionado.productos_detalles,
+      );
 
-      // --- ACTUALIZACIÓN DE LA UI ---
-      
-      // 1. Eliminar de la lista local inmediatamente
-      setBackOrders(prev => prev.filter(bo => bo.id !== backOrder.id));
-      
-      // 2. Cerrar vista de detalle
-      setBackOrderSeleccionado(null);
+      return (
+        <motion.div
+          className="min-h-screen"
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -40 }}
+        >
+          <BackBtn onBack={() => setBackOrderSeleccionado(null)} />
 
-      alert(`¡Back Order confirmado! Pedido #${nuevoPedido.id} creado exitosamente.`);
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">
+            Detalle del Back Order
+          </h2>
 
-    } catch (error: any) {
-      console.error("Error confirmando back order:", error);
-      alert(`Error: ${error.message || error.details}`);
-    } finally {
-      // 3. Desactivar estado de carga
-      setProcesandoConfirmacion(false);
+          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Back Order #</span>
+              <span className="font-semibold text-zinc-900">
+                {backOrderSeleccionado.id}
+              </span>
+            </div>
+
+            {/* Mostrar cliente si es admin */}
+            {esAdmin && backOrderSeleccionado.cuentas && (
+              <div className="flex justify-between mb-2">
+                <span className="text-sm text-zinc-600">Cliente</span>
+                <span className="font-semibold text-blue-600 text-right">
+                  {backOrderSeleccionado.cuentas.cliente} <br />
+                  <span className="text-xs text-zinc-500">
+                    {backOrderSeleccionado.cuentas.numero_cuenta}
+                  </span>
+                </span>
+              </div>
+            )}
+
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Pedido Origen #</span>
+              <span className="font-semibold text-zinc-900">
+                {backOrderSeleccionado.pedido_origen_id}
+              </span>
+            </div>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Fecha</span>
+              <span className="font-semibold text-zinc-900">
+                {new Date(backOrderSeleccionado.created_at).toLocaleDateString(
+                  "es-MX",
+                )}
+              </span>
+            </div>
+            <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
+              <span className="font-bold text-zinc-900">Total</span>
+              <span className="font-bold text-orange-500 text-lg">
+                $
+                {backOrderSeleccionado.total.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                })}
+              </span>
+            </div>
+          </div>
+
+          <h3 className="text-lg font-semibold text-zinc-900 mb-3">
+            Productos Faltantes
+          </h3>
+
+          <div className="space-y-2 mb-6">
+            {productosDetalles.map((prod: any, idx: number) => (
+              <div
+                key={idx}
+                className="flex items-center gap-3 p-3 bg-white rounded-lg border border-zinc-200"
+              >
+                <div className="relative w-14 h-14 bg-zinc-100 rounded overflow-hidden flex-shrink-0">
+                  <Image
+                    src={prod.IMAGEN || "/placeholder.svg"}
+                    alt={prod.TITULO}
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-zinc-800">
+                    {prod.TITULO}
+                  </p>
+                  <p className="text-xs text-zinc-500">{prod.CODIGO}</p>
+                  <p className="text-xs text-red-600 font-semibold mt-1">
+                    Cantidad: {prod.cantidad_faltante}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Botón con estado de carga */}
+          <button
+            onClick={() => confirmarBackOrder(backOrderSeleccionado)}
+            disabled={procesandoConfirmacion}
+            className={`w-full py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 text-white
+            ${
+              procesandoConfirmacion
+                ? "bg-zinc-400 cursor-not-allowed"
+                : "bg-green-500 hover:bg-green-600"
+            }`}
+          >
+            {procesandoConfirmacion ? (
+              <>
+                <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+                GENERANDO PEDIDO...
+              </>
+            ) : (
+              "CONFIRMAR Y CREAR PEDIDO"
+            )}
+          </button>
+        </motion.div>
+      );
     }
-  };
 
-  if (backOrderSeleccionado) {
-    const productosDetalles = JSON.parse(backOrderSeleccionado.productos_detalles);
-    
     return (
       <motion.div
         className="min-h-screen"
@@ -10271,206 +10469,117 @@ const VistaBackOrders = ({ cuenta, setVistaPerfil }: any) => {
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -40 }}
       >
-        <BackBtn onBack={() => setBackOrderSeleccionado(null)} />
+        <BackBtn onBack={() => setVistaPerfil("menu")} />
 
         <h2 className="text-xl font-bold text-zinc-900 mb-4">
-          Detalle del Back Order
+          {esAdmin ? "Todos los Back Orders" : "Back Orders Pendientes"}
         </h2>
 
-        <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-          <div className="flex justify-between mb-2">
-            <span className="text-sm text-zinc-600">Back Order #</span>
-            <span className="font-semibold text-zinc-900">{backOrderSeleccionado.id}</span>
+        {cargando ? (
+          <div className="flex justify-center py-10">
+            <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
           </div>
-          
-          {/* Mostrar cliente si es admin */}
-          {esAdmin && backOrderSeleccionado.cuentas && (
-             <div className="flex justify-between mb-2">
-                <span className="text-sm text-zinc-600">Cliente</span>
-                <span className="font-semibold text-blue-600 text-right">
-                   {backOrderSeleccionado.cuentas.cliente} <br/>
-                   <span className="text-xs text-zinc-500">{backOrderSeleccionado.cuentas.numero_cuenta}</span>
-                </span>
-             </div>
-          )}
-
-          <div className="flex justify-between mb-2">
-            <span className="text-sm text-zinc-600">Pedido Origen #</span>
-            <span className="font-semibold text-zinc-900">{backOrderSeleccionado.pedido_origen_id}</span>
+        ) : backOrders.length === 0 ? (
+          <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
+            <p className="text-zinc-500">No tienes Back Orders pendientes</p>
           </div>
-          <div className="flex justify-between mb-2">
-            <span className="text-sm text-zinc-600">Fecha</span>
-            <span className="font-semibold text-zinc-900">
-              {new Date(backOrderSeleccionado.created_at).toLocaleDateString("es-MX")}
-            </span>
-          </div>
-          <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
-            <span className="font-bold text-zinc-900">Total</span>
-            <span className="font-bold text-orange-500 text-lg">
-              ${backOrderSeleccionado.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-        </div>
-
-        <h3 className="text-lg font-semibold text-zinc-900 mb-3">Productos Faltantes</h3>
-
-        <div className="space-y-2 mb-6">
-          {productosDetalles.map((prod: any, idx: number) => (
-            <div key={idx} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-zinc-200">
-              <div className="relative w-14 h-14 bg-zinc-100 rounded overflow-hidden flex-shrink-0">
-                <Image
-                  src={prod.IMAGEN || "/placeholder.svg"}
-                  alt={prod.TITULO}
-                  fill
-                  className="object-contain"
-                />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-zinc-800">{prod.TITULO}</p>
-                <p className="text-xs text-zinc-500">{prod.CODIGO}</p>
-                <p className="text-xs text-red-600 font-semibold mt-1">
-                  Cantidad: {prod.cantidad_faltante}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Botón con estado de carga */}
-        <button
-          onClick={() => confirmarBackOrder(backOrderSeleccionado)}
-          disabled={procesandoConfirmacion}
-          className={`w-full py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 text-white
-            ${procesandoConfirmacion 
-              ? "bg-zinc-400 cursor-not-allowed" 
-              : "bg-green-500 hover:bg-green-600"
-            }`}
-        >
-          {procesandoConfirmacion ? (
-            <>
-              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
-              GENERANDO PEDIDO...
-            </>
-          ) : (
-            "CONFIRMAR Y CREAR PEDIDO"
-          )}
-        </button>
-      </motion.div>
-    );
-  }
-
-  return (
-    <motion.div
-      className="min-h-screen"
-      initial={{ opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -40 }}
-    >
-      <BackBtn onBack={() => setVistaPerfil("menu")} />
-
-      <h2 className="text-xl font-bold text-zinc-900 mb-4">
-        {esAdmin ? "Todos los Back Orders" : "Back Orders Pendientes"}
-      </h2>
-
-      {cargando ? (
-        <div className="flex justify-center py-10">
-          <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-        </div>
-      ) : backOrders.length === 0 ? (
-        <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
-          <p className="text-zinc-500">No tienes Back Orders pendientes</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {backOrders.map((bo) => (
-            <div
-              key={bo.id}
-              onClick={() => setBackOrderSeleccionado(bo)}
-              className="border border-zinc-200 rounded-xl p-4 bg-white shadow-sm cursor-pointer hover:bg-zinc-50 transition"
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-semibold text-zinc-900">Back Order #{bo.id}</p>
-                  
-                  {/* Mostrar cliente si es admin */}
-                  {bo.cuentas && (
-                    <p className="text-xs font-bold text-blue-600 mt-1">
-                      {bo.cuentas.cliente || "Cliente"} ({bo.cuentas.numero_cuenta})
+        ) : (
+          <div className="space-y-3">
+            {backOrders.map((bo) => (
+              <div
+                key={bo.id}
+                onClick={() => setBackOrderSeleccionado(bo)}
+                className="border border-zinc-200 rounded-xl p-4 bg-white shadow-sm cursor-pointer hover:bg-zinc-50 transition"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-semibold text-zinc-900">
+                      Back Order #{bo.id}
                     </p>
-                  )}
 
-                  <p className="text-sm text-zinc-500 mt-1">
-                    {new Date(bo.created_at).toLocaleDateString("es-MX")}
-                  </p>
-                  <p className="text-xs text-zinc-400 mt-1">
-                    Origen: Pedido #{bo.pedido_origen_id}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-orange-500 font-bold">
-                    ${bo.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                  </span>
-                   <div className="mt-2 text-right">
-                    <span className="inline-block px-2 py-1 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700 border border-yellow-200">
-                      PENDIENTE
+                    {/* Mostrar cliente si es admin */}
+                    {bo.cuentas && (
+                      <p className="text-xs font-bold text-blue-600 mt-1">
+                        {bo.cuentas.cliente || "Cliente"} (
+                        {bo.cuentas.numero_cuenta})
+                      </p>
+                    )}
+
+                    <p className="text-sm text-zinc-500 mt-1">
+                      {new Date(bo.created_at).toLocaleDateString("es-MX")}
+                    </p>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      Origen: Pedido #{bo.pedido_origen_id}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-orange-500 font-bold">
+                      $
+                      {bo.total.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                      })}
                     </span>
+                    <div className="mt-2 text-right">
+                      <span className="inline-block px-2 py-1 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700 border border-yellow-200">
+                        PENDIENTE
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </motion.div>
-  );
-};
-
-
-const VistaRutas = ({ setVistaPerfil }: any) => {
-  const [pedidosPorRuta, setPedidosPorRuta] = useState<{
-    [key: string]: any[];
-  }>({});
-  const [cargando, setCargando] = useState(true);
-  const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
-  const [detallesEmpaque, setDetallesEmpaque] = useState<any>(null);
-  const [rutaExpandida, setRutaExpandida] = useState<string | null>(null);
-  const [actualizacionReciente, setActualizacionReciente] = useState(false);
-  const pedidoSeleccionadoRef = useRef<any>(null);
-  
-  // Estados para escaneo de códigos
-  const [codigosEtiquetas, setCodigosEtiquetas] = useState<any[]>([]);
-  const [bufferEscaneo, setBufferEscaneo] = useState("");
-  const [ultimoCodigo, setUltimoEscaneo] = useState("");
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [mostrarModalEscaneado, setMostrarModalEscaneado] = useState(false);
-  const [codigoEscaneadoActual, setCodigoEscaneadoActual] = useState<any>(null);
-
-const obtenerNombreEtiqueta = (tipo: string, numero: number) => {
-  const nombres: { [key: string]: string } = {
-    'c': 'Caja',
-    'a': 'Atado',
-    'b': 'Bolsa',
-    't': 'Tubo',
-    'r': 'Rollo',
-    'g': 'Galón',
-    'cub': 'Cubeta',
-    'l': 'Losalit',
-    'p': 'Porrón',
-    'pza': 'Pieza',
-    'cil': 'Cilindro'
+            ))}
+          </div>
+        )}
+      </motion.div>
+    );
   };
-  
-  const tipoLower = tipo.toLowerCase();
-  const nombre = nombres[tipoLower] || tipo;
-  
-  return `${nombre} ${numero}`;
-};
 
-  const cargarPedidosRuta = async () => {
-    const { data, error } = await supabase
-      .from("pedidos")
-      .select(
-        `
+  const VistaRutas = ({ setVistaPerfil }: any) => {
+    const [pedidosPorRuta, setPedidosPorRuta] = useState<{
+      [key: string]: any[];
+    }>({});
+    const [cargando, setCargando] = useState(true);
+    const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
+    const [detallesEmpaque, setDetallesEmpaque] = useState<any>(null);
+    const [rutaExpandida, setRutaExpandida] = useState<string | null>(null);
+    const [actualizacionReciente, setActualizacionReciente] = useState(false);
+    const pedidoSeleccionadoRef = useRef<any>(null);
+
+    // Estados para escaneo de códigos
+    const [codigosEtiquetas, setCodigosEtiquetas] = useState<any[]>([]);
+    const [bufferEscaneo, setBufferEscaneo] = useState("");
+    const [ultimoCodigo, setUltimoEscaneo] = useState("");
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [mostrarModalEscaneado, setMostrarModalEscaneado] = useState(false);
+    const [codigoEscaneadoActual, setCodigoEscaneadoActual] =
+      useState<any>(null);
+
+    const obtenerNombreEtiqueta = (tipo: string, numero: number) => {
+      const nombres: { [key: string]: string } = {
+        c: "Caja",
+        a: "Atado",
+        b: "Bolsa",
+        t: "Tubo",
+        r: "Rollo",
+        g: "Galón",
+        cub: "Cubeta",
+        l: "Losalit",
+        p: "Porrón",
+        pza: "Pieza",
+        cil: "Cilindro",
+      };
+
+      const tipoLower = tipo.toLowerCase();
+      const nombre = nombres[tipoLower] || tipo;
+
+      return `${nombre} ${numero}`;
+    };
+
+    const cargarPedidosRuta = async () => {
+      const { data, error } = await supabase
+        .from("pedidos")
+        .select(
+          `
         id,
         total,
         created_at,
@@ -10489,633 +10598,764 @@ const obtenerNombreEtiqueta = (tipo: string, numero: number) => {
           longitud
         )
       `,
-      )
-      .in("estado", ["encajado", "en_ruta"])
-      .order("created_at", { ascending: false });
+        )
+        .in("estado", ["encajado", "en_ruta"])
+        .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      const agrupados = data.reduce((acc: any, pedido: any) => {
-        const ruta = pedido.cuentas?.ruta || "Sin ruta asignada";
-        if (!acc[ruta]) acc[ruta] = [];
-        acc[ruta].push(pedido);
-        return acc;
-      }, {});
+      if (!error && data) {
+        const agrupados = data.reduce((acc: any, pedido: any) => {
+          const ruta = pedido.cuentas?.ruta || "Sin ruta asignada";
+          if (!acc[ruta]) acc[ruta] = [];
+          acc[ruta].push(pedido);
+          return acc;
+        }, {});
 
-      setPedidosPorRuta(agrupados);
-      setActualizacionReciente(true);
-      setTimeout(() => setActualizacionReciente(false), 2000);
-    }
-    setCargando(false);
-  };
-
-  const actualizarEstadoLocal = (nuevoEstado: string) => {
-    setPedidoSeleccionado((prev: any) =>
-      prev ? { ...prev, estado: nuevoEstado } : null,
-    );
-
-    setPedidosPorRuta((prevMap) => {
-      const nuevoMap = { ...prevMap };
-      Object.keys(nuevoMap).forEach((ruta) => {
-        nuevoMap[ruta] = nuevoMap[ruta].map((p) =>
-          p.id === pedidoSeleccionado?.id ? { ...p, estado: nuevoEstado } : p,
-        );
-      });
-      return nuevoMap;
-    });
-  };
-
-  useEffect(() => {
-    cargarPedidosRuta();
-
-    const channel = supabase
-      .channel("rutas-realtime-v3")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "pedidos" },
-        (payload) => {
-          console.log("Cambio en rutas:", payload);
-          cargarPedidosRuta();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const cargarDetallesEmpaque = async (pedidoId: number) => {
-    const { data } = await supabase
-      .from("detalles_empaque")
-      .select("*")
-      .eq("pedido_id", pedidoId)
-      .single();
-    setDetallesEmpaque(data || { detalles_empacado: "", observaciones: "" });
-  };
-
-  const cargarCodigosEtiquetas = async (pedidoId: number) => {
-    const { data } = await supabase
-      .from("codigos_etiquetas")
-      .select("*")
-      .eq("pedido_id", pedidoId)
-      .order("tipo", { ascending: true })
-      .order("numero", { ascending: true });
-    
-    setCodigosEtiquetas(data || []);
-  };
-
-  const verDetallePedido = async (pedido: any) => {
-    setPedidoSeleccionado(pedido);
-    pedidoSeleccionadoRef.current = pedido;
-    if (pedido.estado === "encajado") {
-      await cargarDetallesEmpaque(pedido.id);
-      await cargarCodigosEtiquetas(pedido.id);
-    }
-  };
-
-  // Lógica de escaneo de códigos
-  useEffect(() => {
-    if (!pedidoSeleccionado || pedidoSeleccionado.estado !== "encajado") return;
-
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === "Enter") {
-        if (bufferEscaneo.trim()) {
-          procesarEscaneoCodigo(bufferEscaneo.trim());
-          setBufferEscaneo("");
-        }
-        return;
+        setPedidosPorRuta(agrupados);
+        setActualizacionReciente(true);
+        setTimeout(() => setActualizacionReciente(false), 2000);
       }
-      setBufferEscaneo((prev) => prev + e.key);
-
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => {
-        if (bufferEscaneo.trim()) {
-          procesarEscaneoCodigo(bufferEscaneo.trim());
-          setBufferEscaneo("");
-        }
-      }, 100);
+      setCargando(false);
     };
 
-    window.addEventListener("keypress", handleKeyPress);
-    return () => {
-      window.removeEventListener("keypress", handleKeyPress);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [bufferEscaneo, pedidoSeleccionado, codigosEtiquetas]);
-
-  const procesarEscaneoCodigo = async (codigoEscaneado: string) => {
-    setUltimoEscaneo(codigoEscaneado);
-
-    const codigoEncontrado = codigosEtiquetas.find(
-      (c: any) => c.codigo === codigoEscaneado && !c.escaneado
-    );
-
-    if (!codigoEncontrado) {
-      if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-      alert(`Código ${codigoEscaneado} no encontrado o ya fue escaneado`);
-      return;
-    }
-
-    // Marcar como escaneado en la base de datos
-    const { error } = await supabase
-      .from("codigos_etiquetas")
-      .update({ 
-        escaneado: true,
-        fecha_escaneo: new Date().toISOString()
-      })
-      .eq("id", codigoEncontrado.id);
-
-    if (!error) {
-      // Actualizar localmente
-      setCodigosEtiquetas(prev => 
-        prev.map(c => c.id === codigoEncontrado.id ? { ...c, escaneado: true } : c)
+    const actualizarEstadoLocal = (nuevoEstado: string) => {
+      setPedidoSeleccionado((prev: any) =>
+        prev ? { ...prev, estado: nuevoEstado } : null,
       );
 
-      // Mostrar modal de confirmación
-      setCodigoEscaneadoActual(codigoEncontrado);
-      setMostrarModalEscaneado(true);
-      
-      if ("vibrate" in navigator) navigator.vibrate(50);
+      setPedidosPorRuta((prevMap) => {
+        const nuevoMap = { ...prevMap };
+        Object.keys(nuevoMap).forEach((ruta) => {
+          nuevoMap[ruta] = nuevoMap[ruta].map((p) =>
+            p.id === pedidoSeleccionado?.id ? { ...p, estado: nuevoEstado } : p,
+          );
+        });
+        return nuevoMap;
+      });
+    };
 
-      // Auto-cerrar modal
-      setTimeout(() => {
-        setMostrarModalEscaneado(false);
-        setCodigoEscaneadoActual(null);
-      }, 1500);
-    }
-  };
+    useEffect(() => {
+      cargarPedidosRuta();
 
-  const verificarTodosCodigosEscaneados = () => {
-    if (codigosEtiquetas.length === 0) return false;
-    return codigosEtiquetas.every((c: any) => c.escaneado);
-  };
+      const channel = supabase
+        .channel("rutas-realtime-v3")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "pedidos" },
+          (payload) => {
+            console.log("Cambio en rutas:", payload);
+            cargarPedidosRuta();
+          },
+        )
+        .subscribe();
 
-  const todosCodigosEscaneados = verificarTodosCodigosEscaneados();
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }, []);
 
-  // Función para verificar si todos los pedidos de una ruta están listos
-  const verificarPedidosListosRuta = async (ruta: string) => {
-    const pedidosRuta = pedidosPorRuta[ruta] || [];
-    
-    for (const pedido of pedidosRuta) {
+    const cargarDetallesEmpaque = async (pedidoId: number) => {
+      const { data } = await supabase
+        .from("detalles_empaque")
+        .select("*")
+        .eq("pedido_id", pedidoId)
+        .single();
+      setDetallesEmpaque(data || { detalles_empacado: "", observaciones: "" });
+    };
+
+    const cargarCodigosEtiquetas = async (pedidoId: number) => {
       const { data } = await supabase
         .from("codigos_etiquetas")
         .select("*")
-        .eq("pedido_id", pedido.id);
-      
-      if (!data || data.length === 0) return false;
-      if (!data.every((c: any) => c.escaneado)) return false;
+        .eq("pedido_id", pedidoId)
+        .order("tipo", { ascending: true })
+        .order("numero", { ascending: true });
+
+      setCodigosEtiquetas(data || []);
+    };
+
+    const verDetallePedido = async (pedido: any) => {
+      setPedidoSeleccionado(pedido);
+      pedidoSeleccionadoRef.current = pedido;
+      if (pedido.estado === "encajado") {
+        await cargarDetallesEmpaque(pedido.id);
+        await cargarCodigosEtiquetas(pedido.id);
+      }
+    };
+
+    // Lógica de escaneo de códigos
+    useEffect(() => {
+      if (!pedidoSeleccionado || pedidoSeleccionado.estado !== "encajado")
+        return;
+
+      const handleKeyPress = (e: KeyboardEvent) => {
+        if (e.key === "Enter") {
+          if (bufferEscaneo.trim()) {
+            procesarEscaneoCodigo(bufferEscaneo.trim());
+            setBufferEscaneo("");
+          }
+          return;
+        }
+        setBufferEscaneo((prev) => prev + e.key);
+
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+          if (bufferEscaneo.trim()) {
+            procesarEscaneoCodigo(bufferEscaneo.trim());
+            setBufferEscaneo("");
+          }
+        }, 100);
+      };
+
+      window.addEventListener("keypress", handleKeyPress);
+      return () => {
+        window.removeEventListener("keypress", handleKeyPress);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      };
+    }, [bufferEscaneo, pedidoSeleccionado, codigosEtiquetas]);
+
+    const procesarEscaneoCodigo = async (codigoEscaneado: string) => {
+      setUltimoEscaneo(codigoEscaneado);
+
+      const codigoEncontrado = codigosEtiquetas.find(
+        (c: any) => c.codigo === codigoEscaneado && !c.escaneado,
+      );
+
+      if (!codigoEncontrado) {
+        if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+        alert(`Código ${codigoEscaneado} no encontrado o ya fue escaneado`);
+        return;
+      }
+
+      // Marcar como escaneado en la base de datos
+      const { error } = await supabase
+        .from("codigos_etiquetas")
+        .update({
+          escaneado: true,
+          fecha_escaneo: new Date().toISOString(),
+        })
+        .eq("id", codigoEncontrado.id);
+
+      if (!error) {
+        // Actualizar localmente
+        setCodigosEtiquetas((prev) =>
+          prev.map((c) =>
+            c.id === codigoEncontrado.id ? { ...c, escaneado: true } : c,
+          ),
+        );
+
+        // Mostrar modal de confirmación
+        setCodigoEscaneadoActual(codigoEncontrado);
+        setMostrarModalEscaneado(true);
+
+        if ("vibrate" in navigator) navigator.vibrate(50);
+
+        // Auto-cerrar modal
+        setTimeout(() => {
+          setMostrarModalEscaneado(false);
+          setCodigoEscaneadoActual(null);
+        }, 1500);
+      }
+    };
+
+    const verificarTodosCodigosEscaneados = () => {
+      if (codigosEtiquetas.length === 0) return false;
+      return codigosEtiquetas.every((c: any) => c.escaneado);
+    };
+
+    const todosCodigosEscaneados = verificarTodosCodigosEscaneados();
+
+    // Componente separado para evitar re-renders constantes
+    const ListaPedidosRuta = ({
+      pedidos,
+      onVerDetalle,
+    }: {
+      pedidos: any[];
+      onVerDetalle: (pedido: any) => void;
+    }) => {
+      const [estadosVerificacion, setEstadosVerificacion] = useState<{
+        [key: number]: boolean;
+      }>({});
+
+      useEffect(() => {
+        const verificarTodos = async () => {
+          const nuevosEstados: { [key: number]: boolean } = {};
+
+          for (const pedido of pedidos) {
+            const { data } = await supabase
+              .from("codigos_etiquetas")
+              .select("*")
+              .eq("pedido_id", pedido.id);
+
+            if (data && data.length > 0) {
+              nuevosEstados[pedido.id] = data.every((c: any) => c.escaneado);
+            } else {
+              nuevosEstados[pedido.id] = false;
+            }
+          }
+
+          setEstadosVerificacion(nuevosEstados);
+        };
+
+        verificarTodos();
+      }, [pedidos]);
+
+      return (
+        <div className="p-2 space-y-2 bg-zinc-50">
+          {pedidos.map((pedido) => {
+            const verificado = estadosVerificacion[pedido.id] || false;
+
+            return (
+              <div
+                key={pedido.id}
+                onClick={() => onVerDetalle(pedido)}
+                className={`relative border-2 rounded-lg p-3 cursor-pointer transition shadow-sm ${
+                  verificado
+                    ? "bg-green-50 border-green-500 hover:border-green-600"
+                    : "bg-white border-zinc-200 hover:border-orange-300"
+                }`}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className={`font-bold text-sm ${verificado ? "text-green-900" : "text-zinc-900"}`}
+                      >
+                        #{pedido.id}
+                      </span>
+                      <BadgeEstado estado={pedido.estado} />
+                      {verificado && (
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-600 text-white">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            className="w-3 h-3"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <span className="text-[10px] font-bold">
+                            Verificado
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <p
+                      className={`text-xs font-semibold ${verificado ? "text-green-800" : "text-zinc-700"}`}
+                    >
+                      {pedido.cuentas?.cliente || "Sin cliente"}
+                    </p>
+                    <p
+                      className={`text-[10px] truncate max-w-[200px] ${verificado ? "text-green-600" : "text-zinc-500"}`}
+                    >
+                      {pedido.cuentas?.direccion}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p
+                      className={`text-sm font-bold ${verificado ? "text-green-700" : "text-orange-500"}`}
+                    >
+                      ${pedido.total.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    // Función para verificar si todos los pedidos de una ruta están listos
+    const verificarPedidosListosRuta = async (ruta: string) => {
+      const pedidosRuta = pedidosPorRuta[ruta] || [];
+
+      for (const pedido of pedidosRuta) {
+        const { data } = await supabase
+          .from("codigos_etiquetas")
+          .select("*")
+          .eq("pedido_id", pedido.id);
+
+        if (!data || data.length === 0) return false;
+        if (!data.every((c: any) => c.escaneado)) return false;
+      }
+
+      return true;
+    };
+
+    const iniciarRuta = async (ruta: string) => {
+      const pedidosRuta = pedidosPorRuta[ruta] || [];
+
+      // Filtrar solo los pedidos que tienen TODAS las etiquetas escaneadas
+      const pedidosListos = [];
+
+      for (const pedido of pedidosRuta) {
+        const { data } = await supabase
+          .from("codigos_etiquetas")
+          .select("*")
+          .eq("pedido_id", pedido.id);
+
+        if (data && data.length > 0 && data.every((c: any) => c.escaneado)) {
+          pedidosListos.push(pedido.id);
+        }
+      }
+
+      if (pedidosListos.length === 0) {
+        alert("No hay pedidos con todas las etiquetas escaneadas en esta ruta");
+        return;
+      }
+
+      // Cambiar estado solo de los pedidos verificados
+      const { error } = await supabase
+        .from("pedidos")
+        .update({ estado: "en_ruta" })
+        .in("id", pedidosListos);
+
+      if (!error) {
+        alert(`¡Ruta iniciada! ${pedidosListos.length} pedido(s) en camino`);
+        cargarPedidosRuta();
+      } else {
+        alert("Error al iniciar la ruta");
+      }
+    };
+
+    if (pedidoSeleccionado) {
+      return (
+        <motion.div
+          key="detalle-pedido-ruta"
+          className="min-h-screen pb-10"
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -40 }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+        >
+          <BackBtn
+            onBack={() => {
+              setPedidoSeleccionado(null);
+              pedidoSeleccionadoRef.current = null;
+              setCodigosEtiquetas([]);
+            }}
+          />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">
+            Pedido #{pedidoSeleccionado.id}
+          </h2>
+
+          {/* SELECTOR DE ESTADO */}
+          <div className="mb-4">
+            <SelectorEstado
+              estadoActual={pedidoSeleccionado.estado}
+              pedidoId={pedidoSeleccionado.id}
+              onEstadoChange={actualizarEstadoLocal}
+            />
+          </div>
+
+          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Cliente</span>
+                <span className="font-semibold text-zinc-900">
+                  {pedidoSeleccionado.cuentas?.cliente || "N/A"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Dirección</span>
+                <span className="font-semibold text-zinc-900 text-right max-w-[60%]">
+                  {pedidoSeleccionado.cuentas?.direccion || "N/A"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Teléfono</span>
+                <a
+                  href={`tel:${pedidoSeleccionado.cuentas?.numero_tel}`}
+                  className="font-semibold text-blue-600 underline"
+                >
+                  {pedidoSeleccionado.cuentas?.numero_tel || "N/A"}
+                </a>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Ruta Asignada</span>
+                <span className="font-semibold text-orange-500">
+                  {pedidoSeleccionado.cuentas?.ruta || "Sin ruta"}
+                </span>
+              </div>
+              <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
+                <span className="font-bold text-zinc-900">Total</span>
+                <span className="font-bold text-orange-500 text-lg">
+                  ${pedidoSeleccionado.total.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* SECCIÓN DE ESCANEO DE CÓDIGOS */}
+          {pedidoSeleccionado.estado === "encajado" &&
+            codigosEtiquetas.length > 0 && (
+              <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-5 h-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z"
+                      />
+                    </svg>
+                    Verificación de Etiquetas
+                  </h3>
+                  <div
+                    className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      todosCodigosEscaneados
+                        ? "bg-green-500 text-white"
+                        : "bg-orange-100 text-orange-700"
+                    }`}
+                  >
+                    {codigosEtiquetas.filter((c: any) => c.escaneado).length} /{" "}
+                    {codigosEtiquetas.length}
+                  </div>
+                </div>
+
+                {!todosCodigosEscaneados && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 flex items-center gap-3">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-blue-800 font-medium">
+                      Escanea todas las etiquetas antes de salir a ruta
+                    </span>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {codigosEtiquetas.map((codigo: any) => (
+                    <div
+                      key={codigo.id}
+                      className={`border-2 rounded-lg p-3 transition-all ${
+                        codigo.escaneado
+                          ? "bg-green-50 border-green-500"
+                          : "bg-white border-zinc-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {codigo.escaneado ? (
+                            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                className="w-5 h-5 text-white"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={2}
+                                stroke="currentColor"
+                                className="w-5 h-5 text-zinc-400"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
+                                />
+                              </svg>
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-semibold text-zinc-900 text-sm">
+                              {obtenerNombreEtiqueta(
+                                codigo.tipo,
+                                codigo.numero,
+                              )}
+                            </p>
+                            <p className="text-xs text-zinc-500 font-mono">
+                              {codigo.codigo}
+                            </p>
+                          </div>
+                        </div>
+                        {codigo.escaneado && codigo.fecha_escaneo && (
+                          <span className="text-xs text-green-600 font-medium">
+                            {new Date(codigo.fecha_escaneo).toLocaleTimeString(
+                              "es-MX",
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {todosCodigosEscaneados && (
+                  <div className="mt-4 bg-green-50 border-2 border-green-500 rounded-xl p-4">
+                    <div className="flex items-center justify-center gap-2 text-green-700">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="w-6 h-6"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <span className="font-bold">
+                        ¡Todas las etiquetas verificadas!
+                      </span>
+                    </div>
+                    <p className="text-center text-sm text-green-600 mt-1">
+                      Este pedido está listo para salir a ruta
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+          {/* Detalles de empaque */}
+          {pedidoSeleccionado.estado === "encajado" && (
+            <div className="bg-zinc-50 rounded-xl border border-zinc-200 p-4 mb-4">
+              <h3 className="text-sm font-bold text-zinc-800 mb-2 flex items-center gap-2">
+                <Box size={16} /> Detalles de Empaque
+              </h3>
+              {detallesEmpaque?.detalles_empacado ? (
+                <p className="text-sm text-zinc-700 whitespace-pre-wrap bg-white p-3 rounded border border-zinc-300">
+                  {detallesEmpaque.detalles_empacado}
+                </p>
+              ) : (
+                <p className="text-xs text-zinc-400 italic">
+                  Sin detalles registrados
+                </p>
+              )}
+            </div>
+          )}
+
+          {pedidoSeleccionado?.cuentas?.latitud &&
+          pedidoSeleccionado?.cuentas?.longitud ? (
+            <MapaUbicacion
+              lat={pedidoSeleccionado.cuentas.latitud}
+              lng={pedidoSeleccionado.cuentas.longitud}
+              nombreLocal={pedidoSeleccionado.cuentas.ferreteria}
+            />
+          ) : (
+            <div className="bg-yellow-50 text-yellow-700 p-3 rounded-lg text-sm mt-2">
+              ⚠️ Esta cuenta no tiene ubicación configurada
+            </div>
+          )}
+
+          {pedidoSeleccionado.pdf_url && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-zinc-900">Documento</h3>
+              <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm h-[400px]">
+                <iframe
+                  src={pedidoSeleccionado.pdf_url}
+                  className="w-full h-full"
+                  title="PDF Pedido"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Modal de código escaneado */}
+          {typeof document !== "undefined" &&
+            createPortal(
+              <AnimatePresence>
+                {mostrarModalEscaneado && codigoEscaneadoActual && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
+                    style={{ zIndex: 50000 }}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      className="bg-white rounded-2xl w-full max-w-sm p-8 shadow-2xl text-center"
+                    >
+                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="w-14 h-14 text-green-600"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                        ¡Código Verificado!
+                      </h3>
+                      <p className="text-zinc-600 text-lg">
+                        {obtenerNombreEtiqueta(
+                          codigoEscaneadoActual.tipo,
+                          codigoEscaneadoActual.numero,
+                        )}
+                      </p>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>,
+              document.body,
+            )}
+        </motion.div>
+      );
     }
-    
-    return true;
-  };
 
-  const iniciarRuta = async (ruta: string) => {
-  const pedidosRuta = pedidosPorRuta[ruta] || [];
-  
-  // Filtrar solo los pedidos que tienen TODAS las etiquetas escaneadas
-  const pedidosListos = [];
-  
-  for (const pedido of pedidosRuta) {
-    const { data } = await supabase
-      .from("codigos_etiquetas")
-      .select("*")
-      .eq("pedido_id", pedido.id);
-    
-    if (data && data.length > 0 && data.every((c: any) => c.escaneado)) {
-      pedidosListos.push(pedido.id);
-    }
-  }
-
-  if (pedidosListos.length === 0) {
-    alert("No hay pedidos con todas las etiquetas escaneadas en esta ruta");
-    return;
-  }
-
-  // Cambiar estado solo de los pedidos verificados
-  const { error } = await supabase
-    .from("pedidos")
-    .update({ estado: "en_ruta" })
-    .in("id", pedidosListos);
-
-  if (!error) {
-    alert(`¡Ruta iniciada! ${pedidosListos.length} pedido(s) en camino`);
-    cargarPedidosRuta();
-  } else {
-    alert("Error al iniciar la ruta");
-  }
-};
-
-  if (pedidoSeleccionado) {
+    // VISTA LISTA DE RUTAS
     return (
       <motion.div
-        key="detalle-pedido-ruta"
-        className="min-h-screen pb-10"
+        key="vista-rutas"
+        className="min-h-screen"
         initial={{ opacity: 0, x: 40 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -40 }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
       >
-        <BackBtn
-          onBack={() => {
-            setPedidoSeleccionado(null);
-            pedidoSeleccionadoRef.current = null;
-            setCodigosEtiquetas([]);
-          }}
-        />
+        <BackBtn onBack={() => setVistaPerfil("menu")} />
 
         <h2 className="text-xl font-bold text-zinc-900 mb-4">
-          Pedido #{pedidoSeleccionado.id}
+          Control de Rutas
         </h2>
 
-        {/* SELECTOR DE ESTADO */}
-        <div className="mb-4">
-          <SelectorEstado
-            estadoActual={pedidoSeleccionado.estado}
-            pedidoId={pedidoSeleccionado.id}
-            onEstadoChange={actualizarEstadoLocal}
-          />
-        </div>
-
-        <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-sm text-zinc-600">Cliente</span>
-              <span className="font-semibold text-zinc-900">
-                {pedidoSeleccionado.cuentas?.cliente || "N/A"}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-zinc-600">Dirección</span>
-              <span className="font-semibold text-zinc-900 text-right max-w-[60%]">
-                {pedidoSeleccionado.cuentas?.direccion || "N/A"}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-zinc-600">Teléfono</span>
-              <a
-                href={`tel:${pedidoSeleccionado.cuentas?.numero_tel}`}
-                className="font-semibold text-blue-600 underline"
-              >
-                {pedidoSeleccionado.cuentas?.numero_tel || "N/A"}
-              </a>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-zinc-600">Ruta Asignada</span>
-              <span className="font-semibold text-orange-500">
-                {pedidoSeleccionado.cuentas?.ruta || "Sin ruta"}
-              </span>
-            </div>
-            <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
-              <span className="font-bold text-zinc-900">Total</span>
-              <span className="font-bold text-orange-500 text-lg">
-                ${pedidoSeleccionado.total.toFixed(2)}
-              </span>
-            </div>
+        {cargando ? (
+          <div className="flex justify-center py-10">
+            <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
           </div>
-        </div>
-
-        {/* SECCIÓN DE ESCANEO DE CÓDIGOS */}
-        {pedidoSeleccionado.estado === "encajado" && codigosEtiquetas.length > 0 && (
-          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
-                </svg>
-                Verificación de Etiquetas
-              </h3>
-              <div className={`px-3 py-1 rounded-full text-xs font-bold ${
-                todosCodigosEscaneados 
-                  ? "bg-green-500 text-white" 
-                  : "bg-orange-100 text-orange-700"
-              }`}>
-                {codigosEtiquetas.filter((c: any) => c.escaneado).length} / {codigosEtiquetas.length}
-              </div>
-            </div>
-
-            {!todosCodigosEscaneados && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 flex items-center gap-3">
-                <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                <span className="text-sm text-blue-800 font-medium">
-                  Escanea todas las etiquetas antes de salir a ruta
-                </span>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              {codigosEtiquetas.map((codigo: any) => (
-                <div
-                  key={codigo.id}
-                  className={`border-2 rounded-lg p-3 transition-all ${
-                    codigo.escaneado
-                      ? "bg-green-50 border-green-500"
-                      : "bg-white border-zinc-200"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {codigo.escaneado ? (
-                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-white">
-                            <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-zinc-400">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
-                          </svg>
-                        </div>
-                      )}
-                      <div>
-                        <p className="font-semibold text-zinc-900 text-sm">
-  {obtenerNombreEtiqueta(codigo.tipo, codigo.numero)}
-</p>
-                        <p className="text-xs text-zinc-500 font-mono">{codigo.codigo}</p>
-                      </div>
-                    </div>
-                    {codigo.escaneado && codigo.fecha_escaneo && (
-                      <span className="text-xs text-green-600 font-medium">
-                        {new Date(codigo.fecha_escaneo).toLocaleTimeString("es-MX", {
-                          hour: "2-digit",
-                          minute: "2-digit"
-                        })}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {todosCodigosEscaneados && (
-              <div className="mt-4 bg-green-50 border-2 border-green-500 rounded-xl p-4">
-                <div className="flex items-center justify-center gap-2 text-green-700">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6">
-                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                  </svg>
-                  <span className="font-bold">¡Todas las etiquetas verificadas!</span>
-                </div>
-                <p className="text-center text-sm text-green-600 mt-1">
-                  Este pedido está listo para salir a ruta
-                </p>
-              </div>
-            )}
+        ) : Object.keys(pedidosPorRuta).length === 0 ? (
+          <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
+            <MapPin size={40} className="mx-auto text-zinc-300 mb-2" />
+            <p className="text-zinc-500">No hay pedidos pendientes de ruta</p>
           </div>
-        )}
-
-        {/* Detalles de empaque */}
-        {pedidoSeleccionado.estado === "encajado" && (
-          <div className="bg-zinc-50 rounded-xl border border-zinc-200 p-4 mb-4">
-            <h3 className="text-sm font-bold text-zinc-800 mb-2 flex items-center gap-2">
-              <Box size={16} /> Detalles de Empaque
-            </h3>
-            {detallesEmpaque?.detalles_empacado ? (
-              <p className="text-sm text-zinc-700 whitespace-pre-wrap bg-white p-3 rounded border border-zinc-300">
-                {detallesEmpaque.detalles_empacado}
-              </p>
-            ) : (
-              <p className="text-xs text-zinc-400 italic">
-                Sin detalles registrados
-              </p>
-            )}
-          </div>
-        )}
-
-        {pedidoSeleccionado?.cuentas?.latitud &&
-        pedidoSeleccionado?.cuentas?.longitud ? (
-          <MapaUbicacion
-            lat={pedidoSeleccionado.cuentas.latitud}
-            lng={pedidoSeleccionado.cuentas.longitud}
-            nombreLocal={pedidoSeleccionado.cuentas.ferreteria}
-          />
         ) : (
-          <div className="bg-yellow-50 text-yellow-700 p-3 rounded-lg text-sm mt-2">
-            ⚠️ Esta cuenta no tiene ubicación configurada
-          </div>
-        )}
-
-        {pedidoSeleccionado.pdf_url && (
           <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-zinc-900">Documento</h3>
-            <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm h-[400px]">
-              <iframe
-                src={pedidoSeleccionado.pdf_url}
-                className="w-full h-full"
-                title="PDF Pedido"
-              />
-            </div>
+            {Object.entries(pedidosPorRuta).map(
+              ([ruta, pedidos]: [string, any[]]) => {
+                const pedidosEncajados = pedidos.filter(
+                  (p) => p.estado === "encajado",
+                );
+
+                return (
+                  <div
+                    key={ruta}
+                    className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden"
+                  >
+                    <button
+                      onClick={() =>
+                        setRutaExpandida(rutaExpandida === ruta ? null : ruta)
+                      }
+                      className="w-full p-4 flex items-center justify-between hover:bg-zinc-50 transition"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                          <MapPin size={20} className="text-orange-600" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-bold text-zinc-900">{ruta}</p>
+                          <p className="text-xs text-zinc-500">
+                            {pedidos.length} pedido
+                            {pedidos.length !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronLeft
+                        size={20}
+                        className={`text-zinc-400 transition-transform ${
+                          rutaExpandida === ruta ? "rotate-90" : "-rotate-90"
+                        }`}
+                      />
+                    </button>
+
+                    <AnimatePresence>
+                      {rutaExpandida === ruta && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="border-t border-zinc-200"
+                        >
+                          <ListaPedidosRuta
+                            pedidos={pedidos}
+                            onVerDetalle={verDetallePedido}
+                          />
+
+                          {/* Botón Iniciar Ruta */}
+                          {pedidosEncajados.length > 0 && (
+                            <div className="p-3 bg-zinc-50 border-t border-zinc-200">
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  await iniciarRuta(ruta);
+                                }}
+                                className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  strokeWidth={2.5}
+                                  stroke="currentColor"
+                                  className="w-5 h-5"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"
+                                  />
+                                </svg>
+                                INICIAR RUTA
+                              </button>
+                              <p className="text-xs text-center text-zinc-500 mt-2">
+                                Se iniciarán solo los pedidos con etiquetas
+                                verificadas ({pedidosEncajados.length} total)
+                              </p>
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              },
+            )}
           </div>
         )}
-
-        {/* Modal de código escaneado */}
-        {typeof document !== "undefined" &&
-          createPortal(
-            <AnimatePresence>
-              {mostrarModalEscaneado && codigoEscaneadoActual && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
-                  style={{ zIndex: 50000 }}
-                >
-                  <motion.div
-                    initial={{ scale: 0.5, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.5, opacity: 0 }}
-                    className="bg-white rounded-2xl w-full max-w-sm p-8 shadow-2xl text-center"
-                  >
-                    <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-14 h-14 text-green-600">
-                        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <h3 className="text-2xl font-bold mb-2 text-zinc-900">
-                      ¡Código Verificado!
-                    </h3>
-                    <p className="text-zinc-600 text-lg">
-  {obtenerNombreEtiqueta(codigoEscaneadoActual.tipo, codigoEscaneadoActual.numero)}
-</p>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>,
-            document.body,
-          )}
       </motion.div>
     );
-  }
-
-  // VISTA LISTA DE RUTAS
-  return (
-    <motion.div
-      key="vista-rutas"
-      className="min-h-screen"
-      initial={{ opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -40 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-    >
-      <BackBtn onBack={() => setVistaPerfil("menu")} />
-
-      <h2 className="text-xl font-bold text-zinc-900 mb-4">
-        Control de Rutas
-      </h2>
-
-      {cargando ? (
-        <div className="flex justify-center py-10">
-          <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-        </div>
-      ) : Object.keys(pedidosPorRuta).length === 0 ? (
-        <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
-          <MapPin size={40} className="mx-auto text-zinc-300 mb-2" />
-          <p className="text-zinc-500">No hay pedidos pendientes de ruta</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {Object.entries(pedidosPorRuta).map(
-            ([ruta, pedidos]: [string, any[]]) => {
-              const pedidosEncajados = pedidos.filter(p => p.estado === "encajado");
-              
-              return (
-                <div
-                  key={ruta}
-                  className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden"
-                >
-                  <button
-                    onClick={() =>
-                      setRutaExpandida(rutaExpandida === ruta ? null : ruta)
-                    }
-                    className="w-full p-4 flex items-center justify-between hover:bg-zinc-50 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                        <MapPin size={20} className="text-orange-600" />
-                      </div>
-                      <div className="text-left">
-                        <p className="font-bold text-zinc-900">{ruta}</p>
-                        <p className="text-xs text-zinc-500">
-                          {pedidos.length} pedido
-                          {pedidos.length !== 1 ? "s" : ""}
-                        </p>
-                      </div>
-                    </div>
-                    <ChevronLeft
-                      size={20}
-                      className={`text-zinc-400 transition-transform ${
-                        rutaExpandida === ruta ? "rotate-90" : "-rotate-90"
-                      }`}
-                    />
-                  </button>
-
-                  <AnimatePresence>
-                    {rutaExpandida === ruta && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="border-t border-zinc-200"
-                      >
-                        <div className="p-2 space-y-2 bg-zinc-50">
-                          {pedidos.map((pedido) => {
-                            // Componente para mostrar el pedido con estado verificado
-                            const PedidoConEstado = ({ pedido }: { pedido: any }) => {
-                              const [verificado, setVerificado] = useState(false);
-                              
-                              useEffect(() => {
-                                const verificar = async () => {
-                                  const { data } = await supabase
-                                    .from("codigos_etiquetas")
-                                    .select("*")
-                                    .eq("pedido_id", pedido.id);
-                                  
-                                  if (data && data.length > 0) {
-                                    setVerificado(data.every((c: any) => c.escaneado));
-                                  }
-                                };
-                                verificar();
-                              }, [pedido.id]);
-
-                              return (
-                                <div
-                                  onClick={() => verDetallePedido(pedido)}
-                                  className={`relative border-2 rounded-lg p-3 cursor-pointer transition shadow-sm ${
-                                    verificado 
-                                      ? "bg-green-50 border-green-500 hover:border-green-600" 
-                                      : "bg-white border-zinc-200 hover:border-orange-300"
-                                  }`}
-                                >
-                                  <div className="flex justify-between items-start mb-2">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className={`font-bold text-sm ${verificado ? "text-green-900" : "text-zinc-900"}`}>
-                                          #{pedido.id}
-                                        </span>
-                                        <BadgeEstado estado={pedido.estado} />
-                                        {verificado && (
-                                          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-600 text-white">
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
-                                              <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                                            </svg>
-                                            <span className="text-[10px] font-bold">Verificado</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                      <p className={`text-xs font-semibold ${verificado ? "text-green-800" : "text-zinc-700"}`}>
-                                        {pedido.cuentas?.cliente || "Sin cliente"}
-                                      </p>
-                                      <p className={`text-[10px] truncate max-w-[200px] ${verificado ? "text-green-600" : "text-zinc-500"}`}>
-                                        {pedido.cuentas?.direccion}
-                                      </p>
-                                    </div>
-                                    <div className="text-right">
-                                      <p className={`text-sm font-bold ${verificado ? "text-green-700" : "text-orange-500"}`}>
-                                        ${pedido.total.toFixed(2)}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            };
-
-                            return <PedidoConEstado key={pedido.id} pedido={pedido} />;
-                          })}
-                        </div>
-
-                        {/* Botón Iniciar Ruta */}
-                        {pedidosEncajados.length > 0 && (
-                          <div className="p-3 bg-zinc-50 border-t border-zinc-200">
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                await iniciarRuta(ruta);
-                              }}
-                              className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-                            >
-                              <div className="w-5 h-5 mb-1 mr-2">
-                               <Truck />
-                              </div>
-                              INICIAR RUTA
-                            </button>
-                            <p className="text-xs text-center text-zinc-500 mt-2">
-  Se iniciarán solo los pedidos con etiquetas verificadas ({pedidosEncajados.length} total)
-</p>
-                          </div>
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            },
-          )}
-        </div>
-      )}
-    </motion.div>
-  );
-};
+  };
 
   const VistaRevision = ({ setVistaPerfil }: any) => {
     const [pedidosPorRevisar, setPedidosPorRevisar] = useState<any[]>([]);
@@ -11134,35 +11374,37 @@ const obtenerNombreEtiqueta = (tipo: string, numero: number) => {
     const [hojasProcesadas, setHojasProcesadas] = useState<Set<number>>(
       new Set(),
     );
-const [cambiosEstado, setCambiosEstado] = useState<Map<number, any>>(new Map());
-const [mostrarModalPedidoCompleto, setMostrarModalPedidoCompleto] = useState(false);
-const [detallesEmpaque, setDetallesEmpaque] = useState({
-  cajas: 0,
-  atados: 0,
-  tubos: 0,
-  bolsas: 0,
-  rollos: 0,
-  galones: 0,
-  cubetas: 0,
-  losalit: 0,
-  porron: 0,
-  pieza: 0,
-  cilindro: 0,
-});
-const [modalCantidad, setModalCantidad] = useState<any>(null);
-const [cantidadManual, setCantidadManual] = useState("");
+    const [cambiosEstado, setCambiosEstado] = useState<Map<number, any>>(
+      new Map(),
+    );
+    const [mostrarModalPedidoCompleto, setMostrarModalPedidoCompleto] =
+      useState(false);
+    const [detallesEmpaque, setDetallesEmpaque] = useState({
+      cajas: 0,
+      atados: 0,
+      tubos: 0,
+      bolsas: 0,
+      rollos: 0,
+      galones: 0,
+      cubetas: 0,
+      losalit: 0,
+      porron: 0,
+      pieza: 0,
+      cilindro: 0,
+    });
+    const [modalCantidad, setModalCantidad] = useState<any>(null);
+    const [cantidadManual, setCantidadManual] = useState("");
 
+    useEffect(() => {
+      window.scrollTo(0, 0);
+    }, [pedidoSeleccionado, hojaActual]);
 
-useEffect(() => {
-  window.scrollTo(0, 0);
-}, [pedidoSeleccionado, hojaActual]);
-
-const [modalProductoActivo, setModalProductoActivo] = useState<{
-  visible: boolean;
-  producto: any;
-  cantidadActual: number;
-  cantidadObjetivo: number;
-} | null>(null);
+    const [modalProductoActivo, setModalProductoActivo] = useState<{
+      visible: boolean;
+      producto: any;
+      cantidadActual: number;
+      cantidadObjetivo: number;
+    } | null>(null);
 
     useEffect(() => {
       cargarPedidosPorRevisar();
@@ -11182,13 +11424,16 @@ const [modalProductoActivo, setModalProductoActivo] = useState<{
     }, []);
 
     const limpiarEstadoLocal = () => {
-      localStorage.removeItem('revision_estado');
+      localStorage.removeItem("revision_estado");
     };
 
     // Funciones para guardar/cargar estado local por hoja
     const guardarEstadoLocalHoja = (hojaId: number, estado: any) => {
       try {
-        localStorage.setItem(`hoja_revision_${hojaId}_progreso`, JSON.stringify(estado));
+        localStorage.setItem(
+          `hoja_revision_${hojaId}_progreso`,
+          JSON.stringify(estado),
+        );
       } catch (error) {
         console.error("Error guardando estado:", error);
       }
@@ -11196,7 +11441,9 @@ const [modalProductoActivo, setModalProductoActivo] = useState<{
 
     const cargarEstadoLocalHoja = (hojaId: number) => {
       try {
-        const guardado = localStorage.getItem(`hoja_revision_${hojaId}_progreso`);
+        const guardado = localStorage.getItem(
+          `hoja_revision_${hojaId}_progreso`,
+        );
         if (guardado) {
           return JSON.parse(guardado);
         }
@@ -11230,92 +11477,96 @@ const [modalProductoActivo, setModalProductoActivo] = useState<{
       setCargando(false);
     };
 
- const iniciarRevision = async (pedido: any) => {
-  // Cargar hojas de surtido
-  const { data: hojasData } = await supabase
-    .from("hojas_surtido")
-    .select("*")
-    .eq("pedido_id", pedido.id)
-    .order("numero_hoja", { ascending: true });
-
-  if (!hojasData || hojasData.length === 0) {
-    alert("Este pedido no tiene hojas de surtido");
-    return;
-  }
-
-  // Cargar productos completos para cada hoja
-  const hojasConProductos = await Promise.all(
-    hojasData.map(async (hoja) => {
-      const productosSimplificados = JSON.parse(hoja.productos_asignados);
-      const codigos = productosSimplificados.map((p: any) => p.codigo);
-
-      const { data: productos } = await supabase
-        .from("productos")
+    const iniciarRevision = async (pedido: any) => {
+      // Cargar hojas de surtido
+      const { data: hojasData } = await supabase
+        .from("hojas_surtido")
         .select("*")
-        .in("CODIGO", codigos);
+        .eq("pedido_id", pedido.id)
+        .order("numero_hoja", { ascending: true });
 
-      const productosCompletos = productosSimplificados.map((ps: any) => {
-        const prod = productos?.find((p) => p.CODIGO === ps.codigo);
-        return {
-          ...prod,
-          cantidad_pedida: ps.cantidad_pedida,
-          cantidad_surtida: ps.cantidad_surtida,
-          estado: ps.estado,
-          producto_id: prod?.id,
-           ingreso_manual: ps.ingreso_manual || false,
-        };
-      });
+      if (!hojasData || hojasData.length === 0) {
+        alert("Este pedido no tiene hojas de surtido");
+        return;
+      }
 
-      return {
-        ...hoja,
-        productos: productosCompletos,
-      };
-    }),
-  );
+      // Cargar productos completos para cada hoja
+      const hojasConProductos = await Promise.all(
+        hojasData.map(async (hoja) => {
+          const productosSimplificados = JSON.parse(hoja.productos_asignados);
+          const codigos = productosSimplificados.map((p: any) => p.codigo);
 
-  setPedidoSeleccionado(pedido);
-  setHojas(hojasConProductos);
+          const { data: productos } = await supabase
+            .from("productos")
+            .select("*")
+            .in("CODIGO", codigos);
 
-  // Cargar hojas que ya fueron revisadas desde la base de datos
-  const { data: hojasRevisadas } = await supabase
-    .from("hojas_revision")
-    .select("hoja_id")
-    .eq("pedido_id", pedido.id);
+          const productosCompletos = productosSimplificados.map((ps: any) => {
+            const prod = productos?.find((p) => p.CODIGO === ps.codigo);
+            return {
+              ...prod,
+              cantidad_pedida: ps.cantidad_pedida,
+              cantidad_surtida: ps.cantidad_surtida,
+              estado: ps.estado,
+              producto_id: prod?.id,
+              ingreso_manual: ps.ingreso_manual || false,
+            };
+          });
 
-  if (hojasRevisadas && hojasRevisadas.length > 0) {
-    const idsRevisados = new Set(hojasRevisadas.map(h => h.hoja_id));
-    setHojasProcesadas(idsRevisados);
-  } else {
-    setHojasProcesadas(new Set());
-  }
+          return {
+            ...hoja,
+            productos: productosCompletos,
+          };
+        }),
+      );
 
-  // Actualizar estado del pedido
-  await supabase
-    .from("pedidos")
-    .update({ estado: "revisando" })
-    .eq("id", pedido.id);
-};
+      setPedidoSeleccionado(pedido);
+      setHojas(hojasConProductos);
+
+      // Cargar hojas que ya fueron revisadas desde la base de datos
+      const { data: hojasRevisadas } = await supabase
+        .from("hojas_revision")
+        .select("hoja_id")
+        .eq("pedido_id", pedido.id);
+
+      if (hojasRevisadas && hojasRevisadas.length > 0) {
+        const idsRevisados = new Set(hojasRevisadas.map((h) => h.hoja_id));
+        setHojasProcesadas(idsRevisados);
+      } else {
+        setHojasProcesadas(new Set());
+      }
+
+      // Actualizar estado del pedido
+      await supabase
+        .from("pedidos")
+        .update({ estado: "revisando" })
+        .eq("id", pedido.id);
+    };
     const seleccionarHoja = (hoja: any) => {
       if (hojasProcesadas.has(hoja.id)) {
         alert("Esta hoja ya fue revisada");
         return;
       }
-      
+
       setHojaActual(hoja);
 
       // Cargar estado guardado si existe
       const estadoGuardado = cargarEstadoLocalHoja(hoja.id);
       if (estadoGuardado) {
         const mapaVerificados = new Map();
-        (estadoGuardado.productosVerificados || []).forEach(([key, value]: [number, number]) => {
-          mapaVerificados.set(key, value);
-        });
+        (estadoGuardado.productosVerificados || []).forEach(
+          ([key, value]: [number, number]) => {
+            mapaVerificados.set(key, value);
+          },
+        );
         setProductosVerificados(mapaVerificados);
 
         const mapaCambios = new Map();
-        (estadoGuardado.cambiosEstado || []).forEach(([key, value]: [number, any]) => {
-          mapaCambios.set(key, value);
-        });
+        (estadoGuardado.cambiosEstado || []).forEach(
+          ([key, value]: [number, any]) => {
+            mapaCambios.set(key, value);
+          },
+        );
         setCambiosEstado(mapaCambios);
       } else {
         setProductosVerificados(new Map());
@@ -11358,201 +11609,205 @@ const [modalProductoActivo, setModalProductoActivo] = useState<{
       mostrarModalCompletado,
     ]);
 
-const procesarEscaneo = (codigoEscaneado: string) => {
-  if (!hojaActual) return;
+    const procesarEscaneo = (codigoEscaneado: string) => {
+      if (!hojaActual) return;
 
-  setUltimoEscaneo(codigoEscaneado);
+      setUltimoEscaneo(codigoEscaneado);
 
-  const producto = hojaActual.productos.find(
-    (p: any) =>
-      p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado,
-  );
+      const producto = hojaActual.productos.find(
+        (p: any) =>
+          p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado,
+      );
 
-  if (!producto) {
-    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-    alert(`Código ${codigoEscaneado} no pertenece a esta hoja`);
-    return;
-  }
+      if (!producto) {
+        if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+        alert(`Código ${codigoEscaneado} no pertenece a esta hoja`);
+        return;
+      }
 
-  const estadoActual = obtenerEstadoActual(producto);
-  const cantidadEsperada = estadoActual.estado === "PA" ? 0 : estadoActual.cantidad_surtida || 0;
+      const estadoActual = obtenerEstadoActual(producto);
+      const cantidadEsperada =
+        estadoActual.estado === "PA" ? 0 : estadoActual.cantidad_surtida || 0;
 
-  if (cantidadEsperada === 0) {
-    alert(
-      `Producto ${producto.TITULO} marcado como PA o sin cantidad surtida`,
-    );
-    return;
-  }
+      if (cantidadEsperada === 0) {
+        alert(
+          `Producto ${producto.TITULO} marcado como PA o sin cantidad surtida`,
+        );
+        return;
+      }
 
-  const cantidadVerificada = productosVerificados.get(producto.producto_id) || 0;
+      const cantidadVerificada =
+        productosVerificados.get(producto.producto_id) || 0;
 
-  if (cantidadVerificada >= cantidadEsperada) {
-    if ("vibrate" in navigator) navigator.vibrate([100, 100]);
-    alert(`Ya verificaste toda la cantidad de ${producto.TITULO}`);
-    return;
-  }
+      if (cantidadVerificada >= cantidadEsperada) {
+        if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+        alert(`Ya verificaste toda la cantidad de ${producto.TITULO}`);
+        return;
+      }
 
-  // mostrar modal
-  setModalProductoActivo({
-    visible: true,
-    producto: producto,
-    cantidadActual: cantidadVerificada + 1,
-    cantidadObjetivo: cantidadEsperada,
-  });
+      // mostrar modal
+      setModalProductoActivo({
+        visible: true,
+        producto: producto,
+        cantidadActual: cantidadVerificada + 1,
+        cantidadObjetivo: cantidadEsperada,
+      });
 
-  // Actualizar verificados
-  setProductosVerificados(prev => {
-    const nuevaMapa = new Map(prev);
-    nuevaMapa.set(producto.producto_id, cantidadVerificada + 1);
-    return nuevaMapa;
-  });
+      // Actualizar verificados
+      setProductosVerificados((prev) => {
+        const nuevaMapa = new Map(prev);
+        nuevaMapa.set(producto.producto_id, cantidadVerificada + 1);
+        return nuevaMapa;
+      });
 
-  if ("vibrate" in navigator) navigator.vibrate(50);
-  
-  // Auto-cerrar si completó
-  if (cantidadVerificada + 1 >= cantidadEsperada) {
-    setTimeout(() => {
-      setModalProductoActivo(null);
-    }, 1500);
-  }
-};
+      if ("vibrate" in navigator) navigator.vibrate(50);
 
-   const togglePA = (producto: any) => {
-  // Detener propagación del evento para evitar que se abra el modal
-  event?.stopPropagation();
-  
-  const nuevoCambios = new Map(cambiosEstado);
-  const cambioActual = nuevoCambios.get(producto.producto_id) || {
-    estado: producto.estado,
-    cantidad_surtida: producto.cantidad_surtida,
-    ingreso_manual: producto.ingreso_manual || false,
-  };
+      // Auto-cerrar si completó
+      if (cantidadVerificada + 1 >= cantidadEsperada) {
+        setTimeout(() => {
+          setModalProductoActivo(null);
+        }, 1500);
+      }
+    };
 
-  if (cambioActual.estado === "PA") {
-    // Quitar PA - volver a estado normal con cantidad original
-    nuevoCambios.set(producto.producto_id, {
-      estado: "completo",
-      cantidad_surtida: producto.cantidad_pedida,
-      ingreso_manual: producto.ingreso_manual || false,
-    });
-  } else {
-    // Marcar como PA
-    nuevoCambios.set(producto.producto_id, {
-      estado: "PA",
-      cantidad_surtida: 0,
-      ingreso_manual: false,
-    });
-    // Limpiar verificaciones de este producto
-    const nuevosVerificados = new Map(productosVerificados);
-    nuevosVerificados.delete(producto.producto_id);
-    setProductosVerificados(nuevosVerificados);
-  }
+    const togglePA = (producto: any) => {
+      // Detener propagación del evento para evitar que se abra el modal
+      event?.stopPropagation();
 
-  setCambiosEstado(nuevoCambios);
-};
+      const nuevoCambios = new Map(cambiosEstado);
+      const cambioActual = nuevoCambios.get(producto.producto_id) || {
+        estado: producto.estado,
+        cantidad_surtida: producto.cantidad_surtida,
+        ingreso_manual: producto.ingreso_manual || false,
+      };
 
-const ajustarParcialidad = (producto: any, nuevaCantidad: number) => {
-  if (nuevaCantidad < 0 || nuevaCantidad > producto.cantidad_pedida) return;
+      if (cambioActual.estado === "PA") {
+        // Quitar PA - volver a estado normal con cantidad original
+        nuevoCambios.set(producto.producto_id, {
+          estado: "completo",
+          cantidad_surtida: producto.cantidad_pedida,
+          ingreso_manual: producto.ingreso_manual || false,
+        });
+      } else {
+        // Marcar como PA
+        nuevoCambios.set(producto.producto_id, {
+          estado: "PA",
+          cantidad_surtida: 0,
+          ingreso_manual: false,
+        });
+        // Limpiar verificaciones de este producto
+        const nuevosVerificados = new Map(productosVerificados);
+        nuevosVerificados.delete(producto.producto_id);
+        setProductosVerificados(nuevosVerificados);
+      }
 
-  const nuevoCambios = new Map(cambiosEstado);
-  const nuevoEstado =
-    nuevaCantidad === 0
-      ? "PA"
-      : nuevaCantidad < producto.cantidad_pedida
-        ? "parcial"
-        : "completo";
+      setCambiosEstado(nuevoCambios);
+    };
 
-  nuevoCambios.set(producto.producto_id, {
-    estado: nuevoEstado,
-    cantidad_surtida: nuevaCantidad,
-    ingreso_manual: producto.ingreso_manual || false, 
-  });
+    const ajustarParcialidad = (producto: any, nuevaCantidad: number) => {
+      if (nuevaCantidad < 0 || nuevaCantidad > producto.cantidad_pedida) return;
 
-  // Ajustar verificaciones si exceden la nueva cantidad
-  const verificados = productosVerificados.get(producto.producto_id) || 0;
-  if (verificados > nuevaCantidad) {
-    const nuevosVerificados = new Map(productosVerificados);
-    nuevosVerificados.set(producto.producto_id, nuevaCantidad);
-    setProductosVerificados(nuevosVerificados);
-  }
+      const nuevoCambios = new Map(cambiosEstado);
+      const nuevoEstado =
+        nuevaCantidad === 0
+          ? "PA"
+          : nuevaCantidad < producto.cantidad_pedida
+            ? "parcial"
+            : "completo";
 
-  setCambiosEstado(nuevoCambios);
-};
+      nuevoCambios.set(producto.producto_id, {
+        estado: nuevoEstado,
+        cantidad_surtida: nuevaCantidad,
+        ingreso_manual: producto.ingreso_manual || false,
+      });
 
-const abrirModalCantidad = (producto: any) => {
-  const estadoActual = obtenerEstadoActual(producto);
-  const cantidadVerificada = productosVerificados.get(producto.producto_id) || 0;
-  setModalCantidad(producto);
-  
-  
-  if (estadoActual.estado === "PA") {
-    setCantidadManual("0");
-  } else if (estadoActual.estado === "parcial") {
-    setCantidadManual(estadoActual.cantidad_surtida.toString());
-  } else {
-    setCantidadManual(cantidadVerificada.toString());
-  }
-};
+      // Ajustar verificaciones si exceden la nueva cantidad
+      const verificados = productosVerificados.get(producto.producto_id) || 0;
+      if (verificados > nuevaCantidad) {
+        const nuevosVerificados = new Map(productosVerificados);
+        nuevosVerificados.set(producto.producto_id, nuevaCantidad);
+        setProductosVerificados(nuevosVerificados);
+      }
 
-const aplicarCantidadManual = () => {
-  if (!modalCantidad) return;
-  
-  const cantidad = parseInt(cantidadManual) || 0;
-  const cantidadPedida = modalCantidad.cantidad_pedida;
-  
-  if (cantidad < 0 || cantidad > cantidadPedida) {
-    alert(`La cantidad debe estar entre 0 y ${cantidadPedida}`);
-    return;
-  }
-  
-  // Determinar el nuevo estado según la cantidad
-  const nuevoCambios = new Map(cambiosEstado);
-  let nuevoEstado: string;
-  
-  if (cantidad === 0) {
-    nuevoEstado = "PA";
-  } else if (cantidad < cantidadPedida) {
-    nuevoEstado = "parcial";
-  } else {
-    nuevoEstado = "completo";
-  }
-  
-  // Actualizar el estado del producto
-  nuevoCambios.set(modalCantidad.producto_id, {
-    estado: nuevoEstado,
-    cantidad_surtida: cantidad,
-    ingreso_manual: modalCantidad.ingreso_manual || true,
-  });
-  setCambiosEstado(nuevoCambios);
-  
-  // Actualizar las verificaciones al valor ingresado
-  setProductosVerificados(prev => {
-    const nuevaMapa = new Map(prev);
-    nuevaMapa.set(modalCantidad.producto_id, cantidad);
-    return nuevaMapa;
-  });
-  
-  setModalCantidad(null);
-  setCantidadManual("");
-  
-  if ("vibrate" in navigator) navigator.vibrate(50);
-};
+      setCambiosEstado(nuevoCambios);
+    };
 
-const obtenerEstadoActual = (producto: any) => {
-  const cambio = cambiosEstado.get(producto.producto_id);
-  return cambio || {
-    estado: producto.estado,
-    cantidad_surtida: producto.cantidad_surtida,
-  };
-};
+    const abrirModalCantidad = (producto: any) => {
+      const estadoActual = obtenerEstadoActual(producto);
+      const cantidadVerificada =
+        productosVerificados.get(producto.producto_id) || 0;
+      setModalCantidad(producto);
+
+      if (estadoActual.estado === "PA") {
+        setCantidadManual("0");
+      } else if (estadoActual.estado === "parcial") {
+        setCantidadManual(estadoActual.cantidad_surtida.toString());
+      } else {
+        setCantidadManual(cantidadVerificada.toString());
+      }
+    };
+
+    const aplicarCantidadManual = () => {
+      if (!modalCantidad) return;
+
+      const cantidad = parseInt(cantidadManual) || 0;
+      const cantidadPedida = modalCantidad.cantidad_pedida;
+
+      if (cantidad < 0 || cantidad > cantidadPedida) {
+        alert(`La cantidad debe estar entre 0 y ${cantidadPedida}`);
+        return;
+      }
+
+      // Determinar el nuevo estado según la cantidad
+      const nuevoCambios = new Map(cambiosEstado);
+      let nuevoEstado: string;
+
+      if (cantidad === 0) {
+        nuevoEstado = "PA";
+      } else if (cantidad < cantidadPedida) {
+        nuevoEstado = "parcial";
+      } else {
+        nuevoEstado = "completo";
+      }
+
+      // Actualizar el estado del producto
+      nuevoCambios.set(modalCantidad.producto_id, {
+        estado: nuevoEstado,
+        cantidad_surtida: cantidad,
+        ingreso_manual: modalCantidad.ingreso_manual || true,
+      });
+      setCambiosEstado(nuevoCambios);
+
+      // Actualizar las verificaciones al valor ingresado
+      setProductosVerificados((prev) => {
+        const nuevaMapa = new Map(prev);
+        nuevaMapa.set(modalCantidad.producto_id, cantidad);
+        return nuevaMapa;
+      });
+
+      setModalCantidad(null);
+      setCantidadManual("");
+
+      if ("vibrate" in navigator) navigator.vibrate(50);
+    };
+
+    const obtenerEstadoActual = (producto: any) => {
+      const cambio = cambiosEstado.get(producto.producto_id);
+      return (
+        cambio || {
+          estado: producto.estado,
+          cantidad_surtida: producto.cantidad_surtida,
+        }
+      );
+    };
 
     // Verificar si la hoja está completa
     const totalEsperado = hojaActual
-  ? hojaActual.productos.reduce((sum: number, p: any) => {
-      const estadoActual = obtenerEstadoActual(p);
-      return sum + (estadoActual.cantidad_surtida || 0);
-    }, 0)
-  : 0;
+      ? hojaActual.productos.reduce((sum: number, p: any) => {
+          const estadoActual = obtenerEstadoActual(p);
+          return sum + (estadoActual.cantidad_surtida || 0);
+        }, 0)
+      : 0;
 
     const totalVerificado = hojaActual
       ? hojaActual.productos.reduce((sum: number, p: any) => {
@@ -11581,138 +11836,151 @@ const obtenerEstadoActual = (producto: any) => {
       guardarEstadoLocalHoja(hojaActual.id, estadoActual);
     }, [productosVerificados, cambiosEstado, hojaActual]);
 
-const completarHoja = async () => {
-  if (!hojaActual) return;
+    const completarHoja = async () => {
+      if (!hojaActual) return;
 
-  setGuardando(true);
-  try {
-    // Guardar cambios de estado si hay
-    if (cambiosEstado.size > 0) {
-      const productosActualizados = hojaActual.productos.map((p: any) => {
-        const cambio = cambiosEstado.get(p.producto_id);
-        if (cambio) {
-          return {
-            codigo: p.CODIGO,
-            cantidad_pedida: p.cantidad_pedida,
-            cantidad_surtida: cambio.cantidad_surtida,
-            estado: cambio.estado,
-            ingreso_manual: cambio.ingreso_manual || p.ingreso_manual || false,
-          };
+      setGuardando(true);
+      try {
+        // Guardar cambios de estado si hay
+        if (cambiosEstado.size > 0) {
+          const productosActualizados = hojaActual.productos.map((p: any) => {
+            const cambio = cambiosEstado.get(p.producto_id);
+            if (cambio) {
+              return {
+                codigo: p.CODIGO,
+                cantidad_pedida: p.cantidad_pedida,
+                cantidad_surtida: cambio.cantidad_surtida,
+                estado: cambio.estado,
+                ingreso_manual:
+                  cambio.ingreso_manual || p.ingreso_manual || false,
+              };
+            }
+            return {
+              codigo: p.CODIGO,
+              cantidad_pedida: p.cantidad_pedida,
+              cantidad_surtida: p.cantidad_surtida,
+              estado: p.estado,
+              ingreso_manual: p.ingreso_manual || false,
+            };
+          });
+
+          await supabase
+            .from("hojas_surtido")
+            .update({
+              productos_asignados: JSON.stringify(productosActualizados),
+            })
+            .eq("id", hojaActual.id);
         }
-        return {
-          codigo: p.CODIGO,
-          cantidad_pedida: p.cantidad_pedida,
-          cantidad_surtida: p.cantidad_surtida,
-          estado: p.estado,
-          ingreso_manual: p.ingreso_manual || false,
-        };
-      });
 
-      await supabase
-        .from("hojas_surtido")
-        .update({
-          productos_asignados: JSON.stringify(productosActualizados),
-        })
-        .eq("id", hojaActual.id);
-    }
+        // Marcar hoja como procesada localmente Y en la base de datos
+        const nuevasHojasProcesadas = new Set(hojasProcesadas);
+        nuevasHojasProcesadas.add(hojaActual.id);
+        setHojasProcesadas(nuevasHojasProcesadas);
 
-    // Marcar hoja como procesada localmente Y en la base de datos
-const nuevasHojasProcesadas = new Set(hojasProcesadas);
-nuevasHojasProcesadas.add(hojaActual.id);
-setHojasProcesadas(nuevasHojasProcesadas);
+        // Guardar en la base de datos que esta hoja fue revisada
+        await supabase.from("hojas_revision").upsert({
+          pedido_id: pedidoSeleccionado.id,
+          hoja_id: hojaActual.id,
+          revisado_por: cuenta?.numero_cuenta || "desconocido",
+        });
 
-// Guardar en la base de datos que esta hoja fue revisada
-await supabase.from("hojas_revision").upsert({
-  pedido_id: pedidoSeleccionado.id,
-  hoja_id: hojaActual.id,
-  revisado_por: cuenta?.numero_cuenta || "desconocido",
-});
+        setMostrarModalCompletado(false);
+        limpiarEstadoLocalHoja(hojaActual.id);
+        setHojaActual(null);
+        setProductosVerificados(new Map());
+        setCambiosEstado(new Map());
 
-    setMostrarModalCompletado(false);
-    limpiarEstadoLocalHoja(hojaActual.id);
-    setHojaActual(null);
-    setProductosVerificados(new Map());
-    setCambiosEstado(new Map());
+        // Verificar si todas las hojas fueron procesadas
+        if (nuevasHojasProcesadas.size === hojas.length) {
+          // MOSTRAR MODAL DE PEDIDO COMPLETO EN VEZ DE CAMBIAR ESTADO
+          setMostrarModalPedidoCompleto(true);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setGuardando(false);
+      }
+    };
 
-    // Verificar si todas las hojas fueron procesadas
-    if (nuevasHojasProcesadas.size === hojas.length) {
-      // MOSTRAR MODAL DE PEDIDO COMPLETO EN VEZ DE CAMBIAR ESTADO
-      setMostrarModalPedidoCompleto(true);
-    }
-  } catch (err) {
-    console.error(err);
-  } finally {
-    setGuardando(false);
-  }
-};
+    const completarPedido = async () => {
+      setGuardando(true);
+      try {
+        // Generar texto de detalles de empaque
+        const detallesTexto = [
+          ["Cajas", detallesEmpaque.cajas],
+          ["Atados", detallesEmpaque.atados],
+          ["Tubos", detallesEmpaque.tubos],
+          ["Bolsas", detallesEmpaque.bolsas],
+          ["Rollos", detallesEmpaque.rollos],
+          ["Galones", detallesEmpaque.galones],
+          ["Cubetas", detallesEmpaque.cubetas],
+          ["Losalit", detallesEmpaque.losalit],
+          ["Porron", detallesEmpaque.porron],
+          ["Pieza", detallesEmpaque.pieza],
+          ["Cilindro", detallesEmpaque.cilindro],
+        ]
+          .filter(([_, cantidad]) => Number(cantidad) > 0)
+          .map(([nombre, cantidad]) => `${nombre}: ${cantidad}`)
+          .join("\n");
 
-const completarPedido = async () => {
-  setGuardando(true);
-  try {
-    // Generar texto de detalles de empaque
-    const detallesTexto = [
-  ["Cajas", detallesEmpaque.cajas],
-  ["Atados", detallesEmpaque.atados],
-  ["Tubos", detallesEmpaque.tubos],
-  ["Bolsas", detallesEmpaque.bolsas],
-  ["Rollos", detallesEmpaque.rollos],
-  ["Galones", detallesEmpaque.galones],
-  ["Cubetas", detallesEmpaque.cubetas],
-  ["Losalit", detallesEmpaque.losalit],
-  ["Porron", detallesEmpaque.porron],
-  ["Pieza", detallesEmpaque.pieza],
-  ["Cilindro", detallesEmpaque.cilindro],
-]
-  .filter(([_, cantidad]) => Number(cantidad) > 0)  
-  .map(([nombre, cantidad]) => `${nombre}: ${cantidad}`)
-  .join("\n");
+        // Guardar detalles de empaque
+        const { data: existe } = await supabase
+          .from("detalles_empaque")
+          .select("id")
+          .eq("pedido_id", pedidoSeleccionado.id)
+          .single();
 
-    // Guardar detalles de empaque
-    const { data: existe } = await supabase
-      .from("detalles_empaque")
-      .select("id")
-      .eq("pedido_id", pedidoSeleccionado.id)
-      .single();
+        if (existe) {
+          await supabase
+            .from("detalles_empaque")
+            .update({
+              detalles_empacado: detallesTexto,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("pedido_id", pedidoSeleccionado.id);
+        } else {
+          await supabase.from("detalles_empaque").insert({
+            pedido_id: pedidoSeleccionado.id,
+            detalles_empacado: detallesTexto,
+            observaciones: "",
+          });
+        }
 
-    if (existe) {
-      await supabase
-        .from("detalles_empaque")
-        .update({
-          detalles_empacado: detallesTexto,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("pedido_id", pedidoSeleccionado.id);
-    } else {
-      await supabase.from("detalles_empaque").insert({
-        pedido_id: pedidoSeleccionado.id,
-        detalles_empacado: detallesTexto,
-        observaciones: "",
-      });
-    }
+        // Cambiar estado del pedido a encajado
+        await supabase
+          .from("pedidos")
+          .update({ estado: "encajado" })
+          .eq("id", pedidoSeleccionado.id);
 
-    // Cambiar estado del pedido a encajado
-    await supabase
-      .from("pedidos")
-      .update({ estado: "encajado" })
-      .eq("id", pedidoSeleccionado.id);
+        alert("¡Pedido completado y marcado como encajado!");
 
-    alert("¡Pedido completado y marcado como encajado!");
-    
-    // Limpiar todo
-    limpiarEstadoLocal();
-    setMostrarModalPedidoCompleto(false);
-    setPedidoSeleccionado(null);
-    setHojas([]);
-    setHojasProcesadas(new Set());
-    setDetallesEmpaque({ cajas: 0, atados: 0, tubos: 0, bolsas: 0, rollos: 0, galones: 0, cubetas: 0, losalit: 0, porron: 0, pieza: 0, cilindro: 0 });
-    cargarPedidosPorRevisar();
-  } catch (err) {
-    console.error(err);
-    alert("Error al completar el pedido");
-  } finally {
-    setGuardando(false);
-  }
-};
+        // Limpiar todo
+        limpiarEstadoLocal();
+        setMostrarModalPedidoCompleto(false);
+        setPedidoSeleccionado(null);
+        setHojas([]);
+        setHojasProcesadas(new Set());
+        setDetallesEmpaque({
+          cajas: 0,
+          atados: 0,
+          tubos: 0,
+          bolsas: 0,
+          rollos: 0,
+          galones: 0,
+          cubetas: 0,
+          losalit: 0,
+          porron: 0,
+          pieza: 0,
+          cilindro: 0,
+        });
+        cargarPedidosPorRevisar();
+      } catch (err) {
+        console.error(err);
+        alert("Error al completar el pedido");
+      } finally {
+        setGuardando(false);
+      }
+    };
 
     // VISTA: Lista de pedidos
     if (!pedidoSeleccionado) {
@@ -11835,552 +12103,560 @@ const completarPedido = async () => {
           </div>
 
           {hojasProcesadas.size === hojas.length && (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    className="mt-6 bg-green-50 border-2 border-green-500 rounded-xl p-6"
-  >
-    <div className="flex items-center justify-center gap-2 mb-4">
-      <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={3}
-          stroke="currentColor"
-          className="w-7 h-7 text-white"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M4.5 12.75l6 6 9-13.5"
-          />
-        </svg>
-      </div>
-      <h3 className="text-xl font-bold text-green-800">
-        ¡Todas las hojas revisadas!
-      </h3>
-    </div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6 bg-green-50 border-2 border-green-500 rounded-xl p-6"
+            >
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={3}
+                    stroke="currentColor"
+                    className="w-7 h-7 text-white"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4.5 12.75l6 6 9-13.5"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-green-800">
+                  ¡Todas las hojas revisadas!
+                </h3>
+              </div>
 
-    <p className="text-sm text-green-700 mb-6 text-center">
-      Ingresa los detalles de empaque antes de completar
-    </p>
+              <p className="text-sm text-green-700 mb-6 text-center">
+                Ingresa los detalles de empaque antes de completar
+              </p>
 
-    {/* Selectores de empaque */}
-    <div className="space-y-3 mb-6">
-      {/* Cajas */}
-      <div className="bg-white rounded-lg p-3 border border-green-200">
-        <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-          Cajas
-        </label>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() =>
-              setDetallesEmpaque((prev) => ({
-                ...prev,
-                cajas: Math.max(0, prev.cajas - 1),
-              }))
-            }
-            className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-          >
-            −
-          </button>
-          <input
-            type="number"
-            value={detallesEmpaque.cajas}
-            onChange={(e) =>
-              setDetallesEmpaque((prev) => ({
-                ...prev,
-                cajas: Math.max(0, parseInt(e.target.value) || 0),
-              }))
-            }
-            className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
-          />
-          <button
-            onClick={() =>
-              setDetallesEmpaque((prev) => ({
-                ...prev,
-                cajas: prev.cajas + 1,
-              }))
-            }
-            className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-          >
-            +
-          </button>
-        </div>
-      </div>
+              {/* Selectores de empaque */}
+              <div className="space-y-3 mb-6">
+                {/* Cajas */}
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+                    Cajas
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          cajas: Math.max(0, prev.cajas - 1),
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={detallesEmpaque.cajas}
+                      onChange={(e) =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          cajas: Math.max(0, parseInt(e.target.value) || 0),
+                        }))
+                      }
+                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                    />
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          cajas: prev.cajas + 1,
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
 
-      {/* Atados */}
-      <div className="bg-white rounded-lg p-3 border border-green-200">
-        <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-          Atados
-        </label>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() =>
-              setDetallesEmpaque((prev) => ({
-                ...prev,
-                atados: Math.max(0, prev.atados - 1),
-              }))
-            }
-            className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-          >
-            −
-          </button>
-          <input
-            type="number"
-            value={detallesEmpaque.atados}
-            onChange={(e) =>
-              setDetallesEmpaque((prev) => ({
-                ...prev,
-                atados: Math.max(0, parseInt(e.target.value) || 0),
-              }))
-            }
-            className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
-          />
-          <button
-            onClick={() =>
-              setDetallesEmpaque((prev) => ({
-                ...prev,
-                atados: prev.atados + 1,
-              }))
-            }
-            className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-          >
-            +
-          </button>
-        </div>
-      </div>
+                {/* Atados */}
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+                    Atados
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          atados: Math.max(0, prev.atados - 1),
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={detallesEmpaque.atados}
+                      onChange={(e) =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          atados: Math.max(0, parseInt(e.target.value) || 0),
+                        }))
+                      }
+                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                    />
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          atados: prev.atados + 1,
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
 
-      {/* Tubos */}
-      <div className="bg-white rounded-lg p-3 border border-green-200">
-        <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-          Tubos
-        </label>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() =>
-              setDetallesEmpaque((prev) => ({
-                ...prev,
-                tubos: Math.max(0, prev.tubos - 1),
-              }))
-            }
-            className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-          >
-            −
-          </button>
-          <input
-            type="number"
-            value={detallesEmpaque.tubos}
-            onChange={(e) =>
-              setDetallesEmpaque((prev) => ({
-                ...prev,
-                tubos: Math.max(0, parseInt(e.target.value) || 0),
-              }))
-            }
-            className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
-          />
-          <button
-            onClick={() =>
-              setDetallesEmpaque((prev) => ({
-                ...prev,
-                tubos: prev.tubos + 1,
-              }))
-            }
-            className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-          >
-            +
-          </button>
-        </div>
-      </div>
+                {/* Tubos */}
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+                    Tubos
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          tubos: Math.max(0, prev.tubos - 1),
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={detallesEmpaque.tubos}
+                      onChange={(e) =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          tubos: Math.max(0, parseInt(e.target.value) || 0),
+                        }))
+                      }
+                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                    />
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          tubos: prev.tubos + 1,
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
 
-      {/* Bolsas */}
-<div className="bg-white rounded-lg p-3 border border-green-200">
-  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-    Bolsas
-  </label>
-  <div className="flex items-center gap-3">
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          bolsas: Math.max(0, prev.bolsas - 1),
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      −
-    </button>
-    <input
-      type="number"
-      value={detallesEmpaque.bolsas}
-      onChange={(e) =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          bolsas: Math.max(0, parseInt(e.target.value) || 0),
-        }))
-      }
-      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
-    />
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          bolsas: prev.bolsas + 1,
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      +
-    </button>
-  </div>
-</div>
+                {/* Bolsas */}
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+                    Bolsas
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          bolsas: Math.max(0, prev.bolsas - 1),
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={detallesEmpaque.bolsas}
+                      onChange={(e) =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          bolsas: Math.max(0, parseInt(e.target.value) || 0),
+                        }))
+                      }
+                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                    />
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          bolsas: prev.bolsas + 1,
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
 
-{/* Rollos */}
-<div className="bg-white rounded-lg p-3 border border-green-200">
-  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-    Rollos
-  </label>
-  <div className="flex items-center gap-3">
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          rollos: Math.max(0, prev.rollos - 1),
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      −
-    </button>
-    <input
-      type="number"
-      value={detallesEmpaque.rollos}
-      onChange={(e) =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          rollos: Math.max(0, parseInt(e.target.value) || 0),
-        }))
-      }
-      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
-    />
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          rollos: prev.rollos + 1,
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      +
-    </button>
-  </div>
-</div>
+                {/* Rollos */}
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+                    Rollos
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          rollos: Math.max(0, prev.rollos - 1),
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={detallesEmpaque.rollos}
+                      onChange={(e) =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          rollos: Math.max(0, parseInt(e.target.value) || 0),
+                        }))
+                      }
+                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                    />
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          rollos: prev.rollos + 1,
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
 
-{/* Galones */}
-<div className="bg-white rounded-lg p-3 border border-green-200">
-  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-    Galones
-  </label>
-  <div className="flex items-center gap-3">
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          galones: Math.max(0, prev.galones - 1),
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      −
-    </button>
-    <input
-      type="number"
-      value={detallesEmpaque.galones}
-      onChange={(e) =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          galones: Math.max(0, parseInt(e.target.value) || 0),
-        }))
-      }
-      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
-    />
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          galones: prev.galones + 1,
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      +
-    </button>
-  </div>
-</div>
+                {/* Galones */}
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+                    Galones
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          galones: Math.max(0, prev.galones - 1),
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={detallesEmpaque.galones}
+                      onChange={(e) =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          galones: Math.max(0, parseInt(e.target.value) || 0),
+                        }))
+                      }
+                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                    />
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          galones: prev.galones + 1,
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
 
-{/* Cubetas */}
-<div className="bg-white rounded-lg p-3 border border-green-200">
-  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-    Cubetas
-  </label>
-  <div className="flex items-center gap-3">
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          cubetas: Math.max(0, prev.cubetas - 1),
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      −
-    </button>
-    <input
-      type="number"
-      value={detallesEmpaque.cubetas}
-      onChange={(e) =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          cubetas: Math.max(0, parseInt(e.target.value) || 0),
-        }))
-      }
-      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
-    />
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          cubetas: prev.cubetas + 1,
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      +
-    </button>
-  </div>
-</div>
+                {/* Cubetas */}
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+                    Cubetas
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          cubetas: Math.max(0, prev.cubetas - 1),
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={detallesEmpaque.cubetas}
+                      onChange={(e) =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          cubetas: Math.max(0, parseInt(e.target.value) || 0),
+                        }))
+                      }
+                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                    />
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          cubetas: prev.cubetas + 1,
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
 
-{/* Losalit */}
-<div className="bg-white rounded-lg p-3 border border-green-200">
-  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-    Losalit
-  </label>
-  <div className="flex items-center gap-3">
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          losalit: Math.max(0, prev.losalit - 1),
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      −
-    </button>
-    <input
-      type="number"
-      value={detallesEmpaque.losalit}
-      onChange={(e) =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          losalit: Math.max(0, parseInt(e.target.value) || 0),
-        }))
-      }
-      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
-    />
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          losalit: prev.losalit + 1,
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      +
-    </button>
-  </div>
-</div>
+                {/* Losalit */}
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+                    Losalit
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          losalit: Math.max(0, prev.losalit - 1),
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={detallesEmpaque.losalit}
+                      onChange={(e) =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          losalit: Math.max(0, parseInt(e.target.value) || 0),
+                        }))
+                      }
+                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                    />
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          losalit: prev.losalit + 1,
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
 
-{/* Porrón */}
-<div className="bg-white rounded-lg p-3 border border-green-200">
-  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-    Porrón
-  </label>
-  <div className="flex items-center gap-3">
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          porron: Math.max(0, prev.porron - 1),
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      −
-    </button>
-    <input
-      type="number"
-      value={detallesEmpaque.porron}
-      onChange={(e) =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          porron: Math.max(0, parseInt(e.target.value) || 0),
-        }))
-      }
-      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
-    />
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          porron: prev.porron + 1,
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      +
-    </button>
-  </div>
-</div>
+                {/* Porrón */}
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+                    Porrón
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          porron: Math.max(0, prev.porron - 1),
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={detallesEmpaque.porron}
+                      onChange={(e) =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          porron: Math.max(0, parseInt(e.target.value) || 0),
+                        }))
+                      }
+                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                    />
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          porron: prev.porron + 1,
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
 
-{/* Pieza */}
-<div className="bg-white rounded-lg p-3 border border-green-200">
-  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-    Pieza
-  </label>
-  <div className="flex items-center gap-3">
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          pieza: Math.max(0, prev.pieza - 1),
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      −
-    </button>
-    <input
-      type="number"
-      value={detallesEmpaque.pieza}
-      onChange={(e) =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          pieza: Math.max(0, parseInt(e.target.value) || 0),
-        }))
-      }
-      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
-    />
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          pieza: prev.pieza + 1,
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      +
-    </button>
-  </div>
-</div>
+                {/* Pieza */}
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+                    Pieza
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          pieza: Math.max(0, prev.pieza - 1),
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={detallesEmpaque.pieza}
+                      onChange={(e) =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          pieza: Math.max(0, parseInt(e.target.value) || 0),
+                        }))
+                      }
+                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                    />
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          pieza: prev.pieza + 1,
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
 
-{/* Cilindro */}
-<div className="bg-white rounded-lg p-3 border border-green-200">
-  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-    Cilindro
-  </label>
-  <div className="flex items-center gap-3">
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          cilindro: Math.max(0, prev.cilindro - 1),
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      −
-    </button>
-    <input
-      type="number"
-      value={detallesEmpaque.cilindro}
-      onChange={(e) =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          cilindro: Math.max(0, parseInt(e.target.value) || 0),
-        }))
-      }
-      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
-    />
-    <button
-      onClick={() =>
-        setDetallesEmpaque((prev) => ({
-          ...prev,
-          cilindro: prev.cilindro + 1,
-        }))
-      }
-      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-    >
-      +
-    </button>
-  </div>
-</div>
+                {/* Cilindro */}
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
+                    Cilindro
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          cilindro: Math.max(0, prev.cilindro - 1),
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={detallesEmpaque.cilindro}
+                      onChange={(e) =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          cilindro: Math.max(0, parseInt(e.target.value) || 0),
+                        }))
+                      }
+                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                    />
+                    <button
+                      onClick={() =>
+                        setDetallesEmpaque((prev) => ({
+                          ...prev,
+                          cilindro: prev.cilindro + 1,
+                        }))
+                      }
+                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-    </div>
+              {/* Botones */}
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await fetch(
+                      "http://192.168.100.34:3005/print",
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          cliente: pedidoSeleccionado.cuentas.cliente,
+                          pedido: pedidoSeleccionado.id,
+                          ...detallesEmpaque,
+                        }),
+                      },
+                    );
 
-    {/* Botones */}
-    <button
-  onClick={async () => {
-    try {
-      const response = await fetch("http://192.168.100.34:3005/print", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cliente: pedidoSeleccionado.cuentas.cliente,
-          pedido: pedidoSeleccionado.id,
-          ...detallesEmpaque,
-        }),
-      });
+                    const data = await response.json();
 
-      const data = await response.json();
-      
-      if (data.ok && data.codigosGenerados) {
-        // Guardar códigos en Supabase
-        const codigosParaInsertar = data.codigosGenerados.map((c: any) => ({
-          pedido_id: pedidoSeleccionado.id,
-          codigo: c.codigo,
-          tipo: c.tipo,
-          numero: c.numero,
-        }));
+                    if (data.ok && data.codigosGenerados) {
+                      // Guardar códigos en Supabase
+                      const codigosParaInsertar = data.codigosGenerados.map(
+                        (c: any) => ({
+                          pedido_id: pedidoSeleccionado.id,
+                          codigo: c.codigo,
+                          tipo: c.tipo,
+                          numero: c.numero,
+                        }),
+                      );
 
-        await supabase
-          .from("codigos_etiquetas")
-          .insert(codigosParaInsertar);
+                      await supabase
+                        .from("codigos_etiquetas")
+                        .insert(codigosParaInsertar);
 
-        alert(`Etiquetas impresas: ${data.copias} (${data.codigosGenerados.length} con código)`);
-      }
-    } catch (error) {
-      console.error("Error imprimiendo:", error);
-      alert("Error al imprimir etiquetas");
-    }
-  }}
-  className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-blue-500 hover:bg-blue-600 active:scale-95 transition-transform"
->
-  IMPRIMIR ETIQUETAS
-</button>
- <button
-        onClick={completarPedido}
-        disabled={guardando}
-        className="w-full py-3 mt-3 wunded-xl text-white font-bold shadow-lg bg-green-600 hover:bg-green-700 active:scale-95 transition-transform disabled:opacity-50"
-      >
-        {guardando ? "COMPLETANDO..." : "ACEPTAR Y MARCAR COMO ENCAJADO"}
-      </button>
-  </motion.div>
-)}
+                      alert(
+                        `Etiquetas impresas: ${data.copias} (${data.codigosGenerados.length} con código)`,
+                      );
+                    }
+                  } catch (error) {
+                    console.error("Error imprimiendo:", error);
+                    alert("Error al imprimir etiquetas");
+                  }
+                }}
+                className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-blue-500 hover:bg-blue-600 active:scale-95 transition-transform"
+              >
+                IMPRIMIR ETIQUETAS
+              </button>
+              <button
+                onClick={completarPedido}
+                disabled={guardando}
+                className="w-full py-3 mt-3 wunded-xl text-white font-bold shadow-lg bg-green-600 hover:bg-green-700 active:scale-95 transition-transform disabled:opacity-50"
+              >
+                {guardando
+                  ? "COMPLETANDO..."
+                  : "ACEPTAR Y MARCAR COMO ENCAJADO"}
+              </button>
+            </motion.div>
+          )}
         </motion.div>
       );
     }
@@ -12399,35 +12675,35 @@ const completarPedido = async () => {
         </h2>
 
         {/* Barra de progreso */}
-<div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-  <div className="flex justify-between mb-2">
-    <span className="text-sm font-semibold text-zinc-700">
-      Progreso
-    </span>
-    <span
-      className={`text-sm font-bold ${hojaCompleta ? "text-green-600" : "text-orange-600"}`}
-    >
-      {totalVerificado} / {totalEsperado}
-    </span>
-  </div>
-  <div className="w-full bg-zinc-200 rounded-full h-3">
-    <motion.div
-      animate={{ width: `${(totalVerificado / totalEsperado) * 100}%` }}
-      className={`h-full rounded-full ${hojaCompleta ? "bg-green-500" : "bg-orange-500"}`}
-    />
-  </div>
+        <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+          <div className="flex justify-between mb-2">
+            <span className="text-sm font-semibold text-zinc-700">
+              Progreso
+            </span>
+            <span
+              className={`text-sm font-bold ${hojaCompleta ? "text-green-600" : "text-orange-600"}`}
+            >
+              {totalVerificado} / {totalEsperado}
+            </span>
+          </div>
+          <div className="w-full bg-zinc-200 rounded-full h-3">
+            <motion.div
+              animate={{ width: `${(totalVerificado / totalEsperado) * 100}%` }}
+              className={`h-full rounded-full ${hojaCompleta ? "bg-green-500" : "bg-orange-500"}`}
+            />
+          </div>
 
-  {hojaCompleta && (
-    <motion.button
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      onClick={() => setMostrarModalCompletado(true)}
-      className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold shadow-md transition"
-    >
-      CONFIRMAR HOJA COMPLETA
-    </motion.button>
-  )}
-</div>
+          {hojaCompleta && (
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => setMostrarModalCompletado(true)}
+              className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold shadow-md transition"
+            >
+              CONFIRMAR HOJA COMPLETA
+            </motion.button>
+          )}
+        </div>
 
         {/* Indicador de escaneo */}
         {!hojaCompleta && (
@@ -12442,434 +12718,498 @@ const completarPedido = async () => {
         {/* Lista de productos */}
         <div className="space-y-2">
           {hojaActual.productos.map((prod: any) => {
-  const cantidadVerificada = productosVerificados.get(prod.producto_id) || 0;
-  const esUltimoEscaneado =
-    ultimoEscaneo === prod.CODIGO ||
-    ultimoEscaneo === prod.C_PRODUCTO;
+            const cantidadVerificada =
+              productosVerificados.get(prod.producto_id) || 0;
+            const esUltimoEscaneado =
+              ultimoEscaneo === prod.CODIGO ||
+              ultimoEscaneo === prod.C_PRODUCTO;
 
-  const estadoActual = obtenerEstadoActual(prod);
-  const cantidadEsperada = estadoActual.estado === "PA" ? 0 : estadoActual.cantidad_surtida || 0;
-  const completo = cantidadVerificada >= cantidadEsperada && cantidadEsperada > 0;
+            const estadoActual = obtenerEstadoActual(prod);
+            const cantidadEsperada =
+              estadoActual.estado === "PA"
+                ? 0
+                : estadoActual.cantidad_surtida || 0;
+            const completo =
+              cantidadVerificada >= cantidadEsperada && cantidadEsperada > 0;
 
             return (
               <motion.div
-  key={prod.producto_id}
-  animate={{
-    scale: esUltimoEscaneado ? [1, 1.02, 1] : 1,
-    backgroundColor:
-      estadoActual.estado === "PA"
-        ? "#fef3c7"
-        : estadoActual.estado === "parcial"
-          ? "#fed7aa"
-          : completo
-            ? "#dcfce7"
-            : "#ffffff",
-    borderColor:
-      estadoActual.estado === "PA"
-        ? "#fbbf24"
-        : estadoActual.estado === "parcial"
-          ? "#fb923c"
-          : completo
-            ? "#22c55e"
-            : "#e4e4e7",
-  }}
-  className="border-2 rounded-xl p-3 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-onClick={() => abrirModalCantidad(prod)}
->
-   <p className="text-sm font-semibold text-zinc-800 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">{prod.CODIGO}</p>
-    <p className="text-sm font-semibold text-zinc-800 line-clamp-3">
-        {prod.TITULO}
-      </p>
-  <div className="flex items-center gap-3">  
-    <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
-      <Image
-        src={
-          prod.IMAGEN ||
-          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
-        }
-        alt={prod.TITULO}
-        fill
-        className="object-contain"
-      />
-    </div>
-    <div className="flex-1">
-     
+                key={prod.producto_id}
+                animate={{
+                  scale: esUltimoEscaneado ? [1, 1.02, 1] : 1,
+                  backgroundColor:
+                    estadoActual.estado === "PA"
+                      ? "#fef3c7"
+                      : estadoActual.estado === "parcial"
+                        ? "#fed7aa"
+                        : completo
+                          ? "#dcfce7"
+                          : "#ffffff",
+                  borderColor:
+                    estadoActual.estado === "PA"
+                      ? "#fbbf24"
+                      : estadoActual.estado === "parcial"
+                        ? "#fb923c"
+                        : completo
+                          ? "#22c55e"
+                          : "#e4e4e7",
+                }}
+                className="border-2 rounded-xl p-3 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => abrirModalCantidad(prod)}
+              >
+                <p className="text-sm font-semibold text-zinc-800 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">
+                  {prod.CODIGO}
+                </p>
+                <p className="text-sm font-semibold text-zinc-800 line-clamp-3">
+                  {prod.TITULO}
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
+                    <Image
+                      src={
+                        prod.IMAGEN ||
+                        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                      }
+                      alt={prod.TITULO}
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    {/* Controles de estado */}
+                    <div className="flex gap-2 mt-2">
+                      {estadoActual.estado === "PA" && (
+                        <span className="text-xs font-bold px-2 py-1 rounded bg-yellow-500 text-white">
+                          ✓ PA
+                        </span>
+                      )}
 
-     {/* Controles de estado */}
-<div className="flex gap-2 mt-2">
-{estadoActual.estado === "PA" && (
-    <span className="text-xs font-bold px-2 py-1 rounded bg-yellow-500 text-white">
-      ✓ PA
-    </span> 
-)}
+                      {/* Mostrar cantidad pedida cuando está en PA */}
+                      {estadoActual.estado === "PA" && (
+                        <span className="text-xs text-yellow-700 font-semibold bg-yellow-100 px-2 py-1 rounded">
+                          Cantidad pedida: {prod.cantidad_pedida}
+                        </span>
+                      )}
+                    </div>
+                    {estadoActual.estado === "parcial" && (
+                      <div className="mt-2 flex gap-2 items-center flex-wrap">
+                        <div className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+                          PARCIAL: {estadoActual.cantidad_surtida}/
+                          {prod.cantidad_pedida}
+                        </div>
+                        {prod.ingreso_manual && (
+                          <div className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+                            INGRESO MANUAL
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-  {/* Mostrar cantidad pedida cuando está en PA */}
-  {estadoActual.estado === "PA" && (
-    <span className="text-xs text-yellow-700 font-semibold bg-yellow-100 px-2 py-1 rounded">
-      Pedidos: {prod.cantidad_pedida}
-    </span>
-  )}
+                    {/* También mostrar para productos completos con ingreso manual */}
+                    {estadoActual.estado === "completo" &&
+                      prod.ingreso_manual && (
+                        <div className="mt-2">
+                          <div className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+                            INGRESO MANUAL
+                          </div>
+                        </div>
+                      )}
 
-</div>
-      {estadoActual.estado === "parcial" && (
-  <div className="mt-2 flex gap-2 items-center flex-wrap">
-    <div className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
-      PARCIAL: {estadoActual.cantidad_surtida}/{prod.cantidad_pedida}
-    </div>
-    {prod.ingreso_manual && (
-      <div className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
-        INGRESO MANUAL
-      </div>
-    )}
-  </div>
-)}
+                    {estadoActual.estado !== "PA" && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex-1 bg-zinc-200 h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${completo ? "bg-green-500" : "bg-orange-500"}`}
+                            style={{
+                              width: `${Math.min((cantidadVerificada / cantidadEsperada) * 100, 100)}%`,
+                            }}
+                          />
+                        </div>
+                        <span
+                          className={`text-sm font-bold ${completo ? "text-green-600" : "text-zinc-600"}`}
+                        >
+                          {cantidadVerificada}/{cantidadEsperada}
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
-{/* También mostrar para productos completos con ingreso manual */}
-{estadoActual.estado === "completo" && prod.ingreso_manual && (
-  <div className="mt-2">
-    <div className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
-      INGRESO MANUAL
-    </div>
-  </div>
-)}
-
-      {estadoActual.estado !== "PA" && (
-        <div className="flex items-center gap-2 mt-2">
-          <div className="flex-1 bg-zinc-200 h-2 rounded-full overflow-hidden">
-            <div
-              className={`h-full ${completo ? "bg-green-500" : "bg-orange-500"}`}
-              style={{
-                width: `${Math.min((cantidadVerificada / cantidadEsperada) * 100, 100)}%`,
-              }}
-            />
-          </div>
-          <span
-            className={`text-sm font-bold ${completo ? "text-green-600" : "text-zinc-600"}`}
-          >
-            {cantidadVerificada}/{cantidadEsperada}
-          </span>
-        </div>
-      )}
-    </div>
-
-    {completo && (
-      <div className="bg-green-100 p-1 rounded-full text-green-600">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          className="w-5 h-5"
-        >
-          <path
-            fillRule="evenodd"
-            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-            clipRule="evenodd"
-          />
-        </svg>
-      </div>
-    )}
-  </div>
-</motion.div>
+                  {completo && (
+                    <div className="bg-green-100 p-1 rounded-full text-green-600">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="w-5 h-5"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
             );
           })}
         </div>
 
         {/* Modal de cantidad manual */}
-{typeof document !== "undefined" &&
-  createPortal(
-    <AnimatePresence>
-      {modalCantidad && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => {
-            setModalCantidad(null);
-            setCantidadManual("");
-          }}
-          className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
-          style={{ zIndex: 50000 }}
-        >
-          <motion.div
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.5, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
-          >
-            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-100 flex items-center justify-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={3}
-                stroke="currentColor"
-                className="w-10 h-10 text-yellow-600"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-                />
-              </svg>
-            </div>
-
-            <h3 className="text-2xl font-bold mb-2 text-zinc-900">
-              Ajustar Cantidad
-            </h3>
-
-            <p className="text-zinc-600 text-sm mb-2 font-semibold">
-              {modalCantidad.TITULO}
-            </p>
-            <p className="text-zinc-500 text-sm mb-6 font-semibold">
-              Cantidad pedida: {obtenerEstadoActual(modalCantidad).cantidad_surtida}
-            </p>
-
-           {/* Botón PA */}
-            <button
-              onClick={() => {
-                togglePA(modalCantidad);
-                setModalCantidad(null);
-                setCantidadManual("");
-              }}
-              className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-yellow-500 hover:bg-yellow-600 active:scale-95 transition-transform mb-3"
-            >
-              PA - Producto Agotado
-            </button>
-
-            {/* Opción Parcial */}
-            <div className="mb-3">
-              <input
-                type="number"
-                min="1"
-                max={modalCantidad.cantidad_pedida}
-                value={cantidadManual}
-                onChange={(e) => setCantidadManual(e.target.value)}
-                placeholder="Cantidad encontrada"
-                className="w-full border-2 text-zinc-600 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-4 focus:ring-2 focus:ring-orange-500 outline-none"
-              />
-
-              {/* Botones */}
-              <div className="flex gap-3">
-                {/* Cancelar */}
-                <button
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {modalCantidad && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
                   onClick={() => {
                     setModalCantidad(null);
                     setCantidadManual("");
                   }}
-                  className="flex-1 py-4 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+                  style={{ zIndex: 50000 }}
                 >
-                  Cancelar
-                </button>
+                  <motion.div
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+                  >
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-100 flex items-center justify-center">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={3}
+                        stroke="currentColor"
+                        className="w-10 h-10 text-yellow-600"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                        />
+                      </svg>
+                    </div>
 
-                {/* Aplicar */}
-                <button
-                  onClick={aplicarCantidadManual}
-                  disabled={!cantidadManual}
-                  className="flex-1 py-4 rounded-xl bg-orange-500 text-white font-bold text-lg shadow-lg hover:bg-orange-600 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Aplicar
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body,
-  )}
+                    <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                      Ajustar Cantidad
+                    </h3>
+
+                    <p className="text-zinc-600 text-sm mb-2 font-semibold">
+                      {modalCantidad.TITULO}
+                    </p>
+                  
+ <p className="text-zinc-500 text-sm mb-6 font-semibold">
+  Cantidad pedida:{" "}
+  {obtenerEstadoActual(modalCantidad).estado === "PA" ||
+   obtenerEstadoActual(modalCantidad).estado === "parcial"
+    ? modalCantidad.cantidad_pedida
+    : obtenerEstadoActual(modalCantidad).cantidad_surtida}
+</p>
+
+                    {/* Botón PA */}
+                    <button
+                      onClick={() => {
+                        togglePA(modalCantidad);
+                        setModalCantidad(null);
+                        setCantidadManual("");
+                      }}
+                      className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-yellow-500 hover:bg-yellow-600 active:scale-95 transition-transform mb-3"
+                    >
+                      PA - Producto Agotado
+                    </button>
+
+                    {/* Opción Parcial */}
+                    <div className="mb-3">
+                      <input
+                        type="number"
+                        min="1"
+                        max={modalCantidad.cantidad_pedida}
+                        value={cantidadManual}
+                        onChange={(e) => setCantidadManual(e.target.value)}
+                        placeholder="Cantidad encontrada"
+                        className="w-full border-2 text-zinc-600 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-4 focus:ring-2 focus:ring-orange-500 outline-none"
+                      />
+
+                      {/* Botones */}
+                      <div className="flex gap-3">
+                        {/* Cancelar */}
+                        <button
+                          onClick={() => {
+                            setModalCantidad(null);
+                            setCantidadManual("");
+                          }}
+                          className="flex-1 py-4 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+                        >
+                          Cancelar
+                        </button>
+
+                        {/* Aplicar */}
+                        <button
+                          onClick={aplicarCantidadManual}
+                          disabled={!cantidadManual}
+                          className="flex-1 py-4 rounded-xl bg-orange-500 text-white font-bold text-lg shadow-lg hover:bg-orange-600 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Aplicar
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body,
+          )}
 
         {/* Modal de hoja completada */}
-{typeof document !== "undefined" &&
-  createPortal(
-    <AnimatePresence>
-      {mostrarModalCompletado && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
-          style={{ zIndex: 50000 }}
-        >
-          <motion.div
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.5, opacity: 0 }}
-            className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={3}
-                stroke="currentColor"
-                className="w-14 h-14 text-green-600"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4.5 12.75l6 6 9-13.5"
-                />
-              </svg>
-            </div>
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {mostrarModalCompletado && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+                  style={{ zIndex: 50000 }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={3}
+                        stroke="currentColor"
+                        className="w-14 h-14 text-green-600"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M4.5 12.75l6 6 9-13.5"
+                        />
+                      </svg>
+                    </div>
 
-            <h3 className="text-2xl font-bold mb-2 text-zinc-900">
-              ¡Hoja Completa!
-            </h3>
+                    <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                      ¡Hoja Completa!
+                    </h3>
 
-            <p className="text-zinc-600 text-lg mb-8">
-              Has completado la revisión de la{" "}
-              <strong>Hoja #{hojaActual.numero_hoja}</strong>
-            </p>
+                    <p className="text-zinc-600 text-lg mb-8">
+                      Has completado la revisión de la{" "}
+                      <strong>Hoja #{hojaActual.numero_hoja}</strong>
+                    </p>
 
-            <button
-              onClick={completarHoja}
-              disabled={guardando}
-              className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {guardando ? "GUARDANDO..." : "CONFIRMAR Y CONTINUAR"}
-            </button>
+                    <button
+                      onClick={completarHoja}
+                      disabled={guardando}
+                      className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {guardando ? "GUARDANDO..." : "CONFIRMAR Y CONTINUAR"}
+                    </button>
 
-            <button
-              onClick={() => setMostrarModalCompletado(false)}
-              className="mt-4 text-zinc-400 text-sm hover:text-zinc-600 underline"
-              disabled={guardando}
-            >
-              Revisar de nuevo
-            </button>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body,
-  )}
+                    <button
+                      onClick={() => setMostrarModalCompletado(false)}
+                      className="mt-4 text-zinc-400 text-sm hover:text-zinc-600 underline"
+                      disabled={guardando}
+                    >
+                      Revisar de nuevo
+                    </button>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body,
+          )}
 
-          {/* Modal de Producto Activo */}
-{typeof document !== "undefined" &&
-  createPortal(
-    <AnimatePresence>
-      {modalProductoActivo && modalProductoActivo.visible && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setModalProductoActivo(null)}
-          className="fixed inset-0 bg-black/90 z-[60000] flex items-center justify-center p-4"
-          style={{ zIndex: 60000 }}
-        >
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl relative"
-          >
-            {/* Botón cerrar */}
-            <button
-              onClick={() => setModalProductoActivo(null)}
-              className="absolute top-4 right-4 w-10 h-10 bg-zinc-100 hover:bg-zinc-200 rounded-full flex items-center justify-center transition"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2.5}
-                stroke="currentColor"
-                className="w-5 h-5 text-zinc-600"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
+        {/* Modal de Producto Activo */}
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {modalProductoActivo && modalProductoActivo.visible && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setModalProductoActivo(null)}
+                  className="fixed inset-0 bg-black/90 z-[60000] flex items-center justify-center p-4"
+                  style={{ zIndex: 60000 }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl relative"
+                  >
+                    {/* Botón cerrar */}
+                    <button
+                      onClick={() => setModalProductoActivo(null)}
+                      className="absolute top-4 right-4 w-10 h-10 bg-zinc-100 hover:bg-zinc-200 rounded-full flex items-center justify-center transition"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2.5}
+                        stroke="currentColor"
+                        className="w-5 h-5 text-zinc-600"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
 
-            {/* Imagen del producto */}
-            <div className="relative w-48 h-48 mx-auto mb-6 bg-zinc-100 rounded-2xl overflow-hidden">
-              <Image
-                src={
-                  modalProductoActivo.producto?.IMAGEN ||
-                  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
-                }
-                alt={modalProductoActivo.producto?.TITULO}
-                fill
-                className="object-contain p-4"
-              />
-            </div>
+                    {/* Imagen del producto */}
+                    <div className="relative w-48 h-48 mx-auto mb-6 bg-zinc-100 rounded-2xl overflow-hidden">
+                      <Image
+                        src={
+                          modalProductoActivo.producto?.IMAGEN ||
+                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                        }
+                        alt={modalProductoActivo.producto?.TITULO}
+                        fill
+                        className="object-contain p-4"
+                      />
+                    </div>
 
-            {/* Título del producto */}
-            <h3 className="text-xl font-bold text-zinc-900 text-center mb-2 leading-tight">
-              {modalProductoActivo.producto?.TITULO}
-            </h3>
+                    {/* Título del producto */}
+                    <h3 className="text-xl font-bold text-zinc-900 text-center mb-2 leading-tight">
+                      {modalProductoActivo.producto?.TITULO}
+                    </h3>
+
+                    <p className="text-sm text-zinc-500 text-center mb-6 font-mono">
+                      {modalProductoActivo.producto?.CODIGO}
+                    </p>
+
+                    {/* Contador grande */}
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-8 mb-6">
+                      <p className="text-sm text-green-700 font-semibold text-center mb-2">
+                        Cantidad Escaneada
+                      </p>
+                      <div className="flex items-center justify-center gap-4">
+                        <motion.span
+                          key={modalProductoActivo.cantidadActual}
+                          initial={{ scale: 1.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="text-6xl font-black text-green-600"
+                        >
+                          {modalProductoActivo.cantidadActual}
+                        </motion.span>
+                        <span className="text-4xl font-bold text-green-400">
+                          /
+                        </span>
+                        <span className="text-4xl font-bold text-green-700">
+                          {modalProductoActivo.cantidadObjetivo}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Barra de progreso */}
+                    <div className="w-full bg-zinc-200 rounded-full h-4 overflow-hidden mb-4">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{
+                          width: `${(modalProductoActivo.cantidadActual / modalProductoActivo.cantidadObjetivo) * 100}%`,
+                        }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        className="h-full bg-gradient-to-r from-green-500 to-green-600"
+                      />
+                    </div>
+
+                    {/* Estado */}
+{modalProductoActivo.cantidadActual >=
+modalProductoActivo.cantidadObjetivo ? (
+  <div className="flex items-center justify-center gap-2 text-green-600">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      className="w-6 h-6"
+    >
+      <path
+        fillRule="evenodd"
+        d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+        clipRule="evenodd"
+      />
+    </svg>
+    <span className="font-bold text-lg">¡COMPLETADO!</span>
+  </div>
+) : (
+  <div className="space-y-4">
+    <p className="text-center text-zinc-500 font-medium">
+      Continúa escaneando...
+    </p>
+    
+    {/* Botones de acción */}
+    {modalProductoActivo.cantidadActual > 0 && (
+      <>
+        {/* Botón Aplicar Parcial - Solo si hay cantidad escaneada */}
+        <button
+          onClick={() => {
+            const producto = modalProductoActivo.producto;
+            const cantidadEscaneada = modalProductoActivo.cantidadActual;
             
-            <p className="text-sm text-zinc-500 text-center mb-6 font-mono">
-              {modalProductoActivo.producto?.CODIGO}
-            </p>
+            // Marcar como parcial (sin ingreso manual porque fue escaneado)
+            const nuevoCambios = new Map(cambiosEstado);
+            nuevoCambios.set(producto.producto_id, {
+              estado: cantidadEscaneada === producto.cantidad_pedida ? "completo" : "parcial",
+              cantidad_surtida: cantidadEscaneada,
+              ingreso_manual: false, // NO es manual porque fue escaneado
+            });
+            setCambiosEstado(nuevoCambios);
+            
+            // Cerrar modal
+            setModalProductoActivo(null);
+            if ("vibrate" in navigator) navigator.vibrate(50);
+          }}
+          className="w-full py-3 rounded-xl bg-orange-500 text-white font-bold text-base shadow-lg hover:bg-orange-600 active:scale-95 transition"
+        >
+          Aplicar como Parcial ({modalProductoActivo.cantidadActual}/{modalProductoActivo.cantidadObjetivo})
+        </button>
 
-            {/* Contador grande */}
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-8 mb-6">
-              <p className="text-sm text-green-700 font-semibold text-center mb-2">
-                Cantidad Escaneada
-              </p>
-              <div className="flex items-center justify-center gap-4">
-                <motion.span
-                  key={modalProductoActivo.cantidadActual}
-                  initial={{ scale: 1.5, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="text-6xl font-black text-green-600"
-                >
-                  {modalProductoActivo.cantidadActual}
-                </motion.span>
-                <span className="text-4xl font-bold text-green-400">/</span>
-                <span className="text-4xl font-bold text-green-700">
-                  {modalProductoActivo.cantidadObjetivo}
-                </span>
-              </div>
-            </div>
-
-            {/* Barra de progreso */}
-            <div className="w-full bg-zinc-200 rounded-full h-4 overflow-hidden mb-4">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{
-                  width: `${(modalProductoActivo.cantidadActual / modalProductoActivo.cantidadObjetivo) * 100}%`,
-                }}
-                transition={{ duration: 0.5, ease: "easeOut" }}
-                className="h-full bg-gradient-to-r from-green-500 to-green-600"
-              />
-            </div>
-
-            {/* Estado */}
-            {modalProductoActivo.cantidadActual >= modalProductoActivo.cantidadObjetivo ? (
-              <div className="flex items-center justify-center gap-2 text-green-600">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="w-6 h-6"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="font-bold text-lg">¡COMPLETADO!</span>
-              </div>
-            ) : (
-              <p className="text-center text-zinc-500 font-medium">
-                Continúa escaneando...
-              </p>
-            )}
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body,
-  )}
+        {/* Botón Ingresar Cantidad Manual - Si es más de 1 */}
+        {modalProductoActivo.cantidadObjetivo > 1 && (
+          <button
+            onClick={() => {
+              const producto = modalProductoActivo.producto;
+              
+              // Cerrar modal de producto activo
+              setModalProductoActivo(null);
+              
+              // Abrir modal de cantidad manual
+              setModalCantidad(producto);
+              setCantidadManual(modalProductoActivo.cantidadActual.toString());
+            }}
+            className="w-full py-3 rounded-xl bg-blue-500 text-white font-bold text-base shadow-lg hover:bg-blue-600 active:scale-95 transition"
+          >
+            Ingresar Cantidad Manual
+          </button>
+        )}
+      </>
+    )}
+  </div>
+)}
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body,
+          )}
       </motion.div>
     );
   };
@@ -12878,9 +13218,9 @@ onClick={() => abrirModalCantidad(prod)}
     const [pedidosPendientes, setPedidosPendientes] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
 
-useEffect(() => {
-  window.scrollTo(0, 0);
-}, []);
+    useEffect(() => {
+      window.scrollTo(0, 0);
+    }, []);
 
     useEffect(() => {
       cargarPedidosPendientes();
@@ -13042,7 +13382,7 @@ useEffect(() => {
     );
   };
 
-  const VistaSurtiendoPedido = () => {
+const VistaSurtiendoPedido = () => {
     const [hojasPedido, setHojasPedido] = useState<any[]>([]);
     const [hojaActual, setHojaActual] = useState<any>(null);
     const [cargandoHojas, setCargandoHojas] = useState(true);
@@ -13069,62 +13409,62 @@ useEffect(() => {
       producto: any;
     } | null>(null);
     const [cantidadParcialInput, setCantidadParcialInput] = useState("");
-    const [productosIngresoManual, setProductosIngresoManual] = useState<Set<number>>(new Set());
-const [modalProductoActivo, setModalProductoActivo] = useState<{
-  visible: boolean;
-  producto: any;
-  cantidadActual: number;
-  cantidadObjetivo: number;
-} | null>(null);
+    const [productosIngresoManual, setProductosIngresoManual] = useState<
+      Set<number>
+    >(new Set());
+    const [modalProductoActivo, setModalProductoActivo] = useState<{
+      visible: boolean;
+      producto: any;
+      cantidadActual: number;
+      cantidadObjetivo: number;
+    } | null>(null);
 
-
-useEffect(() => {
-  window.scrollTo(0, 0);
-}, [hojaActual]);
+    useEffect(() => {
+      window.scrollTo(0, 0);
+    }, [hojaActual]);
 
     // Funciones para guardar/cargar estado local
-const guardarEstadoLocal = (hojaId: number, estado: any) => {
-  try {
-    localStorage.setItem(`hoja_${hojaId}_progreso`, JSON.stringify(estado));
-  } catch (error) {
-    console.error("Error guardando estado:", error);
-  }
-};
+    const guardarEstadoLocal = (hojaId: number, estado: any) => {
+      try {
+        localStorage.setItem(`hoja_${hojaId}_progreso`, JSON.stringify(estado));
+      } catch (error) {
+        console.error("Error guardando estado:", error);
+      }
+    };
 
-const cargarEstadoLocal = (hojaId: number) => {
-  try {
-    const guardado = localStorage.getItem(`hoja_${hojaId}_progreso`);
-    if (guardado) {
-      return JSON.parse(guardado);
-    }
-  } catch (error) {
-    console.error("Error cargando estado:", error);
-  }
-  return null;
-};
+    const cargarEstadoLocal = (hojaId: number) => {
+      try {
+        const guardado = localStorage.getItem(`hoja_${hojaId}_progreso`);
+        if (guardado) {
+          return JSON.parse(guardado);
+        }
+      } catch (error) {
+        console.error("Error cargando estado:", error);
+      }
+      return null;
+    };
 
-const limpiarEstadoLocal = (hojaId: number) => {
-  try {
-    localStorage.removeItem(`hoja_${hojaId}_progreso`);
-  } catch (error) {
-    console.error("Error limpiando estado:", error);
-  }
-};
+    const limpiarEstadoLocal = (hojaId: number) => {
+      try {
+        localStorage.removeItem(`hoja_${hojaId}_progreso`);
+      } catch (error) {
+        console.error("Error limpiando estado:", error);
+      }
+    };
 
-// Guardar progreso automáticamente cuando cambie
-useEffect(() => {
-  if (!hojaActual) return;
+    // Guardar progreso automáticamente cuando cambie
+    useEffect(() => {
+      if (!hojaActual) return;
 
-  const estadoActual = {
-    productosSurtidos: Array.from(productosSurtidosHoja.entries()),
-    productosPA: Array.from(productosPA),
-    productosParciales: Array.from(productosParciales.entries()),
-     productosIngresoManual: Array.from(productosIngresoManual),
-  };
+      const estadoActual = {
+        productosSurtidos: Array.from(productosSurtidosHoja.entries()),
+        productosPA: Array.from(productosPA),
+        productosParciales: Array.from(productosParciales.entries()),
+        productosIngresoManual: Array.from(productosIngresoManual),
+      };
 
-  guardarEstadoLocal(hojaActual.id, estadoActual);
-}, [productosSurtidosHoja, productosPA, productosParciales, hojaActual]);
-
+      guardarEstadoLocal(hojaActual.id, estadoActual);
+    }, [productosSurtidosHoja, productosPA, productosParciales, hojaActual]);
 
     // Cargar hojas del pedido
     useEffect(() => {
@@ -13232,160 +13572,164 @@ useEffect(() => {
     }, [pedidoSurtir]);
 
     const seleccionarHoja = async (hoja: any) => {
-  if (hoja.estado === "completado") {
-    setModalAlerta({
-      visible: true,
-      titulo: "Hoja Completada",
-      mensaje: "Esta hoja ya fue surtida completamente.",
-      tipo: "warning",
-    });
-    return;
-  }
-
-  if (
-    hoja.estado === "surtiendo" &&
-    hoja.empleado_surtiendo !== cuenta?.numero_cuenta
-  ) {
-    setModalAlerta({
-      visible: true,
-      titulo: "Hoja en Uso",
-      mensaje: `Esta hoja está siendo surtida por ${hoja.empleado_surtiendo}`,
-      tipo: "warning",
-    });
-    return;
-  }
-
-  // Marcar hoja como "surtiendo"
-  await supabase
-    .from("hojas_surtido")
-    .update({
-      estado: "surtiendo",
-      empleado_surtiendo: cuenta?.numero_cuenta,
-      fecha_inicio: new Date().toISOString(),
-    })
-    .eq("id", hoja.id);
-  
-  setHojaActual(hoja);
-
-  // Cargar estado guardado si existe
-  const estadoGuardado = cargarEstadoLocal(hoja.id);
-  if (estadoGuardado) {
-    setProductosSurtidosHoja(new Map(estadoGuardado.productosSurtidos || []));
-    setProductosPA(new Set(estadoGuardado.productosPA || []));
-    setProductosParciales(new Map(estadoGuardado.productosParciales || []));
-     setProductosIngresoManual(new Set(estadoGuardado.productosIngresoManual || []));
-  } else {
-    setProductosSurtidosHoja(new Map());
-    setProductosPA(new Set());
-    setProductosParciales(new Map());
-  }
-};
-
-    const volverAHojas = async () => {
-  if (hojaActual && hojaActual.estado !== "completado") {
-    // descomentar para borrar progreso al salir
-    // limpiarEstadoLocal(hojaActual.id);
-    
-    await supabase
-      .from("hojas_surtido")
-      .update({
-        estado: "pendiente",
-        empleado_surtiendo: null,
-      })
-      .eq("id", hojaActual.id);
-  }
-  setHojaActual(null);
-  setProductosSurtidosHoja(new Map());
-  setProductosPA(new Set());
-  setProductosParciales(new Map());
-};
-
-    const completarHoja = async () => {
-  if (!hojaActual) return;
-
-  setGuardandoCierre(true);
-  try {
-    // Preparar productos para guardar
-    const productosParaGuardar = hojaActual.productos.map((item: any) => {
-      const esPA = productosPA.has(item.producto_id);
-      const esParcial = productosParciales.has(item.producto_id);
-      const parcialInfo = productosParciales.get(item.producto_id);
-      const cantidadSurtida = productosSurtidosHoja.get(item.producto_id) || 0;
-      const esIngresoManual = productosIngresoManual.has(item.producto_id);
-
-      let estadoFinal = "completo";
-      let cantidadFinal = cantidadSurtida;
-
-      if (esPA) {
-        estadoFinal = "PA";
-        cantidadFinal = 0;
-      } else if (esParcial) {
-        estadoFinal = "parcial";
-        cantidadFinal = parcialInfo!.encontrada;
-      } else if (cantidadSurtida === item.cantidad_pedida) {
-        estadoFinal = "completo";
+      if (hoja.estado === "completado") {
+        setModalAlerta({
+          visible: true,
+          titulo: "Hoja Completada",
+          mensaje: "Esta hoja ya fue surtida completamente.",
+          tipo: "warning",
+        });
+        return;
       }
 
-      return {
-        codigo: item.CODIGO,
-        cantidad_pedida: item.cantidad_pedida,
-        cantidad_surtida: cantidadFinal,
-        estado: estadoFinal,
-        ingreso_manual: esIngresoManual,
-      };
-    });
+      if (
+        hoja.estado === "surtiendo" &&
+        hoja.empleado_surtiendo !== cuenta?.numero_cuenta
+      ) {
+        setModalAlerta({
+          visible: true,
+          titulo: "Hoja en Uso",
+          mensaje: `Esta hoja está siendo surtida por ${hoja.empleado_surtiendo}`,
+          tipo: "warning",
+        });
+        return;
+      }
 
-    await supabase
-      .from("hojas_surtido")
-      .update({
-        estado: "completado",
-        fecha_completado: new Date().toISOString(),
-        productos_asignados: JSON.stringify(productosParaGuardar),
-      })
-      .eq("id", hojaActual.id);
-
-    // ACTUALIZAR EL ESTADO LOCAL DE HOJAS
-    setHojasPedido(prevHojas => 
-      prevHojas.map(hoja => 
-        hoja.id === hojaActual.id 
-          ? { ...hoja, estado: "completado" }
-          : hoja
-      )
-    );
-
-    // Verificar si todas las hojas están completas
-    const { data: todasHojas } = await supabase
-      .from("hojas_surtido")
-      .select("estado")
-      .eq("pedido_id", pedidoSurtir.id);
-
-    const todasCompletas = todasHojas?.every(
-      (h) => h.estado === "completado",
-    );
-
-    if (todasCompletas) {
+      // Marcar hoja como "surtiendo"
       await supabase
-        .from("pedidos")
-        .update({ estado: "por_revisar" })
-        .eq("id", pedidoSurtir.id);
-    }
+        .from("hojas_surtido")
+        .update({
+          estado: "surtiendo",
+          empleado_surtiendo: cuenta?.numero_cuenta,
+          fecha_inicio: new Date().toISOString(),
+        })
+        .eq("id", hoja.id);
 
-    setMostrarModalCompletado(false);
-    setHojaActual(null);
-    setProductosSurtidosHoja(new Map());
-    setProductosPA(new Set());
-    setProductosParciales(new Map());
-    setProductosIngresoManual(new Set());
-    
-    // Limpiar estado local guardado
-    limpiarEstadoLocal(hojaActual.id);
-    
-  } catch (err) {
-    console.error("Error al completar hoja:", err);
-  } finally {
-    setGuardandoCierre(false);
-  }
-};
+      setHojaActual(hoja);
+
+      // Cargar estado guardado si existe
+      const estadoGuardado = cargarEstadoLocal(hoja.id);
+      if (estadoGuardado) {
+        setProductosSurtidosHoja(
+          new Map(estadoGuardado.productosSurtidos || []),
+        );
+        setProductosPA(new Set(estadoGuardado.productosPA || []));
+        setProductosParciales(new Map(estadoGuardado.productosParciales || []));
+        setProductosIngresoManual(
+          new Set(estadoGuardado.productosIngresoManual || []),
+        );
+      } else {
+        setProductosSurtidosHoja(new Map());
+        setProductosPA(new Set());
+        setProductosParciales(new Map());
+      }
+    };
+
+    const volverAHojas = async () => {
+      if (hojaActual && hojaActual.estado !== "completado") {
+        // descomentar para borrar progreso al salir
+        // limpiarEstadoLocal(hojaActual.id);
+
+        await supabase
+          .from("hojas_surtido")
+          .update({
+            estado: "pendiente",
+            empleado_surtiendo: null,
+          })
+          .eq("id", hojaActual.id);
+      }
+      setHojaActual(null);
+      setProductosSurtidosHoja(new Map());
+      setProductosPA(new Set());
+      setProductosParciales(new Map());
+    };
+
+    const completarHoja = async () => {
+      if (!hojaActual) return;
+
+      setGuardandoCierre(true);
+      try {
+        // Preparar productos para guardar
+        const productosParaGuardar = hojaActual.productos.map((item: any) => {
+          const esPA = productosPA.has(item.producto_id);
+          const esParcial = productosParciales.has(item.producto_id);
+          const parcialInfo = productosParciales.get(item.producto_id);
+          const cantidadSurtida =
+            productosSurtidosHoja.get(item.producto_id) || 0;
+          const esIngresoManual = productosIngresoManual.has(item.producto_id);
+
+          let estadoFinal = "completo";
+          let cantidadFinal = cantidadSurtida;
+
+          if (esPA) {
+            estadoFinal = "PA";
+            cantidadFinal = 0;
+          } else if (esParcial) {
+            estadoFinal = "parcial";
+            cantidadFinal = parcialInfo!.encontrada;
+          } else if (cantidadSurtida === item.cantidad_pedida) {
+            estadoFinal = "completo";
+          }
+
+          return {
+            codigo: item.CODIGO,
+            cantidad_pedida: item.cantidad_pedida,
+            cantidad_surtida: cantidadFinal,
+            estado: estadoFinal,
+            ingreso_manual: esIngresoManual,
+          };
+        });
+
+        await supabase
+          .from("hojas_surtido")
+          .update({
+            estado: "completado",
+            fecha_completado: new Date().toISOString(),
+            productos_asignados: JSON.stringify(productosParaGuardar),
+          })
+          .eq("id", hojaActual.id);
+
+        // ACTUALIZAR EL ESTADO LOCAL DE HOJAS
+        setHojasPedido((prevHojas) =>
+          prevHojas.map((hoja) =>
+            hoja.id === hojaActual.id
+              ? { ...hoja, estado: "completado" }
+              : hoja,
+          ),
+        );
+
+        // Verificar si todas las hojas están completas
+        const { data: todasHojas } = await supabase
+          .from("hojas_surtido")
+          .select("estado")
+          .eq("pedido_id", pedidoSurtir.id);
+
+        const todasCompletas = todasHojas?.every(
+          (h) => h.estado === "completado",
+        );
+
+        if (todasCompletas) {
+          await supabase
+            .from("pedidos")
+            .update({ estado: "por_revisar" })
+            .eq("id", pedidoSurtir.id);
+        }
+
+        setMostrarModalCompletado(false);
+        setHojaActual(null);
+        setProductosSurtidosHoja(new Map());
+        setProductosPA(new Set());
+        setProductosParciales(new Map());
+        setProductosIngresoManual(new Set());
+
+        // Limpiar estado local guardado
+        limpiarEstadoLocal(hojaActual.id);
+      } catch (err) {
+        console.error("Error al completar hoja:", err);
+      } finally {
+        setGuardandoCierre(false);
+      }
+    };
 
     // Lógica del escáner
     useEffect(() => {
@@ -13422,80 +13766,82 @@ useEffect(() => {
       mostrarModalCompletado,
     ]);
 
-   const procesarEscaneo = (codigoEscaneado: string) => {
-  if (!hojaActual) return;
+    const procesarEscaneo = (codigoEscaneado: string) => {
+      if (!hojaActual) return;
 
-  setUltimoEscaneo(codigoEscaneado);
+      setUltimoEscaneo(codigoEscaneado);
 
-  const itemEncontrado = hojaActual.productos.find(
-    (item: any) =>
-      item.CODIGO === codigoEscaneado || item.C_PRODUCTO === codigoEscaneado
-  );
+      const itemEncontrado = hojaActual.productos.find(
+        (item: any) =>
+          item.CODIGO === codigoEscaneado ||
+          item.C_PRODUCTO === codigoEscaneado,
+      );
 
-  if (!itemEncontrado) {
-    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-    setModalAlerta({
-      visible: true,
-      titulo: "Producto Incorrecto",
-      mensaje: `El código "${codigoEscaneado}" no pertenece a esta hoja.`,
-      tipo: "error",
-    });
-    return;
-  }
+      if (!itemEncontrado) {
+        if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+        setModalAlerta({
+          visible: true,
+          titulo: "Producto Incorrecto",
+          mensaje: `El código "${codigoEscaneado}" no pertenece a esta hoja.`,
+          tipo: "error",
+        });
+        return;
+      }
 
-  const cantidadSurtida = productosSurtidosHoja.get(itemEncontrado.producto_id) || 0;
-  const esPA = productosPA.has(itemEncontrado.producto_id);
-  const esParcial = productosParciales.has(itemEncontrado.producto_id);
-  const parcialInfo = productosParciales.get(itemEncontrado.producto_id);
+      const cantidadSurtida =
+        productosSurtidosHoja.get(itemEncontrado.producto_id) || 0;
+      const esPA = productosPA.has(itemEncontrado.producto_id);
+      const esParcial = productosParciales.has(itemEncontrado.producto_id);
+      const parcialInfo = productosParciales.get(itemEncontrado.producto_id);
 
-  // Determinar cantidad máxima
-  const cantidadMaxima = esPA
-    ? 0
-    : esParcial
-    ? parcialInfo!.encontrada
-    : itemEncontrado.cantidad;
+      // Determinar cantidad máxima
+      const cantidadMaxima = esPA
+        ? 0
+        : esParcial
+          ? parcialInfo!.encontrada
+          : itemEncontrado.cantidad;
 
-  if (cantidadSurtida >= cantidadMaxima) {
-    if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+      if (cantidadSurtida >= cantidadMaxima) {
+        if ("vibrate" in navigator) navigator.vibrate([100, 100]);
 
-    let mensaje = `El producto "${itemEncontrado.TITULO}" ya tiene la cantidad completa.`;
-    if (esParcial) {
-      mensaje = `El producto "${itemEncontrado.TITULO}" ya alcanzó la cantidad parcial (${parcialInfo!.encontrada}/${parcialInfo!.pedida}).`;
-    } else if (esPA) {
-      mensaje = `El producto "${itemEncontrado.TITULO}" está marcado como PA (agotado).`;
-    }
+        let mensaje = `El producto "${itemEncontrado.TITULO}" ya tiene la cantidad completa.`;
+        if (esParcial) {
+          mensaje = `El producto "${itemEncontrado.TITULO}" ya alcanzó la cantidad parcial (${parcialInfo!.encontrada}/${parcialInfo!.pedida}).`;
+        } else if (esPA) {
+          mensaje = `El producto "${itemEncontrado.TITULO}" está marcado como PA (agotado).`;
+        }
 
-    setModalAlerta({
-      visible: true,
-      titulo: "Producto Completo",
-      mensaje,
-      tipo: "warning",
-    });
-    return;
-  }
+        setModalAlerta({
+          visible: true,
+          titulo: "Producto Completo",
+          mensaje,
+          tipo: "warning",
+        });
+        return;
+      }
 
-  const nuevaCantidad = cantidadSurtida + 1;
-  const nuevoMapa = new Map(productosSurtidosHoja);
-  nuevoMapa.set(itemEncontrado.producto_id, nuevaCantidad);
-  setProductosSurtidosHoja(nuevoMapa);
+      const nuevaCantidad = cantidadSurtida + 1;
+      const nuevoMapa = new Map(productosSurtidosHoja);
+      nuevoMapa.set(itemEncontrado.producto_id, nuevaCantidad);
+      setProductosSurtidosHoja(nuevoMapa);
 
-  // Activamos el modal visualmente
-  setModalProductoActivo({
-    visible: true,
-    producto: itemEncontrado,
-    cantidadActual: nuevaCantidad,
-    cantidadObjetivo: cantidadMaxima,
-  });
+      // Activamos el modal visualmente
+      setModalProductoActivo({
+        visible: true,
+        producto: itemEncontrado,
+        cantidadActual: nuevaCantidad,
+        cantidadObjetivo: cantidadMaxima,
+      });
 
-  // Auto-cerrar el modal si se completa la cantidad
-  if (nuevaCantidad >= cantidadMaxima) {
-    setTimeout(() => {
-      setModalProductoActivo(null);
-    }, 1500);
-  }
+      // Auto-cerrar el modal si se completa la cantidad
+      if (nuevaCantidad >= cantidadMaxima) {
+        setTimeout(() => {
+          setModalProductoActivo(null);
+        }, 1500);
+      }
 
-  if ("vibrate" in navigator) navigator.vibrate(50);
-};
+      if ("vibrate" in navigator) navigator.vibrate(50);
+    };
 
     // Calcular progreso
     const totalProductosHoja = hojaActual
@@ -13648,8 +13994,6 @@ useEffect(() => {
               );
             })}
           </div>
-
-          
         </motion.div>
       );
     }
@@ -13755,19 +14099,15 @@ useEffect(() => {
                 }}
                 className="border-2 rounded-xl p-3 shadow-sm transition-colors duration-300"
                 onClick={() => {
-  const esPA = productosPA.has(item.producto_id);
-  const esParcial = productosParciales.has(item.producto_id);
-  if (!completado || esPA || esParcial) {
-    setModalProductoProblema({ visible: true, producto: item });
-  }
-}}
+                  setModalProductoProblema({ visible: true, producto: item });
+                }}
               >
                 <p className="text-sm font-semibold text-zinc-800 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">
-                      {item.CODIGO}
-                    </p>
+                  {item.CODIGO}
+                </p>
                 <p className="text-sm font-semibold text-zinc-800 mb-2 line-clamp-3 leading-tight">
-                      {item.TITULO}
-                    </p>
+                  {item.TITULO}
+                </p>
                 <div className="flex items-center gap-3">
                   <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
                     <Image
@@ -13793,21 +14133,23 @@ useEffect(() => {
                     )}
 
                     {esParcial && parcialInfo && (
-  <div className="mt-2 flex gap-2 items-center flex-wrap">
-    <div className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
-      PARCIAL: {parcialInfo.encontrada}/{parcialInfo.pedida}
-    </div>
-  </div>
-)}
+                      <div className="mt-2 flex gap-2 items-center flex-wrap">
+                        <div className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+                          PARCIAL: {parcialInfo.encontrada}/{parcialInfo.pedida}
+                        </div>
+                      </div>
+                    )}
 
-{/* Mostrar ingreso manual para productos completos también */}
-{!esPA && !esParcial && productosIngresoManual.has(item.producto_id) && (
-  <div className="mt-2">
-    <div className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
-      INGRESO MANUAL
-    </div>
-  </div>
-)}
+                    {/* Mostrar ingreso manual para productos completos también */}
+                    {!esPA &&
+                      !esParcial &&
+                      productosIngresoManual.has(item.producto_id) && (
+                        <div className="mt-2">
+                          <div className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+                            INGRESO MANUAL
+                          </div>
+                        </div>
+                      )}
 
                     {!esPA && !esParcial && (
                       <div className="flex items-center gap-2 mt-2">
@@ -13994,117 +14336,154 @@ useEffect(() => {
                       {modalProductoProblema.producto?.cantidad}
                     </p>
 
-                   {/* Opción PA */}
-<button
-  onClick={() => {
-    const producto = modalProductoProblema.producto;
-    const nuevosPA = new Set(productosPA);
-    
-    // Toggle: si ya está en PA, quitarlo
-    if (nuevosPA.has(producto.producto_id)) {
-      nuevosPA.delete(producto.producto_id);
-      
-      // Resetear cantidad a 0
-      const nuevoMapa = new Map(productosSurtidosHoja);
-      nuevoMapa.set(producto.producto_id, 0);
-      setProductosSurtidosHoja(nuevoMapa);
-    } else {
-      // Agregarlo a PA
-      nuevosPA.add(producto.producto_id);
-      
-      // Marcar cantidad como completa
-      const nuevoMapa = new Map(productosSurtidosHoja);
-      nuevoMapa.set(producto.producto_id, producto.cantidad);
-      setProductosSurtidosHoja(nuevoMapa);
-    }
-    
-    setProductosPA(nuevosPA);
-    setModalProductoProblema(null);
-    if ("vibrate" in navigator) navigator.vibrate(50);
-  }}
-  className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg active:scale-95 transition-transform mb-3 ${
-    productosPA.has(modalProductoProblema.producto?.producto_id)
-      ? "bg-red-500 hover:bg-red-600"
-      : "bg-yellow-500 hover:bg-yellow-600"
-  }`}
->
-  {productosPA.has(modalProductoProblema.producto?.producto_id)
-    ? "QUITAR PA"
-    : "PA - Producto Agotado"}
-</button>
+                    {/* Opción PA */}
+                    <button
+                      onClick={() => {
+                        const producto = modalProductoProblema.producto;
+                        const nuevosPA = new Set(productosPA);
+                        const nuevosIngresoManual = new Set(
+                          productosIngresoManual,
+                        );
 
-                 {/* Opción Parcial */}
-<div className="mb-3">
-  <input
-    type="number"
-    min="1"
-    max={modalProductoProblema.producto?.cantidad}
-    value={cantidadParcialInput}
-    onChange={(e) => setCantidadParcialInput(e.target.value)}
-    placeholder="Cantidad encontrada"
-    className="w-full border-2 text-zinc-600 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-4 focus:ring-2 focus:ring-orange-500 outline-none"
-  />
+                        // Toggle: si ya está en PA, quitarlo
+                        if (nuevosPA.has(producto.producto_id)) {
+                          nuevosPA.delete(producto.producto_id);
 
-  {/* Botones */}
-  <div className="flex gap-3">
-    {/* Cancelar */}
-    <button
-      onClick={() => {
-        setModalProductoProblema(null);
-        setCantidadParcialInput("");
-      }}
-      className="flex-1 py-4 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
-    >
-      Cancelar
-    </button>
+                          // QUITAR TAMBIÉN DE INGRESO MANUAL
+                          nuevosIngresoManual.delete(producto.producto_id);
 
-    {/* Parcial */}
-    <button
-      onClick={() => {
-        const cantidad = parseInt(cantidadParcialInput);
-        const producto = modalProductoProblema.producto;
+                          // QUITAR DE PARCIALES SI ESTABA
+                          const nuevosParciales = new Map(productosParciales);
+                          nuevosParciales.delete(producto.producto_id);
+                          setProductosParciales(nuevosParciales);
 
-        if (!cantidad || cantidad > producto.cantidad || cantidad < 1) {
-          alert(
-            "Ingresa una cantidad válida entre 1 y " + producto.cantidad
-          );
-          return;
-        }
+                          // Resetear cantidad a 0
+                          const nuevoMapa = new Map(productosSurtidosHoja);
+                          nuevoMapa.set(producto.producto_id, 0);
+                          setProductosSurtidosHoja(nuevoMapa);
+                        } else {
+                          // Agregarlo a PA
+                          nuevosPA.add(producto.producto_id);
 
-        const nuevoEstado =
-          cantidad === producto.cantidad ? "completo" : "parcial";
-        const nuevosParciales = new Map(productosParciales);
+                          // QUITAR DE INGRESO MANUAL cuando se marca como PA
+                          nuevosIngresoManual.delete(producto.producto_id);
 
-        const nuevosIngresoManual = new Set(productosIngresoManual);
-        nuevosIngresoManual.add(producto.producto_id);
-        setProductosIngresoManual(nuevosIngresoManual);
+                          // QUITAR DE PARCIALES cuando se marca como PA
+                          const nuevosParciales = new Map(productosParciales);
+                          nuevosParciales.delete(producto.producto_id);
+                          setProductosParciales(nuevosParciales);
 
-        if (nuevoEstado === "parcial") {
-          nuevosParciales.set(producto.producto_id, {
-            pedida: producto.cantidad,
-            encontrada: cantidad,
-          });
-        } else {
-          nuevosParciales.delete(producto.producto_id);
-        }
-        setProductosParciales(nuevosParciales);
+                          // Marcar cantidad como completa
+                          const nuevoMapa = new Map(productosSurtidosHoja);
+                          nuevoMapa.set(
+                            producto.producto_id,
+                            producto.cantidad,
+                          );
+                          setProductosSurtidosHoja(nuevoMapa);
+                        }
 
-        const nuevoMapa = new Map(productosSurtidosHoja);
-        nuevoMapa.set(producto.producto_id, cantidad);
-        setProductosSurtidosHoja(nuevoMapa);
+                        setProductosPA(nuevosPA);
+                        setProductosIngresoManual(nuevosIngresoManual);
+                        setModalProductoProblema(null);
+                        if ("vibrate" in navigator) navigator.vibrate(50);
+                      }}
+                      className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg active:scale-95 transition-transform mb-3 ${
+                        productosPA.has(
+                          modalProductoProblema.producto?.producto_id,
+                        )
+                          ? "bg-red-500 hover:bg-red-600"
+                          : "bg-yellow-500 hover:bg-yellow-600"
+                      }`}
+                    >
+                      {productosPA.has(
+                        modalProductoProblema.producto?.producto_id,
+                      )
+                        ? "QUITAR PA"
+                        : "PA - Producto Agotado"}
+                    </button>
 
-        setModalProductoProblema(null);
-        setCantidadParcialInput("");
-        if ("vibrate" in navigator) navigator.vibrate(50);
-      }}
-      disabled={!cantidadParcialInput}
-      className="flex-1 py-4 rounded-xl bg-orange-500 text-white font-bold text-lg shadow-lg hover:bg-orange-600 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      Aplicar
-    </button>
-  </div>
-</div>
+                    {/* Opción Parcial */}
+                    <div className="mb-3">
+                      <input
+                        type="number"
+                        min="1"
+                        max={modalProductoProblema.producto?.cantidad}
+                        value={cantidadParcialInput}
+                        onChange={(e) =>
+                          setCantidadParcialInput(e.target.value)
+                        }
+                        placeholder="Cantidad encontrada"
+                        className="w-full border-2 text-zinc-600 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-4 focus:ring-2 focus:ring-orange-500 outline-none"
+                      />
 
+                      {/* Botones */}
+                      <div className="flex gap-3">
+                        {/* Cancelar */}
+                        <button
+                          onClick={() => {
+                            setModalProductoProblema(null);
+                            setCantidadParcialInput("");
+                          }}
+                          className="flex-1 py-4 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+                        >
+                          Cancelar
+                        </button>
+
+                        {/* Parcial */}
+                        <button
+                          onClick={() => {
+                            const cantidad = parseInt(cantidadParcialInput);
+                            const producto = modalProductoProblema.producto;
+
+                            if (
+                              !cantidad ||
+                              cantidad > producto.cantidad ||
+                              cantidad < 1
+                            ) {
+                              alert(
+                                "Ingresa una cantidad válida entre 1 y " +
+                                  producto.cantidad,
+                              );
+                              return;
+                            }
+
+                            const nuevoEstado =
+                              cantidad === producto.cantidad
+                                ? "completo"
+                                : "parcial";
+                            const nuevosParciales = new Map(productosParciales);
+
+                            const nuevosIngresoManual = new Set(
+                              productosIngresoManual,
+                            );
+                            nuevosIngresoManual.add(producto.producto_id);
+                            setProductosIngresoManual(nuevosIngresoManual);
+
+                            if (nuevoEstado === "parcial") {
+                              nuevosParciales.set(producto.producto_id, {
+                                pedida: producto.cantidad,
+                                encontrada: cantidad,
+                              });
+                            } else {
+                              nuevosParciales.delete(producto.producto_id);
+                            }
+                            setProductosParciales(nuevosParciales);
+
+                            const nuevoMapa = new Map(productosSurtidosHoja);
+                            nuevoMapa.set(producto.producto_id, cantidad);
+                            setProductosSurtidosHoja(nuevoMapa);
+
+                            setModalProductoProblema(null);
+                            setCantidadParcialInput("");
+                            if ("vibrate" in navigator) navigator.vibrate(50);
+                          }}
+                          disabled={!cantidadParcialInput}
+                          className="flex-1 py-4 rounded-xl bg-orange-500 text-white font-bold text-lg shadow-lg hover:bg-orange-600 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Aplicar
+                        </button>
+                      </div>
+                    </div>
                   </motion.div>
                 </motion.div>
               )}
@@ -14182,130 +14561,184 @@ useEffect(() => {
             document.body,
           )}
 
-          {/* Modal de Producto Activo */}
-{typeof document !== "undefined" &&
-  createPortal(
-    <AnimatePresence>
-      {modalProductoActivo && modalProductoActivo.visible && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setModalProductoActivo(null)}
-          className="fixed inset-0 bg-black/90 z-[60000] flex items-center justify-center p-4"
-          style={{ zIndex: 60000 }}
-        >
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl relative"
-          >
-            {/* Botón cerrar */}
-            <button
-              onClick={() => setModalProductoActivo(null)}
-              className="absolute top-4 right-4 w-10 h-10 bg-zinc-100 hover:bg-zinc-200 rounded-full flex items-center justify-center transition"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2.5}
-                stroke="currentColor"
-                className="w-5 h-5 text-zinc-600"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
+        {/* Modal de Producto Activo */}
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {modalProductoActivo && modalProductoActivo.visible && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setModalProductoActivo(null)}
+                  className="fixed inset-0 bg-black/90 z-[60000] flex items-center justify-center p-4"
+                  style={{ zIndex: 60000 }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl relative"
+                  >
+                    {/* Botón cerrar */}
+                    <button
+                      onClick={() => setModalProductoActivo(null)}
+                      className="absolute top-4 right-4 w-10 h-10 bg-zinc-100 hover:bg-zinc-200 rounded-full flex items-center justify-center transition"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2.5}
+                        stroke="currentColor"
+                        className="w-5 h-5 text-zinc-600"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
 
-            {/* Imagen del producto */}
-            <div className="relative w-48 h-48 mx-auto mb-6 bg-zinc-100 rounded-2xl overflow-hidden">
-              <Image
-                src={
-                  modalProductoActivo.producto?.IMAGEN ||
-                  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
-                }
-                alt={modalProductoActivo.producto?.TITULO}
-                fill
-                className="object-contain p-4"
-              />
-            </div>
+                    {/* Imagen del producto */}
+                    <div className="relative w-48 h-48 mx-auto mb-6 bg-zinc-100 rounded-2xl overflow-hidden">
+                      <Image
+                        src={
+                          modalProductoActivo.producto?.IMAGEN ||
+                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                        }
+                        alt={modalProductoActivo.producto?.TITULO}
+                        fill
+                        className="object-contain p-4"
+                      />
+                    </div>
 
-            {/* Título del producto */}
-            <h3 className="text-xl font-bold text-zinc-900 text-center mb-2 leading-tight">
-              {modalProductoActivo.producto?.TITULO}
-            </h3>
+                    {/* Título del producto */}
+                    <h3 className="text-xl font-bold text-zinc-900 text-center mb-2 leading-tight">
+                      {modalProductoActivo.producto?.TITULO}
+                    </h3>
+
+                    <p className="text-sm text-zinc-500 text-center mb-6 font-mono">
+                      {modalProductoActivo.producto?.CODIGO}
+                    </p>
+
+                    {/* Contador grande */}
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-8 mb-6">
+                      <p className="text-sm text-green-700 font-semibold text-center mb-2">
+                        Cantidad Escaneada
+                      </p>
+                      <div className="flex items-center justify-center gap-4">
+                        <motion.span
+                          key={modalProductoActivo.cantidadActual}
+                          initial={{ scale: 1.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="text-6xl font-black text-green-600"
+                        >
+                          {modalProductoActivo.cantidadActual}
+                        </motion.span>
+                        <span className="text-4xl font-bold text-green-400">
+                          /
+                        </span>
+                        <span className="text-4xl font-bold text-green-700">
+                          {modalProductoActivo.cantidadObjetivo}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Barra de progreso */}
+                    <div className="w-full bg-zinc-200 rounded-full h-4 overflow-hidden mb-4">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{
+                          width: `${(modalProductoActivo.cantidadActual / modalProductoActivo.cantidadObjetivo) * 100}%`,
+                        }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        className="h-full bg-gradient-to-r from-green-500 to-green-600"
+                      />
+                    </div>
+
+                    {/* Estado */}
+{modalProductoActivo.cantidadActual >=
+modalProductoActivo.cantidadObjetivo ? (
+  <div className="flex items-center justify-center gap-2 text-green-600">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      className="w-6 h-6"
+    >
+      <path
+        fillRule="evenodd"
+        d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+        clipRule="evenodd"
+      />
+    </svg>
+    <span className="font-bold text-lg">¡COMPLETADO!</span>
+  </div>
+) : (
+  <div className="space-y-4">
+    <p className="text-center text-zinc-500 font-medium">
+      Continúa escaneando...
+    </p>
+    
+    {/* Botones de acción */}
+    {modalProductoActivo.cantidadActual > 0 && (
+      <>
+        {/* Botón Aplicar Parcial - Solo si hay cantidad escaneada */}
+        <button
+          onClick={() => {
+            const producto = modalProductoActivo.producto;
+            const cantidadEscaneada = modalProductoActivo.cantidadActual;
             
-            <p className="text-sm text-zinc-500 text-center mb-6 font-mono">
-              {modalProductoActivo.producto?.CODIGO}
-            </p>
+            // Marcar como parcial (sin ingreso manual porque fue escaneado)
+            const nuevosParciales = new Map(productosParciales);
+            nuevosParciales.set(producto.producto_id, {
+              pedida: producto.cantidad,
+              encontrada: cantidadEscaneada,
+            });
+            setProductosParciales(nuevosParciales);
+            
+            // Cerrar modal
+            setModalProductoActivo(null);
+            if ("vibrate" in navigator) navigator.vibrate(50);
+          }}
+          className="w-full py-3 rounded-xl bg-orange-500 text-white font-bold text-base shadow-lg hover:bg-orange-600 active:scale-95 transition"
+        >
+          Aplicar como Parcial ({modalProductoActivo.cantidadActual}/{modalProductoActivo.cantidadObjetivo})
+        </button>
 
-            {/* Contador grande */}
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-8 mb-6">
-              <p className="text-sm text-green-700 font-semibold text-center mb-2">
-                Cantidad Escaneada
-              </p>
-              <div className="flex items-center justify-center gap-4">
-                <motion.span
-                  key={modalProductoActivo.cantidadActual}
-                  initial={{ scale: 1.5, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="text-6xl font-black text-green-600"
-                >
-                  {modalProductoActivo.cantidadActual}
-                </motion.span>
-                <span className="text-4xl font-bold text-green-400">/</span>
-                <span className="text-4xl font-bold text-green-700">
-                  {modalProductoActivo.cantidadObjetivo}
-                </span>
-              </div>
-            </div>
-
-            {/* Barra de progreso */}
-            <div className="w-full bg-zinc-200 rounded-full h-4 overflow-hidden mb-4">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{
-                  width: `${(modalProductoActivo.cantidadActual / modalProductoActivo.cantidadObjetivo) * 100}%`,
-                }}
-                transition={{ duration: 0.5, ease: "easeOut" }}
-                className="h-full bg-gradient-to-r from-green-500 to-green-600"
-              />
-            </div>
-
-            {/* Estado */}
-            {modalProductoActivo.cantidadActual >= modalProductoActivo.cantidadObjetivo ? (
-              <div className="flex items-center justify-center gap-2 text-green-600">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="w-6 h-6"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="font-bold text-lg">¡COMPLETADO!</span>
-              </div>
-            ) : (
-              <p className="text-center text-zinc-500 font-medium">
-                Continúa escaneando...
-              </p>
-            )}
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body,
-  )}
+        {/* Botón Ingresar Cantidad Manual - Si es más de 1 */}
+        {modalProductoActivo.cantidadObjetivo > 1 && (
+          <button
+            onClick={() => {
+              const producto = modalProductoActivo.producto;
+              
+              // Cerrar modal de producto activo
+              setModalProductoActivo(null);
+              
+              // Abrir modal de problema con producto (que sirve para ingreso manual)
+              setModalProductoProblema({ visible: true, producto: producto });
+              
+              // Pre-llenar el input con la cantidad escaneada
+              setCantidadParcialInput(modalProductoActivo.cantidadActual.toString());
+            }}
+            className="w-full py-3 rounded-xl bg-blue-500 text-white font-bold text-base shadow-lg hover:bg-blue-600 active:scale-95 transition"
+          >
+            Ingresar Cantidad Manual
+          </button>
+        )}
+      </>
+    )}
+  </div>
+)}
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body,
+          )}
       </motion.div>
     );
   };
@@ -17210,11 +17643,11 @@ useEffect(() => {
                     )}
 
                     {vistaPerfil === "back-orders" && (
-  <VistaBackOrders 
-    cuenta={cuenta} 
-    setVistaPerfil={setVistaPerfil} 
-  />
-)}
+                      <VistaBackOrders
+                        cuenta={cuenta}
+                        setVistaPerfil={setVistaPerfil}
+                      />
+                    )}
 
                     {vistaPerfil === "actualizar-bd" && (
                       <ActualizarBDView setVistaPerfil={setVistaPerfil} />
