@@ -8,6 +8,7 @@ import {
   ShoppingCart,
   Codesandbox,
   MapPin,
+  Truck,
   Hammer,
   ListOrdered,
   X,
@@ -10424,22 +10425,52 @@ const VistaBackOrders = ({ cuenta, setVistaPerfil }: any) => {
   );
 };
 
-  const VistaRutas = ({ setVistaPerfil }: any) => {
-    const [pedidosPorRuta, setPedidosPorRuta] = useState<{
-      [key: string]: any[];
-    }>({});
-    const [cargando, setCargando] = useState(true);
-    const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
-    const [detallesEmpaque, setDetallesEmpaque] = useState<any>(null);
-    const [rutaExpandida, setRutaExpandida] = useState<string | null>(null);
-    const [actualizacionReciente, setActualizacionReciente] = useState(false);
-    const pedidoSeleccionadoRef = useRef<any>(null);
 
-    const cargarPedidosRuta = async () => {
-      const { data, error } = await supabase
-        .from("pedidos")
-        .select(
-          `
+const VistaRutas = ({ setVistaPerfil }: any) => {
+  const [pedidosPorRuta, setPedidosPorRuta] = useState<{
+    [key: string]: any[];
+  }>({});
+  const [cargando, setCargando] = useState(true);
+  const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
+  const [detallesEmpaque, setDetallesEmpaque] = useState<any>(null);
+  const [rutaExpandida, setRutaExpandida] = useState<string | null>(null);
+  const [actualizacionReciente, setActualizacionReciente] = useState(false);
+  const pedidoSeleccionadoRef = useRef<any>(null);
+  
+  // Estados para escaneo de códigos
+  const [codigosEtiquetas, setCodigosEtiquetas] = useState<any[]>([]);
+  const [bufferEscaneo, setBufferEscaneo] = useState("");
+  const [ultimoCodigo, setUltimoEscaneo] = useState("");
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [mostrarModalEscaneado, setMostrarModalEscaneado] = useState(false);
+  const [codigoEscaneadoActual, setCodigoEscaneadoActual] = useState<any>(null);
+
+const obtenerNombreEtiqueta = (tipo: string, numero: number) => {
+  const nombres: { [key: string]: string } = {
+    'c': 'Caja',
+    'a': 'Atado',
+    'b': 'Bolsa',
+    't': 'Tubo',
+    'r': 'Rollo',
+    'g': 'Galón',
+    'cub': 'Cubeta',
+    'l': 'Losalit',
+    'p': 'Porrón',
+    'pza': 'Pieza',
+    'cil': 'Cilindro'
+  };
+  
+  const tipoLower = tipo.toLowerCase();
+  const nombre = nombres[tipoLower] || tipo;
+  
+  return `${nombre} ${numero}`;
+};
+
+  const cargarPedidosRuta = async () => {
+    const { data, error } = await supabase
+      .from("pedidos")
+      .select(
+        `
         id,
         total,
         created_at,
@@ -10454,153 +10485,387 @@ const VistaBackOrders = ({ cuenta, setVistaPerfil }: any) => {
           numero_tel,
           direccion,
           ruta,
-           latitud,
-      longitud
-          
+          latitud,
+          longitud
         )
       `,
-        )
+      )
+      .in("estado", ["encajado", "en_ruta"])
+      .order("created_at", { ascending: false });
 
-        .in("estado", ["encajado", "en_ruta"])
-        .order("created_at", { ascending: false });
+    if (!error && data) {
+      const agrupados = data.reduce((acc: any, pedido: any) => {
+        const ruta = pedido.cuentas?.ruta || "Sin ruta asignada";
+        if (!acc[ruta]) acc[ruta] = [];
+        acc[ruta].push(pedido);
+        return acc;
+      }, {});
 
-      if (!error && data) {
-        const agrupados = data.reduce((acc: any, pedido: any) => {
-          const ruta = pedido.cuentas?.ruta || "Sin ruta asignada";
-          if (!acc[ruta]) acc[ruta] = [];
-          acc[ruta].push(pedido);
-          return acc;
-        }, {});
+      setPedidosPorRuta(agrupados);
+      setActualizacionReciente(true);
+      setTimeout(() => setActualizacionReciente(false), 2000);
+    }
+    setCargando(false);
+  };
 
-        setPedidosPorRuta(agrupados);
-        setActualizacionReciente(true);
-        setTimeout(() => setActualizacionReciente(false), 2000);
+  const actualizarEstadoLocal = (nuevoEstado: string) => {
+    setPedidoSeleccionado((prev: any) =>
+      prev ? { ...prev, estado: nuevoEstado } : null,
+    );
+
+    setPedidosPorRuta((prevMap) => {
+      const nuevoMap = { ...prevMap };
+      Object.keys(nuevoMap).forEach((ruta) => {
+        nuevoMap[ruta] = nuevoMap[ruta].map((p) =>
+          p.id === pedidoSeleccionado?.id ? { ...p, estado: nuevoEstado } : p,
+        );
+      });
+      return nuevoMap;
+    });
+  };
+
+  useEffect(() => {
+    cargarPedidosRuta();
+
+    const channel = supabase
+      .channel("rutas-realtime-v3")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "pedidos" },
+        (payload) => {
+          console.log("Cambio en rutas:", payload);
+          cargarPedidosRuta();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const cargarDetallesEmpaque = async (pedidoId: number) => {
+    const { data } = await supabase
+      .from("detalles_empaque")
+      .select("*")
+      .eq("pedido_id", pedidoId)
+      .single();
+    setDetallesEmpaque(data || { detalles_empacado: "", observaciones: "" });
+  };
+
+  const cargarCodigosEtiquetas = async (pedidoId: number) => {
+    const { data } = await supabase
+      .from("codigos_etiquetas")
+      .select("*")
+      .eq("pedido_id", pedidoId)
+      .order("tipo", { ascending: true })
+      .order("numero", { ascending: true });
+    
+    setCodigosEtiquetas(data || []);
+  };
+
+  const verDetallePedido = async (pedido: any) => {
+    setPedidoSeleccionado(pedido);
+    pedidoSeleccionadoRef.current = pedido;
+    if (pedido.estado === "encajado") {
+      await cargarDetallesEmpaque(pedido.id);
+      await cargarCodigosEtiquetas(pedido.id);
+    }
+  };
+
+  // Lógica de escaneo de códigos
+  useEffect(() => {
+    if (!pedidoSeleccionado || pedidoSeleccionado.estado !== "encajado") return;
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        if (bufferEscaneo.trim()) {
+          procesarEscaneoCodigo(bufferEscaneo.trim());
+          setBufferEscaneo("");
+        }
+        return;
       }
-      setCargando(false);
+      setBufferEscaneo((prev) => prev + e.key);
+
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        if (bufferEscaneo.trim()) {
+          procesarEscaneoCodigo(bufferEscaneo.trim());
+          setBufferEscaneo("");
+        }
+      }, 100);
     };
 
-    const actualizarEstadoLocal = (nuevoEstado: string) => {
-      setPedidoSeleccionado((prev: any) =>
-        prev ? { ...prev, estado: nuevoEstado } : null,
+    window.addEventListener("keypress", handleKeyPress);
+    return () => {
+      window.removeEventListener("keypress", handleKeyPress);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [bufferEscaneo, pedidoSeleccionado, codigosEtiquetas]);
+
+  const procesarEscaneoCodigo = async (codigoEscaneado: string) => {
+    setUltimoEscaneo(codigoEscaneado);
+
+    const codigoEncontrado = codigosEtiquetas.find(
+      (c: any) => c.codigo === codigoEscaneado && !c.escaneado
+    );
+
+    if (!codigoEncontrado) {
+      if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+      alert(`Código ${codigoEscaneado} no encontrado o ya fue escaneado`);
+      return;
+    }
+
+    // Marcar como escaneado en la base de datos
+    const { error } = await supabase
+      .from("codigos_etiquetas")
+      .update({ 
+        escaneado: true,
+        fecha_escaneo: new Date().toISOString()
+      })
+      .eq("id", codigoEncontrado.id);
+
+    if (!error) {
+      // Actualizar localmente
+      setCodigosEtiquetas(prev => 
+        prev.map(c => c.id === codigoEncontrado.id ? { ...c, escaneado: true } : c)
       );
 
-      setPedidosPorRuta((prevMap) => {
-        const nuevoMap = { ...prevMap };
-        Object.keys(nuevoMap).forEach((ruta) => {
-          nuevoMap[ruta] = nuevoMap[ruta].map((p) =>
-            p.id === pedidoSeleccionado?.id ? { ...p, estado: nuevoEstado } : p,
-          );
-        });
-        return nuevoMap;
-      });
-    };
+      // Mostrar modal de confirmación
+      setCodigoEscaneadoActual(codigoEncontrado);
+      setMostrarModalEscaneado(true);
+      
+      if ("vibrate" in navigator) navigator.vibrate(50);
 
-    useEffect(() => {
-      cargarPedidosRuta();
+      // Auto-cerrar modal
+      setTimeout(() => {
+        setMostrarModalEscaneado(false);
+        setCodigoEscaneadoActual(null);
+      }, 1500);
+    }
+  };
 
-      const channel = supabase
-        .channel("rutas-realtime-v3")
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "pedidos" },
-          (payload) => {
-            console.log("Cambio en rutas:", payload);
-            cargarPedidosRuta();
-          },
-        )
-        .subscribe();
+  const verificarTodosCodigosEscaneados = () => {
+    if (codigosEtiquetas.length === 0) return false;
+    return codigosEtiquetas.every((c: any) => c.escaneado);
+  };
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }, []);
+  const todosCodigosEscaneados = verificarTodosCodigosEscaneados();
 
-    const cargarDetallesEmpaque = async (pedidoId: number) => {
+  // Función para verificar si todos los pedidos de una ruta están listos
+  const verificarPedidosListosRuta = async (ruta: string) => {
+    const pedidosRuta = pedidosPorRuta[ruta] || [];
+    
+    for (const pedido of pedidosRuta) {
       const { data } = await supabase
-        .from("detalles_empaque")
+        .from("codigos_etiquetas")
         .select("*")
-        .eq("pedido_id", pedidoId)
-        .single();
-      setDetallesEmpaque(data || { detalles_empacado: "", observaciones: "" });
-    };
+        .eq("pedido_id", pedido.id);
+      
+      if (!data || data.length === 0) return false;
+      if (!data.every((c: any) => c.escaneado)) return false;
+    }
+    
+    return true;
+  };
 
-    const verDetallePedido = async (pedido: any) => {
-      setPedidoSeleccionado(pedido);
-      pedidoSeleccionadoRef.current = pedido;
-      if (pedido.estado === "encajado") {
-        await cargarDetallesEmpaque(pedido.id);
-      }
-    };
+  const iniciarRuta = async (ruta: string) => {
+  const pedidosRuta = pedidosPorRuta[ruta] || [];
+  
+  // Filtrar solo los pedidos que tienen TODAS las etiquetas escaneadas
+  const pedidosListos = [];
+  
+  for (const pedido of pedidosRuta) {
+    const { data } = await supabase
+      .from("codigos_etiquetas")
+      .select("*")
+      .eq("pedido_id", pedido.id);
+    
+    if (data && data.length > 0 && data.every((c: any) => c.escaneado)) {
+      pedidosListos.push(pedido.id);
+    }
+  }
 
-    if (pedidoSeleccionado) {
-      return (
-        <motion.div
-          key="detalle-pedido-ruta"
-          className="min-h-screen pb-10"
-          initial={{ opacity: 0, x: 40 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -40 }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
-        >
-          <BackBtn
-            onBack={() => {
-              setPedidoSeleccionado(null);
-              pedidoSeleccionadoRef.current = null;
-            }}
+  if (pedidosListos.length === 0) {
+    alert("No hay pedidos con todas las etiquetas escaneadas en esta ruta");
+    return;
+  }
+
+  // Cambiar estado solo de los pedidos verificados
+  const { error } = await supabase
+    .from("pedidos")
+    .update({ estado: "en_ruta" })
+    .in("id", pedidosListos);
+
+  if (!error) {
+    alert(`¡Ruta iniciada! ${pedidosListos.length} pedido(s) en camino`);
+    cargarPedidosRuta();
+  } else {
+    alert("Error al iniciar la ruta");
+  }
+};
+
+  if (pedidoSeleccionado) {
+    return (
+      <motion.div
+        key="detalle-pedido-ruta"
+        className="min-h-screen pb-10"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <BackBtn
+          onBack={() => {
+            setPedidoSeleccionado(null);
+            pedidoSeleccionadoRef.current = null;
+            setCodigosEtiquetas([]);
+          }}
+        />
+
+        <h2 className="text-xl font-bold text-zinc-900 mb-4">
+          Pedido #{pedidoSeleccionado.id}
+        </h2>
+
+        {/* SELECTOR DE ESTADO */}
+        <div className="mb-4">
+          <SelectorEstado
+            estadoActual={pedidoSeleccionado.estado}
+            pedidoId={pedidoSeleccionado.id}
+            onEstadoChange={actualizarEstadoLocal}
           />
+        </div>
 
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">
-            Pedido #{pedidoSeleccionado.id}
-          </h2>
-
-          {/* SELECTOR DE ESTADO */}
-          <div className="mb-4">
-            <SelectorEstado
-              estadoActual={pedidoSeleccionado.estado}
-              pedidoId={pedidoSeleccionado.id}
-              onEstadoChange={actualizarEstadoLocal}
-            />
-          </div>
-
-          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm text-zinc-600">Cliente</span>
-                <span className="font-semibold text-zinc-900">
-                  {pedidoSeleccionado.cuentas?.cliente || "N/A"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-zinc-600">Dirección</span>
-                <span className="font-semibold text-zinc-900 text-right max-w-[60%]">
-                  {pedidoSeleccionado.cuentas?.direccion || "N/A"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-zinc-600">Teléfono</span>
-                <a
-                  href={`tel:${pedidoSeleccionado.cuentas?.numero_tel}`}
-                  className="font-semibold text-blue-600 underline"
-                >
-                  {pedidoSeleccionado.cuentas?.numero_tel || "N/A"}
-                </a>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-zinc-600">Ruta Asignada</span>
-                <span className="font-semibold text-orange-500">
-                  {pedidoSeleccionado.cuentas?.ruta || "Sin ruta"}
-                </span>
-              </div>
-              <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
-                <span className="font-bold text-zinc-900">Total</span>
-                <span className="font-bold text-orange-500 text-lg">
-                  ${pedidoSeleccionado.total.toFixed(2)}
-                </span>
-              </div>
+        <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm text-zinc-600">Cliente</span>
+              <span className="font-semibold text-zinc-900">
+                {pedidoSeleccionado.cuentas?.cliente || "N/A"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-zinc-600">Dirección</span>
+              <span className="font-semibold text-zinc-900 text-right max-w-[60%]">
+                {pedidoSeleccionado.cuentas?.direccion || "N/A"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-zinc-600">Teléfono</span>
+              <a
+                href={`tel:${pedidoSeleccionado.cuentas?.numero_tel}`}
+                className="font-semibold text-blue-600 underline"
+              >
+                {pedidoSeleccionado.cuentas?.numero_tel || "N/A"}
+              </a>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-zinc-600">Ruta Asignada</span>
+              <span className="font-semibold text-orange-500">
+                {pedidoSeleccionado.cuentas?.ruta || "Sin ruta"}
+              </span>
+            </div>
+            <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
+              <span className="font-bold text-zinc-900">Total</span>
+              <span className="font-bold text-orange-500 text-lg">
+                ${pedidoSeleccionado.total.toFixed(2)}
+              </span>
             </div>
           </div>
+        </div>
 
-          {/* Detalles de empaque*/}
+        {/* SECCIÓN DE ESCANEO DE CÓDIGOS */}
+        {pedidoSeleccionado.estado === "encajado" && codigosEtiquetas.length > 0 && (
+          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
+                </svg>
+                Verificación de Etiquetas
+              </h3>
+              <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                todosCodigosEscaneados 
+                  ? "bg-green-500 text-white" 
+                  : "bg-orange-100 text-orange-700"
+              }`}>
+                {codigosEtiquetas.filter((c: any) => c.escaneado).length} / {codigosEtiquetas.length}
+              </div>
+            </div>
+
+            {!todosCodigosEscaneados && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 flex items-center gap-3">
+                <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                <span className="text-sm text-blue-800 font-medium">
+                  Escanea todas las etiquetas antes de salir a ruta
+                </span>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {codigosEtiquetas.map((codigo: any) => (
+                <div
+                  key={codigo.id}
+                  className={`border-2 rounded-lg p-3 transition-all ${
+                    codigo.escaneado
+                      ? "bg-green-50 border-green-500"
+                      : "bg-white border-zinc-200"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {codigo.escaneado ? (
+                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-white">
+                            <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-zinc-400">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
+                          </svg>
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-semibold text-zinc-900 text-sm">
+  {obtenerNombreEtiqueta(codigo.tipo, codigo.numero)}
+</p>
+                        <p className="text-xs text-zinc-500 font-mono">{codigo.codigo}</p>
+                      </div>
+                    </div>
+                    {codigo.escaneado && codigo.fecha_escaneo && (
+                      <span className="text-xs text-green-600 font-medium">
+                        {new Date(codigo.fecha_escaneo).toLocaleTimeString("es-MX", {
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {todosCodigosEscaneados && (
+              <div className="mt-4 bg-green-50 border-2 border-green-500 rounded-xl p-4">
+                <div className="flex items-center justify-center gap-2 text-green-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6">
+                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                  </svg>
+                  <span className="font-bold">¡Todas las etiquetas verificadas!</span>
+                </div>
+                <p className="text-center text-sm text-green-600 mt-1">
+                  Este pedido está listo para salir a ruta
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Detalles de empaque */}
+        {pedidoSeleccionado.estado === "encajado" && (
           <div className="bg-zinc-50 rounded-xl border border-zinc-200 p-4 mb-4">
             <h3 className="text-sm font-bold text-zinc-800 mb-2 flex items-center gap-2">
               <Box size={16} /> Detalles de Empaque
@@ -10615,65 +10880,105 @@ const VistaBackOrders = ({ cuenta, setVistaPerfil }: any) => {
               </p>
             )}
           </div>
+        )}
 
-          {pedidoSeleccionado?.cuentas?.latitud &&
-          pedidoSeleccionado?.cuentas?.longitud ? (
-            <MapaUbicacion
-              lat={pedidoSeleccionado.cuentas.latitud}
-              lng={pedidoSeleccionado.cuentas.longitud}
-              nombreLocal={pedidoSeleccionado.cuentas.ferreteria}
-            />
-          ) : (
-            <div className="bg-yellow-50 text-yellow-700 p-3 rounded-lg text-sm mt-2">
-              ⚠️ Esta cuenta no tiene ubicación configurada
-            </div>
-          )}
-
-          {pedidoSeleccionado.pdf_url && (
-            <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-zinc-900">Documento</h3>
-              <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm h-[400px]">
-                <iframe
-                  src={pedidoSeleccionado.pdf_url}
-                  className="w-full h-full"
-                  title="PDF Pedido"
-                />
-              </div>
-            </div>
-          )}
-        </motion.div>
-      );
-    }
-
-    // VISTA LISTA DE RUTAS
-    return (
-      <motion.div
-        key="vista-rutas"
-        className="min-h-screen"
-        initial={{ opacity: 0, x: 40 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -40 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
-      >
-        <BackBtn onBack={() => setVistaPerfil("menu")} />
-
-        <h2 className="text-xl font-bold text-zinc-900 mb-4">
-          Control de Rutas
-        </h2>
-
-        {cargando ? (
-          <div className="flex justify-center py-10">
-            <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-          </div>
-        ) : Object.keys(pedidosPorRuta).length === 0 ? (
-          <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
-            <MapPin size={40} className="mx-auto text-zinc-300 mb-2" />
-            <p className="text-zinc-500">No hay pedidos pendientes de ruta</p>
-          </div>
+        {pedidoSeleccionado?.cuentas?.latitud &&
+        pedidoSeleccionado?.cuentas?.longitud ? (
+          <MapaUbicacion
+            lat={pedidoSeleccionado.cuentas.latitud}
+            lng={pedidoSeleccionado.cuentas.longitud}
+            nombreLocal={pedidoSeleccionado.cuentas.ferreteria}
+          />
         ) : (
+          <div className="bg-yellow-50 text-yellow-700 p-3 rounded-lg text-sm mt-2">
+            ⚠️ Esta cuenta no tiene ubicación configurada
+          </div>
+        )}
+
+        {pedidoSeleccionado.pdf_url && (
           <div className="space-y-3">
-            {Object.entries(pedidosPorRuta).map(
-              ([ruta, pedidos]: [string, any[]]) => (
+            <h3 className="text-lg font-semibold text-zinc-900">Documento</h3>
+            <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm h-[400px]">
+              <iframe
+                src={pedidoSeleccionado.pdf_url}
+                className="w-full h-full"
+                title="PDF Pedido"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Modal de código escaneado */}
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {mostrarModalEscaneado && codigoEscaneadoActual && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
+                  style={{ zIndex: 50000 }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    className="bg-white rounded-2xl w-full max-w-sm p-8 shadow-2xl text-center"
+                  >
+                    <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-14 h-14 text-green-600">
+                        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                      ¡Código Verificado!
+                    </h3>
+                    <p className="text-zinc-600 text-lg">
+  {obtenerNombreEtiqueta(codigoEscaneadoActual.tipo, codigoEscaneadoActual.numero)}
+</p>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body,
+          )}
+      </motion.div>
+    );
+  }
+
+  // VISTA LISTA DE RUTAS
+  return (
+    <motion.div
+      key="vista-rutas"
+      className="min-h-screen"
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -40 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+    >
+      <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+      <h2 className="text-xl font-bold text-zinc-900 mb-4">
+        Control de Rutas
+      </h2>
+
+      {cargando ? (
+        <div className="flex justify-center py-10">
+          <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+        </div>
+      ) : Object.keys(pedidosPorRuta).length === 0 ? (
+        <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
+          <MapPin size={40} className="mx-auto text-zinc-300 mb-2" />
+          <p className="text-zinc-500">No hay pedidos pendientes de ruta</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {Object.entries(pedidosPorRuta).map(
+            ([ruta, pedidos]: [string, any[]]) => {
+              const pedidosEncajados = pedidos.filter(p => p.estado === "encajado");
+              
+              return (
                 <div
                   key={ruta}
                   className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden"
@@ -10714,48 +11019,103 @@ const VistaBackOrders = ({ cuenta, setVistaPerfil }: any) => {
                         className="border-t border-zinc-200"
                       >
                         <div className="p-2 space-y-2 bg-zinc-50">
-                          {pedidos.map((pedido) => (
-                            <div
-                              key={pedido.id}
-                              onClick={() => verDetallePedido(pedido)}
-                              className="border border-zinc-200 rounded-lg p-3 bg-white cursor-pointer hover:border-orange-300 transition shadow-sm"
-                            >
-                              <div className="flex justify-between items-start mb-2">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-bold text-zinc-900 text-sm">
-                                      #{pedido.id}
-                                    </span>
-                                    {/* AQUÍ SE MUESTRA EL ESTADO EN LA LISTA */}
-                                    <BadgeEstado estado={pedido.estado} />
+                          {pedidos.map((pedido) => {
+                            // Componente para mostrar el pedido con estado verificado
+                            const PedidoConEstado = ({ pedido }: { pedido: any }) => {
+                              const [verificado, setVerificado] = useState(false);
+                              
+                              useEffect(() => {
+                                const verificar = async () => {
+                                  const { data } = await supabase
+                                    .from("codigos_etiquetas")
+                                    .select("*")
+                                    .eq("pedido_id", pedido.id);
+                                  
+                                  if (data && data.length > 0) {
+                                    setVerificado(data.every((c: any) => c.escaneado));
+                                  }
+                                };
+                                verificar();
+                              }, [pedido.id]);
+
+                              return (
+                                <div
+                                  onClick={() => verDetallePedido(pedido)}
+                                  className={`relative border-2 rounded-lg p-3 cursor-pointer transition shadow-sm ${
+                                    verificado 
+                                      ? "bg-green-50 border-green-500 hover:border-green-600" 
+                                      : "bg-white border-zinc-200 hover:border-orange-300"
+                                  }`}
+                                >
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className={`font-bold text-sm ${verificado ? "text-green-900" : "text-zinc-900"}`}>
+                                          #{pedido.id}
+                                        </span>
+                                        <BadgeEstado estado={pedido.estado} />
+                                        {verificado && (
+                                          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-600 text-white">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                                              <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                                            </svg>
+                                            <span className="text-[10px] font-bold">Verificado</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <p className={`text-xs font-semibold ${verificado ? "text-green-800" : "text-zinc-700"}`}>
+                                        {pedido.cuentas?.cliente || "Sin cliente"}
+                                      </p>
+                                      <p className={`text-[10px] truncate max-w-[200px] ${verificado ? "text-green-600" : "text-zinc-500"}`}>
+                                        {pedido.cuentas?.direccion}
+                                      </p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className={`text-sm font-bold ${verificado ? "text-green-700" : "text-orange-500"}`}>
+                                        ${pedido.total.toFixed(2)}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <p className="text-xs font-semibold text-zinc-700">
-                                    {pedido.cuentas?.cliente || "Sin cliente"}
-                                  </p>
-                                  <p className="text-[10px] text-zinc-500 truncate max-w-[200px]">
-                                    {pedido.cuentas?.direccion}
-                                  </p>
                                 </div>
-                                <div className="text-right">
-                                  <p className="text-sm font-bold text-orange-500">
-                                    ${pedido.total.toFixed(2)}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
+                              );
+                            };
+
+                            return <PedidoConEstado key={pedido.id} pedido={pedido} />;
+                          })}
                         </div>
+
+                        {/* Botón Iniciar Ruta */}
+                        {pedidosEncajados.length > 0 && (
+                          <div className="p-3 bg-zinc-50 border-t border-zinc-200">
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await iniciarRuta(ruta);
+                              }}
+                              className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                              <div className="w-5 h-5 mb-1 mr-2">
+                               <Truck />
+                              </div>
+                              INICIAR RUTA
+                            </button>
+                            <p className="text-xs text-center text-zinc-500 mt-2">
+  Se iniciarán solo los pedidos con etiquetas verificadas ({pedidosEncajados.length} total)
+</p>
+                          </div>
+                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
-              ),
-            )}
-          </div>
-        )}
-      </motion.div>
-    );
-  };
+              );
+            },
+          )}
+        </div>
+      )}
+    </motion.div>
+  );
+};
 
   const VistaRevision = ({ setVistaPerfil }: any) => {
     const [pedidosPorRevisar, setPedidosPorRevisar] = useState<any[]>([]);
@@ -12039,24 +12399,35 @@ const completarPedido = async () => {
         </h2>
 
         {/* Barra de progreso */}
-        <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-          <div className="flex justify-between mb-2">
-            <span className="text-sm font-semibold text-zinc-700">
-              Progreso
-            </span>
-            <span
-              className={`text-sm font-bold ${hojaCompleta ? "text-green-600" : "text-orange-600"}`}
-            >
-              {totalVerificado} / {totalEsperado}
-            </span>
-          </div>
-          <div className="w-full bg-zinc-200 rounded-full h-3">
-            <motion.div
-              animate={{ width: `${(totalVerificado / totalEsperado) * 100}%` }}
-              className={`h-full rounded-full ${hojaCompleta ? "bg-green-500" : "bg-orange-500"}`}
-            />
-          </div>
-        </div>
+<div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+  <div className="flex justify-between mb-2">
+    <span className="text-sm font-semibold text-zinc-700">
+      Progreso
+    </span>
+    <span
+      className={`text-sm font-bold ${hojaCompleta ? "text-green-600" : "text-orange-600"}`}
+    >
+      {totalVerificado} / {totalEsperado}
+    </span>
+  </div>
+  <div className="w-full bg-zinc-200 rounded-full h-3">
+    <motion.div
+      animate={{ width: `${(totalVerificado / totalEsperado) * 100}%` }}
+      className={`h-full rounded-full ${hojaCompleta ? "bg-green-500" : "bg-orange-500"}`}
+    />
+  </div>
+
+  {hojaCompleta && (
+    <motion.button
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      onClick={() => setMostrarModalCompletado(true)}
+      className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold shadow-md transition"
+    >
+      CONFIRMAR HOJA COMPLETA
+    </motion.button>
+  )}
+</div>
 
         {/* Indicador de escaneo */}
         {!hojaCompleta && (
@@ -12105,7 +12476,7 @@ const completarPedido = async () => {
   className="border-2 rounded-xl p-3 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
 onClick={() => abrirModalCantidad(prod)}
 >
-   <p className="text-sm text-zinc-700 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">{prod.CODIGO}</p>
+   <p className="text-sm font-semibold text-zinc-800 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">{prod.CODIGO}</p>
     <p className="text-sm font-semibold text-zinc-800 line-clamp-3">
         {prod.TITULO}
       </p>
@@ -12220,47 +12591,41 @@ onClick={() => abrirModalCantidad(prod)}
           style={{ zIndex: 50000 }}
         >
           <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
+            initial={{ scale: 0.5, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
+            exit={{ scale: 0.5, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl"
+            className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
           >
-            {/* Botón cerrar */}
-            <button
-              onClick={() => {
-                setModalCantidad(null);
-                setCantidadManual("");
-              }}
-              className="absolute top-4 right-4 w-10 h-10 bg-zinc-100 hover:bg-zinc-200 rounded-full flex items-center justify-center transition"
-            >
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-100 flex items-center justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
-                strokeWidth={2.5}
+                strokeWidth={3}
                 stroke="currentColor"
-                className="w-5 h-5 text-zinc-600"
+                className="w-10 h-10 text-yellow-600"
               >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
+                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
                 />
               </svg>
-            </button>
+            </div>
 
-            <h3 className="text-xl font-bold text-zinc-900 mb-2">
+            <h3 className="text-2xl font-bold mb-2 text-zinc-900">
               Ajustar Cantidad
             </h3>
-            <p className="text-sm text-zinc-600 mb-1 line-clamp-2">
+
+            <p className="text-zinc-600 text-sm mb-2 font-semibold">
               {modalCantidad.TITULO}
             </p>
-            <p className="text-xs text-zinc-500 mb-4">
-              Cantidad esperada: {obtenerEstadoActual(modalCantidad).cantidad_surtida}
+            <p className="text-zinc-500 text-sm mb-6 font-semibold">
+              Cantidad pedida: {obtenerEstadoActual(modalCantidad).cantidad_surtida}
             </p>
 
-            {/* Botón PA */}
+           {/* Botón PA */}
             <button
               onClick={() => {
                 togglePA(modalCantidad);
@@ -12272,39 +12637,40 @@ onClick={() => abrirModalCantidad(prod)}
               PA - Producto Agotado
             </button>
 
-            {/* Input de cantidad */}
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-zinc-700 mb-2">
-                Cantidad encontrada
-              </label>
+            {/* Opción Parcial */}
+            <div className="mb-3">
               <input
                 type="number"
+                min="1"
+                max={modalCantidad.cantidad_pedida}
                 value={cantidadManual}
                 onChange={(e) => setCantidadManual(e.target.value)}
-                className="w-full text-3xl font-bold text-center text-zinc-900 bg-zinc-50 border-2 border-zinc-300 rounded-xl py-4 focus:border-blue-500 focus:outline-none"
-                autoFocus
-                min="0"
-                max={modalCantidad.cantidad_pedida}
-                placeholder="0"
+                placeholder="Cantidad encontrada"
+                className="w-full border-2 text-zinc-600 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-4 focus:ring-2 focus:ring-orange-500 outline-none"
               />
-            </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setModalCantidad(null);
-                  setCantidadManual("");
-                }}
-                className="flex-1 py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={aplicarCantidadManual}
-                className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 transition"
-              >
-                Aplicar
-              </button>
+              {/* Botones */}
+              <div className="flex gap-3">
+                {/* Cancelar */}
+                <button
+                  onClick={() => {
+                    setModalCantidad(null);
+                    setCantidadManual("");
+                  }}
+                  className="flex-1 py-4 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+                >
+                  Cancelar
+                </button>
+
+                {/* Aplicar */}
+                <button
+                  onClick={aplicarCantidadManual}
+                  disabled={!cantidadManual}
+                  className="flex-1 py-4 rounded-xl bg-orange-500 text-white font-bold text-lg shadow-lg hover:bg-orange-600 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Aplicar
+                </button>
+              </div>
             </div>
           </motion.div>
         </motion.div>
@@ -12314,62 +12680,71 @@ onClick={() => abrirModalCantidad(prod)}
   )}
 
         {/* Modal de hoja completada */}
-        {typeof document !== "undefined" &&
-          createPortal(
-            <AnimatePresence>
-              {mostrarModalCompletado && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
-                  style={{ zIndex: 50000 }}
-                >
-                  <motion.div
-                    initial={{ scale: 0.5, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.5, opacity: 0 }}
-                    className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={3}
-                        stroke="currentColor"
-                        className="w-14 h-14 text-green-600"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M4.5 12.75l6 6 9-13.5"
-                        />
-                      </svg>
-                    </div>
+{typeof document !== "undefined" &&
+  createPortal(
+    <AnimatePresence>
+      {mostrarModalCompletado && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+          style={{ zIndex: 50000 }}
+        >
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.5, opacity: 0 }}
+            className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={3}
+                stroke="currentColor"
+                className="w-14 h-14 text-green-600"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4.5 12.75l6 6 9-13.5"
+                />
+              </svg>
+            </div>
 
-                    <h3 className="text-2xl font-bold mb-2 text-zinc-900">
-                      ¡Hoja Completa!
-                    </h3>
-                    <p className="text-zinc-600 text-lg mb-8">
-                      Has completado la revisión de la{" "}
-                      <strong>Hoja #{hojaActual.numero_hoja}</strong>
-                    </p>
+            <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+              ¡Hoja Completa!
+            </h3>
 
-                    <button
-                      onClick={completarHoja}
-                      disabled={guardando}
-                      className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform disabled:opacity-50"
-                    >
-                      {guardando ? "GUARDANDO..." : "CONFIRMAR Y CONTINUAR"}
-                    </button>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>,
-            document.body,
-          )}
+            <p className="text-zinc-600 text-lg mb-8">
+              Has completado la revisión de la{" "}
+              <strong>Hoja #{hojaActual.numero_hoja}</strong>
+            </p>
+
+            <button
+              onClick={completarHoja}
+              disabled={guardando}
+              className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {guardando ? "GUARDANDO..." : "CONFIRMAR Y CONTINUAR"}
+            </button>
+
+            <button
+              onClick={() => setMostrarModalCompletado(false)}
+              className="mt-4 text-zinc-400 text-sm hover:text-zinc-600 underline"
+              disabled={guardando}
+            >
+              Revisar de nuevo
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
+  )}
 
           {/* Modal de Producto Activo */}
 {typeof document !== "undefined" &&
@@ -13380,12 +13755,14 @@ useEffect(() => {
                 }}
                 className="border-2 rounded-xl p-3 shadow-sm transition-colors duration-300"
                 onClick={() => {
-                  if (!completado) {
-                    setModalProductoProblema({ visible: true, producto: item });
-                  }
-                }}
+  const esPA = productosPA.has(item.producto_id);
+  const esParcial = productosParciales.has(item.producto_id);
+  if (!completado || esPA || esParcial) {
+    setModalProductoProblema({ visible: true, producto: item });
+  }
+}}
               >
-                <p className="text-sm text-zinc-700 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">
+                <p className="text-sm font-semibold text-zinc-800 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">
                       {item.CODIGO}
                     </p>
                 <p className="text-sm font-semibold text-zinc-800 mb-2 line-clamp-3 leading-tight">
@@ -13612,96 +13989,122 @@ useEffect(() => {
                     <p className="text-zinc-600 text-sm mb-2 font-semibold">
                       {modalProductoProblema.producto?.TITULO}
                     </p>
-                    <p className="text-zinc-500 text-xs mb-6">
+                    <p className="text-zinc-500 text-sm mb-6 font-semibold">
                       Cantidad pedida:{" "}
                       {modalProductoProblema.producto?.cantidad}
                     </p>
 
-                    {/* Opción PA */}
-                    <button
-                      onClick={() => {
-                        const producto = modalProductoProblema.producto;
-                        const nuevosPA = new Set(productosPA);
-                        nuevosPA.add(producto.producto_id);
-                        setProductosPA(nuevosPA);
-                        // Marcar cantidad como 0
-                        const nuevoMapa = new Map(productosSurtidosHoja);
-                        nuevoMapa.set(producto.producto_id, producto.cantidad);
-                        setProductosSurtidosHoja(nuevoMapa);
+                   {/* Opción PA */}
+<button
+  onClick={() => {
+    const producto = modalProductoProblema.producto;
+    const nuevosPA = new Set(productosPA);
+    
+    // Toggle: si ya está en PA, quitarlo
+    if (nuevosPA.has(producto.producto_id)) {
+      nuevosPA.delete(producto.producto_id);
+      
+      // Resetear cantidad a 0
+      const nuevoMapa = new Map(productosSurtidosHoja);
+      nuevoMapa.set(producto.producto_id, 0);
+      setProductosSurtidosHoja(nuevoMapa);
+    } else {
+      // Agregarlo a PA
+      nuevosPA.add(producto.producto_id);
+      
+      // Marcar cantidad como completa
+      const nuevoMapa = new Map(productosSurtidosHoja);
+      nuevoMapa.set(producto.producto_id, producto.cantidad);
+      setProductosSurtidosHoja(nuevoMapa);
+    }
+    
+    setProductosPA(nuevosPA);
+    setModalProductoProblema(null);
+    if ("vibrate" in navigator) navigator.vibrate(50);
+  }}
+  className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg active:scale-95 transition-transform mb-3 ${
+    productosPA.has(modalProductoProblema.producto?.producto_id)
+      ? "bg-red-500 hover:bg-red-600"
+      : "bg-yellow-500 hover:bg-yellow-600"
+  }`}
+>
+  {productosPA.has(modalProductoProblema.producto?.producto_id)
+    ? "QUITAR PA"
+    : "PA - Producto Agotado"}
+</button>
 
-                        setModalProductoProblema(null);
-                        if ("vibrate" in navigator) navigator.vibrate(50);
-                      }}
-                      className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-yellow-500 hover:bg-yellow-600 active:scale-95 transition-transform mb-3"
-                    >
-                      PA - Producto Agotado
-                    </button>
-
-                   {/* Opción Parcial */}
+                 {/* Opción Parcial */}
 <div className="mb-3">
   <input
     type="number"
     min="1"
     max={modalProductoProblema.producto?.cantidad}
     value={cantidadParcialInput}
-    onChange={(e) =>
-      setCantidadParcialInput(e.target.value)
-    }
+    onChange={(e) => setCantidadParcialInput(e.target.value)}
     placeholder="Cantidad encontrada"
-    className="w-full border-2 text-zinc-600 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-2 focus:ring-2 focus:ring-orange-500 outline-none"
+    className="w-full border-2 text-zinc-600 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-4 focus:ring-2 focus:ring-orange-500 outline-none"
   />
-  <button
-    onClick={() => {
-  const cantidad = parseInt(cantidadParcialInput);
-  const producto = modalProductoProblema.producto;
 
-  if (!cantidad || cantidad > producto.cantidad || cantidad < 1) {
-    alert("Ingresa una cantidad válida entre 1 y " + producto.cantidad);
-    return;
-  }
+  {/* Botones */}
+  <div className="flex gap-3">
+    {/* Cancelar */}
+    <button
+      onClick={() => {
+        setModalProductoProblema(null);
+        setCantidadParcialInput("");
+      }}
+      className="flex-1 py-4 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+    >
+      Cancelar
+    </button>
 
-  const nuevoEstado = cantidad === producto.cantidad ? "completo" : "parcial";
-  const nuevosParciales = new Map(productosParciales);
-  
-  const nuevosIngresoManual = new Set(productosIngresoManual);
-  nuevosIngresoManual.add(producto.producto_id);
-  setProductosIngresoManual(nuevosIngresoManual);
+    {/* Parcial */}
+    <button
+      onClick={() => {
+        const cantidad = parseInt(cantidadParcialInput);
+        const producto = modalProductoProblema.producto;
 
-  if (nuevoEstado === "parcial") {
-    nuevosParciales.set(producto.producto_id, {
-      pedida: producto.cantidad,
-      encontrada: cantidad,
-    });
-  } else {
-    nuevosParciales.delete(producto.producto_id);
-  }
-  setProductosParciales(nuevosParciales);
+        if (!cantidad || cantidad > producto.cantidad || cantidad < 1) {
+          alert(
+            "Ingresa una cantidad válida entre 1 y " + producto.cantidad
+          );
+          return;
+        }
 
-  // Marcar como surtido la cantidad
-  const nuevoMapa = new Map(productosSurtidosHoja);
-  nuevoMapa.set(producto.producto_id, cantidad);
-  setProductosSurtidosHoja(nuevoMapa);
+        const nuevoEstado =
+          cantidad === producto.cantidad ? "completo" : "parcial";
+        const nuevosParciales = new Map(productosParciales);
 
-  setModalProductoProblema(null);
-  setCantidadParcialInput("");
-  if ("vibrate" in navigator) navigator.vibrate(50);
-}}
-    disabled={!cantidadParcialInput}
-    className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-orange-500 hover:bg-orange-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
-  >
-    PARCIAL - Cantidad Encontrada
-  </button>
+        const nuevosIngresoManual = new Set(productosIngresoManual);
+        nuevosIngresoManual.add(producto.producto_id);
+        setProductosIngresoManual(nuevosIngresoManual);
+
+        if (nuevoEstado === "parcial") {
+          nuevosParciales.set(producto.producto_id, {
+            pedida: producto.cantidad,
+            encontrada: cantidad,
+          });
+        } else {
+          nuevosParciales.delete(producto.producto_id);
+        }
+        setProductosParciales(nuevosParciales);
+
+        const nuevoMapa = new Map(productosSurtidosHoja);
+        nuevoMapa.set(producto.producto_id, cantidad);
+        setProductosSurtidosHoja(nuevoMapa);
+
+        setModalProductoProblema(null);
+        setCantidadParcialInput("");
+        if ("vibrate" in navigator) navigator.vibrate(50);
+      }}
+      disabled={!cantidadParcialInput}
+      className="flex-1 py-4 rounded-xl bg-orange-500 text-white font-bold text-lg shadow-lg hover:bg-orange-600 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      Aplicar
+    </button>
+  </div>
 </div>
 
-                    <button
-                      onClick={() => {
-                        setModalProductoProblema(null);
-                        setCantidadParcialInput("");
-                      }}
-                      className="text-zinc-400 text-sm hover:text-zinc-600 underline"
-                    >
-                      Cancelar
-                    </button>
                   </motion.div>
                 </motion.div>
               )}
