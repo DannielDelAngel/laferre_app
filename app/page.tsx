@@ -12514,7 +12514,7 @@ onClick={() => abrirModalCantidad(prod)}
       {estadoActual.estado === "parcial" && (
   <div className="mt-2 flex gap-2 items-center flex-wrap">
     <div className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
-      PARCIAL
+      PARCIAL: {estadoActual.cantidad_surtida}/{prod.cantidad_pedida}
     </div>
     {prod.ingreso_manual && (
       <div className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
