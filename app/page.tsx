@@ -8564,6 +8564,11 @@ export default function HomePage() {
         label: "En ruta",
         color: "bg-cyan-100 text-cyan-800",
       },
+    {
+        valor: "entregado",
+  label: "Entregado",
+  color: "bg-green-100 text-green-800",
+},
       {
         valor: "completado",
         label: "Completado",
@@ -8676,6 +8681,12 @@ export default function HomePage() {
         labelAdmin: "Completado",
         color: "bg-green-100 text-green-800 border-green-200",
       },
+      entregado: {
+  label: "Entregado",
+  labelAdmin: "Entregado",
+  color: "bg-green-100 text-green-800 border-green-200",
+},
+
       listo_para_recoger: {
         label: "Listo para recoger",
         labelAdmin: "Listo para recoger",
@@ -8697,7 +8708,7 @@ export default function HomePage() {
     );
   };
 
-  const HistorialPedidos = ({ cuenta, setVistaPerfil }: any) => {
+ const HistorialPedidos = ({ cuenta, setVistaPerfil }: any) => {
     const [pedidos, setPedidos] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
     const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
@@ -8719,6 +8730,12 @@ export default function HomePage() {
     const [backOrders, setBackOrders] = useState<any[]>([]);
     const [cargandoBackOrders, setCargandoBackOrders] = useState(false);
     const [vistaBackOrders, setVistaBackOrders] = useState(false);
+
+    // Estados para escaneo de código RS
+    const [bufferEscaneo, setBufferEscaneo] = useState("");
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [mostrarModalCompletar, setMostrarModalCompletar] = useState(false);
+    const [codigoRS, setCodigoRS] = useState<any>(null);
 
     const cargarDetallesEmpaque = async (pedidoId: number) => {
       const { data } = await supabase
@@ -9165,6 +9182,89 @@ export default function HomePage() {
       }
     };
 
+    // Lógica de escaneo para pedidos ENTREGADOS
+    useEffect(() => {
+      if (!pedidoSeleccionado || pedidoSeleccionado.estado !== "entregado") return;
+
+      const handleKeyPress = (e: KeyboardEvent) => {
+        if (e.key === "Enter") {
+          if (bufferEscaneo.trim()) {
+            procesarEscaneoRS(bufferEscaneo.trim());
+            setBufferEscaneo("");
+          }
+          return;
+        }
+        setBufferEscaneo((prev) => prev + e.key);
+
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+          if (bufferEscaneo.trim()) {
+            procesarEscaneoRS(bufferEscaneo.trim());
+            setBufferEscaneo("");
+          }
+        }, 100);
+      };
+
+      window.addEventListener("keypress", handleKeyPress);
+      return () => {
+        window.removeEventListener("keypress", handleKeyPress);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      };
+    }, [bufferEscaneo, pedidoSeleccionado]);
+
+    const procesarEscaneoRS = async (codigoEscaneado: string) => {
+      if (!pedidoSeleccionado) return;
+
+      // Buscar código RS en la base de datos
+      const { data: codigoEncontrado } = await supabase
+        .from("codigos_etiquetas")
+        .select("*")
+        .eq("pedido_id", pedidoSeleccionado.id)
+        .eq("tipo", "RS")
+        .eq("codigo", codigoEscaneado)
+        .single();
+
+      if (!codigoEncontrado) {
+        if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+        alert(`Código ${codigoEscaneado} no pertenece a este pedido`);
+        return;
+      }
+
+      // Mostrar modal para confirmar completado
+      setCodigoRS(codigoEncontrado);
+      setMostrarModalCompletar(true);
+      
+      if ("vibrate" in navigator) navigator.vibrate(50);
+    };
+
+    const completarPedido = async () => {
+      if (!pedidoSeleccionado) return;
+
+      try {
+        // Cambiar estado a completado
+        const { error } = await supabase
+          .from("pedidos")
+          .update({ estado: "completado" })
+          .eq("id", pedidoSeleccionado.id);
+
+        if (!error) {
+          alert("¡Pedido marcado como completado!");
+          setMostrarModalCompletar(false);
+          setCodigoRS(null);
+          
+          // Actualizar estado local
+          actualizarEstadoLocal("completado");
+          
+          if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+        } else {
+          alert("Error al actualizar el estado del pedido");
+        }
+      } catch (error) {
+        console.error("Error completando pedido:", error);
+        alert("Error al completar el pedido");
+      }
+    };
+
     useEffect(() => {
       if (
         pedidoSeleccionado &&
@@ -9375,6 +9475,7 @@ export default function HomePage() {
         supabase.removeChannel(channel);
       };
     }, [cuenta, esAdmin]);
+    
     const verDetallePedido = (pedido: any) => {
       setPedidoSeleccionado(pedido);
       setCuentaPedido(pedido.cuentas || cuenta);
@@ -9451,6 +9552,21 @@ export default function HomePage() {
           {!esAdmin && (
             <div className="mb-4">
               <BadgeEstado estado={pedidoSeleccionado.estado} />
+            </div>
+          )}
+
+          {/* INDICADOR DE ESCANEO PARA PEDIDOS ENTREGADOS */}
+          {pedidoSeleccionado.estado === "entregado" && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex items-center gap-3">
+              <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+              <div className="flex-1">
+                <span className="text-sm text-blue-800 font-medium block">
+                  Escanea el código RS para completar el pedido
+                </span>
+                <span className="text-xs text-blue-600">
+                  El código RS está en la etiqueta de resumen
+                </span>
+              </div>
             </div>
           )}
 
@@ -9868,6 +9984,80 @@ export default function HomePage() {
               </p>
             </div>
           )}
+
+          {/* Modal de Confirmar Completado */}
+          {typeof document !== "undefined" &&
+            createPortal(
+              <AnimatePresence>
+                {mostrarModalCompletar && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+                    style={{ zIndex: 50000 }}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                          className="w-14 h-14 text-green-600"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      </div>
+
+                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                        Completar Pedido
+                      </h3>
+
+                      <p className="text-zinc-600 text-base mb-2">
+                        Pedido #{pedidoSeleccionado?.id}
+                      </p>
+
+                      <p className="text-zinc-500 text-sm mb-6">
+                        ¿Confirmas que el pedido ha sido completado exitosamente?
+                      </p>
+
+                      <div className="space-y-3">
+                        <button
+                          onClick={completarPedido}
+                          className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform"
+                        >
+                          SÍ, COMPLETAR PEDIDO
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setMostrarModalCompletar(false);
+                            setCodigoRS(null);
+                          }}
+                          className="w-full py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>,
+              document.body,
+            )}
+
           {/* Modal de Confirmación para Eliminar */}
           {mostrarModalEliminar && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
@@ -10534,7 +10724,7 @@ export default function HomePage() {
     );
   };
 
-  const VistaRutas = ({ setVistaPerfil }: any) => {
+ const VistaRutas = ({ setVistaPerfil }: any) => {
     const [pedidosPorRuta, setPedidosPorRuta] = useState<{
       [key: string]: any[];
     }>({});
@@ -10553,6 +10743,9 @@ export default function HomePage() {
     const [mostrarModalEscaneado, setMostrarModalEscaneado] = useState(false);
     const [codigoEscaneadoActual, setCodigoEscaneadoActual] =
       useState<any>(null);
+
+    const [codigosEntregaEscaneados, setCodigosEntregaEscaneados] = useState<Set<number>>(new Set());
+    const [mostrarModalConfirmarEntrega, setMostrarModalConfirmarEntrega] = useState(false);
 
     const obtenerNombreEtiqueta = (tipo: string, numero: number) => {
       const nombres: { [key: string]: string } = {
@@ -10664,19 +10857,23 @@ export default function HomePage() {
 
     const cargarCodigosEtiquetas = async (pedidoId: number) => {
       const { data } = await supabase
-        .from("codigos_etiquetas")
-        .select("*")
-        .eq("pedido_id", pedidoId)
-        .order("tipo", { ascending: true })
-        .order("numero", { ascending: true });
+  .from("codigos_etiquetas")
+  .select("*")
+  .eq("pedido_id", pedidoId)
+  .neq("tipo", "RS") 
+  .order("tipo", { ascending: true })
+  .order("numero", { ascending: true });
 
       setCodigosEtiquetas(data || []);
+      
+      // Limpiar escaneos de entrega cuando se carga un nuevo pedido
+      setCodigosEntregaEscaneados(new Set());
     };
 
     const verDetallePedido = async (pedido: any) => {
       setPedidoSeleccionado(pedido);
       pedidoSeleccionadoRef.current = pedido;
-      if (pedido.estado === "encajado") {
+      if (pedido.estado === "encajado" || pedido.estado === "en_ruta") {
         await cargarDetallesEmpaque(pedido.id);
         await cargarCodigosEtiquetas(pedido.id);
       }
@@ -10684,7 +10881,7 @@ export default function HomePage() {
 
     // Lógica de escaneo de códigos
     useEffect(() => {
-      if (!pedidoSeleccionado || pedidoSeleccionado.estado !== "encajado")
+      if (!pedidoSeleccionado || (pedidoSeleccionado.estado !== "encajado" && pedidoSeleccionado.estado !== "en_ruta"))
         return;
 
       const handleKeyPress = (e: KeyboardEvent) => {
@@ -10717,31 +10914,65 @@ export default function HomePage() {
       setUltimoEscaneo(codigoEscaneado);
 
       const codigoEncontrado = codigosEtiquetas.find(
-        (c: any) => c.codigo === codigoEscaneado && !c.escaneado,
+        (c: any) => c.codigo === codigoEscaneado
       );
 
       if (!codigoEncontrado) {
         if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-        alert(`Código ${codigoEscaneado} no encontrado o ya fue escaneado`);
+        alert(`Código ${codigoEscaneado} no encontrado`);
         return;
       }
 
-      // Marcar como escaneado en la base de datos
-      const { error } = await supabase
-        .from("codigos_etiquetas")
-        .update({
-          escaneado: true,
-          fecha_escaneo: new Date().toISOString(),
-        })
-        .eq("id", codigoEncontrado.id);
+      // PROCESO PARA ENCAJADO: Marcar como escaneado en BD
+      if (pedidoSeleccionado.estado === "encajado") {
+        if (codigoEncontrado.escaneado) {
+          if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+          alert(`Este código ya fue escaneado`);
+          return;
+        }
 
-      if (!error) {
-        // Actualizar localmente
-        setCodigosEtiquetas((prev) =>
-          prev.map((c) =>
-            c.id === codigoEncontrado.id ? { ...c, escaneado: true } : c,
-          ),
-        );
+        // Marcar como escaneado en la base de datos
+        const { error } = await supabase
+          .from("codigos_etiquetas")
+          .update({
+            escaneado: true,
+            fecha_escaneo: new Date().toISOString(),
+          })
+          .eq("id", codigoEncontrado.id);
+
+        if (!error) {
+          // Actualizar localmente
+          setCodigosEtiquetas((prev) =>
+            prev.map((c) =>
+              c.id === codigoEncontrado.id ? { ...c, escaneado: true } : c,
+            ),
+          );
+
+          // Mostrar modal de confirmación
+          setCodigoEscaneadoActual(codigoEncontrado);
+          setMostrarModalEscaneado(true);
+
+          if ("vibrate" in navigator) navigator.vibrate(50);
+
+          // Auto-cerrar modal
+          setTimeout(() => {
+            setMostrarModalEscaneado(false);
+            setCodigoEscaneadoActual(null);
+          }, 1500);
+        }
+      }
+      
+      // PROCESO PARA EN_RUTA: Solo marcar localmente para confirmar entrega
+      else if (pedidoSeleccionado.estado === "en_ruta") {
+        // Verificar si ya fue escaneado localmente
+        if (codigosEntregaEscaneados.has(codigoEncontrado.id)) {
+          if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+          alert(`Este código ya fue verificado para entrega`);
+          return;
+        }
+
+        // Agregar a la lista de escaneados localmente
+        setCodigosEntregaEscaneados((prev) => new Set(prev).add(codigoEncontrado.id));
 
         // Mostrar modal de confirmación
         setCodigoEscaneadoActual(codigoEncontrado);
@@ -10754,12 +10985,30 @@ export default function HomePage() {
           setMostrarModalEscaneado(false);
           setCodigoEscaneadoActual(null);
         }, 1500);
+
+        // Verificar si ya se escanearon todos
+        if (codigosEntregaEscaneados.size + 1 === codigosEtiquetas.length) {
+          setTimeout(() => {
+            setMostrarModalConfirmarEntrega(true);
+          }, 2000);
+        }
       }
     };
 
     const verificarTodosCodigosEscaneados = () => {
       if (codigosEtiquetas.length === 0) return false;
-      return codigosEtiquetas.every((c: any) => c.escaneado);
+      
+      // Para estado encajado: verificar en BD
+      if (pedidoSeleccionado?.estado === "encajado") {
+        return codigosEtiquetas.every((c: any) => c.escaneado);
+      }
+      
+      // Para estado en_ruta: verificar escaneados localmente
+      if (pedidoSeleccionado?.estado === "en_ruta") {
+        return codigosEntregaEscaneados.size === codigosEtiquetas.length;
+      }
+      
+      return false;
     };
 
     const todosCodigosEscaneados = verificarTodosCodigosEscaneados();
@@ -10776,28 +11025,35 @@ export default function HomePage() {
         [key: number]: boolean;
       }>({});
 
-      useEffect(() => {
-        const verificarTodos = async () => {
-          const nuevosEstados: { [key: number]: boolean } = {};
 
-          for (const pedido of pedidos) {
-            const { data } = await supabase
-              .from("codigos_etiquetas")
-              .select("*")
-              .eq("pedido_id", pedido.id);
+useEffect(() => {
+  const verificarTodos = async () => {
+    const nuevosEstados: { [key: number]: boolean } = {};
 
-            if (data && data.length > 0) {
-              nuevosEstados[pedido.id] = data.every((c: any) => c.escaneado);
-            } else {
-              nuevosEstados[pedido.id] = false;
-            }
-          }
+    for (const pedido of pedidos) {
+      if (pedido.estado !== "encajado") {
+        nuevosEstados[pedido.id] = false;
+        continue;
+      }
 
-          setEstadosVerificacion(nuevosEstados);
-        };
+      const { data } = await supabase
+        .from("codigos_etiquetas")
+        .select("*")
+        .eq("pedido_id", pedido.id)
+        .neq("tipo", "RS"); 
 
-        verificarTodos();
-      }, [pedidos]);
+      if (data && data.length > 0) {
+        nuevosEstados[pedido.id] = data.every((c: any) => c.escaneado);
+      } else {
+        nuevosEstados[pedido.id] = false; 
+      }
+    }
+
+    setEstadosVerificacion(nuevosEstados);
+  };
+
+  verificarTodos();
+}, [pedidos]);
 
       return (
         <div className="p-2 space-y-2 bg-zinc-50">
@@ -10869,39 +11125,22 @@ export default function HomePage() {
       );
     };
 
-    // Función para verificar si todos los pedidos de una ruta están listos
-    const verificarPedidosListosRuta = async (ruta: string) => {
-      const pedidosRuta = pedidosPorRuta[ruta] || [];
-
-      for (const pedido of pedidosRuta) {
-        const { data } = await supabase
-          .from("codigos_etiquetas")
-          .select("*")
-          .eq("pedido_id", pedido.id);
-
-        if (!data || data.length === 0) return false;
-        if (!data.every((c: any) => c.escaneado)) return false;
-      }
-
-      return true;
-    };
-
     const iniciarRuta = async (ruta: string) => {
-      const pedidosRuta = pedidosPorRuta[ruta] || [];
+  const pedidosRuta = pedidosPorRuta[ruta] || [];
+  const pedidosListos = [];
 
-      // Filtrar solo los pedidos que tienen TODAS las etiquetas escaneadas
-      const pedidosListos = [];
+  for (const pedido of pedidosRuta) {
+    const { data } = await supabase
+      .from("codigos_etiquetas")
+      .select("*")
+      .eq("pedido_id", pedido.id)
+      .neq("tipo", "RS"); 
 
-      for (const pedido of pedidosRuta) {
-        const { data } = await supabase
-          .from("codigos_etiquetas")
-          .select("*")
-          .eq("pedido_id", pedido.id);
 
-        if (data && data.length > 0 && data.every((c: any) => c.escaneado)) {
-          pedidosListos.push(pedido.id);
-        }
-      }
+    if (data && data.length > 0 && data.every((c: any) => c.escaneado)) {
+      pedidosListos.push(pedido.id);
+    }
+  }
 
       if (pedidosListos.length === 0) {
         alert("No hay pedidos con todas las etiquetas escaneadas en esta ruta");
@@ -10937,6 +11176,7 @@ export default function HomePage() {
               setPedidoSeleccionado(null);
               pedidoSeleccionadoRef.current = null;
               setCodigosEtiquetas([]);
+              setCodigosEntregaEscaneados(new Set());
             }}
           />
 
@@ -10992,7 +11232,7 @@ export default function HomePage() {
           </div>
 
           {/* SECCIÓN DE ESCANEO DE CÓDIGOS */}
-          {pedidoSeleccionado.estado === "encajado" &&
+          {(pedidoSeleccionado.estado === "encajado" || pedidoSeleccionado.estado === "en_ruta") &&
             codigosEtiquetas.length > 0 && (
               <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
@@ -11016,7 +11256,9 @@ export default function HomePage() {
                         d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z"
                       />
                     </svg>
-                    Verificación de Etiquetas
+                    {pedidoSeleccionado.estado === "encajado" 
+                      ? "Verificación de Etiquetas" 
+                      : "Verificación de Entrega"}
                   </h3>
                   <div
                     className={`px-3 py-1 rounded-full text-xs font-bold ${
@@ -11025,8 +11267,10 @@ export default function HomePage() {
                         : "bg-orange-100 text-orange-700"
                     }`}
                   >
-                    {codigosEtiquetas.filter((c: any) => c.escaneado).length} /{" "}
-                    {codigosEtiquetas.length}
+                    {pedidoSeleccionado.estado === "encajado"
+                      ? `${codigosEtiquetas.filter((c: any) => c.escaneado).length} / ${codigosEtiquetas.length}`
+                      : `${codigosEntregaEscaneados.size} / ${codigosEtiquetas.length}`
+                    }
                   </div>
                 </div>
 
@@ -11034,85 +11278,94 @@ export default function HomePage() {
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 flex items-center gap-3">
                     <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
                     <span className="text-sm text-blue-800 font-medium">
-                      Escanea todas las etiquetas antes de salir a ruta
+                      {pedidoSeleccionado.estado === "encajado"
+                        ? "Escanea todas las etiquetas antes de salir a ruta"
+                        : "Escanea todas las etiquetas para confirmar la entrega"}
                     </span>
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  {codigosEtiquetas.map((codigo: any) => (
-                    <div
-                      key={codigo.id}
-                      className={`border-2 rounded-lg p-3 transition-all ${
-                        codigo.escaneado
-                          ? "bg-green-50 border-green-500"
-                          : "bg-white border-zinc-200"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          {codigo.escaneado ? (
-                            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                                className="w-5 h-5 text-white"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            </div>
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center">
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                strokeWidth={2}
-                                stroke="currentColor"
-                                className="w-5 h-5 text-zinc-400"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
-                                />
-                              </svg>
-                            </div>
-                          )}
-                          <div>
-                            <p className="font-semibold text-zinc-900 text-sm">
-                              {obtenerNombreEtiqueta(
-                                codigo.tipo,
-                                codigo.numero,
-                              )}
-                            </p>
-                            <p className="text-xs text-zinc-500 font-mono">
-                              {codigo.codigo}
-                            </p>
-                          </div>
-                        </div>
-                        {codigo.escaneado && codigo.fecha_escaneo && (
-                          <span className="text-xs text-green-600 font-medium">
-                            {new Date(codigo.fecha_escaneo).toLocaleTimeString(
-                              "es-MX",
-                              {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              },
+                  {codigosEtiquetas.map((codigo: any) => {
+                    // Determinar si está escaneado según el estado del pedido
+                    const estaEscaneado = pedidoSeleccionado.estado === "encajado" 
+                      ? codigo.escaneado 
+                      : codigosEntregaEscaneados.has(codigo.id);
+
+                    return (
+                      <div
+                        key={codigo.id}
+                        className={`border-2 rounded-lg p-3 transition-all ${
+                          estaEscaneado
+                            ? "bg-green-50 border-green-500"
+                            : "bg-white border-zinc-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            {estaEscaneado ? (
+                              <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                  className="w-5 h-5 text-white"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center">
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  strokeWidth={2}
+                                  stroke="currentColor"
+                                  className="w-5 h-5 text-zinc-400"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
+                                  />
+                                </svg>
+                              </div>
                             )}
-                          </span>
-                        )}
+                            <div>
+                              <p className="font-semibold text-zinc-900 text-sm">
+                                {obtenerNombreEtiqueta(
+                                  codigo.tipo,
+                                  codigo.numero,
+                                )}
+                              </p>
+                              <p className="text-xs text-zinc-500 font-mono">
+                                {codigo.codigo}
+                              </p>
+                            </div>
+                          </div>
+                          {estaEscaneado && codigo.fecha_escaneo && pedidoSeleccionado.estado === "encajado" && (
+                            <span className="text-xs text-green-600 font-medium">
+                              {new Date(codigo.fecha_escaneo).toLocaleTimeString(
+                                "es-MX",
+                                {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
-                {todosCodigosEscaneados && (
+                {todosCodigosEscaneados && pedidoSeleccionado.estado === "encajado" && (
                   <div className="mt-4 bg-green-50 border-2 border-green-500 rounded-xl p-4">
                     <div className="flex items-center justify-center gap-2 text-green-700">
                       <svg
@@ -11136,11 +11389,36 @@ export default function HomePage() {
                     </p>
                   </div>
                 )}
+
+                {todosCodigosEscaneados && pedidoSeleccionado.estado === "en_ruta" && (
+                  <div className="mt-4 bg-blue-50 border-2 border-blue-500 rounded-xl p-4">
+                    <div className="flex items-center justify-center gap-2 text-blue-700">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="w-6 h-6"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <span className="font-bold">
+                        ¡Todos los paquetes verificados!
+                      </span>
+                    </div>
+                    <p className="text-center text-sm text-blue-600 mt-1">
+                      Presiona el botón para confirmar la entrega
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
           {/* Detalles de empaque */}
-          {pedidoSeleccionado.estado === "encajado" && (
+          {(pedidoSeleccionado.estado === "encajado" || pedidoSeleccionado.estado === "en_ruta") && (
             <div className="bg-zinc-50 rounded-xl border border-zinc-200 p-4 mb-4">
               <h3 className="text-sm font-bold text-zinc-800 mb-2 flex items-center gap-2">
                 <Box size={16} /> Detalles de Empaque
@@ -11224,6 +11502,104 @@ export default function HomePage() {
                           codigoEscaneadoActual.numero,
                         )}
                       </p>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>,
+              document.body,
+            )}
+
+          {/* Modal de Confirmar Entrega */}
+          {typeof document !== "undefined" &&
+            createPortal(
+              <AnimatePresence>
+                {mostrarModalConfirmarEntrega && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+                    style={{ zIndex: 50000 }}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                          className="w-14 h-14 text-blue-600"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      </div>
+
+                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                        Confirmar Entrega
+                      </h3>
+
+                      <p className="text-zinc-600 text-base mb-2">
+                        Pedido #{pedidoSeleccionado?.id}
+                      </p>
+
+                      <p className="text-zinc-500 text-sm mb-6">
+                        ¿Confirmas que todos los paquetes fueron entregados al cliente?
+                      </p>
+
+                      <div className="space-y-3">
+                        <button
+                          onClick={async () => {
+                            // Cambiar estado a entregado
+                            const { error } = await supabase
+                              .from("pedidos")
+                              .update({ estado: "entregado" })
+                              .eq("id", pedidoSeleccionado.id);
+
+                            if (!error) {
+                              // Actualizar estado local
+                              actualizarEstadoLocal("entregado");
+                              
+                              // Limpiar escaneos de entrega
+                              setCodigosEntregaEscaneados(new Set());
+                              
+                              // Cerrar modal
+                              setMostrarModalConfirmarEntrega(false);
+                              
+                              if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+                              
+                              alert("¡Pedido marcado como entregado!");
+                              
+                              // Volver a la lista de pedidos
+                              setPedidoSeleccionado(null);
+                              pedidoSeleccionadoRef.current = null;
+                              setCodigosEtiquetas([]);
+                            } else {
+                              alert("Error al actualizar el estado del pedido");
+                            }
+                          }}
+                          className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-blue-500 hover:bg-blue-600 active:scale-95 transition-transform"
+                        >
+                          CONFIRMAR ENTREGA
+                        </button>
+
+                        <button
+                          onClick={() => setMostrarModalConfirmarEntrega(false)}
+                          className="w-full py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
                     </motion.div>
                   </motion.div>
                 )}
@@ -12604,7 +12980,7 @@ export default function HomePage() {
                 onClick={async () => {
                   try {
                     const response = await fetch(
-                      "http://192.168.100.34:3005/print",
+                      "http://192.168.100.39:3005/print",
                       {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -12903,14 +13279,14 @@ export default function HomePage() {
                     <p className="text-zinc-600 text-sm mb-2 font-semibold">
                       {modalCantidad.TITULO}
                     </p>
-                  
- <p className="text-zinc-500 text-sm mb-6 font-semibold">
-  Cantidad pedida:{" "}
-  {obtenerEstadoActual(modalCantidad).estado === "PA" ||
-   obtenerEstadoActual(modalCantidad).estado === "parcial"
-    ? modalCantidad.cantidad_pedida
-    : obtenerEstadoActual(modalCantidad).cantidad_surtida}
-</p>
+
+                    <p className="text-zinc-500 text-sm mb-6 font-semibold">
+                      Cantidad pedida:{" "}
+                      {obtenerEstadoActual(modalCantidad).estado === "PA" ||
+                      obtenerEstadoActual(modalCantidad).estado === "parcial"
+                        ? modalCantidad.cantidad_pedida
+                        : obtenerEstadoActual(modalCantidad).cantidad_surtida}
+                    </p>
 
                     {/* Botón PA */}
                     <button
@@ -13132,78 +13508,88 @@ export default function HomePage() {
                     </div>
 
                     {/* Estado */}
-{modalProductoActivo.cantidadActual >=
-modalProductoActivo.cantidadObjetivo ? (
-  <div className="flex items-center justify-center gap-2 text-green-600">
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      className="w-6 h-6"
-    >
-      <path
-        fillRule="evenodd"
-        d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-        clipRule="evenodd"
-      />
-    </svg>
-    <span className="font-bold text-lg">¡COMPLETADO!</span>
-  </div>
-) : (
-  <div className="space-y-4">
-    <p className="text-center text-zinc-500 font-medium">
-      Continúa escaneando...
-    </p>
-    
-    {/* Botones de acción */}
-    {modalProductoActivo.cantidadActual > 0 && (
-      <>
-        {/* Botón Aplicar Parcial - Solo si hay cantidad escaneada */}
-        <button
-          onClick={() => {
-            const producto = modalProductoActivo.producto;
-            const cantidadEscaneada = modalProductoActivo.cantidadActual;
-            
-            // Marcar como parcial (sin ingreso manual porque fue escaneado)
-            const nuevoCambios = new Map(cambiosEstado);
-            nuevoCambios.set(producto.producto_id, {
-              estado: cantidadEscaneada === producto.cantidad_pedida ? "completo" : "parcial",
-              cantidad_surtida: cantidadEscaneada,
-              ingreso_manual: false, // NO es manual porque fue escaneado
-            });
-            setCambiosEstado(nuevoCambios);
-            
-            // Cerrar modal
-            setModalProductoActivo(null);
-            if ("vibrate" in navigator) navigator.vibrate(50);
-          }}
-          className="w-full py-3 rounded-xl bg-orange-500 text-white font-bold text-base shadow-lg hover:bg-orange-600 active:scale-95 transition"
-        >
-          Aplicar como Parcial ({modalProductoActivo.cantidadActual}/{modalProductoActivo.cantidadObjetivo})
-        </button>
+                    {modalProductoActivo.cantidadActual >=
+                    modalProductoActivo.cantidadObjetivo ? (
+                      <div className="flex items-center justify-center gap-2 text-green-600">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="w-6 h-6"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span className="font-bold text-lg">¡COMPLETADO!</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-center text-zinc-500 font-medium">
+                          Continúa escaneando...
+                        </p>
 
-        {/* Botón Ingresar Cantidad Manual - Si es más de 1 */}
-        {modalProductoActivo.cantidadObjetivo > 1 && (
-          <button
-            onClick={() => {
-              const producto = modalProductoActivo.producto;
-              
-              // Cerrar modal de producto activo
-              setModalProductoActivo(null);
-              
-              // Abrir modal de cantidad manual
-              setModalCantidad(producto);
-              setCantidadManual(modalProductoActivo.cantidadActual.toString());
-            }}
-            className="w-full py-3 rounded-xl bg-blue-500 text-white font-bold text-base shadow-lg hover:bg-blue-600 active:scale-95 transition"
-          >
-            Ingresar Cantidad Manual
-          </button>
-        )}
-      </>
-    )}
-  </div>
-)}
+                        {/* Botones de acción */}
+                        {modalProductoActivo.cantidadActual > 0 && (
+                          <>
+                            {/* Botón Aplicar Parcial - Solo si hay cantidad escaneada */}
+                            <button
+                              onClick={() => {
+                                const producto = modalProductoActivo.producto;
+                                const cantidadEscaneada =
+                                  modalProductoActivo.cantidadActual;
+
+                                // Marcar como parcial (sin ingreso manual porque fue escaneado)
+                                const nuevoCambios = new Map(cambiosEstado);
+                                nuevoCambios.set(producto.producto_id, {
+                                  estado:
+                                    cantidadEscaneada ===
+                                    producto.cantidad_pedida
+                                      ? "completo"
+                                      : "parcial",
+                                  cantidad_surtida: cantidadEscaneada,
+                                  ingreso_manual: false, // NO es manual porque fue escaneado
+                                });
+                                setCambiosEstado(nuevoCambios);
+
+                                // Cerrar modal
+                                setModalProductoActivo(null);
+                                if ("vibrate" in navigator)
+                                  navigator.vibrate(50);
+                              }}
+                              className="w-full py-3 rounded-xl bg-orange-500 text-white font-bold text-base shadow-lg hover:bg-orange-600 active:scale-95 transition"
+                            >
+                              Aplicar como Parcial (
+                              {modalProductoActivo.cantidadActual}/
+                              {modalProductoActivo.cantidadObjetivo})
+                            </button>
+
+                            {/* Botón Ingresar Cantidad Manual - Si es más de 1 */}
+                            {modalProductoActivo.cantidadObjetivo > 1 && (
+                              <button
+                                onClick={() => {
+                                  const producto = modalProductoActivo.producto;
+
+                                  // Cerrar modal de producto activo
+                                  setModalProductoActivo(null);
+
+                                  // Abrir modal de cantidad manual
+                                  setModalCantidad(producto);
+                                  setCantidadManual(
+                                    modalProductoActivo.cantidadActual.toString(),
+                                  );
+                                }}
+                                className="w-full py-3 rounded-xl bg-blue-500 text-white font-bold text-base shadow-lg hover:bg-blue-600 active:scale-95 transition"
+                              >
+                                Ingresar Cantidad Manual
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </motion.div>
                 </motion.div>
               )}
@@ -13382,7 +13768,7 @@ modalProductoActivo.cantidadObjetivo ? (
     );
   };
 
-const VistaSurtiendoPedido = () => {
+  const VistaSurtiendoPedido = () => {
     const [hojasPedido, setHojasPedido] = useState<any[]>([]);
     const [hojaActual, setHojaActual] = useState<any>(null);
     const [cargandoHojas, setCargandoHojas] = useState(true);
@@ -14660,79 +15046,90 @@ const VistaSurtiendoPedido = () => {
                     </div>
 
                     {/* Estado */}
-{modalProductoActivo.cantidadActual >=
-modalProductoActivo.cantidadObjetivo ? (
-  <div className="flex items-center justify-center gap-2 text-green-600">
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      className="w-6 h-6"
-    >
-      <path
-        fillRule="evenodd"
-        d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-        clipRule="evenodd"
-      />
-    </svg>
-    <span className="font-bold text-lg">¡COMPLETADO!</span>
-  </div>
-) : (
-  <div className="space-y-4">
-    <p className="text-center text-zinc-500 font-medium">
-      Continúa escaneando...
-    </p>
-    
-    {/* Botones de acción */}
-    {modalProductoActivo.cantidadActual > 0 && (
-      <>
-        {/* Botón Aplicar Parcial - Solo si hay cantidad escaneada */}
-        <button
-          onClick={() => {
-            const producto = modalProductoActivo.producto;
-            const cantidadEscaneada = modalProductoActivo.cantidadActual;
-            
-            // Marcar como parcial (sin ingreso manual porque fue escaneado)
-            const nuevosParciales = new Map(productosParciales);
-            nuevosParciales.set(producto.producto_id, {
-              pedida: producto.cantidad,
-              encontrada: cantidadEscaneada,
-            });
-            setProductosParciales(nuevosParciales);
-            
-            // Cerrar modal
-            setModalProductoActivo(null);
-            if ("vibrate" in navigator) navigator.vibrate(50);
-          }}
-          className="w-full py-3 rounded-xl bg-orange-500 text-white font-bold text-base shadow-lg hover:bg-orange-600 active:scale-95 transition"
-        >
-          Aplicar como Parcial ({modalProductoActivo.cantidadActual}/{modalProductoActivo.cantidadObjetivo})
-        </button>
+                    {modalProductoActivo.cantidadActual >=
+                    modalProductoActivo.cantidadObjetivo ? (
+                      <div className="flex items-center justify-center gap-2 text-green-600">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="w-6 h-6"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span className="font-bold text-lg">¡COMPLETADO!</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-center text-zinc-500 font-medium">
+                          Continúa escaneando...
+                        </p>
 
-        {/* Botón Ingresar Cantidad Manual - Si es más de 1 */}
-        {modalProductoActivo.cantidadObjetivo > 1 && (
-          <button
-            onClick={() => {
-              const producto = modalProductoActivo.producto;
-              
-              // Cerrar modal de producto activo
-              setModalProductoActivo(null);
-              
-              // Abrir modal de problema con producto (que sirve para ingreso manual)
-              setModalProductoProblema({ visible: true, producto: producto });
-              
-              // Pre-llenar el input con la cantidad escaneada
-              setCantidadParcialInput(modalProductoActivo.cantidadActual.toString());
-            }}
-            className="w-full py-3 rounded-xl bg-blue-500 text-white font-bold text-base shadow-lg hover:bg-blue-600 active:scale-95 transition"
-          >
-            Ingresar Cantidad Manual
-          </button>
-        )}
-      </>
-    )}
-  </div>
-)}
+                        {/* Botones de acción */}
+                        {modalProductoActivo.cantidadActual > 0 && (
+                          <>
+                            {/* Botón Aplicar Parcial - Solo si hay cantidad escaneada */}
+                            <button
+                              onClick={() => {
+                                const producto = modalProductoActivo.producto;
+                                const cantidadEscaneada =
+                                  modalProductoActivo.cantidadActual;
+
+                                // Marcar como parcial (sin ingreso manual porque fue escaneado)
+                                const nuevosParciales = new Map(
+                                  productosParciales,
+                                );
+                                nuevosParciales.set(producto.producto_id, {
+                                  pedida: producto.cantidad,
+                                  encontrada: cantidadEscaneada,
+                                });
+                                setProductosParciales(nuevosParciales);
+
+                                // Cerrar modal
+                                setModalProductoActivo(null);
+                                if ("vibrate" in navigator)
+                                  navigator.vibrate(50);
+                              }}
+                              className="w-full py-3 rounded-xl bg-orange-500 text-white font-bold text-base shadow-lg hover:bg-orange-600 active:scale-95 transition"
+                            >
+                              Aplicar como Parcial (
+                              {modalProductoActivo.cantidadActual}/
+                              {modalProductoActivo.cantidadObjetivo})
+                            </button>
+
+                            {/* Botón Ingresar Cantidad Manual - Si es más de 1 */}
+                            {modalProductoActivo.cantidadObjetivo > 1 && (
+                              <button
+                                onClick={() => {
+                                  const producto = modalProductoActivo.producto;
+
+                                  // Cerrar modal de producto activo
+                                  setModalProductoActivo(null);
+
+                                  // Abrir modal de problema con producto (que sirve para ingreso manual)
+                                  setModalProductoProblema({
+                                    visible: true,
+                                    producto: producto,
+                                  });
+
+                                  // Pre-llenar el input con la cantidad escaneada
+                                  setCantidadParcialInput(
+                                    modalProductoActivo.cantidadActual.toString(),
+                                  );
+                                }}
+                                className="w-full py-3 rounded-xl bg-blue-500 text-white font-bold text-base shadow-lg hover:bg-blue-600 active:scale-95 transition"
+                              >
+                                Ingresar Cantidad Manual
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </motion.div>
                 </motion.div>
               )}
