@@ -9,6 +9,7 @@ import {
   Codesandbox,
   MapPin,
   Truck,
+  CheckCircle,
   Hammer,
   ListOrdered,
   X,
@@ -22,6 +23,7 @@ import {
   Menu,
   FileQuestionMark,
   LogOut,
+  DollarSign,
   UserCog,
   Lock,
   Unlock,
@@ -201,6 +203,8 @@ const VistaProducto = ({
   const [passwordInput, setPasswordInput] = useState("");
   const [errorPassword, setErrorPassword] = useState("");
   const PASSWORD_MAESTRA = "12345";
+
+const [ordenCategoria, setOrdenCategoria] = useState(producto.orden_categoria || 0);
 
   const handleToggleMostrador = async (mostrador: "M1" | "M2") => {
     setActualizandoToggle(true);
@@ -534,6 +538,7 @@ const VistaProducto = ({
           TITULO: titulo,
           DESCRIPCION: descripcion,
           CATEGORIA_ID: parseInt(categoriaId),
+          orden_categoria: ordenCategoria,
           marca_id: marcaId ? parseInt(marcaId) : null,
           IMAGEN: urlImagen,
           ubicacion: ubicacion,
@@ -1001,7 +1006,7 @@ const VistaProducto = ({
               {/* Categoría (buscador) */}
               <div className="mb-4 relative">
                 <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Categoría
+                  Subcategoría
                 </label>
 
                 <input
@@ -1028,6 +1033,10 @@ const VistaProducto = ({
                             setCategoriaQuery(cat.nombre_categoria);
                             setCategoriaSeleccionada(cat);
                             setCategoriaId(String(cat.id_categoria));
+                            // Fuerza el orden a 1 para que aparezca al principio de la nueva categoría
+      if (typeof setOrdenCategoria === 'function') {
+         setOrdenCategoria(-1); 
+      }
                             setMostrarResultados(false);
                           }}
                           className="w-full text-left px-3 py-2 text-sm text-zinc-700 hover:bg-orange-50 hover:text-orange-700"
@@ -1833,6 +1842,7 @@ export default function HomePage() {
     Map<number, number>
   >(new Map());
   const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
+  
 
   interface ProductoConVisibilidad extends Producto {
     visibleMostrador?: boolean;
@@ -2255,8 +2265,12 @@ export default function HomePage() {
 
     const items =
       tipo === "macro"
-        ? [...macroCategorias].sort((a, b) => a.orden - b.orden)
-        : [...categoriasEdicion].sort((a, b) => a.orden - b.orden);
+        ? [...macroCategorias].sort((a, b) => 
+            (a.nombre || "").localeCompare(b.nombre || "")
+          )
+        : [...categoriasEdicion].sort((a, b) => 
+            (a.nombre_categoria || "").localeCompare(b.nombre_categoria || "")
+          );
 
     return (
       <div className="min-h-screen px-6 py-6">
@@ -2652,7 +2666,7 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from("marcas")
         .select("id, nombre_marca, img")
-        .order("nombre_marca", { ascending: true });
+        .order("orden", { ascending: true });
 
       if (error) {
         console.error("Error cargando marcas:", error.message);
@@ -4088,11 +4102,9 @@ export default function HomePage() {
     return { handleDrag, handleDragEnd };
   };
 
-  const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
-    const [pestanaActiva, setPestanaActiva] = useState<
-      "productos" | "subcategorias" | "categorias"
-    >("productos");
-    const [categorias, setCategorias] = useState<any[]>([]);
+const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
+  const [pestanaActiva, setPestanaActiva] = useState<"productos" | "subcategorias" | "categorias" | "marcas">("productos");
+  const [categorias, setCategorias] = useState<any[]>([]);
     const [categoriaSeleccionada, setCategoriaSeleccionada] =
       useState<any>(null);
     const [productos, setProductos] = useState<any[]>([]);
@@ -4101,6 +4113,7 @@ export default function HomePage() {
       useState<any>(null);
     const [subcategorias, setSubcategorias] = useState<any[]>([]);
     const [todasMacroCategorias, setTodasMacroCategorias] = useState<any[]>([]);
+    const [marcas, setMarcas] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState("");
@@ -4111,30 +4124,36 @@ export default function HomePage() {
     }, [pestanaActiva]);
 
     const cargarDatos = async () => {
-      setCargando(true);
+  setCargando(true);
 
-      if (pestanaActiva === "productos") {
-        const { data } = await supabase
-          .from("categorias")
-          .select("img, id_categoria, nombre_categoria")
-          .order("nombre_categoria", { ascending: true });
-        setCategorias(data || []);
-      } else if (pestanaActiva === "subcategorias") {
-        const { data } = await supabase
-          .from("macro_categorias")
-          .select("img, id, nombre")
-          .order("nombre", { ascending: true });
-        setMacroCategorias(data || []);
-      } else if (pestanaActiva === "categorias") {
-        const { data } = await supabase
-          .from("macro_categorias")
-          .select("*")
-          .order("orden", { ascending: true });
-        setTodasMacroCategorias(data || []);
-      }
+  if (pestanaActiva === "productos") {
+    const { data } = await supabase
+      .from("categorias")
+      .select("img, id_categoria, nombre_categoria")
+      .order("nombre_categoria", { ascending: true });
+    setCategorias(data || []);
+  } else if (pestanaActiva === "subcategorias") {
+    const { data } = await supabase
+      .from("macro_categorias")
+      .select("img, id, nombre")
+      .order("nombre", { ascending: true });
+    setMacroCategorias(data || []);
+  } else if (pestanaActiva === "categorias") {
+    const { data } = await supabase
+      .from("macro_categorias")
+      .select("*")
+      .order("orden", { ascending: true });
+    setTodasMacroCategorias(data || []);
+  } else if (pestanaActiva === "marcas") {
+    const { data } = await supabase
+      .from("marcas")
+      .select("*")
+      .order("orden", { ascending: true });
+    setMarcas(data || []);
+  }
 
-      setCargando(false);
-    };
+  setCargando(false);
+};
 
     const cargarProductos = async (categoriaId: number) => {
       const { data } = await supabase
@@ -4217,6 +4236,27 @@ export default function HomePage() {
       }
     };
 
+    const guardarOrdenMarcas = async () => {
+  setGuardando(true);
+  setMensaje("");
+
+  try {
+    for (let i = 0; i < marcas.length; i++) {
+      await supabase
+        .from("marcas")
+        .update({ orden: i + 1 })
+        .eq("id", marcas[i].id);
+    }
+
+    setMensaje("Orden de marcas guardado correctamente");
+    setTimeout(() => setMensaje(""), 2000);
+  } catch (error) {
+    setMensaje("Error al guardar el orden");
+  } finally {
+    setGuardando(false);
+  }
+};
+
     return (
       <motion.div
         key="ordenar-vista"
@@ -4285,6 +4325,20 @@ export default function HomePage() {
           >
             CATEGORÍAS
           </button>
+          <button
+  onClick={() => {
+    setPestanaActiva("marcas");
+    setCategoriaSeleccionada(null);
+    setMacroCategoriaSeleccionada(null);
+  }}
+  className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
+    pestanaActiva === "marcas"
+      ? "bg-orange-500 text-white"
+      : "text-zinc-600 hover:bg-zinc-100"
+  }`}
+>
+  MARCAS
+</button>
         </div>
 
         {mensaje && (
@@ -4723,6 +4777,101 @@ export default function HomePage() {
             )}
           </div>
         )}
+        {pestanaActiva === "marcas" && (
+  <div>
+    <p className="text-sm text-zinc-600 mb-6">
+      Mantén presionado y arrastra para reordenar las marcas
+    </p>
+
+    {cargando ? (
+      <div className="flex justify-center py-10">
+        <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+      </div>
+    ) : (
+      <>
+        <Reorder.Group
+          axis="y"
+          values={marcas}
+          onReorder={setMarcas}
+          className="space-y-3 mb-4"
+        >
+          {marcas.map((marca, index) => (
+            <Reorder.Item
+              key={marca.id}
+              value={marca}
+              onDrag={handleDrag}
+              onDragEnd={handleDragEnd}
+              dragListener={true}
+              dragControls={undefined}
+            >
+              <motion.div className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition">
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                  {marca.img ? (
+                    <img
+                      src={marca.img}
+                      alt={marca.nombre_marca}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                      <svg
+                        className="w-8 h-8"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-sm text-zinc-800">
+  {marca.nombre_marca}
+</p>
+                </div>
+
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-zinc-400 font-mono text-sm">
+                    #{index + 1}
+                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
+                    <svg
+                      className="w-5 h-5 text-zinc-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 8h16M4 16h16"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </motion.div>
+            </Reorder.Item>
+          ))}
+        </Reorder.Group>
+
+        <button
+          onClick={guardarOrdenMarcas}
+          disabled={guardando}
+          className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
+        >
+          {guardando ? "Guardando..." : "Guardar Orden"}
+        </button>
+      </>
+    )}
+  </div>
+)}
       </motion.div>
     );
   };
@@ -5326,6 +5475,139 @@ export default function HomePage() {
     );
   };
 
+  const VistaConfirmarPagos = ({ setVistaPerfil }: { setVistaPerfil: (v: string) => void }) => {
+  const [documentosPagados, setDocumentosPagados] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [mostrarModalConfirmacion, setMostrarModalConfirmacion] = useState(false);
+  const [documentoActual, setDocumentoActual] = useState<any>(null);
+  const [tipoConfirmacion, setTipoConfirmacion] = useState<'eliminar' | 'rechazar' | null>(null);
+
+  const cargarDocumentosPagados = async () => {
+    setCargando(true);
+    const { data, error } = await supabase
+      .from("documentos_pendientes")
+      .select(`*, cuentas (numero_cuenta, cliente, ferreteria, ruta, direccion)`)
+      .eq("estado_ruta", "pagada")
+      .order("created_at", { ascending: false });
+
+    if (!error && data) setDocumentosPagados(data);
+    setCargando(false);
+  };
+
+  useEffect(() => {
+    cargarDocumentosPagados();
+    const channel = supabase
+      .channel("documentos-pagados-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "documentos_pendientes" }, () => cargarDocumentosPagados())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  const ejecutarAccion = async () => {
+    if (!documentoActual || !tipoConfirmacion) return;
+
+    const { error } = tipoConfirmacion === 'eliminar' 
+      ? await supabase.from("documentos_pendientes").delete().eq("id", documentoActual.id)
+      : await supabase.from("documentos_pendientes").update({ estado_ruta: "pendiente" }).eq("id", documentoActual.id);
+
+    if (!error) {
+      setMostrarModalConfirmacion(false);
+      if ("vibrate" in navigator) navigator.vibrate(tipoConfirmacion === 'eliminar' ? [100, 50, 100] : [200]);
+      cargarDocumentosPagados();
+    }
+  };
+
+  const documentosPorRuta = documentosPagados.reduce((acc: any, doc: any) => {
+    const ruta = doc.cuentas?.ruta || "Sin ruta";
+    if (!acc[ruta]) acc[ruta] = [];
+    acc[ruta].push(doc);
+    return acc;
+  }, {});
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }} 
+      animate={{ opacity: 1, y: 0 }} 
+      className="space-y-4 pb-20"
+    >
+      {/* Botón Volver - Usando el estilo de tu app */}
+      <button 
+        onClick={() => setVistaPerfil("menu")}
+        className="flex items-center gap-2 text-zinc-500 font-medium mb-4"
+      >
+        <ChevronLeft size={20} /> Volver al Menú
+      </button>
+
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-zinc-100">
+        <h2 className="text-2xl font-bold text-zinc-900">Confirmar Pagos</h2>
+        <p className="text-zinc-500 text-sm">Validación de cobros realizados en ruta</p>
+      </div>
+
+      {cargando ? (
+        <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500"></div></div>
+      ) : documentosPagados.length === 0 ? (
+        <div className="bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-2xl p-10 text-center text-zinc-400">
+           No hay pagos pendientes de confirmación
+        </div>
+      ) : (
+        Object.entries(documentosPorRuta).map(([ruta, docs]: [string, any]) => (
+          <div key={ruta} className="bg-white rounded-2xl overflow-hidden border border-zinc-200 shadow-sm">
+            <div className="p-4 text-white flex justify-between items-center">
+              <span className="font-bold text-zinc-700 uppercase tracking-wider text-sm">{ruta}</span>
+              <span className="bg-orange-500 px-2 py-0.5 rounded text-xs">{docs.length} Pendientes</span>
+            </div>
+            <div className="p-2 space-y-2">
+              {docs.map((doc: any) => (
+                <div key={doc.id} className="p-4 border border-zinc-100 rounded-xl bg-zinc-50 flex justify-between items-center">
+                  <div>
+                    <p className="text-xs font-bold text-orange-600">{doc.numero_documento}</p>
+                    <p className="font-bold text-zinc-800 text-sm">{doc.cuentas?.cliente}</p>
+                    <p className="text-[10px] text-zinc-500">${doc.monto.toLocaleString()}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => { setDocumentoActual(doc); setTipoConfirmacion('eliminar'); setMostrarModalConfirmacion(true); }}
+                      className="p-2 bg-green-100 text-green-700 rounded-lg"
+                    ><CheckCircle size={18} /></button>
+                    <button 
+                      onClick={() => { setDocumentoActual(doc); setTipoConfirmacion('rechazar'); setMostrarModalConfirmacion(true); }}
+                      className="p-2 bg-red-100 text-red-700 rounded-lg"
+                    ><X size={18} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+
+      {/* Modal - Usando createPortal para evitar problemas de z-index */}
+      {mostrarModalConfirmacion && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-xl font-bold text-zinc-800 mb-2 text-center">
+              {tipoConfirmacion === 'eliminar' ? '¿Confirmar Pago?' : '¿Rechazar Pago?'}
+            </h3>
+            <p className="text-zinc-800 text-sm text-center mb-6">
+              {tipoConfirmacion === 'eliminar' 
+                ? 'El documento se eliminará definitivamente.' 
+                : 'El documento volverá a estar pendiente.'}
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setMostrarModalConfirmacion(false)} className="py-3 rounded-xl border text-zinc-700 border-zinc-200 font-bold">Cancelar</button>
+              <button 
+                onClick={ejecutarAccion} 
+                className={`py-3 rounded-xl text-white font-bold ${tipoConfirmacion === 'eliminar' ? 'bg-green-600' : 'bg-red-600'}`}
+              >Confirmar</button>
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+    </motion.div>
+  );
+};
+
   const GestionarCuentasView = ({ setVistaPerfil }: any) => {
     const [cuentas, setCuentas] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
@@ -5404,6 +5686,7 @@ export default function HomePage() {
       tipo: "nota",
       numero: "",
       monto: "",
+      codigo_barras: "",
     });
     const [latitud, setLatitud] = useState("");
     const [longitud, setLongitud] = useState("");
@@ -5479,7 +5762,7 @@ export default function HomePage() {
       setCuentaSeleccionada(null);
       setTieneSaldoPendiente(false);
       setDocumentosPendientes([]);
-      setNuevoDocumento({ tipo: "nota", numero: "", monto: "" });
+      setNuevoDocumento({ tipo: "nota", numero: "", monto: "", codigo_barras: "" });
       setTipoComprobante("Nota de Remisión");
       setHorarios([
         {
@@ -5676,6 +5959,7 @@ export default function HomePage() {
               tipo_documento: doc.tipo_documento,
               numero_documento: doc.numero_documento,
               monto: parseFloat(doc.monto),
+              codigo_barras: doc.codigo_barras,
               pagado: false,
             }));
 
@@ -6124,8 +6408,8 @@ export default function HomePage() {
               </div>
 
               <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Ferretería
+                <label className="block text-sm font-mSedium text-zinc-700 mb-2">
+                  Nombre del negocio 
                 </label>
                 <input
                   type="text"
@@ -6400,122 +6684,144 @@ export default function HomePage() {
                   )}
 
                   {/* Formulario para agregar nuevo documento */}
-                  <div className="bg-white rounded-lg p-3 border border-red-300">
-                    <p className="text-xs font-semibold text-zinc-700 mb-2">
-                      Agregar documento pendiente
-                    </p>
 
-                    <div className="space-y-2">
-                      {/* Tipo de documento */}
-                      <div>
-                        <label className="block text-xs text-zinc-600 mb-1">
-                          Tipo de documento
-                        </label>
-                        <select
-                          value={nuevoDocumento.tipo}
-                          onChange={(e) =>
-                            setNuevoDocumento((prev) => ({
-                              ...prev,
-                              tipo: e.target.value,
-                            }))
-                          }
-                          className="w-full border border-zinc-300 rounded-lg px-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-                        >
-                          <option value="nota">Nota</option>
-                          <option value="factura">Factura</option>
-                        </select>
-                      </div>
+<div className="bg-white rounded-lg p-3 border border-red-300">
+  <p className="text-xs font-semibold text-zinc-700 mb-2">
+    Agregar documento pendiente
+  </p>
 
-                      {/* Número de documento */}
-                      <div>
-                        <label className="block text-xs text-zinc-600 mb-1">
-                          Número de documento
-                        </label>
-                        <input
-                          type="text"
-                          value={nuevoDocumento.numero}
-                          onChange={(e) =>
-                            setNuevoDocumento((prev) => ({
-                              ...prev,
-                              numero: e.target.value,
-                            }))
-                          }
-                          placeholder="Ej: 12345"
-                          className="w-full border border-zinc-300 rounded-lg px-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-                        />
-                      </div>
+  <div className="space-y-2">
+    {/* Tipo de documento */}
+    <div>
+      <label className="block text-xs text-zinc-600 mb-1">
+        Tipo de documento
+      </label>
+      <select
+        value={nuevoDocumento.tipo}
+        onChange={(e) =>
+          setNuevoDocumento((prev) => ({
+            ...prev,
+            tipo: e.target.value,
+          }))
+        }
+        className="w-full border border-zinc-300 rounded-lg px-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+      >
+        <option value="nota">Nota</option>
+        <option value="factura">Factura</option>
+      </select>
+    </div>
 
-                      {/* Monto */}
-                      <div>
-                        <label className="block text-xs text-zinc-600 mb-1">
-                          Monto
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-2 top-2 text-zinc-500 text-sm">
-                            $
-                          </span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={nuevoDocumento.monto}
-                            onChange={(e) =>
-                              setNuevoDocumento((prev) => ({
-                                ...prev,
-                                monto: e.target.value,
-                              }))
-                            }
-                            placeholder="0.00"
-                            className="w-full border border-zinc-300 rounded-lg pl-6 pr-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-                          />
-                        </div>
-                      </div>
+    {/* Número de documento */}
+    <div>
+      <label className="block text-xs text-zinc-600 mb-1">
+        Número de documento
+      </label>
+      <input
+        type="text"
+        value={nuevoDocumento.numero}
+        onChange={(e) =>
+          setNuevoDocumento((prev) => ({
+            ...prev,
+            numero: e.target.value,
+          }))
+        }
+        placeholder="Ej: 12345"
+        className="w-full border border-zinc-300 rounded-lg px-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+      />
+    </div>
 
-                      {/* Botón agregar */}
-                      <button
-                        onClick={() => {
-                          if (!nuevoDocumento.numero || !nuevoDocumento.monto) {
-                            alert("Por favor completa todos los campos");
-                            return;
-                          }
+    {/* Código de barras - NUEVO */}
+    <div>
+      <label className="block text-xs text-zinc-600 mb-1">
+        Código de barras (RS)
+      </label>
+      <input
+        type="text"
+        value={nuevoDocumento.codigo_barras}
+        onChange={(e) =>
+          setNuevoDocumento((prev) => ({
+            ...prev,
+            codigo_barras: e.target.value,
+          }))
+        }
+        placeholder="Ej: RS-12345"
+        className="w-full border border-zinc-300 rounded-lg px-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+      />
+    </div>
 
-                          setDocumentosPendientes((prev) => [
-                            ...prev,
-                            {
-                              id: Date.now(), // ID temporal
-                              tipo_documento: nuevoDocumento.tipo,
-                              numero_documento: nuevoDocumento.numero,
-                              monto: nuevoDocumento.monto,
-                              pagado: false,
-                            },
-                          ]);
+    {/* Monto */}
+    <div>
+      <label className="block text-xs text-zinc-600 mb-1">
+        Monto
+      </label>
+      <div className="relative">
+        <span className="absolute left-2 top-2 text-zinc-500 text-sm">
+          $
+        </span>
+        <input
+          type="number"
+          step="0.01"
+          value={nuevoDocumento.monto}
+          onChange={(e) =>
+            setNuevoDocumento((prev) => ({
+              ...prev,
+              monto: e.target.value,
+            }))
+          }
+          placeholder="0.00"
+          className="w-full border border-zinc-300 rounded-lg pl-6 pr-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+        />
+      </div>
+    </div>
 
-                          // Limpiar formulario
-                          setNuevoDocumento({
-                            tipo: "nota",
-                            numero: "",
-                            monto: "",
-                          });
-                        }}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          strokeWidth={2}
-                          stroke="currentColor"
-                          className="w-4 h-4"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M12 4.5v15m7.5-7.5h-15"
-                          />
-                        </svg>
-                        Agregar Documento
-                      </button>
-                    </div>
-                  </div>
+    {/* Botón agregar */}
+    <button
+      onClick={() => {
+        if (!nuevoDocumento.numero || !nuevoDocumento.monto || !nuevoDocumento.codigo_barras) {
+          alert("Por favor completa todos los campos");
+          return;
+        }
+
+        setDocumentosPendientes((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            tipo_documento: nuevoDocumento.tipo,
+            numero_documento: nuevoDocumento.numero,
+            monto: nuevoDocumento.monto,
+            codigo_barras: nuevoDocumento.codigo_barras, 
+            pagado: false,
+          },
+        ]);
+
+        // Limpiar formulario
+        setNuevoDocumento({
+          tipo: "nota",
+          numero: "",
+          monto: "",
+          codigo_barras: "", 
+        });
+      }}
+      className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth={2}
+        stroke="currentColor"
+        className="w-4 h-4"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M12 4.5v15m7.5-7.5h-15"
+        />
+      </svg>
+      Agregar Documento
+    </button>
+  </div>
+</div>
 
                   {/* Advertencia */}
                   <div className="mt-3 bg-yellow-50 border border-yellow-300 rounded-lg p-3">
@@ -6721,6 +7027,12 @@ export default function HomePage() {
     const [categoriaEliminar, setCategoriaEliminar] = useState<any>(null);
     const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
     const [errorEliminar, setErrorEliminar] = useState("");
+    const [macroQuery, setMacroQuery] = useState("");
+    const [macroSeleccionada, setMacroSeleccionada] = useState<any>(null);
+    const [mostrarResultados, setMostrarResultados] = useState(false);
+    const macrosFiltradas = macroCategorias.filter((macro: any) =>
+      macro.nombre.toLowerCase().includes(macroQuery.toLowerCase())
+    );
 
     const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -6787,6 +7099,7 @@ export default function HomePage() {
             nombre_categoria: nombreNormalizado,
             orden: parseInt(orden),
             img: urlImagen,
+            macro_categoria_id: macroSeleccionada?.id || null,
           },
         ]);
 
@@ -6795,7 +7108,6 @@ export default function HomePage() {
           setMensaje(error.message);
         } else {
           setMensaje("Categoría agregada correctamente");
-          // Recargar categorías
           const { data } = await supabase
             .from("categorias")
             .select("id_categoria, nombre_categoria, img, orden")
@@ -6807,6 +7119,8 @@ export default function HomePage() {
             setOrden("");
             setImagenFile(null);
             setImagenPreview("");
+            setMacroQuery("");
+            setMacroSeleccionada(null);
             setMensaje("");
           }, 2000);
         }
@@ -6980,6 +7294,70 @@ export default function HomePage() {
                 />
               </div>
 
+              <div className="mb-4 relative">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Categoría (opcional)
+                </label>
+
+                <input
+                  type="text"
+                  value={macroQuery}
+                  onChange={(e) => {
+                    setMacroQuery(e.target.value);
+                    setMostrarResultados(true);
+                    setMacroSeleccionada(null);
+                  }}
+                  onFocus={() => setMostrarResultados(true)}
+                  placeholder="Escribe el nombre de la categoría..."
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+
+                {mostrarResultados && macroQuery && (
+                  <div className="absolute z-20 mt-1 w-full bg-white border border-zinc-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {macrosFiltradas.length > 0 ? (
+                      macrosFiltradas.map((macro: any) => (
+                        <button
+                          type="button"
+                          key={macro.id}
+                          onClick={() => {
+                            setMacroQuery(macro.nombre);
+                            setMacroSeleccionada(macro);
+                            setMostrarResultados(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm text-zinc-700 hover:bg-orange-50 hover:text-orange-700"
+                        >
+                          {macro.nombre}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-zinc-500">
+                        No se encontraron categorías
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {macroSeleccionada && (
+                  <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-4 h-4"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    Categoría seleccionada: {macroSeleccionada.nombre}
+                  </p>
+                )}
+              </div>
+
               {mensaje && (
                 <div
                   className={`mb-4 p-3 rounded-lg text-sm ${
@@ -7008,6 +7386,7 @@ export default function HomePage() {
               </button>
             </>
           ) : (
+
             /* MODO ELIMINAR */
             <>
               <p className="text-sm text-zinc-600 mb-4">
@@ -7187,6 +7566,7 @@ export default function HomePage() {
         let noEncontrados = 0;
         let errores = 0;
         const productosNoEncontrados: string[] = [];
+        const detallesErrores: any[] = []; 
 
         // Procesar cada fila
         for (let i = 0; i < datos.length; i++) {
@@ -7201,9 +7581,13 @@ export default function HomePage() {
           const titulo = fila.TITULO || fila.titulo;
 
           if (!codigo) {
-            errores++;
-            continue;
-          }
+  errores++;
+  detallesErrores.push({
+    codigo: `Fila ${i + 1}`,
+    motivo: "Código vacío o inválido"
+  });
+  continue;
+}
 
           // Preparar objeto de actualización solo con campos que existan
           const datosActualizar: any = {};
@@ -7217,10 +7601,14 @@ export default function HomePage() {
             datosActualizar.TITULO = titulo;
 
           // Si no hay nada que actualizar, saltar
-          if (Object.keys(datosActualizar).length === 0) {
-            errores++;
-            continue;
-          }
+if (Object.keys(datosActualizar).length === 0) {
+  errores++;
+  detallesErrores.push({
+    codigo: codigo,
+    motivo: "Sin datos para actualizar (columnas vacías)"
+  });
+  continue;
+}
 
           try {
             // Buscar el producto por código
@@ -7243,28 +7631,37 @@ export default function HomePage() {
               .eq("id", producto.id);
 
             if (errorActualizar) {
-              errores++;
-              console.error(`Error actualizando ${codigo}:`, errorActualizar);
-            } else {
-              actualizados++;
-            }
-          } catch (err) {
-            errores++;
-            console.error(`Error procesando ${codigo}:`, err);
-          }
+  errores++;
+  detallesErrores.push({
+    codigo: codigo,
+    motivo: errorActualizar.message || "Error al actualizar en la base de datos"
+  });
+  console.error(`Error actualizando ${codigo}:`, errorActualizar);
+} else {
+  actualizados++;
+}
+          } catch (err: any) {
+  errores++;
+  detallesErrores.push({
+    codigo: codigo,
+    motivo: err.message || "Error inesperado al procesar"
+  });
+  console.error(`Error procesando ${codigo}:`, err);
+}
 
           // Actualizar progreso
           setProgreso(Math.round(((i + 1) / datos.length) * 100));
         }
 
         // Mostrar resultados
-        setResultado({
-          total: datos.length,
-          actualizados,
-          noEncontrados,
-          errores,
-          productosNoEncontrados: productosNoEncontrados.slice(0, 10), // Mostrar solo los primeros 10
-        });
+setResultado({
+  total: datos.length,
+  actualizados,
+  noEncontrados,
+  errores,
+  productosNoEncontrados: productosNoEncontrados,
+  detallesErrores: detallesErrores, 
+});
       } catch (err: any) {
         setError(`Error procesando el archivo: ${err.message}`);
       } finally {
@@ -7460,19 +7857,38 @@ export default function HomePage() {
               </div>
 
               {resultado.productosNoEncontrados.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-green-200">
-                  <p className="text-sm font-semibold text-green-900 mb-1">
-                    Productos no encontrados (primeros 10):
-                  </p>
-                  <ul className="text-xs text-green-700 list-disc list-inside">
-                    {resultado.productosNoEncontrados.map(
-                      (codigo: string, i: number) => (
-                        <li key={i}>{codigo}</li>
-                      ),
-                    )}
-                  </ul>
-                </div>
-              )}
+  <div className="mt-3 pt-3 border-t border-green-200">
+    <p className="text-sm font-semibold text-green-900 mb-1">
+      Productos no encontrados ({resultado.productosNoEncontrados.length}):
+    </p>
+    <div className="max-h-40 overflow-y-auto bg-white rounded p-2">
+      <ul className="text-xs text-green-700 list-disc list-inside">
+        {resultado.productosNoEncontrados.map(
+          (codigo: string, i: number) => (
+            <li key={i}>{codigo}</li>
+          ),
+        )}
+      </ul>
+    </div>
+  </div>
+)}
+
+{resultado.detallesErrores && resultado.detallesErrores.length > 0 && (
+  <div className="mt-3 pt-3 border-t border-green-200">
+    <p className="text-sm font-semibold text-red-900 mb-1">
+      Detalles de errores ({resultado.detallesErrores.length}):
+    </p>
+    <div className="max-h-40 overflow-y-auto bg-white rounded p-2">
+      <ul className="text-xs text-red-700 space-y-1">
+        {resultado.detallesErrores.map((error: any, i: number) => (
+          <li key={i} className="border-b border-red-100 pb-1">
+            <strong>{error.codigo}:</strong> {error.motivo}
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+)}
             </div>
           )}
 
@@ -7787,7 +8203,7 @@ export default function HomePage() {
           {/* Título */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-zinc-700 mb-2">
-              Título <span className="text-red-500">*</span>
+              Título {/* <span className="text-red-500">*</span>*/}
             </label>
             <input
               type="text"
@@ -7829,7 +8245,7 @@ export default function HomePage() {
           {/* Precio */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-zinc-700 mb-2">
-              Precio de Mayoreo <span className="text-red-500">*</span>
+              Precio de Mayoreo {/*<span className="text-red-500">*</span>*/}
             </label>
             <div className="relative">
               <span className="absolute left-3 top-2.5 text-zinc-500">$</span>
@@ -7906,7 +8322,8 @@ export default function HomePage() {
             <button
               onClick={agregarProducto}
               disabled={
-                guardando || !titulo || !codigo || !precio || !categoriaId
+                //guardando || !titulo || !codigo || !precio || !categoriaId
+                 guardando || !codigo 
               }
               className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -8107,7 +8524,7 @@ export default function HomePage() {
         doc.setFont("helvetica", "normal");
         doc.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
         doc.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
-        doc.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
+        doc.text(`Nombre del negocio: ${cuenta?.ferreteria || ""}`, 140, 59);
         doc.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
         doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
       };
@@ -8181,7 +8598,7 @@ export default function HomePage() {
         doc.setFont("helvetica", "normal");
         doc.text(`Nombre: ${cliente || cuenta?.cliente || "N/A"}`, 14, 54);
         doc.text(`Domicilio: ${cuenta?.direccion || ""}`, 14, 59);
-        doc.text(`Ferretería: ${cuenta?.ferreteria || ""}`, 140, 59);
+        doc.text(`Nombre del negocio: ${cuenta?.ferreteria || ""}`, 140, 59);
         doc.text(`Tel: ${cuenta?.numero_tel || ""}`, 140, 54);
         doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
       };
@@ -9277,63 +9694,87 @@ export default function HomePage() {
     }, [pedidoSeleccionado]);
 
     const eliminarPedido = async () => {
-      if (!pedidoAEliminar) return;
+  if (!pedidoAEliminar) return;
 
-      setEliminando(true);
-      setErrorEliminar("");
+  setEliminando(true);
+  setErrorEliminar("");
 
-      if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
-        setErrorEliminar("Número de cuenta incorrecto");
-        setEliminando(false);
-        return;
+  if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
+    setErrorEliminar("Número de cuenta incorrecto");
+    setEliminando(false);
+    return;
+  }
+
+  try {
+
+    const { data: backOrdersRelacionados } = await supabase
+      .from("back_orders")
+      .select("id")
+      .eq("pedido_origen_id", pedidoAEliminar.id);
+
+    if (backOrdersRelacionados && backOrdersRelacionados.length > 0) {
+      const { error: deleteBackOrdersError } = await supabase
+        .from("back_orders")
+        .delete()
+        .eq("pedido_origen_id", pedidoAEliminar.id);
+
+      if (deleteBackOrdersError) {
+        console.error("Error eliminando back orders:", deleteBackOrdersError);
+      } else {
+        console.log(
+          `${backOrdersRelacionados.length} back order(s) eliminado(s)`,
+        );
+      }
+    }
+
+    if (
+      pedidoAEliminar.pdf_url &&
+      pedidoAEliminar.pdf_url.includes("pedidos-pdf")
+    ) {
+      const urlParts = pedidoAEliminar.pdf_url.split("/");
+      const nombreArchivo = urlParts[urlParts.length - 1];
+
+      const { error: deleteFileError } = await supabase.storage
+        .from("pedidos-pdf")
+        .remove([nombreArchivo]);
+
+      if (deleteFileError) {
+        console.error("Error eliminando PDF:", deleteFileError);
+      }
+    }
+
+    const { error: deletePedidoError } = await supabase
+      .from("pedidos")
+      .delete()
+      .eq("id", pedidoAEliminar.id);
+
+    if (deletePedidoError) {
+      setErrorEliminar("Error al eliminar el pedido");
+      console.error(deletePedidoError);
+    } else {
+      setPedidos((prev) => prev.filter((p) => p.id !== pedidoAEliminar.id));
+
+      if (pedidoSeleccionado?.id === pedidoAEliminar.id) {
+        setPedidoSeleccionado(null);
       }
 
-      try {
-        // Eliminar el PDF del storage si existe
-        if (
-          pedidoAEliminar.pdf_url &&
-          pedidoAEliminar.pdf_url.includes("pedidos-pdf")
-        ) {
-          const urlParts = pedidoAEliminar.pdf_url.split("/");
-          const nombreArchivo = urlParts[urlParts.length - 1];
+      const mensajeExito = backOrdersRelacionados && backOrdersRelacionados.length > 0
+        ? `Pedido eliminado exitosamente junto con ${backOrdersRelacionados.length} back order(s) relacionado(s)`
+        : "Pedido eliminado exitosamente";
+      
+      alert(mensajeExito);
 
-          const { error: deleteFileError } = await supabase.storage
-            .from("pedidos-pdf")
-            .remove([nombreArchivo]);
-
-          if (deleteFileError) {
-            console.error("Error eliminando PDF:", deleteFileError);
-          }
-        }
-
-        // Eliminar el pedido
-        const { error: deletePedidoError } = await supabase
-          .from("pedidos")
-          .delete()
-          .eq("id", pedidoAEliminar.id);
-
-        if (deletePedidoError) {
-          setErrorEliminar("Error al eliminar el pedido");
-          console.error(deletePedidoError);
-        } else {
-          // Actualizar la lista local
-          setPedidos((prev) => prev.filter((p) => p.id !== pedidoAEliminar.id));
-
-          if (pedidoSeleccionado?.id === pedidoAEliminar.id) {
-            setPedidoSeleccionado(null);
-          }
-
-          setMostrarModalEliminar(false);
-          setPedidoAEliminar(null);
-          setNumeroCuentaConfirm("");
-        }
-      } catch (error) {
-        console.error("Error:", error);
-        setErrorEliminar("Ocurrió un error inesperado");
-      } finally {
-        setEliminando(false);
-      }
-    };
+      setMostrarModalEliminar(false);
+      setPedidoAEliminar(null);
+      setNumeroCuentaConfirm("");
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    setErrorEliminar("Ocurrió un error inesperado");
+  } finally {
+    setEliminando(false);
+  }
+};
 
     useEffect(() => {
       const fetchPedidos = async () => {
@@ -10234,11 +10675,8 @@ export default function HomePage() {
     const [cargando, setCargando] = useState(true);
     const [backOrderSeleccionado, setBackOrderSeleccionado] =
       useState<any>(null);
-
-    // Nuevo estado para el loading del botón
     const [procesandoConfirmacion, setProcesandoConfirmacion] = useState(false);
-
-    // Definir si es admin
+    const [generandoPDF, setGenerandoPDF] = useState<number | null>(null);
     const esAdmin = cuenta?.numero_cuenta === "Admin01";
 
     useEffect(() => {
@@ -10250,21 +10688,23 @@ export default function HomePage() {
 
       setCargando(true);
       try {
-        let query = supabase
-          .from("back_orders")
-          .select(
-            `
+      let query = supabase
+        .from("back_orders")
+        .select(
+          `
           *,
           cuentas (
             numero_cuenta,
             cliente,
             ferreteria,
-            tipo_comprobante
+            tipo_comprobante,
+            numero_tel,
+            direccion
           )
         `,
-          )
-          .eq("estado", "pendiente")
-          .order("created_at", { ascending: false });
+        )
+        .eq("estado", "pendiente")
+        .order("created_at", { ascending: false });
 
         if (!esAdmin) {
           query = query.eq("cuenta_id", cuenta.id);
@@ -10281,10 +10721,173 @@ export default function HomePage() {
       }
     };
 
+    const descargarPDFBackOrder = async (backOrder: any) => {
+    setGenerandoPDF(backOrder.id);
+
+    try {
+      const jsPDFModule = await import("jspdf");
+      const autoTableModule = await import("jspdf-autotable");
+      const QRCodeModule = await import("qrcode");
+      const { jsPDF } = jsPDFModule;
+
+      const fecha = new Date(backOrder.created_at).toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+
+      const qrBase64 = await QRCodeModule.default.toDataURL(
+        backOrder.lista_productos,
+        {
+          width: 200,
+          margin: 1,
+        },
+      );
+
+      const getImageBase64 = async (url: string): Promise<string> => {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      };
+
+      let logoBase64 = "";
+      try {
+        logoBase64 = await getImageBase64("/logo-pdf.png");
+      } catch (e) {
+        console.warn("No se pudo cargar el logo");
+      }
+
+      const datosCliente = backOrder.cuentas;
+      const tipoDoc = "BACK ORDER";
+
+      const dibujarEncabezado = (doc: any) => {
+        if (logoBase64) doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
+
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+        doc.setFont("helvetica", "normal");
+        doc.text("GUGS701012E14", 70, 14);
+        doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
+        doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
+        doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
+
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Back Order", 150, 10);
+        doc.setFontSize(10);
+        doc.text(backOrder.id.toString(), 170, 16);
+        doc.setFontSize(9);
+        doc.text("Fecha", 172, 24);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(fecha, 167, 30);
+
+        doc.setLineWidth(0.3);
+        doc.line(14, 42, 196, 42);
+
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("RECEPTOR", 14, 48);
+
+        doc.setFontSize(11);
+        doc.setTextColor(100, 100, 100);
+        doc.text(tipoDoc, doc.internal.pageSize.width / 2, 48, {
+          align: "center",
+        });
+
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Nombre: ${datosCliente?.cliente || "N/A"}`, 14, 54);
+        doc.text(`Domicilio: ${datosCliente?.direccion || ""}`, 14, 59);
+        doc.text(`Ferretería: ${datosCliente?.ferreteria || ""}`, 140, 59);
+        doc.text(`Tel: ${datosCliente?.numero_tel || ""}`, 140, 54);
+        doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
+      };
+
+      const doc = new jsPDF();
+
+      const productosDetalles = JSON.parse(backOrder.productos_detalles);
+      const productosTabla = productosDetalles.map((p: any) => [
+        p.CODIGO || "",
+        p.cantidad_faltante,
+        p.TITULO,
+        `$ ${p.P_MAYOREO.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+        `$ ${(p.cantidad_faltante * p.P_MAYOREO).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      ]);
+
+      autoTableModule.default(doc, {
+        head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+        body: productosTabla,
+        startY: 69,
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: {
+          fillColor: [230, 230, 230],
+          textColor: [0, 0, 0],
+          fontStyle: "bold",
+          halign: "center",
+          fontSize: 7,
+        },
+        columnStyles: {
+          0: { cellWidth: 28, halign: "center" },
+          1: { cellWidth: 15, halign: "center" },
+          2: { cellWidth: 82, halign: "left" },
+          3: { cellWidth: 22, halign: "right" },
+          4: { cellWidth: 22, halign: "right" },
+        },
+        theme: "grid",
+        margin: { left: 14, right: 14, top: 69 },
+        didDrawPage: () => dibujarEncabezado(doc),
+      });
+
+      const finalY = (doc as any).lastAutoTable?.finalY || 100;
+      const qrSize = 40;
+      let yBase = finalY + 10;
+
+      if (doc.internal.pageSize.height - yBase < 60) {
+        doc.addPage();
+        dibujarEncabezado(doc);
+        yBase = 70;
+      }
+
+      doc.addImage(qrBase64, "PNG", 14, yBase, qrSize, qrSize);
+      doc.setFontSize(7);
+      doc.text(
+        "Escanea para ver pedido",
+        14 + qrSize / 2,
+        yBase + qrSize + 4,
+        { align: "center" },
+      );
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("TOTAL NETO:", 145, yBase + 10);
+      doc.text(
+        `$ ${backOrder.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+        195,
+        yBase + 10,
+        { align: "right" },
+      );
+
+      // Descargar directamente
+      doc.save(`BackOrder_${backOrder.id}_${Date.now()}.pdf`);
+
+    } catch (error: any) {
+      console.error("Error generando PDF:", error);
+      alert("Error al generar el PDF");
+    } finally {
+      setGenerandoPDF(null);
+    }
+  };
+
     const confirmarBackOrder = async (backOrder: any) => {
       if (!backOrder) return;
-
-      // 1. Activar estado de carga
       setProcesandoConfirmacion(true);
 
       try {
@@ -10321,7 +10924,7 @@ export default function HomePage() {
 
         if (errorPedido) throw errorPedido;
 
-        // --- GENERACIÓN DEL PDF ---
+        // GENERACIÓN DEL PDF 
         const pedidoId = nuevoPedido.id;
         const numeroCotizacion = pedidoId;
         const fecha = new Date().toLocaleDateString("es-MX", {
@@ -10512,13 +11115,7 @@ export default function HomePage() {
           .from("back_orders")
           .update({ estado: "confirmado", pedido_final_id: nuevoPedido.id })
           .eq("id", backOrder.id);
-
-        // --- ACTUALIZACIÓN DE LA UI ---
-
-        // 1. Eliminar de la lista local inmediatamente
         setBackOrders((prev) => prev.filter((bo) => bo.id !== backOrder.id));
-
-        // 2. Cerrar vista de detalle
         setBackOrderSeleccionado(null);
 
         alert(
@@ -10528,7 +11125,6 @@ export default function HomePage() {
         console.error("Error confirmando back order:", error);
         alert(`Error: ${error.message || error.details}`);
       } finally {
-        // 3. Desactivar estado de carga
         setProcesandoConfirmacion(false);
       }
     };
@@ -10628,6 +11224,37 @@ export default function HomePage() {
             ))}
           </div>
 
+<button
+          onClick={() => descargarPDFBackOrder(backOrderSeleccionado)}
+          disabled={generandoPDF === backOrderSeleccionado.id}
+          className="w-full mb-3 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white disabled:bg-zinc-400 disabled:cursor-not-allowed"
+        >
+          {generandoPDF === backOrderSeleccionado.id ? (
+            <>
+              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+              GENERANDO PDF...
+            </>
+          ) : (
+            <>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                className="w-5 h-5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+                />
+              </svg>
+              DESCARGAR PDF
+            </>
+          )}
+        </button>
+
           {/* Botón con estado de carga */}
           <button
             onClick={() => confirmarBackOrder(backOrderSeleccionado)}
@@ -10717,6 +11344,8 @@ export default function HomePage() {
                   </div>
                 </div>
               </div>
+
+              
             ))}
           </div>
         )}
@@ -10724,7 +11353,7 @@ export default function HomePage() {
     );
   };
 
- const VistaRutas = ({ setVistaPerfil }: any) => {
+ const VistaRutas = ({ setVistaPerfil, esAdmin }: any) => {
     const [pedidosPorRuta, setPedidosPorRuta] = useState<{
       [key: string]: any[];
     }>({});
@@ -10747,6 +11376,17 @@ export default function HomePage() {
     const [codigosEntregaEscaneados, setCodigosEntregaEscaneados] = useState<Set<number>>(new Set());
     const [mostrarModalConfirmarEntrega, setMostrarModalConfirmarEntrega] = useState(false);
 
+    // ========== NUEVOS ESTADOS PARA DOCUMENTOS PENDIENTES ==========
+    const [documentosPorRuta, setDocumentosPorRuta] = useState<{
+      [key: string]: any[];
+    }>({});
+    const [mostrarModalDocumentos, setMostrarModalDocumentos] = useState(false);
+    const [rutaSeleccionadaDocs, setRutaSeleccionadaDocs] = useState<string | null>(null);
+    const [documentosSeleccionados, setDocumentosSeleccionados] = useState<Set<number>>(new Set());
+    const [documentoSeleccionado, setDocumentoSeleccionado] = useState<any>(null);
+    const [codigosDocEscaneados, setCodigosDocEscaneados] = useState<Set<number>>(new Set());
+    const [mostrarModalConfirmarPago, setMostrarModalConfirmarPago] = useState(false);
+
     const obtenerNombreEtiqueta = (tipo: string, numero: number) => {
       const nombres: { [key: string]: string } = {
         c: "Caja",
@@ -10766,6 +11406,33 @@ export default function HomePage() {
       const nombre = nombres[tipoLower] || tipo;
 
       return `${nombre} ${numero}`;
+    };
+
+   
+    const cargarDocumentosPendientes = async () => {
+  const { data, error } = await supabase
+    .from("documentos_pendientes")
+    .select(`
+      *,
+      cuentas (
+        numero_cuenta,
+        cliente,
+        ferreteria,
+        ruta
+      )
+    `)
+    .in("estado_ruta", ["pendiente", "verificado", "en_ruta", "pagada"]); 
+
+      if (!error && data) {
+        const agrupados = data.reduce((acc: any, doc: any) => {
+          const ruta = doc.cuentas?.ruta || "Sin ruta asignada";
+          if (!acc[ruta]) acc[ruta] = [];
+          acc[ruta].push(doc);
+          return acc;
+        }, {});
+
+        setDocumentosPorRuta(agrupados);
+      }
     };
 
     const cargarPedidosRuta = async () => {
@@ -10827,24 +11494,33 @@ export default function HomePage() {
     };
 
     useEffect(() => {
-      cargarPedidosRuta();
+  cargarPedidosRuta();
+  cargarDocumentosPendientes(); 
 
-      const channel = supabase
-        .channel("rutas-realtime-v3")
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "pedidos" },
-          (payload) => {
-            console.log("Cambio en rutas:", payload);
-            cargarPedidosRuta();
-          },
-        )
-        .subscribe();
+  const channel = supabase
+    .channel("rutas-realtime-v4")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "pedidos" },
+      (payload) => {
+        console.log("Cambio en rutas:", payload);
+        cargarPedidosRuta();
+      },
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "documentos_pendientes" },
+      (payload) => {
+        console.log("Cambio en documentos:", payload);
+        cargarDocumentosPendientes(); // ← QUITAR EL IF DE ADMIN
+      },
+    )
+    .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }, []);
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []);
 
     const cargarDetallesEmpaque = async (pedidoId: number) => {
       const { data } = await supabase
@@ -10857,16 +11533,14 @@ export default function HomePage() {
 
     const cargarCodigosEtiquetas = async (pedidoId: number) => {
       const { data } = await supabase
-  .from("codigos_etiquetas")
-  .select("*")
-  .eq("pedido_id", pedidoId)
-  .neq("tipo", "RS") 
-  .order("tipo", { ascending: true })
-  .order("numero", { ascending: true });
+        .from("codigos_etiquetas")
+        .select("*")
+        .eq("pedido_id", pedidoId)
+        .neq("tipo", "RS") 
+        .order("tipo", { ascending: true })
+        .order("numero", { ascending: true });
 
       setCodigosEtiquetas(data || []);
-      
-      // Limpiar escaneos de entrega cuando se carga un nuevo pedido
       setCodigosEntregaEscaneados(new Set());
     };
 
@@ -10879,36 +11553,160 @@ export default function HomePage() {
       }
     };
 
-    // Lógica de escaneo de códigos
+    const verDetalleDocumento = async (documento: any) => {
+      setDocumentoSeleccionado(documento);
+      setCodigosDocEscaneados(new Set());
+    };
+
+    const abrirModalDocumentos = (ruta: string) => {
+      setRutaSeleccionadaDocs(ruta);
+      setDocumentosSeleccionados(new Set());
+      setMostrarModalDocumentos(true);
+    };
+
+    const agregarDocumentosARuta = async () => {
+  if (documentosSeleccionados.size === 0) {
+    alert("Selecciona al menos un documento");
+    return;
+  }
+
+  try {
+    const idsSeleccionados = Array.from(documentosSeleccionados);
+    
+    console.log("IDs a actualizar:", idsSeleccionados); 
+
+    const { data, error } = await supabase
+      .from("documentos_pendientes")
+      .update({ estado_ruta: "verificado" })
+      .in("id", idsSeleccionados)
+      .select();
+
+    if (error) {
+      console.error("Error de Supabase:", error);
+      alert(`Error al agregar documentos: ${error.message}`);
+      return;
+    }
+
+    console.log("Documentos actualizados:", data); // Para debug
+    
+    alert(`${idsSeleccionados.length} documento(s) agregado(s) a la ruta`);
+    setMostrarModalDocumentos(false);
+    setDocumentosSeleccionados(new Set());
+    await cargarDocumentosPendientes();
+    
+  } catch (err) {
+    console.error("Error inesperado:", err);
+    alert("Error inesperado al agregar documentos");
+  }
+};
+
     useEffect(() => {
-      if (!pedidoSeleccionado || (pedidoSeleccionado.estado !== "encajado" && pedidoSeleccionado.estado !== "en_ruta"))
-        return;
-
-      const handleKeyPress = (e: KeyboardEvent) => {
-        if (e.key === "Enter") {
-          if (bufferEscaneo.trim()) {
-            procesarEscaneoCodigo(bufferEscaneo.trim());
-            setBufferEscaneo("");
+      if (pedidoSeleccionado && (pedidoSeleccionado.estado === "encajado" || pedidoSeleccionado.estado === "en_ruta")) {
+        const handleKeyPress = (e: KeyboardEvent) => {
+          if (e.key === "Enter") {
+            if (bufferEscaneo.trim()) {
+              procesarEscaneoCodigo(bufferEscaneo.trim());
+              setBufferEscaneo("");
+            }
+            return;
           }
-          return;
-        }
-        setBufferEscaneo((prev) => prev + e.key);
+          setBufferEscaneo((prev) => prev + e.key);
 
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
-          if (bufferEscaneo.trim()) {
-            procesarEscaneoCodigo(bufferEscaneo.trim());
-            setBufferEscaneo("");
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          timeoutRef.current = setTimeout(() => {
+            if (bufferEscaneo.trim()) {
+              procesarEscaneoCodigo(bufferEscaneo.trim());
+              setBufferEscaneo("");
+            }
+          }, 100);
+        };
+
+        window.addEventListener("keypress", handleKeyPress);
+        return () => {
+          window.removeEventListener("keypress", handleKeyPress);
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
+      }
+
+      // Para documentos
+if (documentoSeleccionado && (documentoSeleccionado.estado_ruta === "verificado" || documentoSeleccionado.estado_ruta === "en_ruta")) {  
+        const handleKeyPressDoc = (e: KeyboardEvent) => {
+          if (e.key === "Enter") {
+            if (bufferEscaneo.trim()) {
+              procesarEscaneoDocumento(bufferEscaneo.trim());
+              setBufferEscaneo("");
+            }
+            return;
           }
-        }, 100);
-      };
+          setBufferEscaneo((prev) => prev + e.key);
 
-      window.addEventListener("keypress", handleKeyPress);
-      return () => {
-        window.removeEventListener("keypress", handleKeyPress);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      };
-    }, [bufferEscaneo, pedidoSeleccionado, codigosEtiquetas]);
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          timeoutRef.current = setTimeout(() => {
+            if (bufferEscaneo.trim()) {
+              procesarEscaneoDocumento(bufferEscaneo.trim());
+              setBufferEscaneo("");
+            }
+          }, 100);
+        };
+
+        window.addEventListener("keypress", handleKeyPressDoc);
+        return () => {
+          window.removeEventListener("keypress", handleKeyPressDoc);
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
+      }
+    }, [bufferEscaneo, pedidoSeleccionado, codigosEtiquetas, documentoSeleccionado]);
+
+   const procesarEscaneoDocumento = async (codigoEscaneado: string) => {
+  setUltimoEscaneo(codigoEscaneado);
+
+  if (!documentoSeleccionado.codigo_barras) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    alert("Este documento no tiene código de barras asignado");
+    return;
+  }
+
+  if (codigoEscaneado !== documentoSeleccionado.codigo_barras) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    alert("Código incorrecto. No coincide con el documento.");
+    return;
+  }
+
+  // Verificar si ya fue escaneado
+  if (codigosDocEscaneados.has(documentoSeleccionado.id)) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    alert("Este documento ya fue verificado");
+    return;
+  }
+
+  // Si está en estado "verificado", cambiar a "escaneado" en la BD
+  if (documentoSeleccionado.estado_ruta === "verificado") {
+    const { error } = await supabase
+      .from("documentos_pendientes")
+      .update({ estado_ruta: "escaneado" })
+      .eq("id", documentoSeleccionado.id);
+
+    if (error) {
+      alert("Error al actualizar el estado del documento");
+      return;
+    }
+  }
+
+  // Marcar como escaneado localmente
+  setCodigosDocEscaneados((prev) => new Set(prev).add(documentoSeleccionado.id));
+
+  // Mostrar confirmación
+  setMostrarModalEscaneado(true);
+
+  if ("vibrate" in navigator) navigator.vibrate(50);
+
+  // Auto-cerrar modal
+  setTimeout(() => {
+    setMostrarModalEscaneado(false);
+    // Mostrar modal de confirmar pago
+    setMostrarModalConfirmarPago(true);
+  }, 1500);
+};
 
     const procesarEscaneoCodigo = async (codigoEscaneado: string) => {
       setUltimoEscaneo(codigoEscaneado);
@@ -10923,7 +11721,7 @@ export default function HomePage() {
         return;
       }
 
-      // PROCESO PARA ENCAJADO: Marcar como escaneado en BD
+      // PROCESO PARA ENCAJADO
       if (pedidoSeleccionado.estado === "encajado") {
         if (codigoEncontrado.escaneado) {
           if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
@@ -10931,7 +11729,6 @@ export default function HomePage() {
           return;
         }
 
-        // Marcar como escaneado en la base de datos
         const { error } = await supabase
           .from("codigos_etiquetas")
           .update({
@@ -10941,20 +11738,17 @@ export default function HomePage() {
           .eq("id", codigoEncontrado.id);
 
         if (!error) {
-          // Actualizar localmente
           setCodigosEtiquetas((prev) =>
             prev.map((c) =>
               c.id === codigoEncontrado.id ? { ...c, escaneado: true } : c,
             ),
           );
 
-          // Mostrar modal de confirmación
           setCodigoEscaneadoActual(codigoEncontrado);
           setMostrarModalEscaneado(true);
 
           if ("vibrate" in navigator) navigator.vibrate(50);
 
-          // Auto-cerrar modal
           setTimeout(() => {
             setMostrarModalEscaneado(false);
             setCodigoEscaneadoActual(null);
@@ -10962,31 +11756,26 @@ export default function HomePage() {
         }
       }
       
-      // PROCESO PARA EN_RUTA: Solo marcar localmente para confirmar entrega
+      // PROCESO PARA EN_RUTA
       else if (pedidoSeleccionado.estado === "en_ruta") {
-        // Verificar si ya fue escaneado localmente
         if (codigosEntregaEscaneados.has(codigoEncontrado.id)) {
           if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
           alert(`Este código ya fue verificado para entrega`);
           return;
         }
 
-        // Agregar a la lista de escaneados localmente
         setCodigosEntregaEscaneados((prev) => new Set(prev).add(codigoEncontrado.id));
 
-        // Mostrar modal de confirmación
         setCodigoEscaneadoActual(codigoEncontrado);
         setMostrarModalEscaneado(true);
 
         if ("vibrate" in navigator) navigator.vibrate(50);
 
-        // Auto-cerrar modal
         setTimeout(() => {
           setMostrarModalEscaneado(false);
           setCodigoEscaneadoActual(null);
         }, 1500);
 
-        // Verificar si ya se escanearon todos
         if (codigosEntregaEscaneados.size + 1 === codigosEtiquetas.length) {
           setTimeout(() => {
             setMostrarModalConfirmarEntrega(true);
@@ -10998,12 +11787,10 @@ export default function HomePage() {
     const verificarTodosCodigosEscaneados = () => {
       if (codigosEtiquetas.length === 0) return false;
       
-      // Para estado encajado: verificar en BD
       if (pedidoSeleccionado?.estado === "encajado") {
         return codigosEtiquetas.every((c: any) => c.escaneado);
       }
       
-      // Para estado en_ruta: verificar escaneados localmente
       if (pedidoSeleccionado?.estado === "en_ruta") {
         return codigosEntregaEscaneados.size === codigosEtiquetas.length;
       }
@@ -11013,7 +11800,6 @@ export default function HomePage() {
 
     const todosCodigosEscaneados = verificarTodosCodigosEscaneados();
 
-    // Componente separado para evitar re-renders constantes
     const ListaPedidosRuta = ({
       pedidos,
       onVerDetalle,
@@ -11025,35 +11811,34 @@ export default function HomePage() {
         [key: number]: boolean;
       }>({});
 
+      useEffect(() => {
+        const verificarTodos = async () => {
+          const nuevosEstados: { [key: number]: boolean } = {};
 
-useEffect(() => {
-  const verificarTodos = async () => {
-    const nuevosEstados: { [key: number]: boolean } = {};
+          for (const pedido of pedidos) {
+            if (pedido.estado !== "encajado") {
+              nuevosEstados[pedido.id] = false;
+              continue;
+            }
 
-    for (const pedido of pedidos) {
-      if (pedido.estado !== "encajado") {
-        nuevosEstados[pedido.id] = false;
-        continue;
-      }
+            const { data } = await supabase
+              .from("codigos_etiquetas")
+              .select("*")
+              .eq("pedido_id", pedido.id)
+              .neq("tipo", "RS"); 
 
-      const { data } = await supabase
-        .from("codigos_etiquetas")
-        .select("*")
-        .eq("pedido_id", pedido.id)
-        .neq("tipo", "RS"); 
+            if (data && data.length > 0) {
+              nuevosEstados[pedido.id] = data.every((c: any) => c.escaneado);
+            } else {
+              nuevosEstados[pedido.id] = false; 
+            }
+          }
 
-      if (data && data.length > 0) {
-        nuevosEstados[pedido.id] = data.every((c: any) => c.escaneado);
-      } else {
-        nuevosEstados[pedido.id] = false; 
-      }
-    }
+          setEstadosVerificacion(nuevosEstados);
+        };
 
-    setEstadosVerificacion(nuevosEstados);
-  };
-
-  verificarTodos();
-}, [pedidos]);
+        verificarTodos();
+      }, [pedidos]);
 
       return (
         <div className="p-2 space-y-2 bg-zinc-50">
@@ -11125,42 +11910,489 @@ useEffect(() => {
       );
     };
 
+    const ListaDocumentosRuta = ({
+  documentos,
+  onVerDetalle,
+}: {
+  documentos: any[];
+  onVerDetalle: (documento: any) => void;
+}) => {
+  return (
+    <div className="p-2 space-y-2 bg-zinc-50">
+      {documentos.map((doc) => {
+        const esEnRuta = doc.estado_ruta === "en_ruta";
+        const esPagada = doc.estado_ruta === "pagada";
+        const esVerificado = doc.estado_ruta === "verificado";
+        const esEscaneado = doc.estado_ruta === "escaneado";
+
+        return (
+              <div
+                key={doc.id}
+                onClick={() => onVerDetalle(doc)}
+                className={`relative border-2 rounded-lg p-3 cursor-pointer transition shadow-sm ${
+  esPagada
+    ? "bg-green-50 border-green-500 hover:border-green-600"
+    : esEnRuta
+    ? "bg-blue-50 border-blue-500 hover:border-blue-600"
+    : esEscaneado
+    ? "bg-purple-50 border-purple-500 hover:border-purple-600"
+    : esVerificado
+    ? "bg-yellow-50 border-yellow-500 hover:border-yellow-600"
+    : "bg-white border-zinc-200 hover:border-orange-300"
+}`}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-zinc-900">
+                        {doc.tipo_documento === "nota" ? "Nota" : "Factura"}
+                      </span>
+                      <span className="text-sm font-bold text-orange-600">
+                        {doc.numero_documento}
+                      </span>
+                     {esPagada && (
+  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-600 text-white">
+    <span className="text-[10px] font-bold">PAGADA</span>
+  </div>
+)}
+{esEnRuta && !esPagada && (
+  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600 text-white">
+    <span className="text-[10px] font-bold">EN RUTA</span>
+  </div>
+)}
+{esEscaneado && !esEnRuta && !esPagada && (
+  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-600 text-white">
+    <span className="text-[10px] font-bold">ESCANEADO</span>
+  </div>
+)}
+{esVerificado && !esEscaneado && !esEnRuta && !esPagada && (
+  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-600 text-white">
+    <span className="text-[10px] font-bold">VERIFICADO</span>
+  </div>
+)}
+                    </div>
+                    <p className="text-xs font-semibold text-zinc-700">
+                      {doc.cuentas?.cliente || "Sin cliente"}
+                    </p>
+                    <p className="text-[10px] text-zinc-500">
+                      {doc.cuentas?.ferreteria}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-red-600">
+                      ${doc.monto.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
     const iniciarRuta = async (ruta: string) => {
   const pedidosRuta = pedidosPorRuta[ruta] || [];
+  const documentosRuta = documentosPorRuta[ruta] || [];
   const pedidosListos = [];
+  const documentosListos = [];
 
+  // Verificar pedidos
   for (const pedido of pedidosRuta) {
     const { data } = await supabase
       .from("codigos_etiquetas")
       .select("*")
       .eq("pedido_id", pedido.id)
-      .neq("tipo", "RS"); 
-
+      .neq("tipo", "RS");
 
     if (data && data.length > 0 && data.every((c: any) => c.escaneado)) {
       pedidosListos.push(pedido.id);
     }
   }
 
-      if (pedidosListos.length === 0) {
-        alert("No hay pedidos con todas las etiquetas escaneadas en esta ruta");
-        return;
-      }
+  // Verificar documentos escaneados
+  for (const doc of documentosRuta) {
+    if (doc.estado_ruta === "escaneado") {
+      documentosListos.push(doc.id);
+    }
+  }
 
-      // Cambiar estado solo de los pedidos verificados
-      const { error } = await supabase
-        .from("pedidos")
-        .update({ estado: "en_ruta" })
-        .in("id", pedidosListos);
+  if (pedidosListos.length === 0 && documentosListos.length === 0) {
+    alert("No hay pedidos ni documentos listos para iniciar la ruta");
+    return;
+  }
 
-      if (!error) {
-        alert(`¡Ruta iniciada! ${pedidosListos.length} pedido(s) en camino`);
-        cargarPedidosRuta();
-      } else {
-        alert("Error al iniciar la ruta");
-      }
-    };
+  // Actualizar pedidos
+  if (pedidosListos.length > 0) {
+    const { error: errorPedidos } = await supabase
+      .from("pedidos")
+      .update({ estado: "en_ruta" })
+      .in("id", pedidosListos);
 
+    if (errorPedidos) {
+      alert("Error al iniciar la ruta con pedidos");
+      return;
+    }
+  }
+
+  // Actualizar documentos
+  if (documentosListos.length > 0) {
+    const { error: errorDocs } = await supabase
+      .from("documentos_pendientes")
+      .update({ estado_ruta: "en_ruta" })
+      .in("id", documentosListos);
+
+    if (errorDocs) {
+      alert("Error al iniciar la ruta con documentos");
+      return;
+    }
+  }
+
+  alert(
+    `¡Ruta iniciada!\n${pedidosListos.length} pedido(s) y ${documentosListos.length} documento(s) en camino`
+  );
+  cargarPedidosRuta();
+  cargarDocumentosPendientes();
+};
+
+    if (documentoSeleccionado) {
+      const documentoVerificado = codigosDocEscaneados.has(documentoSeleccionado.id);
+
+      return (
+        <motion.div
+          key="detalle-documento"
+          className="min-h-screen pb-10"
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -40 }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+        >
+          <BackBtn
+            onBack={() => {
+              setDocumentoSeleccionado(null);
+              setCodigosDocEscaneados(new Set());
+            }}
+          />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">
+            {documentoSeleccionado.tipo_documento === "nota" ? "Nota" : "Factura"}{" "}
+            {documentoSeleccionado.numero_documento}
+          </h2>
+
+          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Cliente</span>
+                <span className="font-semibold text-zinc-900">
+                  {documentoSeleccionado.cuentas?.cliente || "N/A"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Ferretería</span>
+                <span className="font-semibold text-zinc-900">
+                  {documentoSeleccionado.cuentas?.ferreteria || "N/A"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Número Cuenta</span>
+                <span className="font-semibold text-zinc-900">
+                  {documentoSeleccionado.cuentas?.numero_cuenta || "N/A"}
+                </span>
+              </div>
+              <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
+                <span className="font-bold text-zinc-900">Monto</span>
+                <span className="font-bold text-red-600 text-lg">
+                  ${documentoSeleccionado.monto.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* VERIFICACIÓN DE CÓDIGO DE BARRAS */}
+{(documentoSeleccionado.estado_ruta === "verificado" || documentoSeleccionado.estado_ruta === "escaneado" || documentoSeleccionado.estado_ruta === "en_ruta") && (  
+            <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="w-5 h-5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
+                    />
+                  </svg>
+                  Verificación de Documento
+                </h3>
+                <div
+                  className={`px-3 py-1 rounded-full text-xs font-bold ${
+                    documentoVerificado
+                      ? "bg-green-500 text-white"
+                      : "bg-orange-100 text-orange-700"
+                  }`}
+                >
+                  {documentoVerificado ? "Verificado" : "Pendiente"}
+                </div>
+              </div>
+
+              {!documentoVerificado && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 flex items-center gap-3">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-blue-800 font-medium">
+                    Escanea el código de barras del documento
+                  </span>
+                </div>
+              )}
+
+              <div
+                className={`border-2 rounded-lg p-4 transition-all ${
+                  documentoVerificado
+                    ? "bg-green-50 border-green-500"
+                    : "bg-white border-zinc-200"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {documentoVerificado ? (
+                      <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="w-6 h-6 text-white"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-zinc-200 flex items-center justify-center">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                          className="w-6 h-6 text-zinc-400"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
+                          />
+                        </svg>
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-semibold text-zinc-900">
+                        Código de Barras
+                      </p>
+                      <p className="text-xs text-zinc-500 font-mono">
+                        {documentoSeleccionado.codigo_barras || "Sin código"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {documentoVerificado && (
+                <div className="mt-4 bg-green-50 border-2 border-green-500 rounded-xl p-4">
+                  <div className="flex items-center justify-center gap-2 text-green-700">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      className="w-6 h-6"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <span className="font-bold">¡Documento verificado!</span>
+                  </div>
+                  <p className="text-center text-sm text-green-600 mt-1">
+                    Confirma el estado de pago del documento
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Modal de código escaneado */}
+          {typeof document !== "undefined" &&
+            createPortal(
+              <AnimatePresence>
+                {mostrarModalEscaneado && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
+                    style={{ zIndex: 50000 }}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      className="bg-white rounded-2xl w-full max-w-sm p-8 shadow-2xl text-center"
+                    >
+                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="w-14 h-14 text-green-600"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                        ¡Código Verificado!
+                      </h3>
+                      <p className="text-zinc-600 text-lg">Documento válido</p>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>,
+              document.body,
+            )}
+
+          {/* Modal de Confirmar Pago */}
+          {typeof document !== "undefined" &&
+            createPortal(
+              <AnimatePresence>
+                {mostrarModalConfirmarPago && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+                    style={{ zIndex: 50000 }}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-orange-100 flex items-center justify-center">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                          className="w-14 h-14 text-orange-600"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      </div>
+
+                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                        Confirmar Estado de Pago
+                      </h3>
+
+                      <p className="text-zinc-600 text-base mb-2">
+                        {documentoSeleccionado?.tipo_documento === "nota" ? "Nota" : "Factura"}{" "}
+                        {documentoSeleccionado?.numero_documento}
+                      </p>
+
+                      <p className="text-red-600 font-bold text-xl mb-6">
+                        ${documentoSeleccionado?.monto.toFixed(2)}
+                      </p>
+
+                      <div className="space-y-3">
+                        <button
+                          onClick={async () => {
+                            // Marcar como pagada
+                            const { error } = await supabase
+                              .from("documentos_pendientes")
+                              .update({ estado_ruta: "pagada" })
+                              .eq("id", documentoSeleccionado.id);
+
+                            if (!error) {
+                              setMostrarModalConfirmarPago(false);
+                              
+                              if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+                              
+                              alert("Documento marcado como PAGADO. Espera confirmación del admin para eliminar.");
+                              
+                              setDocumentoSeleccionado(null);
+                              setCodigosDocEscaneados(new Set());
+                              cargarDocumentosPendientes();
+                            } else {
+                              alert("Error al actualizar el estado del documento");
+                            }
+                          }}
+                          className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform"
+                        >
+                          ✓ PAGADO
+                        </button>
+
+                        <button
+                          onClick={async () => {
+                            // Marcar como no pagada y quitar de ruta
+                            const { error } = await supabase
+                              .from("documentos_pendientes")
+                              .update({ estado_ruta: "pendiente" })
+                              .eq("id", documentoSeleccionado.id);
+
+                            if (!error) {
+                              setMostrarModalConfirmarPago(false);
+                              
+                              if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+                              
+                              alert("Documento marcado como NO PAGADO y removido de la ruta.");
+                              
+                              setDocumentoSeleccionado(null);
+                              setCodigosDocEscaneados(new Set());
+                              cargarDocumentosPendientes();
+                            } else {
+                              alert("Error al actualizar el estado del documento");
+                            }
+                          }}
+                          className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-red-500 hover:bg-red-600 active:scale-95 transition-transform"
+                        >
+                          ✗ NO PAGADO
+                        </button>
+
+                        <button
+                          onClick={() => setMostrarModalConfirmarPago(false)}
+                          className="w-full py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>,
+              document.body,
+            )}
+        </motion.div>
+      );
+    }
+
+    // ========== VISTA DE DETALLE DE PEDIDO ==========
     if (pedidoSeleccionado) {
       return (
         <motion.div
@@ -11184,7 +12416,6 @@ useEffect(() => {
             Pedido #{pedidoSeleccionado.id}
           </h2>
 
-          {/* SELECTOR DE ESTADO */}
           <div className="mb-4">
             <SelectorEstado
               estadoActual={pedidoSeleccionado.estado}
@@ -11287,7 +12518,6 @@ useEffect(() => {
 
                 <div className="space-y-2">
                   {codigosEtiquetas.map((codigo: any) => {
-                    // Determinar si está escaneado según el estado del pedido
                     const estaEscaneado = pedidoSeleccionado.estado === "encajado" 
                       ? codigo.escaneado 
                       : codigosEntregaEscaneados.has(codigo.id);
@@ -11461,7 +12691,7 @@ useEffect(() => {
             </div>
           )}
 
-          {/* Modal de código escaneado */}
+          {/* Modales existentes para pedidos... */}
           {typeof document !== "undefined" &&
             createPortal(
               <AnimatePresence>
@@ -11509,7 +12739,6 @@ useEffect(() => {
               document.body,
             )}
 
-          {/* Modal de Confirmar Entrega */}
           {typeof document !== "undefined" &&
             createPortal(
               <AnimatePresence>
@@ -11560,27 +12789,20 @@ useEffect(() => {
                       <div className="space-y-3">
                         <button
                           onClick={async () => {
-                            // Cambiar estado a entregado
                             const { error } = await supabase
                               .from("pedidos")
                               .update({ estado: "entregado" })
                               .eq("id", pedidoSeleccionado.id);
 
                             if (!error) {
-                              // Actualizar estado local
                               actualizarEstadoLocal("entregado");
-                              
-                              // Limpiar escaneos de entrega
                               setCodigosEntregaEscaneados(new Set());
-                              
-                              // Cerrar modal
                               setMostrarModalConfirmarEntrega(false);
                               
                               if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
                               
                               alert("¡Pedido marcado como entregado!");
                               
-                              // Volver a la lista de pedidos
                               setPedidoSeleccionado(null);
                               pedidoSeleccionadoRef.current = null;
                               setCodigosEtiquetas([]);
@@ -11610,7 +12832,7 @@ useEffect(() => {
       );
     }
 
-    // VISTA LISTA DE RUTAS
+    // ========== VISTA LISTA DE RUTAS ==========
     return (
       <motion.div
         key="vista-rutas"
@@ -11630,105 +12852,285 @@ useEffect(() => {
           <div className="flex justify-center py-10">
             <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
           </div>
-        ) : Object.keys(pedidosPorRuta).length === 0 ? (
+        ) : Object.keys(pedidosPorRuta).length === 0 && Object.keys(documentosPorRuta).length === 0 ? (
           <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
             <MapPin size={40} className="mx-auto text-zinc-300 mb-2" />
-            <p className="text-zinc-500">No hay pedidos pendientes de ruta</p>
+            <p className="text-zinc-500">No hay pedidos ni documentos pendientes de ruta</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {Object.entries(pedidosPorRuta).map(
-              ([ruta, pedidos]: [string, any[]]) => {
-                const pedidosEncajados = pedidos.filter(
-                  (p) => p.estado === "encajado",
-                );
+            {/* Combinar rutas de pedidos y documentos */}
+            {Array.from(new Set([...Object.keys(pedidosPorRuta), ...Object.keys(documentosPorRuta)])).map((ruta) => {
+  const pedidos = pedidosPorRuta[ruta] || [];
+  const todosDocumentos = documentosPorRuta[ruta] || [];
+  const documentos = todosDocumentos.filter((d) => d.estado_ruta !== "pendiente");
+  const pedidosEncajados = pedidos.filter((p) => p.estado === "encajado");
+  const documentosPendientes = todosDocumentos.filter((d) => d.estado_ruta === "pendiente");
 
-                return (
-                  <div
-                    key={ruta}
-                    className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden"
+              return (
+                <div
+                  key={ruta}
+                  className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden"
+                >
+                  <button
+                    onClick={() =>
+                      setRutaExpandida(rutaExpandida === ruta ? null : ruta)
+                    }
+                    className="w-full p-4 flex items-center justify-between hover:bg-zinc-50 transition"
                   >
-                    <button
-                      onClick={() =>
-                        setRutaExpandida(rutaExpandida === ruta ? null : ruta)
-                      }
-                      className="w-full p-4 flex items-center justify-between hover:bg-zinc-50 transition"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                          <MapPin size={20} className="text-orange-600" />
-                        </div>
-                        <div className="text-left">
-                          <p className="font-bold text-zinc-900">{ruta}</p>
-                          <p className="text-xs text-zinc-500">
-                            {pedidos.length} pedido
-                            {pedidos.length !== 1 ? "s" : ""}
-                          </p>
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                        <MapPin size={20} className="text-orange-600" />
                       </div>
-                      <ChevronLeft
-                        size={20}
-                        className={`text-zinc-400 transition-transform ${
-                          rutaExpandida === ruta ? "rotate-90" : "-rotate-90"
-                        }`}
-                      />
-                    </button>
+                      <div className="text-left">
+                        <p className="font-bold text-zinc-900">{ruta}</p>
+                        <p className="text-xs text-zinc-500">
+  {pedidos.length} pedido{pedidos.length !== 1 ? "s" : ""}
+  {documentos.length > 0 && ` · ${documentos.length} doc${documentos.length !== 1 ? "s" : ""}`}
+</p>
+                      </div>
+                    </div>
+                    <ChevronLeft
+                      size={20}
+                      className={`text-zinc-400 transition-transform ${
+                        rutaExpandida === ruta ? "rotate-90" : "-rotate-90"
+                      }`}
+                    />
+                  </button>
 
-                    <AnimatePresence>
-                      {rutaExpandida === ruta && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className="border-t border-zinc-200"
-                        >
-                          <ListaPedidosRuta
-                            pedidos={pedidos}
-                            onVerDetalle={verDetallePedido}
-                          />
+                  <AnimatePresence>
+                    {rutaExpandida === ruta && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="border-t border-zinc-200"
+                      >
+                        {/* PEDIDOS */}
+                        {pedidos.length > 0 && (
+                          <div>
+                            <div className="bg-zinc-100 px-4 py-2">
+                              <h4 className="text-xs font-bold text-zinc-700 uppercase">
+                                Pedidos ({pedidos.length})
+                              </h4>
+                            </div>
+                            <ListaPedidosRuta
+                              pedidos={pedidos}
+                              onVerDetalle={verDetallePedido}
+                            />
+                          </div>
+                        )}
+
+                        {/* DOCUMENTOS */}
+{documentos.length > 0 && (
+  <div>
+    <div className="bg-red-50 px-4 py-2 border-t border-zinc-200">
+      <h4 className="text-xs font-bold text-red-700 uppercase">
+        Documentos ({documentos.length})
+      </h4>
+    </div>
+    <ListaDocumentosRuta
+      documentos={documentos}
+      onVerDetalle={verDetalleDocumento}
+    />
+  </div>
+)}
+
+                        
+
+                        {/* BOTONES DE ACCIÓN */}
+                        <div className="p-3 bg-zinc-50 border-t border-zinc-200 space-y-2">
+                          {/* Botón Agregar Documentos (solo admin) */}
+                          {esAdmin && documentosPendientes.length > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                abrirModalDocumentos(ruta);
+                              }}
+                              className="w-full py-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={2.5}
+                                stroke="currentColor"
+                                className="w-5 h-5"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M12 4.5v15m7.5-7.5h-15"
+                                />
+                              </svg>
+                              AGREGAR DOCUMENTOS A RUTA
+                            </button>
+                          )}
+
+
 
                           {/* Botón Iniciar Ruta */}
                           {pedidosEncajados.length > 0 && (
-                            <div className="p-3 bg-zinc-50 border-t border-zinc-200">
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  await iniciarRuta(ruta);
-                                }}
-                                className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await iniciarRuta(ruta);
+                              }}
+                              className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={2.5}
+                                stroke="currentColor"
+                                className="w-5 h-5"
                               >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  strokeWidth={2.5}
-                                  stroke="currentColor"
-                                  className="w-5 h-5"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"
-                                  />
-                                </svg>
-                                INICIAR RUTA
-                              </button>
-                              <p className="text-xs text-center text-zinc-500 mt-2">
-                                Se iniciarán solo los pedidos con etiquetas
-                                verificadas ({pedidosEncajados.length} total)
-                              </p>
-                            </div>
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"
+                                />
+                              </svg>
+                              INICIAR RUTA
+                            </button>
                           )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                );
-              },
-            )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
           </div>
         )}
+
+        {/* MODAL DE SELECCIÓN DE DOCUMENTOS */}
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {mostrarModalDocumentos && rutaSeleccionadaDocs && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
+                  style={{ zIndex: 50000 }}
+                  onClick={() => setMostrarModalDocumentos(false)}
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="p-6 border-b border-zinc-200">
+                      <h3 className="text-xl font-bold text-zinc-900">
+                        Agregar Documentos a {rutaSeleccionadaDocs}
+                      </h3>
+                      <p className="text-sm text-zinc-500 mt-1">
+                        Selecciona los documentos que deseas agregar a esta ruta
+                      </p>
+                    </div>
+
+                    <div className="p-4 overflow-y-auto max-h-[50vh]">
+                      {documentosPorRuta[rutaSeleccionadaDocs]?.filter((d: any) => d.estado_ruta === "pendiente").length === 0 ? (
+                        <p className="text-center text-zinc-500 py-8">
+                          No hay documentos pendientes en esta ruta
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {documentosPorRuta[rutaSeleccionadaDocs]
+                            ?.filter((d: any) => d.estado_ruta === "pendiente")
+                            .map((doc: any) => (
+                              <div
+                                key={doc.id}
+                                onClick={() => {
+                                  setDocumentosSeleccionados((prev) => {
+                                    const nuevo = new Set(prev);
+                                    if (nuevo.has(doc.id)) {
+                                      nuevo.delete(doc.id);
+                                    } else {
+                                      nuevo.add(doc.id);
+                                    }
+                                    return nuevo;
+                                  });
+                                }}
+                                className={`border-2 rounded-lg p-4 cursor-pointer transition ${
+                                  documentosSeleccionados.has(doc.id)
+                                    ? "bg-orange-50 border-orange-500"
+                                    : "bg-white border-zinc-200 hover:border-orange-300"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-xs font-bold text-zinc-700">
+                                        {doc.tipo_documento === "nota" ? "NOTA" : "FACTURA"}
+                                      </span>
+                                      <span className="font-bold text-orange-600">
+                                        {doc.numero_documento}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm font-semibold text-zinc-900">
+                                      {doc.cuentas?.cliente}
+                                    </p>
+                                    <p className="text-xs text-zinc-500">
+                                      {doc.cuentas?.ferreteria}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-lg font-bold text-red-600">
+                                      ${doc.monto.toFixed(2)}
+                                    </p>
+                                    {documentosSeleccionados.has(doc.id) && (
+                                      <div className="mt-1 w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center ml-auto">
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 20 20"
+                                          fill="currentColor"
+                                          className="w-4 h-4 text-white"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-6 border-t border-zinc-200 space-y-3">
+                      <button
+                        onClick={agregarDocumentosARuta}
+                        disabled={documentosSeleccionados.size === 0}
+                        className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-orange-500 hover:bg-orange-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        AGREGAR {documentosSeleccionados.size} DOCUMENTO
+                        {documentosSeleccionados.size !== 1 ? "S" : ""}
+                      </button>
+                      <button
+                        onClick={() => setMostrarModalDocumentos(false)}
+                        className="w-full py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body,
+          )}
       </motion.div>
     );
   };
@@ -11770,6 +13172,7 @@ useEffect(() => {
     });
     const [modalCantidad, setModalCantidad] = useState<any>(null);
     const [cantidadManual, setCantidadManual] = useState("");
+    
 
     useEffect(() => {
       window.scrollTo(0, 0);
@@ -11847,7 +13250,7 @@ useEffect(() => {
       `,
         )
         .in("estado", ["por_revisar", "revisando"])
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false });
 
       setPedidosPorRevisar(data || []);
       setCargando(false);
@@ -12178,20 +13581,28 @@ useEffect(() => {
     };
 
     // Verificar si la hoja está completa
-    const totalEsperado = hojaActual
-      ? hojaActual.productos.reduce((sum: number, p: any) => {
-          const estadoActual = obtenerEstadoActual(p);
-          return sum + (estadoActual.cantidad_surtida || 0);
-        }, 0)
-      : 0;
+const totalEsperado = hojaActual
+  ? hojaActual.productos.reduce((sum: number, p: any) => {
+      const estadoActual = obtenerEstadoActual(p);
+      return sum + (estadoActual.cantidad_surtida || 0);
+    }, 0)
+  : 0;
 
-    const totalVerificado = hojaActual
-      ? hojaActual.productos.reduce((sum: number, p: any) => {
-          return sum + (productosVerificados.get(p.producto_id) || 0);
-        }, 0)
-      : 0;
+const totalVerificado = hojaActual
+  ? hojaActual.productos.reduce((sum: number, p: any) => {
+      return sum + (productosVerificados.get(p.producto_id) || 0);
+    }, 0)
+  : 0;
 
-    const hojaCompleta = totalVerificado >= totalEsperado && totalEsperado > 0;
+const todosPA = hojaActual
+  ? hojaActual.productos.every((p: any) => {
+      const estadoActual = obtenerEstadoActual(p);
+      return estadoActual.estado === "PA";
+    })
+  : false;
+
+const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEsperado > 0);
+
 
     useEffect(() => {
       if (hojaCompleta && hojaActual) {
@@ -13599,6 +15010,7 @@ useEffect(() => {
       </motion.div>
     );
   };
+  
 
   const VistaSurtir = ({ setVistaPerfil }: any) => {
     const [pedidosPendientes, setPedidosPendientes] = useState<any[]>([]);
@@ -13635,7 +15047,7 @@ useEffect(() => {
     `,
         )
         .in("estado", ["nuevo_pedido", "recibido", "surtiendo"])
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false });
 
       setPedidosPendientes(data || []);
       setCargando(false);
@@ -17639,6 +19051,7 @@ useEffect(() => {
                                   setVistaPerfil("gestionar-categorias");
                                 }}
                               />
+                              {/*
                               <MenuItem
                                 label="Asignar Subcategorías"
                                 icon={<Box size={20} />}
@@ -17649,13 +19062,13 @@ useEffect(() => {
                                   });
                                   setVistaPerfil("asignar-categorias");
                                 }}
-                              />
+                              />*/}
                             </>
                           )}
 
                           {esAdmin && (
                             <MenuItem
-                              label="Gestionar Categorías"
+                              label="Agregar o Eliminar Categorías"
                               icon={<SquareStack size={20} />}
                               onClick={() => {
                                 window.scrollTo({
@@ -17774,7 +19187,19 @@ useEffect(() => {
                               }}
                             />
                           )}
-
+{esAdmin && (
+  <MenuItem
+    label="Confirmar Pagos"
+    icon={<DollarSign size={20}/>}
+    onClick={() => {
+      window.scrollTo({
+        top: 0,
+        behavior: "instant",
+      });
+      setVistaPerfil("confirmar_pagos");
+    }}
+  />
+)}
                           {esEmpleado && (
                             <MenuItem
                               label="Surtir Pedidos"
@@ -18083,8 +19508,12 @@ useEffect(() => {
                     )}
 
                     {vistaPerfil === "rutas" && (
-                      <VistaRutas setVistaPerfil={setVistaPerfil} />
+                      <VistaRutas setVistaPerfil={setVistaPerfil} esAdmin={esAdmin}/>
                     )}
+
+                    {vistaPerfil === "confirmar_pagos" && (
+  <VistaConfirmarPagos setVistaPerfil={setVistaPerfil} />
+)}
 
                     {vistaPerfil === "surtir" && esEmpleado && (
                       <VistaSurtir setVistaPerfil={setVistaPerfil} />
@@ -18811,3 +20240,5 @@ useEffect(() => {
     </>
   );
 }
+
+
