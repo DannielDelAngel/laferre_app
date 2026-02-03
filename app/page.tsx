@@ -58,6 +58,7 @@ import { div } from "framer-motion/client";
 import Barcode from "react-barcode";
 import { updateTag } from "next/cache";
 
+
 const MapaUbicacion = dynamic(() => import("./MapaUbicacion"), {
   ssr: false,
   loading: () => (
@@ -1842,7 +1843,8 @@ export default function HomePage() {
     Map<number, number>
   >(new Map());
   const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
-  
+  const [paginaCarrito, setPaginaCarrito] = useState(1);
+const ITEMS_POR_PAGINA = 20;
 
   interface ProductoConVisibilidad extends Producto {
     visibleMostrador?: boolean;
@@ -1891,6 +1893,14 @@ export default function HomePage() {
     setIsPulling(false);
     setPullDistance(0);
   };
+
+  useEffect(() => {
+  // Si la página actual está vacía después de eliminar, volver a la anterior
+  const totalPaginas = Math.ceil(carrito.length / ITEMS_POR_PAGINA);
+  if (paginaCarrito > totalPaginas && totalPaginas > 0) {
+    setPaginaCarrito(totalPaginas);
+  }
+}, [carrito.length]);
 
   // Cargar productos ocultos para la cuenta mostrador actual
   useEffect(() => {
@@ -2666,7 +2676,7 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from("marcas")
         .select("id, nombre_marca, img")
-        .order("orden", { ascending: true });
+        .order("nombre_marca", { ascending: false });
 
       if (error) {
         console.error("Error cargando marcas:", error.message);
@@ -18683,99 +18693,156 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                                 </p>
                               </div>
                             </div>
-                          ) : (
-                            /* VISTA NORMAL PARA CLIENTES */
-                            <>
-                              {/* Productos */}
-                              <div className="space-y-3">
-                                {carrito.map((item) => (
-                                  <div
-                                    key={item.id}
-                                    className="flex items-center gap-3 border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
-                                  >
-                                    {/* Imagen */}
-                                    <div
-                                      className="relative w-16 h-16 bg-zinc-100 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
-                                      onClick={() => {
-                                        localStorage.setItem(
-                                          "scrollProducto",
-                                          scrollY.toString(),
-                                        );
-                                        setProductoSeleccionado(item);
-                                      }}
-                                    >
-                                      <Image
-                                        src={
-                                          item.IMAGEN ||
-                                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
-                                        }
-                                        alt={item.TITULO}
-                                        fill
-                                        className="object-contain"
-                                      />
-                                    </div>
+                         ) : (
+  /* VISTA NORMAL PARA CLIENTES */
+  <>
+    {/* Productos paginados */}
+    <div 
+  className="space-y-3" 
+  style={{ 
+    minHeight: '60vh', 
+    overflowAnchor: 'none' 
+  }}
+>
+      {carrito
+        .slice((paginaCarrito - 1) * ITEMS_POR_PAGINA, paginaCarrito * ITEMS_POR_PAGINA)
+        .map((item) => (
+          <div
+            key={item.id}
+            className="flex items-center gap-3 border border-zinc-200 rounded-xl p-3 bg-white shadow-sm"
+          >
+            {/* Imagen */}
+            <div
+              className="relative w-16 h-16 bg-zinc-100 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
+              onClick={() => {
+                localStorage.setItem("scrollProducto", scrollY.toString());
+                setProductoSeleccionado(item);
+              }}
+            >
+              <Image
+                src={
+                  item.IMAGEN ||
+                  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                }
+                alt={item.TITULO}
+                fill
+                className="object-contain"
+              />
+            </div>
 
-                                    {/* Información del producto */}
-                                    <div
-                                      className="flex-1 min-w-0 cursor-pointer"
-                                      onClick={() => {
-                                        localStorage.setItem(
-                                          "scrollProducto",
-                                          scrollY.toString(),
-                                        );
-                                        setProductoSeleccionado(item);
-                                      }}
-                                    >
-                                      <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
-                                        {item.TITULO}
-                                      </p>
-                                      <p className="text-xs text-zinc-500 mt-1">
-                                        Código: {item.CODIGO}
-                                      </p>
-                                      <div className="flex items-center gap-2 mt-1">
-                                        <p className="text-xs text-zinc-600">
-                                          {item.cantidad} × $
-                                          {item.P_MAYOREO.toLocaleString(
-                                            "en-US",
-                                            {
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            },
-                                          )}
-                                        </p>
-                                        <span className="text-xs text-zinc-400">
-                                          |
-                                        </span>
-                                        <p className="text-sm font-bold text-orange-500">
-                                          $
-                                          {item.subtotal.toLocaleString(
-                                            "en-US",
-                                            {
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 2,
-                                            },
-                                          )}
-                                        </p>
-                                      </div>
-                                    </div>
+            {/* Información del producto */}
+            <div
+              className="flex-1 min-w-0 cursor-pointer"
+              onClick={() => {
+                localStorage.setItem("scrollProducto", scrollY.toString());
+                setProductoSeleccionado(item);
+              }}
+            >
+              <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
+                {item.TITULO}
+              </p>
+              <p className="text-xs text-zinc-600 mt-0.5">{item.CODIGO}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-sm font-bold text-orange-600">
+                  ${item.P_MAYOREO?.toFixed(2)}
+                </p>
+                <span className="text-xs text-zinc-500">× {item.cantidad}</span>
+              </div>
+              <p className="text-xs font-semibold text-zinc-700 mt-1">
+                Subtotal: ${(item.subtotal || 0).toFixed(2)}
+              </p>
+            </div>
 
-                                    {/* Botón eliminar */}
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setCarrito((prev) =>
-                                          prev.filter((p) => p.id !== item.id),
-                                        );
-                                      }}
-                                      className="w-9 h-9 bg-orange-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
-                                      aria-label="Eliminar producto"
-                                    >
-                                      <X size={18} />
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
+            {/* Botón eliminar */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCarrito((prev) => prev.filter((p) => p.id !== item.id));
+              }}
+              className="w-9 h-9 bg-orange-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 transition"
+              aria-label="Eliminar producto"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        ))}
+    </div>
 
+    {/* Paginación */}
+    {carrito.length > ITEMS_POR_PAGINA && (
+      <div className="mt-6 mb-4">
+        {/* Info de página */}
+        <div className="text-center text-sm text-zinc-600 mb-3">
+          Página {paginaCarrito} de {Math.ceil(carrito.length / ITEMS_POR_PAGINA)} 
+          <span className="mx-2">•</span>
+          {carrito.length} productos totales
+        </div>
+
+        {/* Botones de paginación */}
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          {/* Botón anterior */}
+          <button
+  onClick={() => {
+    setPaginaCarrito(prev => prev - 1);
+  }}
+  disabled={paginaCarrito === 1}
+  className={`px-4 py-2 rounded-lg font-semibold transition ${
+    paginaCarrito === 1
+      ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
+      : 'bg-zinc-700 text-white hover:bg-zinc-800'
+  }`}
+>
+  ←
+</button>
+
+          {/* Números de página corregidos a 3 botones */}
+{(() => {
+  const totalPaginas = Math.ceil(carrito.length / ITEMS_POR_PAGINA);
+  const paginas = [];
+  
+  // Determinamos el rango: siempre intentar mostrar actual, uno antes y uno después
+  let inicio = Math.max(1, paginaCarrito - 1);
+  let fin = Math.min(totalPaginas, paginaCarrito + 1);
+
+  // Ajuste para que siempre se vean 3 si es posible
+  if (paginaCarrito === 1) fin = Math.min(3, totalPaginas);
+  if (paginaCarrito === totalPaginas) inicio = Math.max(1, totalPaginas - 2);
+
+  for (let i = inicio; i <= fin; i++) {
+    paginas.push(
+      <button
+        key={i}
+        onClick={() => setPaginaCarrito(i)} // Quitamos cualquier scroll forzado aquí
+        className={`w-10 h-10 rounded-lg font-semibold transition ${
+          paginaCarrito === i
+            ? 'bg-orange-500 text-white scale-105 shadow-md'
+            : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+        }`}
+      >
+        {i}
+      </button>
+    );
+  }
+  return paginas;
+})()}
+
+          {/* Botón siguiente */}
+          <button
+  onClick={() => {
+    setPaginaCarrito(prev => prev + 1);
+  }}
+  disabled={paginaCarrito === Math.ceil(carrito.length / ITEMS_POR_PAGINA)}
+  className={`px-4 py-2 rounded-lg font-semibold transition ${
+    paginaCarrito === Math.ceil(carrito.length / ITEMS_POR_PAGINA)
+      ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
+      : 'bg-zinc-700 text-white hover:bg-zinc-800'
+  }`}
+>
+  →
+</button>
+        </div>
+      </div>
+    )}
                               {/* Barra de progreso*/}
                               <AnimatePresence>
                                 {!ocultarBarra &&
