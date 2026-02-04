@@ -38,6 +38,7 @@ import {
   Edit2,
   ChevronLeft,
   ScanBarcode,
+  MapPinned,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
@@ -57,6 +58,8 @@ import ContadorEntrega from "@/app/ContadorEntrega";
 import { div } from "framer-motion/client";
 import Barcode from "react-barcode";
 import { updateTag } from "next/cache";
+import { useRastreoGPS } from '@/hooks/useRastreoGPS';
+import VistaRastreoRutas from './VistaRastreoRutas';
 
 
 const MapaUbicacion = dynamic(() => import("./MapaUbicacion"), {
@@ -1845,6 +1848,7 @@ export default function HomePage() {
   const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
   const [paginaCarrito, setPaginaCarrito] = useState(1);
 const ITEMS_POR_PAGINA = 20;
+const [enRuta, setEnRuta] = useState(false);
 
   interface ProductoConVisibilidad extends Producto {
     visibleMostrador?: boolean;
@@ -1893,6 +1897,15 @@ const ITEMS_POR_PAGINA = 20;
     setIsPulling(false);
     setPullDistance(0);
   };
+
+  // Hook de rastreo GPS para usuarios de Rutas
+const { rastreando, error: errorGPS, ultimaUbicacion } = useRastreoGPS({
+  cuentaId: cuenta?.numero_cuenta || '',
+  nombreRuta: cuenta?.cliente || cuenta?.numero_cuenta || '',
+  distanciaMinima: 50, // 50 metros
+  tiempoMinimo: 30000, // 30 segundos
+  habilitado: esRutas && enRuta,
+});
 
   useEffect(() => {
   // Si la página actual está vacía después de eliminar, volver a la anterior
@@ -2676,7 +2689,7 @@ const ITEMS_POR_PAGINA = 20;
       const { data, error } = await supabase
         .from("marcas")
         .select("id, nombre_marca, img")
-        .order("nombre_marca", { ascending: false });
+        .order("orden", { ascending: true });
 
       if (error) {
         console.error("Error cargando marcas:", error.message);
@@ -2775,393 +2788,605 @@ const ITEMS_POR_PAGINA = 20;
 
   // Componente para gestionar marcas
   const GestionarMarcasView = ({ setVistaPerfil }: any) => {
-    const [nombre, setNombre] = useState("");
-    const [imagenFile, setImagenFile] = useState<File | null>(null);
-    const [imagenPreview, setImagenPreview] = useState("");
-    const [guardando, setGuardando] = useState(false);
-    const [mensaje, setMensaje] = useState("");
-    const [modoEliminar, setModoEliminar] = useState(false);
-    const [marcaEliminar, setMarcaEliminar] = useState<any>(null);
-    const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
-    const [errorEliminar, setErrorEliminar] = useState("");
+  const [modoEdicion, setModoEdicion] = useState<"agregar" | "editar" | "eliminar">("agregar");
+  const [nombre, setNombre] = useState("");
+  const [imagenFile, setImagenFile] = useState<File | null>(null);
+  const [imagenPreview, setImagenPreview] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+  const [marcaEliminar, setMarcaEliminar] = useState<any>(null);
+  const [marcaEditar, setMarcaEditar] = useState<any>(null);
+  const [numeroCuentaConfirm, setNumeroCuentaConfirm] = useState("");
+  const [errorEliminar, setErrorEliminar] = useState("");
 
-    const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        if (!file.type.startsWith("image/")) {
-          setMensaje("Por favor selecciona un archivo de imagen válido");
-          return;
-        }
-        if (file.size > 800 * 1024) {
-          setMensaje("La imagen no debe superar los 800 KB");
-          return;
-        }
+  const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImagenFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagenPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
-        setImagenFile(file);
-        const reader = new FileReader();
-        reader.onloadend = () => setImagenPreview(reader.result as string);
-        reader.readAsDataURL(file);
-      }
-    };
+  const agregarMarca = async () => {
+    if (!nombre.trim()) {
+      setMensaje("Por favor ingresa un nombre para la marca");
+      return;
+    }
 
-    const agregarMarca = async () => {
-      setGuardando(true);
-      setMensaje("");
+    setGuardando(true);
+    setMensaje("");
 
-      if (!nombre) {
-        setMensaje("Por favor ingresa el nombre de la marca");
-        setGuardando(false);
-        return;
-      }
+    try {
+      let imagenUrl = "";
 
-      try {
-        let urlImagen = "";
+      if (imagenFile) {
+        const nombreArchivo = `marca_${Date.now()}_${imagenFile.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("imagenes_categorias")
+          .upload(nombreArchivo, imagenFile);
 
-        if (imagenFile) {
-          const timestamp = Date.now();
-          const extension = imagenFile.name.split(".").pop();
-          const nombreArchivo = `marca_${timestamp}.${extension}`;
+        if (uploadError) throw uploadError;
 
-          const { error: uploadError } = await supabase.storage
-            .from("imagenes_categorias")
-            .upload(nombreArchivo, imagenFile, {
-              cacheControl: "public, max-age=31536000",
-              upsert: true,
-            });
-
-          if (uploadError) {
-            setMensaje("Error al subir la imagen");
-            setGuardando(false);
-            return;
-          }
-
-          const {
-            data: { publicUrl },
-          } = supabase.storage
-            .from("imagenes_categorias")
-            .getPublicUrl(nombreArchivo);
-          urlImagen = publicUrl;
-        }
-
-        const { error } = await supabase.from("marcas").insert([
-          {
-            nombre_marca: nombre,
-            img: urlImagen,
-          },
-        ]);
-
-        if (error) {
-          setMensaje(
-            error.code === "23505"
-              ? "Ya existe una marca con ese nombre"
-              : "Error al agregar marca",
-          );
-        } else {
-          setMensaje("Marca agregada correctamente");
-          // Recargar marcas
-          const { data } = await supabase
-            .from("marcas")
-            .select("id, nombre_marca, img")
-            .order("nombre_marca", { ascending: true });
-          setMarcas(data || []);
-
-          setTimeout(() => {
-            setNombre("");
-            setImagenFile(null);
-            setImagenPreview("");
-            setMensaje("");
-          }, 2000);
-        }
-      } catch (error) {
-        setMensaje("Ocurrió un error inesperado");
-      } finally {
-        setGuardando(false);
-      }
-    };
-
-    const eliminarMarca = async () => {
-      if (!marcaEliminar) return;
-      setGuardando(true);
-      setErrorEliminar("");
-
-      if (numeroCuentaConfirm.trim() !== cuenta?.numero_cuenta) {
-        setErrorEliminar("Número de cuenta incorrecto");
-        setGuardando(false);
-        return;
+        const { data: urlData } = supabase.storage
+          .from("imagenes_categorias")
+          .getPublicUrl(nombreArchivo);
+        imagenUrl = urlData.publicUrl;
       }
 
-      try {
-        // Eliminar imagen si existe
-        if (
-          marcaEliminar.img &&
-          marcaEliminar.img.includes("imagenes_categorias")
-        ) {
-          const urlParts = marcaEliminar.img.split("/");
+      const { error } = await supabase.from("marcas").insert([
+        {
+          nombre_marca: nombre,
+          img: imagenUrl,
+        },
+      ]);
+
+      if (error) throw error;
+
+      setMensaje("Marca agregada correctamente");
+      setNombre("");
+      setImagenFile(null);
+      setImagenPreview("");
+
+      const { data } = await supabase
+        .from("marcas")
+        .select("id, nombre_marca, img")
+        .order("nombre_marca", { ascending: true });
+      setMarcas(data || []);
+
+      setTimeout(() => setMensaje(""), 3000);
+    } catch (error: any) {
+      setMensaje(`Error: ${error.message}`);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const editarMarca = async () => {
+    if (!nombre.trim()) {
+      setMensaje("Por favor ingresa un nombre para la marca");
+      return;
+    }
+
+    setGuardando(true);
+    setMensaje("");
+
+    try {
+      let imagenUrl = marcaEditar.img;
+
+      // Si hay una nueva imagen
+      if (imagenFile) {
+        // Eliminar imagen anterior del bucket si existe
+        if (marcaEditar.img) {
+          const urlParts = marcaEditar.img.split("/");
           const nombreArchivo = urlParts[urlParts.length - 1];
           await supabase.storage
             .from("imagenes_categorias")
             .remove([nombreArchivo]);
         }
 
-        const { error } = await supabase
-          .from("marcas")
-          .delete()
-          .eq("id", marcaEliminar.id);
+        // Subir nueva imagen
+        const nombreArchivo = `marca_${Date.now()}_${imagenFile.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("imagenes_categorias")
+          .upload(nombreArchivo, imagenFile);
 
-        if (error) {
-          setErrorEliminar("Error al eliminar la marca");
-        } else {
-          setMensaje("Marca eliminada correctamente");
-          // Recargar marcas
-          const { data } = await supabase
-            .from("marcas")
-            .select("id, nombre_marca, img")
-            .order("nombre_marca", { ascending: true });
-          setMarcas(data || []);
+        if (uploadError) throw uploadError;
 
-          setModoEliminar(false);
-          setMarcaEliminar(null);
-          setNumeroCuentaConfirm("");
-        }
-      } catch (error) {
-        setErrorEliminar("Ocurrió un error inesperado");
-      } finally {
-        setGuardando(false);
+        const { data: urlData } = supabase.storage
+          .from("imagenes_categorias")
+          .getPublicUrl(nombreArchivo);
+        imagenUrl = urlData.publicUrl;
       }
-    };
 
-    return (
-      <motion.div
-        key="gestionar-marcas"
-        className="min-h-screen"
-        initial={{ opacity: 0, x: 40 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -40 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
-      >
-        <div className="px-6 py-6">
-          <BackBtn onBack={() => setVistaPerfil("menu")} />
+      const { error } = await supabase
+        .from("marcas")
+        .update({
+          nombre_marca: nombre,
+          img: imagenUrl,
+        })
+        .eq("id", marcaEditar.id);
 
-          <h2 className="text-xl font-bold text-zinc-900 mb-6">
-            Gestionar Marcas
-          </h2>
+      if (error) throw error;
 
-          {/* Pestañas */}
-          <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
-            <button
-              onClick={() => setModoEliminar(false)}
-              className={`flex-1 py-3 rounded-lg font-semibold transition ${
-                !modoEliminar
-                  ? "bg-orange-500 text-white"
-                  : "text-zinc-600 hover:bg-zinc-100"
-              }`}
-            >
-              Agregar
-            </button>
-            <button
-              onClick={() => setModoEliminar(true)}
-              className={`flex-1 py-3 rounded-lg font-semibold transition ${
-                modoEliminar
-                  ? "bg-red-500 text-white"
-                  : "text-zinc-600 hover:bg-zinc-100"
-              }`}
-            >
-              Eliminar
-            </button>
-          </div>
+      setMensaje("Marca actualizada correctamente");
+      setNombre("");
+      setImagenFile(null);
+      setImagenPreview("");
+      setMarcaEditar(null);
+      setModoEdicion("agregar");
 
-          {!modoEliminar ? (
-            /* MODO AGREGAR */
-            <>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Imagen
-                </label>
-                <div className="flex flex-col items-center gap-3">
-                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-dashed border-zinc-300 bg-zinc-50 flex items-center justify-center">
-                    {imagenPreview ? (
-                      <Image
-                        src={imagenPreview}
-                        alt="Preview"
-                        fill
-                        className="object-contain"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="text-center text-zinc-400">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          strokeWidth={1.5}
-                          stroke="currentColor"
-                          className="w-12 h-12 mx-auto mb-2"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
-                          />
-                        </svg>
-                        <p className="text-sm">Sin imagen</p>
-                      </div>
-                    )}
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImagenChange}
-                    className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
-                  />
-                </div>
-              </div>
+      const { data } = await supabase
+        .from("marcas")
+        .select("id, nombre_marca, img")
+        .order("nombre_marca", { ascending: true });
+      setMarcas(data || []);
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Nombre de la Marca <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Ej: TRUPER"
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
+      setTimeout(() => setMensaje(""), 3000);
+    } catch (error: any) {
+      setMensaje(`Error: ${error.message}`);
+    } finally {
+      setGuardando(false);
+    }
+  };
 
-              {mensaje && (
-                <div
-                  className={`mb-4 p-3 rounded-lg text-sm ${
-                    mensaje.includes("Error") || mensaje.includes("ingresa")
-                      ? "bg-red-50 text-red-700 border border-red-200"
-                      : "bg-green-50 text-green-700 border border-green-200"
-                  }`}
-                >
-                  {mensaje}
-                </div>
-              )}
+  const eliminarMarca = async () => {
+    if (numeroCuentaConfirm !== cuenta?.numero_cuenta) {
+      setErrorEliminar("Número de cuenta incorrecto");
+      return;
+    }
 
-              <button
-                onClick={agregarMarca}
-                disabled={guardando || !nombre}
-                className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {guardando ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                    Guardando...
-                  </span>
-                ) : (
-                  "Agregar Marca"
-                )}
-              </button>
-            </>
-          ) : (
-            /* MODO ELIMINAR */
-            <>
-              <p className="text-sm text-zinc-600 mb-4">
-                Selecciona una marca para eliminar:
-              </p>
-              <div className="space-y-2 mb-4">
-                {marcas.map((marca) => (
-                  <div
-                    key={marca.id}
-                    onClick={() => setMarcaEliminar(marca)}
-                    className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition ${
-                      marcaEliminar?.id === marca.id
-                        ? "border-red-500 bg-red-50"
-                        : "border-zinc-200 hover:border-red-300"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="relative w-12 h-12 rounded-lg overflow-hidden">
-                        <Image
-                          src={
-                            marca.img ||
-                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
-                          }
-                          alt={marca.nombre_marca}
-                          fill
-                          className="object-contain"
-                          loading="lazy"
-                        />
-                      </div>
-                      <span className="font-semibold text-zinc-800">
-                        {marca.nombre_marca}
-                      </span>
-                    </div>
-                    {marcaEliminar?.id === marca.id && (
+    setGuardando(true);
+    setErrorEliminar("");
+
+    try {
+      if (marcaEliminar.img) {
+        const urlParts = marcaEliminar.img.split("/");
+        const nombreArchivo = urlParts[urlParts.length - 1];
+        await supabase.storage
+          .from("imagenes_categorias")
+          .remove([nombreArchivo]);
+      }
+
+      const { error } = await supabase
+        .from("marcas")
+        .delete()
+        .eq("id", marcaEliminar.id);
+
+      if (error) {
+        setErrorEliminar("Error al eliminar la marca");
+      } else {
+        setMensaje("Marca eliminada correctamente");
+        const { data } = await supabase
+          .from("marcas")
+          .select("id, nombre_marca, img")
+          .order("nombre_marca", { ascending: true });
+        setMarcas(data || []);
+
+        setModoEdicion("agregar");
+        setMarcaEliminar(null);
+        setNumeroCuentaConfirm("");
+        setTimeout(() => setMensaje(""), 3000);
+      }
+    } catch (error) {
+      setErrorEliminar("Ocurrió un error inesperado");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const seleccionarMarcaParaEditar = (marca: any) => {
+    setMarcaEditar(marca);
+    setNombre(marca.nombre_marca);
+    setImagenPreview(marca.img || "");
+    setImagenFile(null);
+    setModoEdicion("editar");
+  };
+
+  return (
+    <motion.div
+      key="gestionar-marcas"
+      className="min-h-screen pb-20"
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -40 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+    >
+      <div className="px-6 py-6">
+        <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+        <h2 className="text-xl font-bold text-zinc-900 mb-6">
+          Gestionar Marcas
+        </h2>
+
+        {/* Pestañas */}
+        <div className="flex gap-2 mb-6 bg-white rounded-xl p-1 shadow-sm">
+          <button
+            onClick={() => {
+              setModoEdicion("agregar");
+              setNombre("");
+              setImagenFile(null);
+              setImagenPreview("");
+              setMarcaEditar(null);
+            }}
+            className={`flex-1 py-3 rounded-lg font-semibold transition text-sm ${
+              modoEdicion === "agregar"
+                ? "bg-orange-500 text-white"
+                : "text-zinc-600 hover:bg-zinc-100"
+            }`}
+          >
+            Agregar
+          </button>
+          <button
+            onClick={() => {
+              setModoEdicion("editar");
+              setNombre("");
+              setImagenFile(null);
+              setImagenPreview("");
+            }}
+            className={`flex-1 py-3 rounded-lg font-semibold transition text-sm ${
+              modoEdicion === "editar"
+                ? "bg-blue-500 text-white"
+                : "text-zinc-600 hover:bg-zinc-100"
+            }`}
+          >
+            Editar
+          </button>
+          <button
+            onClick={() => {
+              setModoEdicion("eliminar");
+              setNombre("");
+              setImagenFile(null);
+              setImagenPreview("");
+              setMarcaEditar(null);
+            }}
+            className={`flex-1 py-3 rounded-lg font-semibold transition text-sm ${
+              modoEdicion === "eliminar"
+                ? "bg-red-500 text-white"
+                : "text-zinc-600 hover:bg-zinc-100"
+            }`}
+          >
+            Eliminar
+          </button>
+        </div>
+
+        {/* MODO AGREGAR */}
+        {modoEdicion === "agregar" && (
+          <>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Imagen
+              </label>
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-dashed border-zinc-300 bg-zinc-50 flex items-center justify-center">
+                  {imagenPreview ? (
+                    <Image
+                      src={imagenPreview}
+                      alt="Preview"
+                      fill
+                      className="object-contain"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="text-center text-zinc-400">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
                         viewBox="0 0 24 24"
-                        strokeWidth={2}
+                        strokeWidth={1.5}
                         stroke="currentColor"
-                        className="w-6 h-6 text-red-500"
+                        className="w-12 h-12 mx-auto mb-2"
                       >
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
                         />
                       </svg>
-                    )}
-                  </div>
-                ))}
+                      <p className="text-sm">Sin imagen</p>
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImagenChange}
+                  className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                />
               </div>
+            </div>
 
-              {marcaEliminar && (
-                <>
-                  <div className="mb-4">
-                    <label className="block text-sm font-semibold text-zinc-700 mb-2">
-                      Confirma tu número de cuenta
-                    </label>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Nombre de la Marca <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                placeholder="Ej: TRUPER"
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            {mensaje && (
+              <div
+                className={`mb-4 p-3 rounded-lg text-sm ${
+                  mensaje.includes("Error") || mensaje.includes("ingresa")
+                    ? "bg-red-50 text-red-700 border border-red-200"
+                    : "bg-green-50 text-green-700 border border-green-200"
+                }`}
+              >
+                {mensaje}
+              </div>
+            )}
+
+            <button
+              onClick={agregarMarca}
+              disabled={guardando || !nombre}
+              className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {guardando ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                  Guardando...
+                </span>
+              ) : (
+                "Agregar Marca"
+              )}
+            </button>
+          </>
+        )}
+
+        {/* MODO EDITAR */}
+        {modoEdicion === "editar" && (
+          <>
+            {!marcaEditar ? (
+              <>
+                <p className="text-sm text-zinc-600 mb-4">
+                  Selecciona una marca para editar:
+                </p>
+                <div className="space-y-2 mb-4">
+                  {marcas.map((marca) => (
+                    <div
+                      key={marca.id}
+                      onClick={() => seleccionarMarcaParaEditar(marca)}
+                      className="flex items-center justify-between p-3 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-blue-400 transition bg-white"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="relative w-12 h-12 rounded-lg overflow-hidden">
+                          <Image
+                            src={
+                              marca.img ||
+                              "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                            }
+                            alt={marca.nombre_marca}
+                            fill
+                            className="object-contain"
+                            loading="lazy"
+                          />
+                        </div>
+                        <span className="font-semibold text-zinc-800">
+                          {marca.nombre_marca}
+                        </span>
+                      </div>
+                      <Edit2 size={20} className="text-blue-500" />
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Imagen
+                  </label>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden border-2 border-dashed border-zinc-300 bg-zinc-50 flex items-center justify-center">
+                      {imagenPreview ? (
+                        <Image
+                          src={imagenPreview}
+                          alt="Preview"
+                          fill
+                          className="object-contain"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="text-center text-zinc-400">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={1.5}
+                            stroke="currentColor"
+                            className="w-12 h-12 mx-auto mb-2"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+                            />
+                          </svg>
+                          <p className="text-sm">Sin imagen</p>
+                        </div>
+                      )}
+                    </div>
                     <input
-                      type="text"
-                      value={numeroCuentaConfirm}
-                      onChange={(e) => {
-                        setNumeroCuentaConfirm(e.target.value);
-                        setErrorEliminar("");
-                      }}
-                      placeholder="Ingresa tu número de cuenta"
-                      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-                      disabled={guardando}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImagenChange}
+                      className="text-sm text-zinc-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
-                    {errorEliminar && (
-                      <p className="text-red-500 text-sm mt-2">
-                        {errorEliminar}
-                      </p>
-                    )}
+                    <p className="text-xs text-zinc-500">
+                      Deja vacío si no quieres cambiar la imagen
+                    </p>
                   </div>
+                </div>
 
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Nombre de la Marca <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    placeholder="Ej: TRUPER"
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {mensaje && (
+                  <div
+                    className={`mb-4 p-3 rounded-lg text-sm ${
+                      mensaje.includes("Error") || mensaje.includes("ingresa")
+                        ? "bg-red-50 text-red-700 border border-red-200"
+                        : "bg-green-50 text-green-700 border border-green-200"
+                    }`}
+                  >
+                    {mensaje}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
                   <button
-                    onClick={eliminarMarca}
-                    disabled={guardando || !numeroCuentaConfirm}
-                    className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => {
+                      setMarcaEditar(null);
+                      setNombre("");
+                      setImagenFile(null);
+                      setImagenPreview("");
+                    }}
+                    className="flex-1 bg-zinc-200 text-zinc-700 py-3 rounded-xl font-semibold hover:bg-zinc-300 transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={editarMarca}
+                    disabled={guardando || !nombre}
+                    className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {guardando ? (
                       <span className="flex items-center justify-center gap-2">
                         <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                        Eliminando...
+                        Guardando...
                       </span>
                     ) : (
-                      "Eliminar Marca"
+                      "Guardar Cambios"
                     )}
                   </button>
-                </>
-              )}
-
-              {mensaje && (
-                <div className="mt-4 p-3 rounded-lg text-sm bg-green-50 text-green-700 border border-green-200">
-                  {mensaje}
                 </div>
-              )}
-            </>
-          )}
-        </div>
-      </motion.div>
-    );
-  };
+              </>
+            )}
+          </>
+        )}
+
+        {/* MODO ELIMINAR */}
+        {modoEdicion === "eliminar" && (
+          <>
+            <p className="text-sm text-zinc-600 mb-4">
+              Selecciona una marca para eliminar:
+            </p>
+            <div className="space-y-2 mb-4">
+              {marcas.map((marca) => (
+                <div
+                  key={marca.id}
+                  onClick={() => setMarcaEliminar(marca)}
+                  className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition ${
+                    marcaEliminar?.id === marca.id
+                      ? "border-red-500 bg-red-50"
+                      : "border-zinc-200 hover:border-red-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-12 h-12 rounded-lg overflow-hidden">
+                      <Image
+                        src={
+                          marca.img ||
+                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+                        }
+                        alt={marca.nombre_marca}
+                        fill
+                        className="object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+                    <span className="font-semibold text-zinc-800">
+                      {marca.nombre_marca}
+                    </span>
+                  </div>
+                  {marcaEliminar?.id === marca.id && (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-6 h-6 text-red-500"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {marcaEliminar && (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">
+                    Confirma tu número de cuenta
+                  </label>
+                  <input
+                    type="text"
+                    value={numeroCuentaConfirm}
+                    onChange={(e) => {
+                      setNumeroCuentaConfirm(e.target.value);
+                      setErrorEliminar("");
+                    }}
+                    placeholder="Ingresa tu número de cuenta"
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    disabled={guardando}
+                  />
+                  {errorEliminar && (
+                    <p className="text-red-500 text-sm mt-2">{errorEliminar}</p>
+                  )}
+                </div>
+
+                <button
+                  onClick={eliminarMarca}
+                  disabled={guardando || !numeroCuentaConfirm}
+                  className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {guardando ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                      Eliminando...
+                    </span>
+                  ) : (
+                    "Eliminar Marca"
+                  )}
+                </button>
+              </>
+            )}
+
+            {mensaje && (
+              <div className="mt-4 p-3 rounded-lg text-sm bg-green-50 text-green-700 border border-green-200">
+                {mensaje}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </motion.div>
+  );
+};
 
   const EliminacionMasivaView = ({ setVistaPerfil }: any) => {
     const [nivel, setNivel] = useState<"macros" | "categorias" | "productos">(
@@ -12976,36 +13201,70 @@ if (documentoSeleccionado && (documentoSeleccionado.estado_ruta === "verificado"
                               </svg>
                               AGREGAR DOCUMENTOS A RUTA
                             </button>
+                            
                           )}
 
+                         {/* Botón Iniciar/Detener Ruta con GPS integrado */}
+{(pedidosEncajados.length > 0 || enRuta) && (
+  <div className="space-y-3">
+    <button
+      onClick={async (e) => {
+        e.stopPropagation();
+        
+        if (!enRuta) {
+         
+          await iniciarRuta(ruta); 
+          setEnRuta(true);        
+        } else {
+         
+          setEnRuta(false);        
+        }
+      }}
+      className={`w-full py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${
+        enRuta
+          ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
+          : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+      }`}
+    >
+      {enRuta ? (
+        <>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 7.5A2.25 2.25 0 017.5 5.25h9a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25 2.25h-9a2.25 2.25 0 01-2.25-2.25v-9z" />
+          </svg>
+          DETENER RUTA
+        </>
+      ) : (
+        <>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+          </svg>
+          INICIAR RUTA
+        </>
+      )}
+    </button>
 
+    {/* Feedback visual del GPS (opcional, debajo del botón) */}
+    {enRuta && rastreando && (
+      <div className="p-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+        <span className="text-[10px] text-green-700 font-bold uppercase tracking-wider flex items-center gap-1">
+          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          GPS Activo
+        </span>
+        {ultimaUbicacion && (
+          <span className="text-[10px] text-green-600 font-mono">
+            {ultimaUbicacion.lat.toFixed(4)}, {ultimaUbicacion.lng.toFixed(4)}
+          </span>
+        )}
+      </div>
+    )}
 
-                          {/* Botón Iniciar Ruta */}
-                          {pedidosEncajados.length > 0 && (
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                await iniciarRuta(ruta);
-                              }}
-                              className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                strokeWidth={2.5}
-                                stroke="currentColor"
-                                className="w-5 h-5"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"
-                                />
-                              </svg>
-                              INICIAR RUTA
-                            </button>
-                          )}
+    {enRuta && errorGPS && (
+      <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-[10px] text-red-600">
+        ⚠️ {errorGPS}
+      </div>
+    )}
+  </div>
+)}
                         </div>
                       </motion.div>
                     )}
@@ -19048,12 +19307,12 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
 
                         {/* Número de cuenta */}
                         <p className="text-zinc-500 text-sm">
-                          {cuenta?.numero_cuenta}
+                          {cuenta?.ferreteria ?? "Sin nombre de negocio"}
                         </p>
 
                         {/* Teléfono */}
                         <p className="text-zinc-500 text-sm mt-1">
-                          {cuenta?.numero_tel ?? "Sin teléfono"}
+                          {cuenta?.numero_cuenta ?? "Sin teléfono"}
                         </p>
 
                         {/* OPCIONES DEL MENÚ */}
@@ -19133,6 +19392,8 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                             </>
                           )}
 
+                          
+
                           {esAdmin && (
                             <MenuItem
                               label="Agregar o Eliminar Categorías"
@@ -19163,7 +19424,7 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
 
                           {esAdmin && (
                             <MenuItem
-                              label="Agregar o Eliminar Marcas"
+                              label="Agregar, Editar o Eliminar Marcas"
                               icon={<Codesandbox size={20} />}
                               onClick={() => {
                                 window.scrollTo({
@@ -19254,6 +19515,24 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                               }}
                             />
                           )}
+{esAdmin && (
+                          <motion.button
+  onClick={() => setVistaPerfil("rastreo-rutas")}
+  whileTap={{ scale: 0.98 }}
+  className="w-full flex items-center gap-4 p-4 rounded-xl  border border-zinc-200 hover:border-orange-400 hover:bg-orange-50 transition shadow-sm"
+>
+  
+    <MapPinned color="#595959" />
+  
+  <div className="flex-1 text-left">
+    <h3 className="font-semibold text-zinc-900">Rastreo de Rutas</h3>
+    <p className="text-sm text-zinc-600">
+      Ver ubicación en tiempo real
+    </p>
+  </div>
+</motion.button>
+)}
+
 {esAdmin && (
   <MenuItem
     label="Confirmar Pagos"
@@ -19551,6 +19830,10 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                         setVistaPerfil={setVistaPerfil}
                       />
                     )}
+
+                    {vistaPerfil === "rastreo-rutas" && (
+  <VistaRastreoRutas setVistaPerfil={setVistaPerfil} />
+)}
 
                     {vistaPerfil === "gestionar-marcas" && (
                       <GestionarMarcasView setVistaPerfil={setVistaPerfil} />
