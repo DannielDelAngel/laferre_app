@@ -1482,7 +1482,7 @@ const [ordenCategoria, setOrdenCategoria] = useState(producto.orden_categoria ||
             </>
           )}
 
-          {/* Modal de Imagen Ampliada con Zoom */}
+          {/* Modal de Imagen */}
           {imagenAmpliada && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -1748,6 +1748,1924 @@ const [ordenCategoria, setOrdenCategoria] = useState(producto.orden_categoria ||
   );
 };
 
+const SelectorEstado = ({ estadoActual, pedidoId, onEstadoChange }: any) => {
+  const [actualizando, setActualizando] = useState(false);
+
+  const cambiarEstado = async (nuevoEstado: string) => {
+    setActualizando(true);
+    try {
+      const { error } = await supabase
+        .from("pedidos")
+        .update({ estado: nuevoEstado })
+        .eq("id", pedidoId);
+
+      if (!error) {
+        onEstadoChange(nuevoEstado);
+      }
+    } catch (error) {
+      console.error("Error al cambiar estado:", error);
+    } finally {
+      setActualizando(false);
+    }
+  };
+
+  const estados = ["encajado", "en_ruta", "entregado"];
+
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {estados.map((estado) => (
+        <button
+          key={estado}
+          //onClick={() => cambiarEstado(estado)}
+          disabled={actualizando || estado === estadoActual}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${
+            estado === estadoActual
+              ? "bg-orange-500 text-white"
+              : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300"
+          } disabled:opacity-50`}
+        >
+          {estado.charAt(0).toUpperCase() + estado.slice(1)}
+        </button>
+      ))}
+    </div>
+  );
+};
+
+const BadgeEstado = ({ estado }: any) => {
+  const colores: { [key: string]: string } = {
+    encajado: "bg-yellow-100 text-yellow-800",
+    en_ruta: "bg-blue-100 text-blue-800",
+    entregado: "bg-green-100 text-green-800",
+  };
+
+  return (
+    <span className={`px-2 py-1 rounded-full text-xs font-bold ${colores[estado] || "bg-zinc-100 text-zinc-800"}`}>
+      {estado.charAt(0).toUpperCase() + estado.slice(1)}
+    </span>
+  );
+};
+
+const BackBtn = ({ onBack }: any) => {
+  if (typeof document === "undefined") return null;
+
+  const btn = (
+    <motion.button
+      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
+      whileTap={{ scale: 0.93 }}
+      onClick={onBack}
+      className="fixed top-5 left-4 z-[9999] bg-transparent hover:bg-white/20 bg-white text-orange-500 rounded-full p-4 shadow-lg transition text-2xl"
+      aria-label="Volver"
+    >
+      <ChevronLeft size={34} />
+    </motion.button>
+  );
+
+  return createPortal(btn, document.body);
+};
+
+const VistaRutas = ({ 
+  setVistaPerfil, 
+  esAdmin, 
+  cuenta,          
+  supabase,       
+  enRuta,          
+  setEnRuta,       
+  rastreando,      
+  ultimaUbicacion,  
+  errorGPS        
+}: any) => {
+
+    const [pedidosPorRuta, setPedidosPorRuta] = useState<{
+      [key: string]: any[];
+    }>({});
+    const [cargando, setCargando] = useState(true);
+    const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
+    const [detallesEmpaque, setDetallesEmpaque] = useState<any>(null);
+    const [rutaExpandida, setRutaExpandida] = useState<string | null>(null);
+    const [actualizacionReciente, setActualizacionReciente] = useState(false);
+    const pedidoSeleccionadoRef = useRef<any>(null);
+
+    // Estados para escaneo de códigos
+    const [codigosEtiquetas, setCodigosEtiquetas] = useState<any[]>([]);
+    const [bufferEscaneo, setBufferEscaneo] = useState("");
+    const [ultimoCodigo, setUltimoEscaneo] = useState("");
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [mostrarModalEscaneado, setMostrarModalEscaneado] = useState(false);
+    const [codigoEscaneadoActual, setCodigoEscaneadoActual] =
+      useState<any>(null);
+
+    const [codigosEntregaEscaneados, setCodigosEntregaEscaneados] = useState<Set<number>>(new Set());
+    const [mostrarModalConfirmarEntrega, setMostrarModalConfirmarEntrega] = useState(false);
+    const [documentosPorRuta, setDocumentosPorRuta] = useState<{
+      [key: string]: any[];
+    }>({});
+    const [mostrarModalDocumentos, setMostrarModalDocumentos] = useState(false);
+    const [rutaSeleccionadaDocs, setRutaSeleccionadaDocs] = useState<string | null>(null);
+    const [documentosSeleccionados, setDocumentosSeleccionados] = useState<Set<number>>(new Set());
+    const [documentoSeleccionado, setDocumentoSeleccionado] = useState<any>(null);
+    const [codigosDocEscaneados, setCodigosDocEscaneados] = useState<Set<number>>(new Set());
+    const [mostrarModalConfirmarPago, setMostrarModalConfirmarPago] = useState(false);
+
+    const obtenerNombreEtiqueta = (tipo: string, numero: number) => {
+      const nombres: { [key: string]: string } = {
+        c: "Caja",
+        a: "Atado",
+        b: "Bolsa",
+        t: "Tubo",
+        r: "Rollo",
+        g: "Galón",
+        cub: "Cubeta",
+        l: "Losalit",
+        p: "Porrón",
+        pza: "Pieza",
+        cil: "Cilindro",
+      };
+
+      const tipoLower = tipo.toLowerCase();
+      const nombre = nombres[tipoLower] || tipo;
+
+      return `${nombre} ${numero}`;
+    };
+
+   
+    const cargarDocumentosPendientes = async () => {
+  const { data, error } = await supabase
+    .from("documentos_pendientes")
+    .select(`
+      *,
+      cuentas (
+        numero_cuenta,
+        cliente,
+        ferreteria,
+        ruta
+      )
+    `)
+    .in("estado_ruta", ["pendiente", "verificado", "en_ruta", "pagada"]); 
+
+      if (!error && data) {
+        const agrupados = data.reduce((acc: any, doc: any) => {
+          const ruta = doc.cuentas?.ruta || "Sin ruta asignada";
+          if (!acc[ruta]) acc[ruta] = [];
+          acc[ruta].push(doc);
+          return acc;
+        }, {});
+
+        setDocumentosPorRuta(agrupados);
+      }
+    };
+
+    const cargarPedidosRuta = async () => {
+      const { data, error } = await supabase
+        .from("pedidos")
+        .select(
+          `
+        id,
+        total,
+        created_at,
+        cuenta_id,
+        pdf_url,
+        estado,
+        es_domicilio,
+        cuentas (
+          numero_cuenta,
+          cliente,
+          ferreteria,
+          numero_tel,
+          direccion,
+          ruta,
+          latitud,
+          longitud
+        )
+      `,
+        )
+        .in("estado", ["encajado", "en_ruta"])
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        const agrupados = data.reduce((acc: any, pedido: any) => {
+          const ruta = pedido.cuentas?.ruta || "Sin ruta asignada";
+          if (!acc[ruta]) acc[ruta] = [];
+          acc[ruta].push(pedido);
+          return acc;
+        }, {});
+
+        setPedidosPorRuta(agrupados);
+        setActualizacionReciente(true);
+        setTimeout(() => setActualizacionReciente(false), 2000);
+      }
+      setCargando(false);
+    };
+
+    const actualizarEstadoLocal = (nuevoEstado: string) => {
+      setPedidoSeleccionado((prev: any) =>
+        prev ? { ...prev, estado: nuevoEstado } : null,
+      );
+
+      setPedidosPorRuta((prevMap) => {
+        const nuevoMap = { ...prevMap };
+        Object.keys(nuevoMap).forEach((ruta) => {
+          nuevoMap[ruta] = nuevoMap[ruta].map((p) =>
+            p.id === pedidoSeleccionado?.id ? { ...p, estado: nuevoEstado } : p,
+          );
+        });
+        return nuevoMap;
+      });
+    };
+
+   useEffect(() => {
+  cargarPedidosRuta();
+  cargarDocumentosPendientes();
+
+  const pedidosChannel = supabase
+    .channel("rutas-realtime-pedidos")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "pedidos" },
+      () => {
+        console.log("Cambio en pedidos");
+        cargarPedidosRuta();
+      }
+    )
+    .subscribe();
+
+  const documentosChannel = supabase
+    .channel("rutas-realtime-documentos")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "documentos_pendientes" },
+      () => {
+        console.log("Cambio en documentos");
+        cargarDocumentosPendientes();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(pedidosChannel);
+    supabase.removeChannel(documentosChannel);
+  };
+}, []);
+
+
+    const cargarDetallesEmpaque = async (pedidoId: number) => {
+      const { data } = await supabase
+        .from("detalles_empaque")
+        .select("*")
+        .eq("pedido_id", pedidoId)
+        .single();
+      setDetallesEmpaque(data || { detalles_empacado: "", observaciones: "" });
+    };
+
+    const cargarCodigosEtiquetas = async (pedidoId: number) => {
+      const { data } = await supabase
+        .from("codigos_etiquetas")
+        .select("*")
+        .eq("pedido_id", pedidoId)
+        .neq("tipo", "RS") 
+        .order("tipo", { ascending: true })
+        .order("numero", { ascending: true });
+
+      setCodigosEtiquetas(data || []);
+      setCodigosEntregaEscaneados(new Set());
+    };
+
+    const verDetallePedido = async (pedido: any) => {
+      setPedidoSeleccionado(pedido);
+      pedidoSeleccionadoRef.current = pedido;
+      if (pedido.estado === "encajado" || pedido.estado === "en_ruta") {
+        await cargarDetallesEmpaque(pedido.id);
+        await cargarCodigosEtiquetas(pedido.id);
+      }
+    };
+
+    const verDetalleDocumento = async (documento: any) => {
+      setDocumentoSeleccionado(documento);
+      setCodigosDocEscaneados(new Set());
+    };
+
+    const abrirModalDocumentos = (ruta: string) => {
+      setRutaSeleccionadaDocs(ruta);
+      setDocumentosSeleccionados(new Set());
+      setMostrarModalDocumentos(true);
+    };
+
+    const agregarDocumentosARuta = async () => {
+  if (documentosSeleccionados.size === 0) {
+    alert("Selecciona al menos un documento");
+    return;
+  }
+
+  try {
+    const idsSeleccionados = Array.from(documentosSeleccionados);
+    
+    console.log("IDs a actualizar:", idsSeleccionados); 
+
+    const { data, error } = await supabase
+      .from("documentos_pendientes")
+      .update({ estado_ruta: "verificado" })
+      .in("id", idsSeleccionados)
+      .select();
+
+    if (error) {
+      console.error("Error de Supabase:", error);
+      alert(`Error al agregar documentos: ${error.message}`);
+      return;
+    }
+
+    console.log("Documentos actualizados:", data); // Para debug
+    
+    alert(`${idsSeleccionados.length} documento(s) agregado(s) a la ruta`);
+    setMostrarModalDocumentos(false);
+    setDocumentosSeleccionados(new Set());
+    await cargarDocumentosPendientes();
+    
+  } catch (err) {
+    console.error("Error inesperado:", err);
+    alert("Error inesperado al agregar documentos");
+  }
+};
+
+    useEffect(() => {
+      if (pedidoSeleccionado && (pedidoSeleccionado.estado === "encajado" || pedidoSeleccionado.estado === "en_ruta")) {
+        const handleKeyPress = (e: KeyboardEvent) => {
+          if (e.key === "Enter") {
+            if (bufferEscaneo.trim()) {
+              procesarEscaneoCodigo(bufferEscaneo.trim());
+              setBufferEscaneo("");
+            }
+            return;
+          }
+          setBufferEscaneo((prev) => prev + e.key);
+
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          timeoutRef.current = setTimeout(() => {
+            if (bufferEscaneo.trim()) {
+              procesarEscaneoCodigo(bufferEscaneo.trim());
+              setBufferEscaneo("");
+            }
+          }, 100);
+        };
+
+        window.addEventListener("keypress", handleKeyPress);
+        return () => {
+          window.removeEventListener("keypress", handleKeyPress);
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
+      }
+
+      // Para documentos
+if (documentoSeleccionado && (documentoSeleccionado.estado_ruta === "verificado" || documentoSeleccionado.estado_ruta === "en_ruta")) {  
+        const handleKeyPressDoc = (e: KeyboardEvent) => {
+          if (e.key === "Enter") {
+            if (bufferEscaneo.trim()) {
+              procesarEscaneoDocumento(bufferEscaneo.trim());
+              setBufferEscaneo("");
+            }
+            return;
+          }
+          setBufferEscaneo((prev) => prev + e.key);
+
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          timeoutRef.current = setTimeout(() => {
+            if (bufferEscaneo.trim()) {
+              procesarEscaneoDocumento(bufferEscaneo.trim());
+              setBufferEscaneo("");
+            }
+          }, 100);
+        };
+
+        window.addEventListener("keypress", handleKeyPressDoc);
+        return () => {
+          window.removeEventListener("keypress", handleKeyPressDoc);
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
+      }
+    }, [bufferEscaneo, pedidoSeleccionado, codigosEtiquetas, documentoSeleccionado]);
+
+   const procesarEscaneoDocumento = async (codigoEscaneado: string) => {
+  setUltimoEscaneo(codigoEscaneado);
+
+  if (!documentoSeleccionado.codigo_barras) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    alert("Este documento no tiene código de barras asignado");
+    return;
+  }
+
+  if (codigoEscaneado !== documentoSeleccionado.codigo_barras) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    alert("Código incorrecto. No coincide con el documento.");
+    return;
+  }
+
+  // Verificar si ya fue escaneado
+  if (codigosDocEscaneados.has(documentoSeleccionado.id)) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    alert("Este documento ya fue verificado");
+    return;
+  }
+
+  // Si está en estado "verificado", cambiar a "escaneado" en la BD
+  if (documentoSeleccionado.estado_ruta === "verificado") {
+    const { error } = await supabase
+      .from("documentos_pendientes")
+      .update({ estado_ruta: "escaneado" })
+      .eq("id", documentoSeleccionado.id);
+
+    if (error) {
+      alert("Error al actualizar el estado del documento");
+      return;
+    }
+  }
+
+  // Marcar como escaneado localmente
+  setCodigosDocEscaneados((prev) => new Set(prev).add(documentoSeleccionado.id));
+
+  // Mostrar confirmación
+  setMostrarModalEscaneado(true);
+
+  if ("vibrate" in navigator) navigator.vibrate(50);
+
+  // Auto-cerrar modal
+  setTimeout(() => {
+    setMostrarModalEscaneado(false);
+    // Mostrar modal de confirmar pago
+    setMostrarModalConfirmarPago(true);
+  }, 1500);
+};
+
+    const procesarEscaneoCodigo = async (codigoEscaneado: string) => {
+      setUltimoEscaneo(codigoEscaneado);
+
+      const codigoEncontrado = codigosEtiquetas.find(
+        (c: any) => c.codigo === codigoEscaneado
+      );
+
+      if (!codigoEncontrado) {
+        if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+        alert(`Código ${codigoEscaneado} no encontrado`);
+        return;
+      }
+
+      // PROCESO PARA ENCAJADO
+      if (pedidoSeleccionado.estado === "encajado") {
+        if (codigoEncontrado.escaneado) {
+          if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+          alert(`Este código ya fue escaneado`);
+          return;
+        }
+
+        const { error } = await supabase
+          .from("codigos_etiquetas")
+          .update({
+            escaneado: true,
+            fecha_escaneo: new Date().toISOString(),
+          })
+          .eq("id", codigoEncontrado.id);
+
+        if (!error) {
+          setCodigosEtiquetas((prev) =>
+            prev.map((c) =>
+              c.id === codigoEncontrado.id ? { ...c, escaneado: true } : c,
+            ),
+          );
+
+          setCodigoEscaneadoActual(codigoEncontrado);
+          setMostrarModalEscaneado(true);
+
+          if ("vibrate" in navigator) navigator.vibrate(50);
+
+          setTimeout(() => {
+            setMostrarModalEscaneado(false);
+            setCodigoEscaneadoActual(null);
+          }, 1500);
+        }
+      }
+      
+      // PROCESO PARA EN_RUTA
+      else if (pedidoSeleccionado.estado === "en_ruta") {
+        if (codigosEntregaEscaneados.has(codigoEncontrado.id)) {
+          if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+          alert(`Este código ya fue verificado para entrega`);
+          return;
+        }
+
+        setCodigosEntregaEscaneados((prev) => new Set(prev).add(codigoEncontrado.id));
+
+        setCodigoEscaneadoActual(codigoEncontrado);
+        setMostrarModalEscaneado(true);
+
+        if ("vibrate" in navigator) navigator.vibrate(50);
+
+        setTimeout(() => {
+          setMostrarModalEscaneado(false);
+          setCodigoEscaneadoActual(null);
+        }, 1500);
+
+        if (codigosEntregaEscaneados.size + 1 === codigosEtiquetas.length) {
+          setTimeout(() => {
+            setMostrarModalConfirmarEntrega(true);
+          }, 2000);
+        }
+      }
+    };
+
+    const verificarTodosCodigosEscaneados = () => {
+      if (codigosEtiquetas.length === 0) return false;
+      
+      if (pedidoSeleccionado?.estado === "encajado") {
+        return codigosEtiquetas.every((c: any) => c.escaneado);
+      }
+      
+      if (pedidoSeleccionado?.estado === "en_ruta") {
+        return codigosEntregaEscaneados.size === codigosEtiquetas.length;
+      }
+      
+      return false;
+    };
+
+    const todosCodigosEscaneados = verificarTodosCodigosEscaneados();
+
+    const ListaPedidosRuta = ({
+      pedidos,
+      onVerDetalle,
+    }: {
+      pedidos: any[];
+      onVerDetalle: (pedido: any) => void;
+    }) => {
+      const [estadosVerificacion, setEstadosVerificacion] = useState<{
+        [key: number]: boolean;
+      }>({});
+
+      useEffect(() => {
+        const verificarTodos = async () => {
+          const nuevosEstados: { [key: number]: boolean } = {};
+
+          for (const pedido of pedidos) {
+            if (pedido.estado !== "encajado") {
+              nuevosEstados[pedido.id] = false;
+              continue;
+            }
+
+            const { data } = await supabase
+              .from("codigos_etiquetas")
+              .select("*")
+              .eq("pedido_id", pedido.id)
+              .neq("tipo", "RS"); 
+
+            if (data && data.length > 0) {
+              nuevosEstados[pedido.id] = data.every((c: any) => c.escaneado);
+            } else {
+              nuevosEstados[pedido.id] = false; 
+            }
+          }
+
+          setEstadosVerificacion(nuevosEstados);
+        };
+
+        verificarTodos();
+      }, [pedidos]);
+
+      return (
+        <div className="p-2 space-y-2 bg-zinc-50">
+          {pedidos.map((pedido) => {
+            const verificado = estadosVerificacion[pedido.id] || false;
+
+            return (
+              <div
+                key={pedido.id}
+                onClick={() => onVerDetalle(pedido)}
+                className={`relative border-2 rounded-lg p-3 cursor-pointer transition shadow-sm ${
+                  verificado
+                    ? "bg-green-50 border-green-500 hover:border-green-600"
+                    : "bg-white border-zinc-200 hover:border-orange-300"
+                }`}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className={`font-bold text-sm ${verificado ? "text-green-900" : "text-zinc-900"}`}
+                      >
+                        #{pedido.id}
+                      </span>
+                      <BadgeEstado estado={pedido.estado} />
+                      {verificado && (
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-600 text-white">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            className="w-3 h-3"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <span className="text-[10px] font-bold">
+                            Verificado
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <p
+                      className={`text-xs font-semibold ${verificado ? "text-green-800" : "text-zinc-700"}`}
+                    >
+                      {pedido.cuentas?.cliente || "Sin cliente"}
+                    </p>
+                    <p
+                      className={`text-[10px] truncate max-w-[200px] ${verificado ? "text-green-600" : "text-zinc-500"}`}
+                    >
+                      {pedido.cuentas?.direccion}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p
+                      className={`text-sm font-bold ${verificado ? "text-green-700" : "text-orange-500"}`}
+                    >
+                      ${pedido.total.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    const ListaDocumentosRuta = ({
+  documentos,
+  onVerDetalle,
+}: {
+  documentos: any[];
+  onVerDetalle: (documento: any) => void;
+}) => {
+  return (
+    <div className="p-2 space-y-2 bg-zinc-50">
+      {documentos.map((doc) => {
+        const esEnRuta = doc.estado_ruta === "en_ruta";
+        const esPagada = doc.estado_ruta === "pagada";
+        const esVerificado = doc.estado_ruta === "verificado";
+        const esEscaneado = doc.estado_ruta === "escaneado";
+
+        return (
+              <div
+                key={doc.id}
+                onClick={() => onVerDetalle(doc)}
+                className={`relative border-2 rounded-lg p-3 cursor-pointer transition shadow-sm ${
+  esPagada
+    ? "bg-green-50 border-green-500 hover:border-green-600"
+    : esEnRuta
+    ? "bg-blue-50 border-blue-500 hover:border-blue-600"
+    : esEscaneado
+    ? "bg-purple-50 border-purple-500 hover:border-purple-600"
+    : esVerificado
+    ? "bg-yellow-50 border-yellow-500 hover:border-yellow-600"
+    : "bg-white border-zinc-200 hover:border-orange-300"
+}`}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-zinc-900">
+                        {doc.tipo_documento === "nota" ? "Nota" : "Factura"}
+                      </span>
+                      <span className="text-sm font-bold text-orange-600">
+                        {doc.numero_documento}
+                      </span>
+                     {esPagada && (
+  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-600 text-white">
+    <span className="text-[10px] font-bold">PAGADA</span>
+  </div>
+)}
+{esEnRuta && !esPagada && (
+  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600 text-white">
+    <span className="text-[10px] font-bold">EN RUTA</span>
+  </div>
+)}
+{esEscaneado && !esEnRuta && !esPagada && (
+  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-600 text-white">
+    <span className="text-[10px] font-bold">ESCANEADO</span>
+  </div>
+)}
+{esVerificado && !esEscaneado && !esEnRuta && !esPagada && (
+  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-600 text-white">
+    <span className="text-[10px] font-bold">VERIFICADO</span>
+  </div>
+)}
+                    </div>
+                    <p className="text-xs font-semibold text-zinc-700">
+                      {doc.cuentas?.cliente || "Sin cliente"}
+                    </p>
+                    <p className="text-[10px] text-zinc-500">
+                      {doc.cuentas?.ferreteria}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-red-600">
+                      ${doc.monto.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    const iniciarRuta = async (ruta: string): Promise<boolean> => {
+  const pedidosRuta = pedidosPorRuta[ruta] || [];
+  const documentosRuta = documentosPorRuta[ruta] || [];
+  const pedidosListos = [];
+  const documentosListos = [];
+
+  // Verificar pedidos
+  for (const pedido of pedidosRuta) {
+    const { data } = await supabase
+      .from("codigos_etiquetas")
+      .select("*")
+      .eq("pedido_id", pedido.id)
+      .neq("tipo", "RS");
+
+    if (data && data.length > 0 && data.every((c: any) => c.escaneado)) {
+      pedidosListos.push(pedido.id);
+    }
+  }
+
+  // Verificar documentos
+  for (const doc of documentosRuta) {
+    if (doc.estado_ruta === "escaneado") {
+      documentosListos.push(doc.id);
+    }
+  }
+
+  if (pedidosListos.length === 0 && documentosListos.length === 0) {
+    alert("No hay pedidos ni documentos listos para iniciar la ruta");
+    return false; 
+  }
+
+  if (pedidosListos.length > 0) {
+    const { error } = await supabase
+      .from("pedidos")
+      .update({ estado: "en_ruta" })
+      .in("id", pedidosListos);
+
+    if (error) {
+      alert("Error al iniciar la ruta con pedidos");
+      return false;
+    }
+  }
+
+  if (documentosListos.length > 0) {
+    const { error } = await supabase
+      .from("documentos_pendientes")
+      .update({ estado_ruta: "en_ruta" })
+      .in("id", documentosListos);
+
+    if (error) {
+      alert("Error al iniciar la ruta con documentos");
+      return false;
+    }
+  }
+
+  alert(
+    `¡Ruta iniciada!\n${pedidosListos.length} pedido(s) y ${documentosListos.length} documento(s)`
+  );
+
+  cargarPedidosRuta();
+  cargarDocumentosPendientes();
+
+  return true; 
+};
+
+
+    if (documentoSeleccionado) {
+      const documentoVerificado = codigosDocEscaneados.has(documentoSeleccionado.id);
+
+      return (
+        <motion.div
+          key="detalle-documento"
+          className="min-h-screen pb-10"
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -40 }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+        >
+          <BackBtn
+            onBack={() => {
+              setDocumentoSeleccionado(null);
+              setCodigosDocEscaneados(new Set());
+            }}
+          />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">
+            {documentoSeleccionado.tipo_documento === "nota" ? "Nota" : "Factura"}{" "}
+            {documentoSeleccionado.numero_documento}
+          </h2>
+
+          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Cliente</span>
+                <span className="font-semibold text-zinc-900">
+                  {documentoSeleccionado.cuentas?.cliente || "N/A"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Ferretería</span>
+                <span className="font-semibold text-zinc-900">
+                  {documentoSeleccionado.cuentas?.ferreteria || "N/A"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Número Cuenta</span>
+                <span className="font-semibold text-zinc-900">
+                  {documentoSeleccionado.cuentas?.numero_cuenta || "N/A"}
+                </span>
+              </div>
+              <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
+                <span className="font-bold text-zinc-900">Monto</span>
+                <span className="font-bold text-red-600 text-lg">
+                  ${documentoSeleccionado.monto.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* VERIFICACIÓN DE CÓDIGO DE BARRAS */}
+{(documentoSeleccionado.estado_ruta === "verificado" || documentoSeleccionado.estado_ruta === "escaneado" || documentoSeleccionado.estado_ruta === "en_ruta") && (  
+            <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="w-5 h-5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
+                    />
+                  </svg>
+                  Verificación de Documento
+                </h3>
+                <div
+                  className={`px-3 py-1 rounded-full text-xs font-bold ${
+                    documentoVerificado
+                      ? "bg-green-500 text-white"
+                      : "bg-orange-100 text-orange-700"
+                  }`}
+                >
+                  {documentoVerificado ? "Verificado" : "Pendiente"}
+                </div>
+              </div>
+
+              {!documentoVerificado && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 flex items-center gap-3">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-blue-800 font-medium">
+                    Escanea el código de barras del documento
+                  </span>
+                </div>
+              )}
+
+              <div
+                className={`border-2 rounded-lg p-4 transition-all ${
+                  documentoVerificado
+                    ? "bg-green-50 border-green-500"
+                    : "bg-white border-zinc-200"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {documentoVerificado ? (
+                      <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="w-6 h-6 text-white"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-zinc-200 flex items-center justify-center">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                          className="w-6 h-6 text-zinc-400"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
+                          />
+                        </svg>
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-semibold text-zinc-900">
+                        Código de Barras
+                      </p>
+                      <p className="text-xs text-zinc-500 font-mono">
+                        {documentoSeleccionado.codigo_barras || "Sin código"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {documentoVerificado && (
+                <div className="mt-4 bg-green-50 border-2 border-green-500 rounded-xl p-4">
+                  <div className="flex items-center justify-center gap-2 text-green-700">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      className="w-6 h-6"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <span className="font-bold">¡Documento verificado!</span>
+                  </div>
+                  <p className="text-center text-sm text-green-600 mt-1">
+                    Confirma el estado de pago del documento
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Modal de código escaneado */}
+          {typeof document !== "undefined" &&
+            createPortal(
+              <AnimatePresence>
+                {mostrarModalEscaneado && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
+                    style={{ zIndex: 50000 }}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      className="bg-white rounded-2xl w-full max-w-sm p-8 shadow-2xl text-center"
+                    >
+                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="w-14 h-14 text-green-600"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                        ¡Código Verificado!
+                      </h3>
+                      <p className="text-zinc-600 text-lg">Documento válido</p>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>,
+              document.body,
+            )}
+
+          {/* Modal de Confirmar Pago */}
+          {typeof document !== "undefined" &&
+            createPortal(
+              <AnimatePresence>
+                {mostrarModalConfirmarPago && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+                    style={{ zIndex: 50000 }}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-orange-100 flex items-center justify-center">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                          className="w-14 h-14 text-orange-600"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      </div>
+
+                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                        Confirmar Estado de Pago
+                      </h3>
+
+                      <p className="text-zinc-600 text-base mb-2">
+                        {documentoSeleccionado?.tipo_documento === "nota" ? "Nota" : "Factura"}{" "}
+                        {documentoSeleccionado?.numero_documento}
+                      </p>
+
+                      <p className="text-red-600 font-bold text-xl mb-6">
+                        ${documentoSeleccionado?.monto.toFixed(2)}
+                      </p>
+
+                      <div className="space-y-3">
+                        <button
+                          onClick={async () => {
+                            // Marcar como pagada
+                            const { error } = await supabase
+                              .from("documentos_pendientes")
+                              .update({ estado_ruta: "pagada" })
+                              .eq("id", documentoSeleccionado.id);
+
+                            if (!error) {
+                              setMostrarModalConfirmarPago(false);
+                              
+                              if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+                              
+                              alert("Documento marcado como PAGADO. Espera confirmación del admin para eliminar.");
+                              
+                              setDocumentoSeleccionado(null);
+                              setCodigosDocEscaneados(new Set());
+                              cargarDocumentosPendientes();
+                            } else {
+                              alert("Error al actualizar el estado del documento");
+                            }
+                          }}
+                          className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform"
+                        >
+                          ✓ PAGADO
+                        </button>
+
+                        <button
+                          onClick={async () => {
+                            // Marcar como no pagada y quitar de ruta
+                            const { error } = await supabase
+                              .from("documentos_pendientes")
+                              .update({ estado_ruta: "pendiente" })
+                              .eq("id", documentoSeleccionado.id);
+
+                            if (!error) {
+                              setMostrarModalConfirmarPago(false);
+                              
+                              if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+                              
+                              alert("Documento marcado como NO PAGADO y removido de la ruta.");
+                              
+                              setDocumentoSeleccionado(null);
+                              setCodigosDocEscaneados(new Set());
+                              cargarDocumentosPendientes();
+                            } else {
+                              alert("Error al actualizar el estado del documento");
+                            }
+                          }}
+                          className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-red-500 hover:bg-red-600 active:scale-95 transition-transform"
+                        >
+                          ✗ NO PAGADO
+                        </button>
+
+                        <button
+                          onClick={() => setMostrarModalConfirmarPago(false)}
+                          className="w-full py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>,
+              document.body,
+            )}
+        </motion.div>
+      );
+    }
+
+    // vista detalles del pedido
+    if (pedidoSeleccionado) {
+      return (
+        <motion.div
+          key="detalle-pedido-ruta"
+          className="min-h-screen pb-10"
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -40 }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+        >
+          <BackBtn
+            onBack={() => {
+              setPedidoSeleccionado(null);
+              pedidoSeleccionadoRef.current = null;
+              setCodigosEtiquetas([]);
+              setCodigosEntregaEscaneados(new Set());
+            }}
+          />
+
+          <h2 className="text-xl font-bold text-zinc-900 mb-4">
+            Pedido #{pedidoSeleccionado.id}
+          </h2>
+
+          <div className="mb-4">
+            <SelectorEstado
+              estadoActual={pedidoSeleccionado.estado}
+              pedidoId={pedidoSeleccionado.id}
+              onEstadoChange={actualizarEstadoLocal}
+            />
+          </div>
+
+          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Cliente</span>
+                <span className="font-semibold text-zinc-900">
+                  {pedidoSeleccionado.cuentas?.cliente || "N/A"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Dirección</span>
+                <span className="font-semibold text-zinc-900 text-right max-w-[60%]">
+                  {pedidoSeleccionado.cuentas?.direccion || "N/A"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Teléfono</span>
+                <a
+                  href={`tel:${pedidoSeleccionado.cuentas?.numero_tel}`}
+                  className="font-semibold text-blue-600 underline"
+                >
+                  {pedidoSeleccionado.cuentas?.numero_tel || "N/A"}
+                </a>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-zinc-600">Ruta Asignada</span>
+                <span className="font-semibold text-orange-500">
+                  {pedidoSeleccionado.cuentas?.ruta || "Sin ruta"}
+                </span>
+              </div>
+              <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
+                <span className="font-bold text-zinc-900">Total</span>
+                <span className="font-bold text-orange-500 text-lg">
+                  ${pedidoSeleccionado.total.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* SECCIÓN DE ESCANEO DE CÓDIGOS */}
+          {(pedidoSeleccionado.estado === "encajado" || pedidoSeleccionado.estado === "en_ruta") &&
+            codigosEtiquetas.length > 0 && (
+              <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-5 h-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z"
+                      />
+                    </svg>
+                    {pedidoSeleccionado.estado === "encajado" 
+                      ? "Verificación de Etiquetas" 
+                      : "Verificación de Entrega"}
+                  </h3>
+                  <div
+                    className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      todosCodigosEscaneados
+                        ? "bg-green-500 text-white"
+                        : "bg-orange-100 text-orange-700"
+                    }`}
+                  >
+                    {pedidoSeleccionado.estado === "encajado"
+                      ? `${codigosEtiquetas.filter((c: any) => c.escaneado).length} / ${codigosEtiquetas.length}`
+                      : `${codigosEntregaEscaneados.size} / ${codigosEtiquetas.length}`
+                    }
+                  </div>
+                </div>
+
+                {!todosCodigosEscaneados && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 flex items-center gap-3">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-blue-800 font-medium">
+                      {pedidoSeleccionado.estado === "encajado"
+                        ? "Escanea todas las etiquetas antes de salir a ruta"
+                        : "Escanea todas las etiquetas para confirmar la entrega"}
+                    </span>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {codigosEtiquetas.map((codigo: any) => {
+                    const estaEscaneado = pedidoSeleccionado.estado === "encajado" 
+                      ? codigo.escaneado 
+                      : codigosEntregaEscaneados.has(codigo.id);
+
+                    return (
+                      <div
+                        key={codigo.id}
+                        className={`border-2 rounded-lg p-3 transition-all ${
+                          estaEscaneado
+                            ? "bg-green-50 border-green-500"
+                            : "bg-white border-zinc-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            {estaEscaneado ? (
+                              <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                  className="w-5 h-5 text-white"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center">
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  strokeWidth={2}
+                                  stroke="currentColor"
+                                  className="w-5 h-5 text-zinc-400"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
+                                  />
+                                </svg>
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-semibold text-zinc-900 text-sm">
+                                {obtenerNombreEtiqueta(
+                                  codigo.tipo,
+                                  codigo.numero,
+                                )}
+                              </p>
+                              <p className="text-xs text-zinc-500 font-mono">
+                                {codigo.codigo}
+                              </p>
+                            </div>
+                          </div>
+                          {estaEscaneado && codigo.fecha_escaneo && pedidoSeleccionado.estado === "encajado" && (
+                            <span className="text-xs text-green-600 font-medium">
+                              {new Date(codigo.fecha_escaneo).toLocaleTimeString(
+                                "es-MX",
+                                {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {todosCodigosEscaneados && pedidoSeleccionado.estado === "encajado" && (
+                  <div className="mt-4 bg-green-50 border-2 border-green-500 rounded-xl p-4">
+                    <div className="flex items-center justify-center gap-2 text-green-700">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="w-6 h-6"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <span className="font-bold">
+                        ¡Todas las etiquetas verificadas!
+                      </span>
+                    </div>
+                    <p className="text-center text-sm text-green-600 mt-1">
+                      Este pedido está listo para salir a ruta
+                    </p>
+                  </div>
+                )}
+
+                {todosCodigosEscaneados && pedidoSeleccionado.estado === "en_ruta" && (
+                  <div className="mt-4 bg-blue-50 border-2 border-blue-500 rounded-xl p-4">
+                    <div className="flex items-center justify-center gap-2 text-blue-700">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="w-6 h-6"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <span className="font-bold">
+                        ¡Todos los paquetes verificados!
+                      </span>
+                    </div>
+                    <p className="text-center text-sm text-blue-600 mt-1">
+                      Presiona el botón para confirmar la entrega
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+          {/* Detalles de empaque */}
+          {(pedidoSeleccionado.estado === "encajado" || pedidoSeleccionado.estado === "en_ruta") && (
+            <div className="bg-zinc-50 rounded-xl border border-zinc-200 p-4 mb-4">
+              <h3 className="text-sm font-bold text-zinc-800 mb-2 flex items-center gap-2">
+                <Box size={16} /> Detalles de Empaque
+              </h3>
+              {detallesEmpaque?.detalles_empacado ? (
+                <p className="text-sm text-zinc-700 whitespace-pre-wrap bg-white p-3 rounded border border-zinc-300">
+                  {detallesEmpaque.detalles_empacado}
+                </p>
+              ) : (
+                <p className="text-xs text-zinc-400 italic">
+                  Sin detalles registrados
+                </p>
+              )}
+            </div>
+          )}
+
+          {pedidoSeleccionado?.cuentas?.latitud &&
+          pedidoSeleccionado?.cuentas?.longitud ? (
+            <MapaUbicacion
+              lat={pedidoSeleccionado.cuentas.latitud}
+              lng={pedidoSeleccionado.cuentas.longitud}
+              nombreLocal={pedidoSeleccionado.cuentas.ferreteria}
+            />
+          ) : (
+            <div className="bg-yellow-50 text-yellow-700 p-3 rounded-lg text-sm mt-2">
+              ⚠️ Esta cuenta no tiene ubicación configurada
+            </div>
+          )}
+
+          {pedidoSeleccionado.pdf_url && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-zinc-900">Documento</h3>
+              <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm h-[400px]">
+                <iframe
+                  src={pedidoSeleccionado.pdf_url}
+                  className="w-full h-full"
+                  title="PDF Pedido"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Modales existentes para pedidos... */}
+          {typeof document !== "undefined" &&
+            createPortal(
+              <AnimatePresence>
+                {mostrarModalEscaneado && codigoEscaneadoActual && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
+                    style={{ zIndex: 50000 }}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      className="bg-white rounded-2xl w-full max-w-sm p-8 shadow-2xl text-center"
+                    >
+                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="w-14 h-14 text-green-600"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                        ¡Código Verificado!
+                      </h3>
+                      <p className="text-zinc-600 text-lg">
+                        {obtenerNombreEtiqueta(
+                          codigoEscaneadoActual.tipo,
+                          codigoEscaneadoActual.numero,
+                        )}
+                      </p>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>,
+              document.body,
+            )}
+
+          {typeof document !== "undefined" &&
+            createPortal(
+              <AnimatePresence>
+                {mostrarModalConfirmarEntrega && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+                    style={{ zIndex: 50000 }}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                          className="w-14 h-14 text-blue-600"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      </div>
+
+                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
+                        Confirmar Entrega
+                      </h3>
+
+                      <p className="text-zinc-600 text-base mb-2">
+                        Pedido #{pedidoSeleccionado?.id}
+                      </p>
+
+                      <p className="text-zinc-500 text-sm mb-6">
+                        ¿Confirmas que todos los paquetes fueron entregados al cliente?
+                      </p>
+
+                      <div className="space-y-3">
+                        <button
+                          onClick={async () => {
+                            const { error } = await supabase
+                              .from("pedidos")
+                              .update({ estado: "entregado" })
+                              .eq("id", pedidoSeleccionado.id);
+
+                            if (!error) {
+                              actualizarEstadoLocal("entregado");
+                              setCodigosEntregaEscaneados(new Set());
+                              setMostrarModalConfirmarEntrega(false);
+                              
+                              if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+                              
+                              alert("¡Pedido marcado como entregado!");
+                              
+                              setPedidoSeleccionado(null);
+                              pedidoSeleccionadoRef.current = null;
+                              setCodigosEtiquetas([]);
+                            } else {
+                              alert("Error al actualizar el estado del pedido");
+                            }
+                          }}
+                          className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-blue-500 hover:bg-blue-600 active:scale-95 transition-transform"
+                        >
+                          CONFIRMAR ENTREGA
+                        </button>
+
+                        <button
+                          onClick={() => setMostrarModalConfirmarEntrega(false)}
+                          className="w-full py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>,
+              document.body,
+            )}
+        </motion.div>
+      );
+    }
+
+    // lista de rutas
+    return (
+      <motion.div
+        key="vista-rutas"
+        className="min-h-screen"
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -40 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <BackBtn onBack={() => setVistaPerfil("menu")} />
+
+        <h2 className="text-xl font-bold text-zinc-900 mb-4">
+          Control de Rutas
+        </h2>
+
+        {cargando ? (
+          <div className="flex justify-center py-10">
+            <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+          </div>
+        ) : Object.keys(pedidosPorRuta).length === 0 && Object.keys(documentosPorRuta).length === 0 ? (
+          <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
+            <MapPin size={40} className="mx-auto text-zinc-300 mb-2" />
+            <p className="text-zinc-500">No hay pedidos ni documentos pendientes de ruta</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* Combinar rutas de pedidos y documentos */}
+            {Array.from(new Set([...Object.keys(pedidosPorRuta), ...Object.keys(documentosPorRuta)])).map((ruta) => {
+  const pedidos = pedidosPorRuta[ruta] || [];
+  const todosDocumentos = documentosPorRuta[ruta] || [];
+  const documentos = todosDocumentos.filter((d) => d.estado_ruta !== "pendiente");
+  const pedidosEncajados = pedidos.filter((p) => p.estado === "encajado");
+  const documentosPendientes = todosDocumentos.filter((d) => d.estado_ruta === "pendiente");
+
+              return (
+                <div
+                  key={ruta}
+                  className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden"
+                >
+                  <button
+                    onClick={() =>
+                      setRutaExpandida(rutaExpandida === ruta ? null : ruta)
+                    }
+                    className="w-full p-4 flex items-center justify-between hover:bg-zinc-50 transition"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                        <MapPin size={20} className="text-orange-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-zinc-900">{ruta}</p>
+                        <p className="text-xs text-zinc-500">
+  {pedidos.length} pedido{pedidos.length !== 1 ? "s" : ""}
+  {documentos.length > 0 && ` · ${documentos.length} doc${documentos.length !== 1 ? "s" : ""}`}
+</p>
+                      </div>
+                    </div>
+                    <ChevronLeft
+                      size={20}
+                      className={`text-zinc-400 transition-transform ${
+                        rutaExpandida === ruta ? "rotate-90" : "-rotate-90"
+                      }`}
+                    />
+                  </button>
+
+                  <AnimatePresence>
+                    {rutaExpandida === ruta && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="border-t border-zinc-200"
+                      >
+                        {/* PEDIDOS */}
+                        {pedidos.length > 0 && (
+                          <div>
+                            <div className="bg-zinc-100 px-4 py-2">
+                              <h4 className="text-xs font-bold text-zinc-700 uppercase">
+                                Pedidos ({pedidos.length})
+                              </h4>
+                            </div>
+                            <ListaPedidosRuta
+                              pedidos={pedidos}
+                              onVerDetalle={verDetallePedido}
+                            />
+                          </div>
+                        )}
+
+                        {/* DOCUMENTOS */}
+{documentos.length > 0 && (
+  <div>
+    <div className="bg-red-50 px-4 py-2 border-t border-zinc-200">
+      <h4 className="text-xs font-bold text-red-700 uppercase">
+        Documentos ({documentos.length})
+      </h4>
+    </div>
+    <ListaDocumentosRuta
+      documentos={documentos}
+      onVerDetalle={verDetalleDocumento}
+    />
+  </div>
+)}
+
+                        
+
+                        {/* BOTONES DE ACCIÓN */}
+                        <div className="p-3 bg-zinc-50 border-t border-zinc-200 space-y-2">
+                          {/* Botón Agregar Documentos (solo admin) */}
+                          {esAdmin && documentosPendientes.length > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                abrirModalDocumentos(ruta);
+                              }}
+                              className="w-full py-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={2.5}
+                                stroke="currentColor"
+                                className="w-5 h-5"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M12 4.5v15m7.5-7.5h-15"
+                                />
+                              </svg>
+                              AGREGAR DOCUMENTOS A RUTA
+                            </button>
+                            
+                          )}
+
+                         {/* Botón Iniciar/Detener Ruta con GPS */}
+
+  <div className="space-y-3">
+    <button
+      onClick={async (e) => {
+  e.stopPropagation();
+
+  if (!enRuta) {
+    const iniciada = await iniciarRuta(ruta);
+
+    if (!iniciada) return; 
+    setEnRuta(true);
+
+    if (cuenta?.numero_cuenta) {
+      localStorage.setItem(`enRuta_${cuenta.numero_cuenta}`, "true");
+    }
+  } else {
+    setEnRuta(false);
+
+    if (cuenta?.numero_cuenta) {
+      localStorage.setItem(`enRuta_${cuenta.numero_cuenta}`, "false");
+    }
+  }
+}}
+
+      className={`w-full py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${
+        enRuta
+          ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
+          : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+      }`}
+    >
+      {enRuta ? (
+        <>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 7.5A2.25 2.25 0 017.5 5.25h9a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25 2.25h-9a2.25 2.25 0 01-2.25-2.25v-9z" />
+          </svg>
+          DETENER RUTA
+        </>
+      ) : (
+        <>
+          <Truck size={20} className="text-white" />
+          INICIAR RUTA
+        </>
+      )}
+    </button>
+
+    {/* Feedback visual del GPS */}
+    {enRuta && rastreando && (
+      <div className="p-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+        <span className="text-[10px] text-green-700 font-bold uppercase tracking-wider flex items-center gap-1">
+          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          GPS Activo
+        </span>
+        {ultimaUbicacion && (
+          <span className="text-[10px] text-green-600 font-mono">
+            {ultimaUbicacion.lat.toFixed(4)}, {ultimaUbicacion.lng.toFixed(4)}
+          </span>
+        )}
+      </div>
+    )}
+
+    {enRuta && errorGPS && (
+      <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-[10px] text-red-600">
+        ⚠️ {errorGPS}
+      </div>
+    )}
+  </div>
+
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* MODAL DE SELECCIÓN DE DOCUMENTOS */}
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {mostrarModalDocumentos && rutaSeleccionadaDocs && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
+                  style={{ zIndex: 50000 }}
+                  onClick={() => setMostrarModalDocumentos(false)}
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="p-6 border-b border-zinc-200">
+                      <h3 className="text-xl font-bold text-zinc-900">
+                        Agregar Documentos a {rutaSeleccionadaDocs}
+                      </h3>
+                      <p className="text-sm text-zinc-500 mt-1">
+                        Selecciona los documentos que deseas agregar a esta ruta
+                      </p>
+                    </div>
+
+                    <div className="p-4 overflow-y-auto max-h-[50vh]">
+                      {documentosPorRuta[rutaSeleccionadaDocs]?.filter((d: any) => d.estado_ruta === "pendiente").length === 0 ? (
+                        <p className="text-center text-zinc-500 py-8">
+                          No hay documentos pendientes en esta ruta
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {documentosPorRuta[rutaSeleccionadaDocs]
+                            ?.filter((d: any) => d.estado_ruta === "pendiente")
+                            .map((doc: any) => (
+                              <div
+                                key={doc.id}
+                                onClick={() => {
+                                  setDocumentosSeleccionados((prev) => {
+                                    const nuevo = new Set(prev);
+                                    if (nuevo.has(doc.id)) {
+                                      nuevo.delete(doc.id);
+                                    } else {
+                                      nuevo.add(doc.id);
+                                    }
+                                    return nuevo;
+                                  });
+                                }}
+                                className={`border-2 rounded-lg p-4 cursor-pointer transition ${
+                                  documentosSeleccionados.has(doc.id)
+                                    ? "bg-orange-50 border-orange-500"
+                                    : "bg-white border-zinc-200 hover:border-orange-300"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-xs font-bold text-zinc-700">
+                                        {doc.tipo_documento === "nota" ? "NOTA" : "FACTURA"}
+                                      </span>
+                                      <span className="font-bold text-orange-600">
+                                        {doc.numero_documento}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm font-semibold text-zinc-900">
+                                      {doc.cuentas?.cliente}
+                                    </p>
+                                    <p className="text-xs text-zinc-500">
+                                      {doc.cuentas?.ferreteria}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-lg font-bold text-red-600">
+                                      ${doc.monto.toFixed(2)}
+                                    </p>
+                                    {documentosSeleccionados.has(doc.id) && (
+                                      <div className="mt-1 w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center ml-auto">
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 20 20"
+                                          fill="currentColor"
+                                          className="w-4 h-4 text-white"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-6 border-t border-zinc-200 space-y-3">
+                      <button
+                        onClick={agregarDocumentosARuta}
+                        disabled={documentosSeleccionados.size === 0}
+                        className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-orange-500 hover:bg-orange-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        AGREGAR {documentosSeleccionados.size} DOCUMENTO
+                        {documentosSeleccionados.size !== 1 ? "S" : ""}
+                      </button>
+                      <button
+                        onClick={() => setMostrarModalDocumentos(false)}
+                        className="w-full py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body,
+          )}
+      </motion.div>
+    );
+  };
+
 export default function HomePage() {
   const [cuentaActiva, setCuentaActiva] = useState<string | null>(null);
   const [numCuentaInput, setNumCuentaInput] = useState("");
@@ -1909,8 +3827,8 @@ const [enRuta, setEnRuta] = useState(() => {
 const { rastreando, error: errorGPS, ultimaUbicacion } = useRastreoGPS({
   cuentaId: cuenta?.numero_cuenta || '',
   nombreRuta: cuenta?.ruta || cuenta?.cliente || 'Ruta sin nombre',
-  distanciaMinima: 10, // 10 metros (más preciso)
-  tiempoMinimo: 5000, // 5 segundos (más tiempo real)
+  distanciaMinima: 10, // 10 metros 
+  tiempoMinimo: 5000, // 5 segundos 
   habilitado: esRutas && enRuta,
 });
 
@@ -2486,26 +4404,6 @@ const { rastreando, error: errorGPS, ultimaUbicacion } = useRastreoGPS({
     );
   };
 
-  const BackBtn = ({ onBack }: any) => {
-    if (typeof document === "undefined") return null;
-
-    const btn = (
-      <motion.button
-        initial={{ opacity: 0, y: -8, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -8, scale: 0.96 }}
-        transition={{ duration: 0.18, ease: "easeOut" }}
-        whileTap={{ scale: 0.93 }}
-        onClick={onBack}
-        className="fixed top-5 left-4 z-[9999] bg-transparent hover:bg-white/20 bg-white text-orange-500 rounded-full p-4 shadow-lg transition text-2xl"
-        aria-label="Volver"
-      >
-        <ChevronLeft size={34} />
-      </motion.button>
-    );
-
-    return createPortal(btn, document.body);
-  };
   {
     useEffect(() => {
       const saved = localStorage.getItem("cuenta_user");
@@ -6980,7 +8878,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
       />
     </div>
 
-    {/* Código de barras - NUEVO */}
+    {/* Código de barras */}
     <div>
       <label className="block text-xs text-zinc-600 mb-1">
         Código de barras (RS)
@@ -11603,1825 +13501,6 @@ setResultado({
     );
   };
 
- const VistaRutas = ({ setVistaPerfil, esAdmin }: any) => {
-    const [pedidosPorRuta, setPedidosPorRuta] = useState<{
-      [key: string]: any[];
-    }>({});
-    const [cargando, setCargando] = useState(true);
-    const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
-    const [detallesEmpaque, setDetallesEmpaque] = useState<any>(null);
-    const [rutaExpandida, setRutaExpandida] = useState<string | null>(null);
-    const [actualizacionReciente, setActualizacionReciente] = useState(false);
-    const pedidoSeleccionadoRef = useRef<any>(null);
-
-    // Estados para escaneo de códigos
-    const [codigosEtiquetas, setCodigosEtiquetas] = useState<any[]>([]);
-    const [bufferEscaneo, setBufferEscaneo] = useState("");
-    const [ultimoCodigo, setUltimoEscaneo] = useState("");
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const [mostrarModalEscaneado, setMostrarModalEscaneado] = useState(false);
-    const [codigoEscaneadoActual, setCodigoEscaneadoActual] =
-      useState<any>(null);
-
-    const [codigosEntregaEscaneados, setCodigosEntregaEscaneados] = useState<Set<number>>(new Set());
-    const [mostrarModalConfirmarEntrega, setMostrarModalConfirmarEntrega] = useState(false);
-    const [documentosPorRuta, setDocumentosPorRuta] = useState<{
-      [key: string]: any[];
-    }>({});
-    const [mostrarModalDocumentos, setMostrarModalDocumentos] = useState(false);
-    const [rutaSeleccionadaDocs, setRutaSeleccionadaDocs] = useState<string | null>(null);
-    const [documentosSeleccionados, setDocumentosSeleccionados] = useState<Set<number>>(new Set());
-    const [documentoSeleccionado, setDocumentoSeleccionado] = useState<any>(null);
-    const [codigosDocEscaneados, setCodigosDocEscaneados] = useState<Set<number>>(new Set());
-    const [mostrarModalConfirmarPago, setMostrarModalConfirmarPago] = useState(false);
-
-    const obtenerNombreEtiqueta = (tipo: string, numero: number) => {
-      const nombres: { [key: string]: string } = {
-        c: "Caja",
-        a: "Atado",
-        b: "Bolsa",
-        t: "Tubo",
-        r: "Rollo",
-        g: "Galón",
-        cub: "Cubeta",
-        l: "Losalit",
-        p: "Porrón",
-        pza: "Pieza",
-        cil: "Cilindro",
-      };
-
-      const tipoLower = tipo.toLowerCase();
-      const nombre = nombres[tipoLower] || tipo;
-
-      return `${nombre} ${numero}`;
-    };
-
-   
-    const cargarDocumentosPendientes = async () => {
-  const { data, error } = await supabase
-    .from("documentos_pendientes")
-    .select(`
-      *,
-      cuentas (
-        numero_cuenta,
-        cliente,
-        ferreteria,
-        ruta
-      )
-    `)
-    .in("estado_ruta", ["pendiente", "verificado", "en_ruta", "pagada"]); 
-
-      if (!error && data) {
-        const agrupados = data.reduce((acc: any, doc: any) => {
-          const ruta = doc.cuentas?.ruta || "Sin ruta asignada";
-          if (!acc[ruta]) acc[ruta] = [];
-          acc[ruta].push(doc);
-          return acc;
-        }, {});
-
-        setDocumentosPorRuta(agrupados);
-      }
-    };
-
-    const cargarPedidosRuta = async () => {
-      const { data, error } = await supabase
-        .from("pedidos")
-        .select(
-          `
-        id,
-        total,
-        created_at,
-        cuenta_id,
-        pdf_url,
-        estado,
-        es_domicilio,
-        cuentas (
-          numero_cuenta,
-          cliente,
-          ferreteria,
-          numero_tel,
-          direccion,
-          ruta,
-          latitud,
-          longitud
-        )
-      `,
-        )
-        .in("estado", ["encajado", "en_ruta"])
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        const agrupados = data.reduce((acc: any, pedido: any) => {
-          const ruta = pedido.cuentas?.ruta || "Sin ruta asignada";
-          if (!acc[ruta]) acc[ruta] = [];
-          acc[ruta].push(pedido);
-          return acc;
-        }, {});
-
-        setPedidosPorRuta(agrupados);
-        setActualizacionReciente(true);
-        setTimeout(() => setActualizacionReciente(false), 2000);
-      }
-      setCargando(false);
-    };
-
-    const actualizarEstadoLocal = (nuevoEstado: string) => {
-      setPedidoSeleccionado((prev: any) =>
-        prev ? { ...prev, estado: nuevoEstado } : null,
-      );
-
-      setPedidosPorRuta((prevMap) => {
-        const nuevoMap = { ...prevMap };
-        Object.keys(nuevoMap).forEach((ruta) => {
-          nuevoMap[ruta] = nuevoMap[ruta].map((p) =>
-            p.id === pedidoSeleccionado?.id ? { ...p, estado: nuevoEstado } : p,
-          );
-        });
-        return nuevoMap;
-      });
-    };
-
-    useEffect(() => {
-  cargarPedidosRuta();
-  cargarDocumentosPendientes(); 
-
-  const channel = supabase
-    .channel("rutas-realtime-v4")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "pedidos" },
-      (payload) => {
-        console.log("Cambio en rutas:", payload);
-        cargarPedidosRuta();
-      },
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "documentos_pendientes" },
-      (payload) => {
-        console.log("Cambio en documentos:", payload);
-        cargarDocumentosPendientes(); // ← QUITAR EL IF DE ADMIN
-      },
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, []);
-
-    const cargarDetallesEmpaque = async (pedidoId: number) => {
-      const { data } = await supabase
-        .from("detalles_empaque")
-        .select("*")
-        .eq("pedido_id", pedidoId)
-        .single();
-      setDetallesEmpaque(data || { detalles_empacado: "", observaciones: "" });
-    };
-
-    const cargarCodigosEtiquetas = async (pedidoId: number) => {
-      const { data } = await supabase
-        .from("codigos_etiquetas")
-        .select("*")
-        .eq("pedido_id", pedidoId)
-        .neq("tipo", "RS") 
-        .order("tipo", { ascending: true })
-        .order("numero", { ascending: true });
-
-      setCodigosEtiquetas(data || []);
-      setCodigosEntregaEscaneados(new Set());
-    };
-
-    const verDetallePedido = async (pedido: any) => {
-      setPedidoSeleccionado(pedido);
-      pedidoSeleccionadoRef.current = pedido;
-      if (pedido.estado === "encajado" || pedido.estado === "en_ruta") {
-        await cargarDetallesEmpaque(pedido.id);
-        await cargarCodigosEtiquetas(pedido.id);
-      }
-    };
-
-    const verDetalleDocumento = async (documento: any) => {
-      setDocumentoSeleccionado(documento);
-      setCodigosDocEscaneados(new Set());
-    };
-
-    const abrirModalDocumentos = (ruta: string) => {
-      setRutaSeleccionadaDocs(ruta);
-      setDocumentosSeleccionados(new Set());
-      setMostrarModalDocumentos(true);
-    };
-
-    const agregarDocumentosARuta = async () => {
-  if (documentosSeleccionados.size === 0) {
-    alert("Selecciona al menos un documento");
-    return;
-  }
-
-  try {
-    const idsSeleccionados = Array.from(documentosSeleccionados);
-    
-    console.log("IDs a actualizar:", idsSeleccionados); 
-
-    const { data, error } = await supabase
-      .from("documentos_pendientes")
-      .update({ estado_ruta: "verificado" })
-      .in("id", idsSeleccionados)
-      .select();
-
-    if (error) {
-      console.error("Error de Supabase:", error);
-      alert(`Error al agregar documentos: ${error.message}`);
-      return;
-    }
-
-    console.log("Documentos actualizados:", data); // Para debug
-    
-    alert(`${idsSeleccionados.length} documento(s) agregado(s) a la ruta`);
-    setMostrarModalDocumentos(false);
-    setDocumentosSeleccionados(new Set());
-    await cargarDocumentosPendientes();
-    
-  } catch (err) {
-    console.error("Error inesperado:", err);
-    alert("Error inesperado al agregar documentos");
-  }
-};
-
-    useEffect(() => {
-      if (pedidoSeleccionado && (pedidoSeleccionado.estado === "encajado" || pedidoSeleccionado.estado === "en_ruta")) {
-        const handleKeyPress = (e: KeyboardEvent) => {
-          if (e.key === "Enter") {
-            if (bufferEscaneo.trim()) {
-              procesarEscaneoCodigo(bufferEscaneo.trim());
-              setBufferEscaneo("");
-            }
-            return;
-          }
-          setBufferEscaneo((prev) => prev + e.key);
-
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-          timeoutRef.current = setTimeout(() => {
-            if (bufferEscaneo.trim()) {
-              procesarEscaneoCodigo(bufferEscaneo.trim());
-              setBufferEscaneo("");
-            }
-          }, 100);
-        };
-
-        window.addEventListener("keypress", handleKeyPress);
-        return () => {
-          window.removeEventListener("keypress", handleKeyPress);
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        };
-      }
-
-      // Para documentos
-if (documentoSeleccionado && (documentoSeleccionado.estado_ruta === "verificado" || documentoSeleccionado.estado_ruta === "en_ruta")) {  
-        const handleKeyPressDoc = (e: KeyboardEvent) => {
-          if (e.key === "Enter") {
-            if (bufferEscaneo.trim()) {
-              procesarEscaneoDocumento(bufferEscaneo.trim());
-              setBufferEscaneo("");
-            }
-            return;
-          }
-          setBufferEscaneo((prev) => prev + e.key);
-
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-          timeoutRef.current = setTimeout(() => {
-            if (bufferEscaneo.trim()) {
-              procesarEscaneoDocumento(bufferEscaneo.trim());
-              setBufferEscaneo("");
-            }
-          }, 100);
-        };
-
-        window.addEventListener("keypress", handleKeyPressDoc);
-        return () => {
-          window.removeEventListener("keypress", handleKeyPressDoc);
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        };
-      }
-    }, [bufferEscaneo, pedidoSeleccionado, codigosEtiquetas, documentoSeleccionado]);
-
-   const procesarEscaneoDocumento = async (codigoEscaneado: string) => {
-  setUltimoEscaneo(codigoEscaneado);
-
-  if (!documentoSeleccionado.codigo_barras) {
-    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-    alert("Este documento no tiene código de barras asignado");
-    return;
-  }
-
-  if (codigoEscaneado !== documentoSeleccionado.codigo_barras) {
-    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-    alert("Código incorrecto. No coincide con el documento.");
-    return;
-  }
-
-  // Verificar si ya fue escaneado
-  if (codigosDocEscaneados.has(documentoSeleccionado.id)) {
-    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-    alert("Este documento ya fue verificado");
-    return;
-  }
-
-  // Si está en estado "verificado", cambiar a "escaneado" en la BD
-  if (documentoSeleccionado.estado_ruta === "verificado") {
-    const { error } = await supabase
-      .from("documentos_pendientes")
-      .update({ estado_ruta: "escaneado" })
-      .eq("id", documentoSeleccionado.id);
-
-    if (error) {
-      alert("Error al actualizar el estado del documento");
-      return;
-    }
-  }
-
-  // Marcar como escaneado localmente
-  setCodigosDocEscaneados((prev) => new Set(prev).add(documentoSeleccionado.id));
-
-  // Mostrar confirmación
-  setMostrarModalEscaneado(true);
-
-  if ("vibrate" in navigator) navigator.vibrate(50);
-
-  // Auto-cerrar modal
-  setTimeout(() => {
-    setMostrarModalEscaneado(false);
-    // Mostrar modal de confirmar pago
-    setMostrarModalConfirmarPago(true);
-  }, 1500);
-};
-
-    const procesarEscaneoCodigo = async (codigoEscaneado: string) => {
-      setUltimoEscaneo(codigoEscaneado);
-
-      const codigoEncontrado = codigosEtiquetas.find(
-        (c: any) => c.codigo === codigoEscaneado
-      );
-
-      if (!codigoEncontrado) {
-        if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-        alert(`Código ${codigoEscaneado} no encontrado`);
-        return;
-      }
-
-      // PROCESO PARA ENCAJADO
-      if (pedidoSeleccionado.estado === "encajado") {
-        if (codigoEncontrado.escaneado) {
-          if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-          alert(`Este código ya fue escaneado`);
-          return;
-        }
-
-        const { error } = await supabase
-          .from("codigos_etiquetas")
-          .update({
-            escaneado: true,
-            fecha_escaneo: new Date().toISOString(),
-          })
-          .eq("id", codigoEncontrado.id);
-
-        if (!error) {
-          setCodigosEtiquetas((prev) =>
-            prev.map((c) =>
-              c.id === codigoEncontrado.id ? { ...c, escaneado: true } : c,
-            ),
-          );
-
-          setCodigoEscaneadoActual(codigoEncontrado);
-          setMostrarModalEscaneado(true);
-
-          if ("vibrate" in navigator) navigator.vibrate(50);
-
-          setTimeout(() => {
-            setMostrarModalEscaneado(false);
-            setCodigoEscaneadoActual(null);
-          }, 1500);
-        }
-      }
-      
-      // PROCESO PARA EN_RUTA
-      else if (pedidoSeleccionado.estado === "en_ruta") {
-        if (codigosEntregaEscaneados.has(codigoEncontrado.id)) {
-          if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-          alert(`Este código ya fue verificado para entrega`);
-          return;
-        }
-
-        setCodigosEntregaEscaneados((prev) => new Set(prev).add(codigoEncontrado.id));
-
-        setCodigoEscaneadoActual(codigoEncontrado);
-        setMostrarModalEscaneado(true);
-
-        if ("vibrate" in navigator) navigator.vibrate(50);
-
-        setTimeout(() => {
-          setMostrarModalEscaneado(false);
-          setCodigoEscaneadoActual(null);
-        }, 1500);
-
-        if (codigosEntregaEscaneados.size + 1 === codigosEtiquetas.length) {
-          setTimeout(() => {
-            setMostrarModalConfirmarEntrega(true);
-          }, 2000);
-        }
-      }
-    };
-
-    const verificarTodosCodigosEscaneados = () => {
-      if (codigosEtiquetas.length === 0) return false;
-      
-      if (pedidoSeleccionado?.estado === "encajado") {
-        return codigosEtiquetas.every((c: any) => c.escaneado);
-      }
-      
-      if (pedidoSeleccionado?.estado === "en_ruta") {
-        return codigosEntregaEscaneados.size === codigosEtiquetas.length;
-      }
-      
-      return false;
-    };
-
-    const todosCodigosEscaneados = verificarTodosCodigosEscaneados();
-
-    const ListaPedidosRuta = ({
-      pedidos,
-      onVerDetalle,
-    }: {
-      pedidos: any[];
-      onVerDetalle: (pedido: any) => void;
-    }) => {
-      const [estadosVerificacion, setEstadosVerificacion] = useState<{
-        [key: number]: boolean;
-      }>({});
-
-      useEffect(() => {
-        const verificarTodos = async () => {
-          const nuevosEstados: { [key: number]: boolean } = {};
-
-          for (const pedido of pedidos) {
-            if (pedido.estado !== "encajado") {
-              nuevosEstados[pedido.id] = false;
-              continue;
-            }
-
-            const { data } = await supabase
-              .from("codigos_etiquetas")
-              .select("*")
-              .eq("pedido_id", pedido.id)
-              .neq("tipo", "RS"); 
-
-            if (data && data.length > 0) {
-              nuevosEstados[pedido.id] = data.every((c: any) => c.escaneado);
-            } else {
-              nuevosEstados[pedido.id] = false; 
-            }
-          }
-
-          setEstadosVerificacion(nuevosEstados);
-        };
-
-        verificarTodos();
-      }, [pedidos]);
-
-      return (
-        <div className="p-2 space-y-2 bg-zinc-50">
-          {pedidos.map((pedido) => {
-            const verificado = estadosVerificacion[pedido.id] || false;
-
-            return (
-              <div
-                key={pedido.id}
-                onClick={() => onVerDetalle(pedido)}
-                className={`relative border-2 rounded-lg p-3 cursor-pointer transition shadow-sm ${
-                  verificado
-                    ? "bg-green-50 border-green-500 hover:border-green-600"
-                    : "bg-white border-zinc-200 hover:border-orange-300"
-                }`}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span
-                        className={`font-bold text-sm ${verificado ? "text-green-900" : "text-zinc-900"}`}
-                      >
-                        #{pedido.id}
-                      </span>
-                      <BadgeEstado estado={pedido.estado} />
-                      {verificado && (
-                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-600 text-white">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                            className="w-3 h-3"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          <span className="text-[10px] font-bold">
-                            Verificado
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <p
-                      className={`text-xs font-semibold ${verificado ? "text-green-800" : "text-zinc-700"}`}
-                    >
-                      {pedido.cuentas?.cliente || "Sin cliente"}
-                    </p>
-                    <p
-                      className={`text-[10px] truncate max-w-[200px] ${verificado ? "text-green-600" : "text-zinc-500"}`}
-                    >
-                      {pedido.cuentas?.direccion}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p
-                      className={`text-sm font-bold ${verificado ? "text-green-700" : "text-orange-500"}`}
-                    >
-                      ${pedido.total.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      );
-    };
-
-    const ListaDocumentosRuta = ({
-  documentos,
-  onVerDetalle,
-}: {
-  documentos: any[];
-  onVerDetalle: (documento: any) => void;
-}) => {
-  return (
-    <div className="p-2 space-y-2 bg-zinc-50">
-      {documentos.map((doc) => {
-        const esEnRuta = doc.estado_ruta === "en_ruta";
-        const esPagada = doc.estado_ruta === "pagada";
-        const esVerificado = doc.estado_ruta === "verificado";
-        const esEscaneado = doc.estado_ruta === "escaneado";
-
-        return (
-              <div
-                key={doc.id}
-                onClick={() => onVerDetalle(doc)}
-                className={`relative border-2 rounded-lg p-3 cursor-pointer transition shadow-sm ${
-  esPagada
-    ? "bg-green-50 border-green-500 hover:border-green-600"
-    : esEnRuta
-    ? "bg-blue-50 border-blue-500 hover:border-blue-600"
-    : esEscaneado
-    ? "bg-purple-50 border-purple-500 hover:border-purple-600"
-    : esVerificado
-    ? "bg-yellow-50 border-yellow-500 hover:border-yellow-600"
-    : "bg-white border-zinc-200 hover:border-orange-300"
-}`}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-zinc-900">
-                        {doc.tipo_documento === "nota" ? "Nota" : "Factura"}
-                      </span>
-                      <span className="text-sm font-bold text-orange-600">
-                        {doc.numero_documento}
-                      </span>
-                     {esPagada && (
-  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-600 text-white">
-    <span className="text-[10px] font-bold">PAGADA</span>
-  </div>
-)}
-{esEnRuta && !esPagada && (
-  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600 text-white">
-    <span className="text-[10px] font-bold">EN RUTA</span>
-  </div>
-)}
-{esEscaneado && !esEnRuta && !esPagada && (
-  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-600 text-white">
-    <span className="text-[10px] font-bold">ESCANEADO</span>
-  </div>
-)}
-{esVerificado && !esEscaneado && !esEnRuta && !esPagada && (
-  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-600 text-white">
-    <span className="text-[10px] font-bold">VERIFICADO</span>
-  </div>
-)}
-                    </div>
-                    <p className="text-xs font-semibold text-zinc-700">
-                      {doc.cuentas?.cliente || "Sin cliente"}
-                    </p>
-                    <p className="text-[10px] text-zinc-500">
-                      {doc.cuentas?.ferreteria}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-red-600">
-                      ${doc.monto.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      );
-    };
-
-    const iniciarRuta = async (ruta: string) => {
-  const pedidosRuta = pedidosPorRuta[ruta] || [];
-  const documentosRuta = documentosPorRuta[ruta] || [];
-  const pedidosListos = [];
-  const documentosListos = [];
-
-  // Verificar pedidos
-  for (const pedido of pedidosRuta) {
-    const { data } = await supabase
-      .from("codigos_etiquetas")
-      .select("*")
-      .eq("pedido_id", pedido.id)
-      .neq("tipo", "RS");
-
-    if (data && data.length > 0 && data.every((c: any) => c.escaneado)) {
-      pedidosListos.push(pedido.id);
-    }
-  }
-
-  // Verificar documentos escaneados
-  for (const doc of documentosRuta) {
-    if (doc.estado_ruta === "escaneado") {
-      documentosListos.push(doc.id);
-    }
-  }
-
-  if (pedidosListos.length === 0 && documentosListos.length === 0) {
-    alert("No hay pedidos ni documentos listos para iniciar la ruta");
-    return;
-  }
-
-  // Actualizar pedidos
-  if (pedidosListos.length > 0) {
-    const { error: errorPedidos } = await supabase
-      .from("pedidos")
-      .update({ estado: "en_ruta" })
-      .in("id", pedidosListos);
-
-    if (errorPedidos) {
-      alert("Error al iniciar la ruta con pedidos");
-      return;
-    }
-  }
-
-  // Actualizar documentos
-  if (documentosListos.length > 0) {
-    const { error: errorDocs } = await supabase
-      .from("documentos_pendientes")
-      .update({ estado_ruta: "en_ruta" })
-      .in("id", documentosListos);
-
-    if (errorDocs) {
-      alert("Error al iniciar la ruta con documentos");
-      return;
-    }
-  }
-
-  alert(
-    `¡Ruta iniciada!\n${pedidosListos.length} pedido(s) y ${documentosListos.length} documento(s) en camino`
-  );
-  cargarPedidosRuta();
-  cargarDocumentosPendientes();
-};
-
-    if (documentoSeleccionado) {
-      const documentoVerificado = codigosDocEscaneados.has(documentoSeleccionado.id);
-
-      return (
-        <motion.div
-          key="detalle-documento"
-          className="min-h-screen pb-10"
-          initial={{ opacity: 0, x: 40 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -40 }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
-        >
-          <BackBtn
-            onBack={() => {
-              setDocumentoSeleccionado(null);
-              setCodigosDocEscaneados(new Set());
-            }}
-          />
-
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">
-            {documentoSeleccionado.tipo_documento === "nota" ? "Nota" : "Factura"}{" "}
-            {documentoSeleccionado.numero_documento}
-          </h2>
-
-          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm text-zinc-600">Cliente</span>
-                <span className="font-semibold text-zinc-900">
-                  {documentoSeleccionado.cuentas?.cliente || "N/A"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-zinc-600">Ferretería</span>
-                <span className="font-semibold text-zinc-900">
-                  {documentoSeleccionado.cuentas?.ferreteria || "N/A"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-zinc-600">Número Cuenta</span>
-                <span className="font-semibold text-zinc-900">
-                  {documentoSeleccionado.cuentas?.numero_cuenta || "N/A"}
-                </span>
-              </div>
-              <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
-                <span className="font-bold text-zinc-900">Monto</span>
-                <span className="font-bold text-red-600 text-lg">
-                  ${documentoSeleccionado.monto.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* VERIFICACIÓN DE CÓDIGO DE BARRAS */}
-{(documentoSeleccionado.estado_ruta === "verificado" || documentoSeleccionado.estado_ruta === "escaneado" || documentoSeleccionado.estado_ruta === "en_ruta") && (  
-            <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                    stroke="currentColor"
-                    className="w-5 h-5"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
-                    />
-                  </svg>
-                  Verificación de Documento
-                </h3>
-                <div
-                  className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    documentoVerificado
-                      ? "bg-green-500 text-white"
-                      : "bg-orange-100 text-orange-700"
-                  }`}
-                >
-                  {documentoVerificado ? "Verificado" : "Pendiente"}
-                </div>
-              </div>
-
-              {!documentoVerificado && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 flex items-center gap-3">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-blue-800 font-medium">
-                    Escanea el código de barras del documento
-                  </span>
-                </div>
-              )}
-
-              <div
-                className={`border-2 rounded-lg p-4 transition-all ${
-                  documentoVerificado
-                    ? "bg-green-50 border-green-500"
-                    : "bg-white border-zinc-200"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {documentoVerificado ? (
-                      <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                          className="w-6 h-6 text-white"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </div>
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-zinc-200 flex items-center justify-center">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          strokeWidth={2}
-                          stroke="currentColor"
-                          className="w-6 h-6 text-zinc-400"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
-                          />
-                        </svg>
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-semibold text-zinc-900">
-                        Código de Barras
-                      </p>
-                      <p className="text-xs text-zinc-500 font-mono">
-                        {documentoSeleccionado.codigo_barras || "Sin código"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {documentoVerificado && (
-                <div className="mt-4 bg-green-50 border-2 border-green-500 rounded-xl p-4">
-                  <div className="flex items-center justify-center gap-2 text-green-700">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      className="w-6 h-6"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    <span className="font-bold">¡Documento verificado!</span>
-                  </div>
-                  <p className="text-center text-sm text-green-600 mt-1">
-                    Confirma el estado de pago del documento
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Modal de código escaneado */}
-          {typeof document !== "undefined" &&
-            createPortal(
-              <AnimatePresence>
-                {mostrarModalEscaneado && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
-                    style={{ zIndex: 50000 }}
-                  >
-                    <motion.div
-                      initial={{ scale: 0.5, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.5, opacity: 0 }}
-                      className="bg-white rounded-2xl w-full max-w-sm p-8 shadow-2xl text-center"
-                    >
-                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                          className="w-14 h-14 text-green-600"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </div>
-                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
-                        ¡Código Verificado!
-                      </h3>
-                      <p className="text-zinc-600 text-lg">Documento válido</p>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>,
-              document.body,
-            )}
-
-          {/* Modal de Confirmar Pago */}
-          {typeof document !== "undefined" &&
-            createPortal(
-              <AnimatePresence>
-                {mostrarModalConfirmarPago && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
-                    style={{ zIndex: 50000 }}
-                  >
-                    <motion.div
-                      initial={{ scale: 0.5, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.5, opacity: 0 }}
-                      className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-orange-100 flex items-center justify-center">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          strokeWidth={2}
-                          stroke="currentColor"
-                          className="w-14 h-14 text-orange-600"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                      </div>
-
-                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
-                        Confirmar Estado de Pago
-                      </h3>
-
-                      <p className="text-zinc-600 text-base mb-2">
-                        {documentoSeleccionado?.tipo_documento === "nota" ? "Nota" : "Factura"}{" "}
-                        {documentoSeleccionado?.numero_documento}
-                      </p>
-
-                      <p className="text-red-600 font-bold text-xl mb-6">
-                        ${documentoSeleccionado?.monto.toFixed(2)}
-                      </p>
-
-                      <div className="space-y-3">
-                        <button
-                          onClick={async () => {
-                            // Marcar como pagada
-                            const { error } = await supabase
-                              .from("documentos_pendientes")
-                              .update({ estado_ruta: "pagada" })
-                              .eq("id", documentoSeleccionado.id);
-
-                            if (!error) {
-                              setMostrarModalConfirmarPago(false);
-                              
-                              if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
-                              
-                              alert("Documento marcado como PAGADO. Espera confirmación del admin para eliminar.");
-                              
-                              setDocumentoSeleccionado(null);
-                              setCodigosDocEscaneados(new Set());
-                              cargarDocumentosPendientes();
-                            } else {
-                              alert("Error al actualizar el estado del documento");
-                            }
-                          }}
-                          className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform"
-                        >
-                          ✓ PAGADO
-                        </button>
-
-                        <button
-                          onClick={async () => {
-                            // Marcar como no pagada y quitar de ruta
-                            const { error } = await supabase
-                              .from("documentos_pendientes")
-                              .update({ estado_ruta: "pendiente" })
-                              .eq("id", documentoSeleccionado.id);
-
-                            if (!error) {
-                              setMostrarModalConfirmarPago(false);
-                              
-                              if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
-                              
-                              alert("Documento marcado como NO PAGADO y removido de la ruta.");
-                              
-                              setDocumentoSeleccionado(null);
-                              setCodigosDocEscaneados(new Set());
-                              cargarDocumentosPendientes();
-                            } else {
-                              alert("Error al actualizar el estado del documento");
-                            }
-                          }}
-                          className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-red-500 hover:bg-red-600 active:scale-95 transition-transform"
-                        >
-                          ✗ NO PAGADO
-                        </button>
-
-                        <button
-                          onClick={() => setMostrarModalConfirmarPago(false)}
-                          className="w-full py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>,
-              document.body,
-            )}
-        </motion.div>
-      );
-    }
-
-    // ========== VISTA DE DETALLE DE PEDIDO ==========
-    if (pedidoSeleccionado) {
-      return (
-        <motion.div
-          key="detalle-pedido-ruta"
-          className="min-h-screen pb-10"
-          initial={{ opacity: 0, x: 40 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -40 }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
-        >
-          <BackBtn
-            onBack={() => {
-              setPedidoSeleccionado(null);
-              pedidoSeleccionadoRef.current = null;
-              setCodigosEtiquetas([]);
-              setCodigosEntregaEscaneados(new Set());
-            }}
-          />
-
-          <h2 className="text-xl font-bold text-zinc-900 mb-4">
-            Pedido #{pedidoSeleccionado.id}
-          </h2>
-
-          <div className="mb-4">
-            <SelectorEstado
-              estadoActual={pedidoSeleccionado.estado}
-              pedidoId={pedidoSeleccionado.id}
-              onEstadoChange={actualizarEstadoLocal}
-            />
-          </div>
-
-          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm text-zinc-600">Cliente</span>
-                <span className="font-semibold text-zinc-900">
-                  {pedidoSeleccionado.cuentas?.cliente || "N/A"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-zinc-600">Dirección</span>
-                <span className="font-semibold text-zinc-900 text-right max-w-[60%]">
-                  {pedidoSeleccionado.cuentas?.direccion || "N/A"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-zinc-600">Teléfono</span>
-                <a
-                  href={`tel:${pedidoSeleccionado.cuentas?.numero_tel}`}
-                  className="font-semibold text-blue-600 underline"
-                >
-                  {pedidoSeleccionado.cuentas?.numero_tel || "N/A"}
-                </a>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-zinc-600">Ruta Asignada</span>
-                <span className="font-semibold text-orange-500">
-                  {pedidoSeleccionado.cuentas?.ruta || "Sin ruta"}
-                </span>
-              </div>
-              <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
-                <span className="font-bold text-zinc-900">Total</span>
-                <span className="font-bold text-orange-500 text-lg">
-                  ${pedidoSeleccionado.total.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* SECCIÓN DE ESCANEO DE CÓDIGOS */}
-          {(pedidoSeleccionado.estado === "encajado" || pedidoSeleccionado.estado === "en_ruta") &&
-            codigosEtiquetas.length > 0 && (
-              <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-zinc-800 flex items-center gap-2">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={2}
-                      stroke="currentColor"
-                      className="w-5 h-5"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z"
-                      />
-                    </svg>
-                    {pedidoSeleccionado.estado === "encajado" 
-                      ? "Verificación de Etiquetas" 
-                      : "Verificación de Entrega"}
-                  </h3>
-                  <div
-                    className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      todosCodigosEscaneados
-                        ? "bg-green-500 text-white"
-                        : "bg-orange-100 text-orange-700"
-                    }`}
-                  >
-                    {pedidoSeleccionado.estado === "encajado"
-                      ? `${codigosEtiquetas.filter((c: any) => c.escaneado).length} / ${codigosEtiquetas.length}`
-                      : `${codigosEntregaEscaneados.size} / ${codigosEtiquetas.length}`
-                    }
-                  </div>
-                </div>
-
-                {!todosCodigosEscaneados && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 flex items-center gap-3">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm text-blue-800 font-medium">
-                      {pedidoSeleccionado.estado === "encajado"
-                        ? "Escanea todas las etiquetas antes de salir a ruta"
-                        : "Escanea todas las etiquetas para confirmar la entrega"}
-                    </span>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  {codigosEtiquetas.map((codigo: any) => {
-                    const estaEscaneado = pedidoSeleccionado.estado === "encajado" 
-                      ? codigo.escaneado 
-                      : codigosEntregaEscaneados.has(codigo.id);
-
-                    return (
-                      <div
-                        key={codigo.id}
-                        className={`border-2 rounded-lg p-3 transition-all ${
-                          estaEscaneado
-                            ? "bg-green-50 border-green-500"
-                            : "bg-white border-zinc-200"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            {estaEscaneado ? (
-                              <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 20 20"
-                                  fill="currentColor"
-                                  className="w-5 h-5 text-white"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              </div>
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center">
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  strokeWidth={2}
-                                  stroke="currentColor"
-                                  className="w-5 h-5 text-zinc-400"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
-                                  />
-                                </svg>
-                              </div>
-                            )}
-                            <div>
-                              <p className="font-semibold text-zinc-900 text-sm">
-                                {obtenerNombreEtiqueta(
-                                  codigo.tipo,
-                                  codigo.numero,
-                                )}
-                              </p>
-                              <p className="text-xs text-zinc-500 font-mono">
-                                {codigo.codigo}
-                              </p>
-                            </div>
-                          </div>
-                          {estaEscaneado && codigo.fecha_escaneo && pedidoSeleccionado.estado === "encajado" && (
-                            <span className="text-xs text-green-600 font-medium">
-                              {new Date(codigo.fecha_escaneo).toLocaleTimeString(
-                                "es-MX",
-                                {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                },
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {todosCodigosEscaneados && pedidoSeleccionado.estado === "encajado" && (
-                  <div className="mt-4 bg-green-50 border-2 border-green-500 rounded-xl p-4">
-                    <div className="flex items-center justify-center gap-2 text-green-700">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        className="w-6 h-6"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                      <span className="font-bold">
-                        ¡Todas las etiquetas verificadas!
-                      </span>
-                    </div>
-                    <p className="text-center text-sm text-green-600 mt-1">
-                      Este pedido está listo para salir a ruta
-                    </p>
-                  </div>
-                )}
-
-                {todosCodigosEscaneados && pedidoSeleccionado.estado === "en_ruta" && (
-                  <div className="mt-4 bg-blue-50 border-2 border-blue-500 rounded-xl p-4">
-                    <div className="flex items-center justify-center gap-2 text-blue-700">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        className="w-6 h-6"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                      <span className="font-bold">
-                        ¡Todos los paquetes verificados!
-                      </span>
-                    </div>
-                    <p className="text-center text-sm text-blue-600 mt-1">
-                      Presiona el botón para confirmar la entrega
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-          {/* Detalles de empaque */}
-          {(pedidoSeleccionado.estado === "encajado" || pedidoSeleccionado.estado === "en_ruta") && (
-            <div className="bg-zinc-50 rounded-xl border border-zinc-200 p-4 mb-4">
-              <h3 className="text-sm font-bold text-zinc-800 mb-2 flex items-center gap-2">
-                <Box size={16} /> Detalles de Empaque
-              </h3>
-              {detallesEmpaque?.detalles_empacado ? (
-                <p className="text-sm text-zinc-700 whitespace-pre-wrap bg-white p-3 rounded border border-zinc-300">
-                  {detallesEmpaque.detalles_empacado}
-                </p>
-              ) : (
-                <p className="text-xs text-zinc-400 italic">
-                  Sin detalles registrados
-                </p>
-              )}
-            </div>
-          )}
-
-          {pedidoSeleccionado?.cuentas?.latitud &&
-          pedidoSeleccionado?.cuentas?.longitud ? (
-            <MapaUbicacion
-              lat={pedidoSeleccionado.cuentas.latitud}
-              lng={pedidoSeleccionado.cuentas.longitud}
-              nombreLocal={pedidoSeleccionado.cuentas.ferreteria}
-            />
-          ) : (
-            <div className="bg-yellow-50 text-yellow-700 p-3 rounded-lg text-sm mt-2">
-              ⚠️ Esta cuenta no tiene ubicación configurada
-            </div>
-          )}
-
-          {pedidoSeleccionado.pdf_url && (
-            <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-zinc-900">Documento</h3>
-              <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm h-[400px]">
-                <iframe
-                  src={pedidoSeleccionado.pdf_url}
-                  className="w-full h-full"
-                  title="PDF Pedido"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Modales existentes para pedidos... */}
-          {typeof document !== "undefined" &&
-            createPortal(
-              <AnimatePresence>
-                {mostrarModalEscaneado && codigoEscaneadoActual && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
-                    style={{ zIndex: 50000 }}
-                  >
-                    <motion.div
-                      initial={{ scale: 0.5, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.5, opacity: 0 }}
-                      className="bg-white rounded-2xl w-full max-w-sm p-8 shadow-2xl text-center"
-                    >
-                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                          className="w-14 h-14 text-green-600"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </div>
-                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
-                        ¡Código Verificado!
-                      </h3>
-                      <p className="text-zinc-600 text-lg">
-                        {obtenerNombreEtiqueta(
-                          codigoEscaneadoActual.tipo,
-                          codigoEscaneadoActual.numero,
-                        )}
-                      </p>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>,
-              document.body,
-            )}
-
-          {typeof document !== "undefined" &&
-            createPortal(
-              <AnimatePresence>
-                {mostrarModalConfirmarEntrega && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
-                    style={{ zIndex: 50000 }}
-                  >
-                    <motion.div
-                      initial={{ scale: 0.5, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.5, opacity: 0 }}
-                      className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center relative"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          strokeWidth={2}
-                          stroke="currentColor"
-                          className="w-14 h-14 text-blue-600"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                      </div>
-
-                      <h3 className="text-2xl font-bold mb-2 text-zinc-900">
-                        Confirmar Entrega
-                      </h3>
-
-                      <p className="text-zinc-600 text-base mb-2">
-                        Pedido #{pedidoSeleccionado?.id}
-                      </p>
-
-                      <p className="text-zinc-500 text-sm mb-6">
-                        ¿Confirmas que todos los paquetes fueron entregados al cliente?
-                      </p>
-
-                      <div className="space-y-3">
-                        <button
-                          onClick={async () => {
-                            const { error } = await supabase
-                              .from("pedidos")
-                              .update({ estado: "entregado" })
-                              .eq("id", pedidoSeleccionado.id);
-
-                            if (!error) {
-                              actualizarEstadoLocal("entregado");
-                              setCodigosEntregaEscaneados(new Set());
-                              setMostrarModalConfirmarEntrega(false);
-                              
-                              if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
-                              
-                              alert("¡Pedido marcado como entregado!");
-                              
-                              setPedidoSeleccionado(null);
-                              pedidoSeleccionadoRef.current = null;
-                              setCodigosEtiquetas([]);
-                            } else {
-                              alert("Error al actualizar el estado del pedido");
-                            }
-                          }}
-                          className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-blue-500 hover:bg-blue-600 active:scale-95 transition-transform"
-                        >
-                          CONFIRMAR ENTREGA
-                        </button>
-
-                        <button
-                          onClick={() => setMostrarModalConfirmarEntrega(false)}
-                          className="w-full py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>,
-              document.body,
-            )}
-        </motion.div>
-      );
-    }
-
-    // ========== VISTA LISTA DE RUTAS ==========
-    return (
-      <motion.div
-        key="vista-rutas"
-        className="min-h-screen"
-        initial={{ opacity: 0, x: 40 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -40 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
-      >
-        <BackBtn onBack={() => setVistaPerfil("menu")} />
-
-        <h2 className="text-xl font-bold text-zinc-900 mb-4">
-          Control de Rutas
-        </h2>
-
-        {cargando ? (
-          <div className="flex justify-center py-10">
-            <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-          </div>
-        ) : Object.keys(pedidosPorRuta).length === 0 && Object.keys(documentosPorRuta).length === 0 ? (
-          <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
-            <MapPin size={40} className="mx-auto text-zinc-300 mb-2" />
-            <p className="text-zinc-500">No hay pedidos ni documentos pendientes de ruta</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {/* Combinar rutas de pedidos y documentos */}
-            {Array.from(new Set([...Object.keys(pedidosPorRuta), ...Object.keys(documentosPorRuta)])).map((ruta) => {
-  const pedidos = pedidosPorRuta[ruta] || [];
-  const todosDocumentos = documentosPorRuta[ruta] || [];
-  const documentos = todosDocumentos.filter((d) => d.estado_ruta !== "pendiente");
-  const pedidosEncajados = pedidos.filter((p) => p.estado === "encajado");
-  const documentosPendientes = todosDocumentos.filter((d) => d.estado_ruta === "pendiente");
-
-              return (
-                <div
-                  key={ruta}
-                  className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden"
-                >
-                  <button
-                    onClick={() =>
-                      setRutaExpandida(rutaExpandida === ruta ? null : ruta)
-                    }
-                    className="w-full p-4 flex items-center justify-between hover:bg-zinc-50 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                        <MapPin size={20} className="text-orange-600" />
-                      </div>
-                      <div className="text-left">
-                        <p className="font-bold text-zinc-900">{ruta}</p>
-                        <p className="text-xs text-zinc-500">
-  {pedidos.length} pedido{pedidos.length !== 1 ? "s" : ""}
-  {documentos.length > 0 && ` · ${documentos.length} doc${documentos.length !== 1 ? "s" : ""}`}
-</p>
-                      </div>
-                    </div>
-                    <ChevronLeft
-                      size={20}
-                      className={`text-zinc-400 transition-transform ${
-                        rutaExpandida === ruta ? "rotate-90" : "-rotate-90"
-                      }`}
-                    />
-                  </button>
-
-                  <AnimatePresence>
-                    {rutaExpandida === ruta && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="border-t border-zinc-200"
-                      >
-                        {/* PEDIDOS */}
-                        {pedidos.length > 0 && (
-                          <div>
-                            <div className="bg-zinc-100 px-4 py-2">
-                              <h4 className="text-xs font-bold text-zinc-700 uppercase">
-                                Pedidos ({pedidos.length})
-                              </h4>
-                            </div>
-                            <ListaPedidosRuta
-                              pedidos={pedidos}
-                              onVerDetalle={verDetallePedido}
-                            />
-                          </div>
-                        )}
-
-                        {/* DOCUMENTOS */}
-{documentos.length > 0 && (
-  <div>
-    <div className="bg-red-50 px-4 py-2 border-t border-zinc-200">
-      <h4 className="text-xs font-bold text-red-700 uppercase">
-        Documentos ({documentos.length})
-      </h4>
-    </div>
-    <ListaDocumentosRuta
-      documentos={documentos}
-      onVerDetalle={verDetalleDocumento}
-    />
-  </div>
-)}
-
-                        
-
-                        {/* BOTONES DE ACCIÓN */}
-                        <div className="p-3 bg-zinc-50 border-t border-zinc-200 space-y-2">
-                          {/* Botón Agregar Documentos (solo admin) */}
-                          {esAdmin && documentosPendientes.length > 0 && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                abrirModalDocumentos(ruta);
-                              }}
-                              className="w-full py-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                strokeWidth={2.5}
-                                stroke="currentColor"
-                                className="w-5 h-5"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M12 4.5v15m7.5-7.5h-15"
-                                />
-                              </svg>
-                              AGREGAR DOCUMENTOS A RUTA
-                            </button>
-                            
-                          )}
-
-                         {/* Botón Iniciar/Detener Ruta con GPS */}
-
-  <div className="space-y-3">
-    <button
-      onClick={async (e) => {
-        e.stopPropagation();
-        
-        if (!enRuta) {
-          await iniciarRuta(ruta); 
-          setEnRuta(true);
-          // Guardar en localStorage
-          if (cuenta?.numero_cuenta) {
-            localStorage.setItem(`enRuta_${cuenta.numero_cuenta}`, 'true');
-          }
-        } else {
-          setEnRuta(false);
-          // Guardar en localStorage
-          if (cuenta?.numero_cuenta) {
-            localStorage.setItem(`enRuta_${cuenta.numero_cuenta}`, 'false');
-          }
-        }
-      }}
-      className={`w-full py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${
-        enRuta
-          ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
-          : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
-      }`}
-    >
-      {enRuta ? (
-        <>
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 7.5A2.25 2.25 0 017.5 5.25h9a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25 2.25h-9a2.25 2.25 0 01-2.25-2.25v-9z" />
-          </svg>
-          DETENER RUTA
-        </>
-      ) : (
-        <>
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-          </svg>
-          INICIAR RUTA
-        </>
-      )}
-    </button>
-
-    {/* Feedback visual del GPS */}
-    {enRuta && rastreando && (
-      <div className="p-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
-        <span className="text-[10px] text-green-700 font-bold uppercase tracking-wider flex items-center gap-1">
-          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          GPS Activo
-        </span>
-        {ultimaUbicacion && (
-          <span className="text-[10px] text-green-600 font-mono">
-            {ultimaUbicacion.lat.toFixed(4)}, {ultimaUbicacion.lng.toFixed(4)}
-          </span>
-        )}
-      </div>
-    )}
-
-    {enRuta && errorGPS && (
-      <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-[10px] text-red-600">
-        ⚠️ {errorGPS}
-      </div>
-    )}
-  </div>
-
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* MODAL DE SELECCIÓN DE DOCUMENTOS */}
-        {typeof document !== "undefined" &&
-          createPortal(
-            <AnimatePresence>
-              {mostrarModalDocumentos && rutaSeleccionadaDocs && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
-                  style={{ zIndex: 50000 }}
-                  onClick={() => setMostrarModalDocumentos(false)}
-                >
-                  <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="p-6 border-b border-zinc-200">
-                      <h3 className="text-xl font-bold text-zinc-900">
-                        Agregar Documentos a {rutaSeleccionadaDocs}
-                      </h3>
-                      <p className="text-sm text-zinc-500 mt-1">
-                        Selecciona los documentos que deseas agregar a esta ruta
-                      </p>
-                    </div>
-
-                    <div className="p-4 overflow-y-auto max-h-[50vh]">
-                      {documentosPorRuta[rutaSeleccionadaDocs]?.filter((d: any) => d.estado_ruta === "pendiente").length === 0 ? (
-                        <p className="text-center text-zinc-500 py-8">
-                          No hay documentos pendientes en esta ruta
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {documentosPorRuta[rutaSeleccionadaDocs]
-                            ?.filter((d: any) => d.estado_ruta === "pendiente")
-                            .map((doc: any) => (
-                              <div
-                                key={doc.id}
-                                onClick={() => {
-                                  setDocumentosSeleccionados((prev) => {
-                                    const nuevo = new Set(prev);
-                                    if (nuevo.has(doc.id)) {
-                                      nuevo.delete(doc.id);
-                                    } else {
-                                      nuevo.add(doc.id);
-                                    }
-                                    return nuevo;
-                                  });
-                                }}
-                                className={`border-2 rounded-lg p-4 cursor-pointer transition ${
-                                  documentosSeleccionados.has(doc.id)
-                                    ? "bg-orange-50 border-orange-500"
-                                    : "bg-white border-zinc-200 hover:border-orange-300"
-                                }`}
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-xs font-bold text-zinc-700">
-                                        {doc.tipo_documento === "nota" ? "NOTA" : "FACTURA"}
-                                      </span>
-                                      <span className="font-bold text-orange-600">
-                                        {doc.numero_documento}
-                                      </span>
-                                    </div>
-                                    <p className="text-sm font-semibold text-zinc-900">
-                                      {doc.cuentas?.cliente}
-                                    </p>
-                                    <p className="text-xs text-zinc-500">
-                                      {doc.cuentas?.ferreteria}
-                                    </p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-lg font-bold text-red-600">
-                                      ${doc.monto.toFixed(2)}
-                                    </p>
-                                    {documentosSeleccionados.has(doc.id) && (
-                                      <div className="mt-1 w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center ml-auto">
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 20 20"
-                                          fill="currentColor"
-                                          className="w-4 h-4 text-white"
-                                        >
-                                          <path
-                                            fillRule="evenodd"
-                                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                                            clipRule="evenodd"
-                                          />
-                                        </svg>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="p-6 border-t border-zinc-200 space-y-3">
-                      <button
-                        onClick={agregarDocumentosARuta}
-                        disabled={documentosSeleccionados.size === 0}
-                        className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-orange-500 hover:bg-orange-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        AGREGAR {documentosSeleccionados.size} DOCUMENTO
-                        {documentosSeleccionados.size !== 1 ? "S" : ""}
-                      </button>
-                      <button
-                        onClick={() => setMostrarModalDocumentos(false)}
-                        className="w-full py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>,
-            document.body,
-          )}
-      </motion.div>
-    );
-  };
 
   const VistaRevision = ({ setVistaPerfil }: any) => {
     const [pedidosPorRevisar, setPedidosPorRevisar] = useState<any[]>([]);
@@ -19882,8 +19961,18 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                     )}
 
                     {vistaPerfil === "rutas" && (
-                      <VistaRutas setVistaPerfil={setVistaPerfil} esAdmin={esAdmin}/>
-                    )}
+    <VistaRutas 
+      setVistaPerfil={setVistaPerfil} 
+      esAdmin={esAdmin}
+      cuenta={cuenta}
+      supabase={supabase}
+      enRuta={enRuta}
+      setEnRuta={setEnRuta}
+      rastreando={rastreando}
+      ultimaUbicacion={ultimaUbicacion}
+      errorGPS={errorGPS}
+    />
+  )}
 
                     {vistaPerfil === "confirmar_pagos" && (
   <VistaConfirmarPagos setVistaPerfil={setVistaPerfil} />

@@ -24,6 +24,7 @@ const MapaRastreo = ({ ubicaciones }: MapaRastreoProps) => {
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inicializadoRef = useRef(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -155,13 +156,12 @@ const MapaRastreo = ({ ubicaciones }: MapaRastreoProps) => {
     });
 
     // Ajustar vista para mostrar todos los marcadores
-    if (ubicaciones.length > 0) {
-      mapRef.current.fitBounds(bounds, {
-        padding: [50, 50],
-        maxZoom: 15,
-      });
-    }
-  }, [ubicaciones]);
+   if (ubicaciones.length > 0 && mapRef.current && !inicializadoRef.current) {
+    const bounds = L.latLngBounds(ubicaciones.map(u => [u.latitud, u.longitud]));
+    mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+    inicializadoRef.current = true; 
+  }
+}, [ubicaciones]);
 
   return (
     <div
