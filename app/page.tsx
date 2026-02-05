@@ -1848,7 +1848,14 @@ export default function HomePage() {
   const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
   const [paginaCarrito, setPaginaCarrito] = useState(1);
 const ITEMS_POR_PAGINA = 20;
-const [enRuta, setEnRuta] = useState(false);
+const [enRuta, setEnRuta] = useState(() => {
+
+  if (typeof window !== 'undefined' && cuenta?.numero_cuenta) {
+    const guardado = localStorage.getItem(`enRuta_${cuenta.numero_cuenta}`);
+    return guardado === 'true';
+  }
+  return false;
+});
 
   interface ProductoConVisibilidad extends Producto {
     visibleMostrador?: boolean;
@@ -1901,9 +1908,9 @@ const [enRuta, setEnRuta] = useState(false);
   // Hook de rastreo GPS para usuarios de Rutas
 const { rastreando, error: errorGPS, ultimaUbicacion } = useRastreoGPS({
   cuentaId: cuenta?.numero_cuenta || '',
-  nombreRuta: cuenta?.cliente || cuenta?.numero_cuenta || '',
-  distanciaMinima: 50, // 50 metros
-  tiempoMinimo: 30000, // 30 segundos
+  nombreRuta: cuenta?.ruta || cuenta?.cliente || 'Ruta sin nombre',
+  distanciaMinima: 10, // 10 metros (más preciso)
+  tiempoMinimo: 5000, // 5 segundos (más tiempo real)
   habilitado: esRutas && enRuta,
 });
 
@@ -1914,6 +1921,14 @@ const { rastreando, error: errorGPS, ultimaUbicacion } = useRastreoGPS({
     setPaginaCarrito(totalPaginas);
   }
 }, [carrito.length]);
+
+
+// Sincronizar enRuta con localStorage
+  useEffect(() => {
+    if (cuenta?.numero_cuenta) {
+      localStorage.setItem(`enRuta_${cuenta.numero_cuenta}`, enRuta.toString());
+    }
+  }, [enRuta, cuenta?.numero_cuenta]);
 
   // Cargar productos ocultos para la cuenta mostrador actual
   useEffect(() => {
@@ -11610,8 +11625,6 @@ setResultado({
 
     const [codigosEntregaEscaneados, setCodigosEntregaEscaneados] = useState<Set<number>>(new Set());
     const [mostrarModalConfirmarEntrega, setMostrarModalConfirmarEntrega] = useState(false);
-
-    // ========== NUEVOS ESTADOS PARA DOCUMENTOS PENDIENTES ==========
     const [documentosPorRuta, setDocumentosPorRuta] = useState<{
       [key: string]: any[];
     }>({});
@@ -13204,20 +13217,26 @@ if (documentoSeleccionado && (documentoSeleccionado.estado_ruta === "verificado"
                             
                           )}
 
-                         {/* Botón Iniciar/Detener Ruta con GPS integrado */}
-{(pedidosEncajados.length > 0 || enRuta) && (
+                         {/* Botón Iniciar/Detener Ruta con GPS */}
+
   <div className="space-y-3">
     <button
       onClick={async (e) => {
         e.stopPropagation();
         
         if (!enRuta) {
-         
           await iniciarRuta(ruta); 
-          setEnRuta(true);        
+          setEnRuta(true);
+          // Guardar en localStorage
+          if (cuenta?.numero_cuenta) {
+            localStorage.setItem(`enRuta_${cuenta.numero_cuenta}`, 'true');
+          }
         } else {
-         
-          setEnRuta(false);        
+          setEnRuta(false);
+          // Guardar en localStorage
+          if (cuenta?.numero_cuenta) {
+            localStorage.setItem(`enRuta_${cuenta.numero_cuenta}`, 'false');
+          }
         }
       }}
       className={`w-full py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${
@@ -13243,7 +13262,7 @@ if (documentoSeleccionado && (documentoSeleccionado.estado_ruta === "verificado"
       )}
     </button>
 
-    {/* Feedback visual del GPS (opcional, debajo del botón) */}
+    {/* Feedback visual del GPS */}
     {enRuta && rastreando && (
       <div className="p-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
         <span className="text-[10px] text-green-700 font-bold uppercase tracking-wider flex items-center gap-1">
@@ -13264,7 +13283,7 @@ if (documentoSeleccionado && (documentoSeleccionado.estado_ruta === "verificado"
       </div>
     )}
   </div>
-)}
+
                         </div>
                       </motion.div>
                     )}
@@ -19617,6 +19636,11 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                             label="Cerrar sesión"
                             icon={<LogOut size={20} />}
                             onClick={() => {
+                          
+                              if (cuenta?.numero_cuenta) {
+                                localStorage.removeItem(`enRuta_${cuenta.numero_cuenta}`);
+                              }
+                              
                               setCuentaActiva(null);
                               setCuenta(null);
                             }}

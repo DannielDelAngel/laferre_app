@@ -65,30 +65,51 @@ const MapaRastreo = ({ ubicaciones }: MapaRastreoProps) => {
         className: 'custom-marker',
         html: `
           <div style="position: relative;">
+            <div class="pulse-ring" style="
+              position: absolute;
+              width: 60px;
+              height: 60px;
+              border: 3px solid ${color};
+              border-radius: 50%;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              animation: pulse 2s ease-out infinite;
+              opacity: 0;
+            "></div>
             <div style="
+              position: relative;
               width: 40px;
               height: 40px;
               background: ${color};
               border: 3px solid white;
-              border-radius: 50% 50% 50% 0;
-              transform: rotate(-45deg);
-              box-shadow: 0 3px 10px rgba(0,0,0,0.3);
-            "></div>
-            <div style="
-              position: absolute;
-              top: 50%;
-              left: 50%;
-              transform: translate(-50%, -60%) rotate(45deg);
-              width: 12px;
-              height: 12px;
-              background: white;
               border-radius: 50%;
-            "></div>
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            ">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                <path d="M18 18.5C18.83 18.5 19.5 17.83 19.5 17C19.5 16.17 18.83 15.5 18 15.5C17.17 15.5 16.5 16.17 16.5 17C16.5 17.83 17.17 18.5 18 18.5M19.5 9.5H17V12H21.46L19.5 9.5M6 18.5C6.83 18.5 7.5 17.83 7.5 17C7.5 16.17 6.83 15.5 6 15.5C5.17 15.5 4.5 16.17 4.5 17C4.5 17.83 5.17 18.5 6 18.5M20 8L23 12V17H21C21 18.66 19.66 20 18 20C16.34 20 15 18.66 15 17H9C9 18.66 7.66 20 6 20C4.34 20 3 18.66 3 17H1V6C1 4.89 1.89 4 3 4H17V8H20Z"/>
+              </svg>
+            </div>
+            <style>
+              @keyframes pulse {
+                0% {
+                  transform: translate(-50%, -50%) scale(0.5);
+                  opacity: 0.8;
+                }
+                100% {
+                  transform: translate(-50%, -50%) scale(1.5);
+                  opacity: 0;
+                }
+              }
+            </style>
           </div>
         `,
         iconSize: [40, 40],
-        iconAnchor: [20, 40],
-        popupAnchor: [0, -40],
+        iconAnchor: [20, 20],
+        popupAnchor: [0, -20],
       });
     };
 

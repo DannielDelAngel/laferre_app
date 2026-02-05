@@ -4,8 +4,8 @@ import { supabase } from '@/lib/supabaseClient';
 interface RastreoConfig {
   cuentaId: string;
   nombreRuta: string;
-  distanciaMinima?: number; // metros mínimos para actualizar (default: 50m)
-  tiempoMinimo?: number; // milisegundos mínimos entre updates (default: 30s)
+  distanciaMinima?: number; // metros mínimos para actualizar (default: 10m)
+  tiempoMinimo?: number; // milisegundos mínimos entre updates (default: 5s)
   habilitado: boolean;
 }
 
@@ -20,11 +20,10 @@ export const useRastreoGPS = (config: RastreoConfig) => {
   const watchIdRef = useRef<number | null>(null);
   const ultimaPosicionRef = useRef<{ lat: number; lng: number } | null>(null);
   const ultimoUpdateRef = useRef<number>(0);
-  const registroIdRef = useRef<number | null>(null);
 
-  const DISTANCIA_MINIMA = config.distanciaMinima || 50; // 50 metros
-  const TIEMPO_MINIMO = config.tiempoMinimo || 30000; // 30 segundos
-  const TIEMPO_HEARTBEAT = 300000; // 5 minutos - actualización forzada aunque no se mueva
+  const DISTANCIA_MINIMA = config.distanciaMinima || 10; // 10 metros (más preciso)
+  const TIEMPO_MINIMO = config.tiempoMinimo || 5000; // 5 segundos (más tiempo real)
+  const TIEMPO_HEARTBEAT = 30000; // 30 segundos - actualización forzada aunque no se mueva
 
   // Calcular distancia entre dos puntos (fórmula de Haversine)
   const calcularDistancia = (
@@ -47,7 +46,7 @@ export const useRastreoGPS = (config: RastreoConfig) => {
     return R * c; // Distancia en metros
   };
 
-  // Actualizar ubicación en Supabase
+  // Actualizar ubicación en Supabase con UPSERT
   const actualizarUbicacion = async (
     lat: number,
     lng: number,
@@ -55,43 +54,29 @@ export const useRastreoGPS = (config: RastreoConfig) => {
     precision: number
   ) => {
     try {
-      if (!registroIdRef.current) {
-        // Crear nuevo registro
-        const { data, error } = await supabase
-          .from('rastreo_rutas')
-          .insert({
-            cuenta_id: config.cuentaId,
-            nombre_ruta: config.nombreRuta,
-            latitud: lat,
-            longitud: lng,
-            velocidad: velocidad,
-            precision_metros: precision,
-            en_ruta: true,
-          })
-          .select('id')
-          .single();
+      // Usar UPSERT para crear o actualizar basado en cuenta_id
+      const { error } = await supabase
+        .from('rastreo_rutas')
+        .upsert({
+          cuenta_id: config.cuentaId,
+          nombre_ruta: config.nombreRuta,
+          latitud: lat,
+          longitud: lng,
+          velocidad: velocidad,
+          precision_metros: precision,
+          en_ruta: true,
+          ultima_actualizacion: new Date().toISOString(),
+        }, {
+          onConflict: 'cuenta_id',
+        });
 
-        if (error) throw error;
-        if (data) registroIdRef.current = data.id;
-      } else {
-        // Actualizar registro existente
-        const { error } = await supabase
-          .from('rastreo_rutas')
-          .update({
-            latitud: lat,
-            longitud: lng,
-            velocidad: velocidad,
-            precision_metros: precision,
-            ultima_actualizacion: new Date().toISOString(),
-          })
-          .eq('id', registroIdRef.current);
-
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       ultimoUpdateRef.current = Date.now();
       ultimaPosicionRef.current = { lat, lng };
       setUltimaUbicacion({ lat, lng });
+      
+      console.log(`📍 Posición guardada - Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`);
     } catch (err: any) {
       console.error('Error actualizando ubicación:', err);
       setError(err.message);
@@ -103,14 +88,17 @@ export const useRastreoGPS = (config: RastreoConfig) => {
     const { latitude, longitude, speed, accuracy } = position.coords;
     const ahora = Date.now();
 
-    // Condiciones para actualizar:
+    // Actualizar UI siempre (para mostrar movimiento en tiempo real)
+    setUltimaUbicacion({ lat: latitude, lng: longitude });
+
+    // Condiciones para actualizar EN LA BASE DE DATOS:
     let debeActualizar = false;
 
     // 1. Primera ubicación
     if (!ultimaPosicionRef.current) {
       debeActualizar = true;
     }
-    // 2. Han pasado más de 5 minutos (heartbeat)
+    // 2. Han pasado más de 30 segundos (heartbeat)
     else if (ahora - ultimoUpdateRef.current > TIEMPO_HEARTBEAT) {
       debeActualizar = true;
     }
@@ -125,6 +113,7 @@ export const useRastreoGPS = (config: RastreoConfig) => {
 
       if (distancia > DISTANCIA_MINIMA) {
         debeActualizar = true;
+        console.log(`🚗 Movimiento detectado: ${distancia.toFixed(1)}m`);
       }
     }
 
@@ -148,6 +137,7 @@ export const useRastreoGPS = (config: RastreoConfig) => {
         break;
     }
     setError(mensaje);
+    setRastreando(false);
     console.error('Error de geolocalización:', mensaje);
   };
 
@@ -172,6 +162,7 @@ export const useRastreoGPS = (config: RastreoConfig) => {
 
     setRastreando(true);
     setError(null);
+    console.log('🎯 Rastreo GPS iniciado');
   };
 
   // Detener rastreo
@@ -181,20 +172,24 @@ export const useRastreoGPS = (config: RastreoConfig) => {
       watchIdRef.current = null;
     }
 
-    // Marcar como fuera de ruta
-    if (registroIdRef.current) {
+    // Marcar como fuera de ruta usando cuenta_id
+    if (config.cuentaId) {
       try {
-        await supabase
+        const { error } = await supabase
           .from('rastreo_rutas')
           .update({ en_ruta: false })
-          .eq('id', registroIdRef.current);
+          .eq('cuenta_id', config.cuentaId)
+          .eq('en_ruta', true);
+
+        if (error) throw error;
+        console.log('🛑 Ruta detenida en BD');
       } catch (err) {
         console.error('Error al finalizar rastreo:', err);
       }
-      registroIdRef.current = null;
     }
 
     setRastreando(false);
+    setUltimaUbicacion(null);
     ultimaPosicionRef.current = null;
     ultimoUpdateRef.current = 0;
   };

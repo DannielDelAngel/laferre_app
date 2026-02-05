@@ -54,7 +54,6 @@ interface UbicacionRuta {
 const VistaRastreoRutas = ({ setVistaPerfil }: any) => {
   const [ubicaciones, setUbicaciones] = useState<UbicacionRuta[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [autoRefresh, setAutoRefresh] = useState(true);
   const [ultimaActualizacion, setUltimaActualizacion] = useState<Date>(new Date());
 
   const cargarUbicaciones = async () => {
@@ -85,20 +84,54 @@ const VistaRastreoRutas = ({ setVistaPerfil }: any) => {
     }
   };
 
-  useEffect(() => {
+useEffect(() => {
     cargarUbicaciones();
+
+    // Suscripción a cambios en tiempo real
+    const channel = supabase
+      .channel('rastreo-cambios')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rastreo_rutas',
+          filter: 'en_ruta=eq.true'
+        },
+        (payload) => {
+          console.log('Cambio detectado:', payload);
+          
+          if (payload.eventType === 'DELETE' || 
+              (payload.eventType === 'UPDATE' && !payload.new.en_ruta)) {
+            // Remover de la lista
+            setUbicaciones(prev => 
+              prev.filter(u => u.id !== payload.old.id)
+            );
+          } else if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const nuevaUbi = payload.new as UbicacionRuta;
+            
+            // Actualizar o agregar
+            setUbicaciones(prev => {
+              const index = prev.findIndex(u => u.cuenta_id === nuevaUbi.cuenta_id);
+              if (index >= 0) {
+                const updated = [...prev];
+                updated[index] = nuevaUbi;
+                return updated;
+              } else {
+                return [...prev, nuevaUbi];
+              }
+            });
+          }
+          
+          setUltimaActualizacion(new Date());
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
-
-  // Auto-refresh cada 30 segundos
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    const interval = setInterval(() => {
-      cargarUbicaciones();
-    }, 30000); // 30 segundos
-
-    return () => clearInterval(interval);
-  }, [autoRefresh]);
 
   const formatearTiempo = (timestamp: string) => {
     const fecha = new Date(timestamp);
@@ -142,24 +175,6 @@ const VistaRastreoRutas = ({ setVistaPerfil }: any) => {
               <span className="text-xs text-zinc-600">Rutas activas</span>
             </div>
             <p className="text-2xl font-bold text-zinc-900">{ubicaciones.length}</p>
-          </div>
-
-          <div className="bg-white rounded-xl p-4 border border-zinc-200 shadow-sm">
-            <div className="flex items-center gap-2 mb-1">
-              <RefreshCw size={18} className="text-blue-500" />
-              <span className="text-xs text-zinc-600">Auto-refresh</span>
-            </div>
-            <label className="flex items-center gap-2 mt-1">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="w-5 h-5 accent-orange-500"
-              />
-              <span className="text-sm font-semibold text-zinc-700">
-                {autoRefresh ? 'Activado' : 'Desactivado'}
-              </span>
-            </label>
           </div>
         </div>
 
