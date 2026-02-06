@@ -195,6 +195,9 @@ const VistaProducto = ({
   const [precio, setPrecio] = useState(
     producto.P_MAYOREO ? String(producto.P_MAYOREO) : "",
   );
+
+   const [claveAlterna, setClaveAlterna] = useState(producto.C_PRODUCTO || "");
+
   const [edicionAvanzada, setEdicionAvanzada] = useState(() => {
     if (typeof window !== "undefined") {
       const guardado = localStorage.getItem("modoEdicionAvanzada");
@@ -548,6 +551,7 @@ const [ordenCategoria, setOrdenCategoria] = useState(producto.orden_categoria ||
           ubicacion: ubicacion,
           CODIGO: codigo,
           P_MAYOREO: parseFloat(precio),
+           C_PRODUCTO: claveAlterna,
         })
         .eq("id", producto.id);
 
@@ -1005,6 +1009,29 @@ const [ordenCategoria, setOrdenCategoria] = useState(producto.orden_categoria ||
                     }`}
                   />
                 </div>
+              </div>
+
+              {/* Clave Alterna (C_PRODUCTO) */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Clave Alterna{" "}
+                  {edicionAvanzada ? "(Editable)" : "(Bloqueado)"}
+                </label>
+                <input
+                  type="text"
+                  value={claveAlterna}
+                  onChange={(e) => setClaveAlterna(e.target.value.toUpperCase())}
+                  disabled={!edicionAvanzada}
+                  placeholder="C_PRODUCTO"
+                  className={`w-full border rounded-lg px-3 py-2 transition-colors ${
+                    edicionAvanzada
+                      ? "border-orange-500 bg-white text-zinc-900"
+                      : "border-zinc-300 bg-zinc-100 text-zinc-500"
+                  }`}
+                />
+                <p className="text-xs text-zinc-500 mt-1">
+                  Código alterno del producto para referencia
+                </p>
               </div>
 
               {/* Categoría (buscador) */}
