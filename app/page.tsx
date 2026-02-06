@@ -7865,6 +7865,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
     });
     const [latitud, setLatitud] = useState("");
     const [longitud, setLongitud] = useState("");
+    const OPCIONES_RUTAS = Array.from({ length: 10 }, (_, i) => `RUTA ${i + 1}`);
 
     useEffect(() => {
       cargarCuentas();
@@ -8500,6 +8501,25 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
                 />
               </div>
 
+              {/* Selector de Ruta */}
+<div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Ruta de Entrega
+  </label>
+  <select
+    value={ruta} 
+    onChange={(e) => setRuta(e.target.value)}
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+  >
+    <option value="">Seleccionar una ruta</option>
+    {OPCIONES_RUTAS.map((r) => (
+      <option key={r} value={r}>
+        {r}
+      </option>
+    ))}
+  </select>
+</div>
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-zinc-700 mb-2">
                   Teléfono
@@ -8737,18 +8757,24 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
                 />
               </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Ruta
-                </label>
-                <input
-                  type="text"
-                  value={ruta}
-                  onChange={(e) => setRuta(e.target.value)}
-                  placeholder="Ej: Ruta 1, Ruta Norte, etc."
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
+              {/* Selector de Ruta */}
+<div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Ruta de Entrega
+  </label>
+  <select
+    value={ruta} 
+    onChange={(e) => setRuta(e.target.value)}
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+  >
+    <option value="">Seleccionar una ruta</option>
+    {OPCIONES_RUTAS.map((r) => (
+      <option key={r} value={r}>
+        {r}
+      </option>
+    ))}
+  </select>
+</div>
 
               <div className="mb-4">
                 <label className="block text-sm font-medium text-zinc-700 mb-2">
@@ -15699,6 +15725,15 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                   };
                 })
                 .filter(Boolean);
+
+              // orden alfanumerico de ubicacion
+              productosCompletos.sort((a: any, b: any) => {
+                const ubiA = a.ubicacion || "ZZZZ"; 
+                const ubiB = b.ubicacion || "ZZZZ";
+
+               
+                return ubiA.localeCompare(ubiB, undefined, { numeric: true, sensitivity: 'base' });
+              });
 
               return {
                 ...hoja,
