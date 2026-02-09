@@ -3793,6 +3793,7 @@ export default function HomePage() {
   const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
   const [paginaCarrito, setPaginaCarrito] = useState(1);
 const ITEMS_POR_PAGINA = 20;
+const [pedidoIdParaBackOrder, setPedidoIdParaBackOrder] = useState<number | null>(null);
 const [enRuta, setEnRuta] = useState(() => {
 
   if (typeof window !== 'undefined' && cuenta?.numero_cuenta) {
@@ -11407,7 +11408,7 @@ setResultado({
     );
   };
 
- const HistorialPedidos = ({ cuenta, setVistaPerfil }: any) => {
+ const HistorialPedidos = ({ cuenta, setVistaPerfil, setPedidoIdParaBackOrder }: any) => {
     const [pedidos, setPedidos] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
     const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
@@ -11561,7 +11562,7 @@ setResultado({
         setCargandoEncajado(false);
       }
     };
-
+{/*
     const crearBackOrder = async () => {
       if (!pedidoSeleccionado || productosFaltantes.length === 0) return;
 
@@ -11581,6 +11582,22 @@ setResultado({
         const listaProductosString = productosFaltantes
           .map((p) => `${p.CODIGO}*${p.cantidad_faltante}`)
           .join("-");
+
+        // Verificar si ya existe un Back Order activo para este pedido
+const { data: backOrderExistente, error: errorCheck } = await supabase
+  .from("back_orders")
+  .select("id, estado")
+  .eq("pedido_origen_id", pedidoSeleccionado.id)
+  .in("estado", ["pendiente", "en_proceso"])
+  .maybeSingle();
+
+if (errorCheck) throw errorCheck;
+
+if (backOrderExistente) {
+  alert("Este pedido ya tiene un Back Order activo.");
+  setCreandoBackOrder(false);
+  return;
+}
 
         // guarda en back_orders
         const { data: nuevoBackOrder, error } = await supabase
@@ -11612,7 +11629,7 @@ setResultado({
         setCreandoBackOrder(false);
       }
     };
-
+*/}
     const cargarBackOrders = async () => {
       if (!cuenta?.id && !esAdmin) return;
 
@@ -12485,34 +12502,29 @@ setResultado({
                         </div>
 
                         <button
-                          onClick={crearBackOrder}
-                          disabled={creandoBackOrder}
-                          className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
-                        >
-                          {creandoBackOrder ? (
-                            <>
-                              <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                              Creando Back Order...
-                            </>
-                          ) : (
-                            <>
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                strokeWidth={2}
-                                stroke="currentColor"
-                                className="w-5 h-5"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M12 4.5v15m7.5-7.5h-15"
-                                />
-                              </svg>
-                              Crear Back Order con Faltantes
-                            </>
-                          )}
+  onClick={() => {
+    if (setPedidoIdParaBackOrder) {
+      setPedidoIdParaBackOrder(pedidoSeleccionado.id);
+    }
+    setVistaPerfil("back-orders");
+  }}
+  className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={2}
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                            />
+                          </svg>
+                          Ver Back Order con Faltantes
                         </button>
                       </div>
                     )}
@@ -12952,7 +12964,7 @@ setResultado({
     );
   };
 
-  const VistaBackOrders = ({ cuenta, setVistaPerfil }: any) => {
+  const VistaBackOrders = ({ cuenta, setVistaPerfil, pedidoIdFiltro, setPedidoIdParaBackOrder }: any) => {
     const [backOrders, setBackOrders] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
     const [backOrderSeleccionado, setBackOrderSeleccionado] =
@@ -13002,6 +13014,41 @@ setResultado({
         setCargando(false);
       }
     };
+
+
+    useEffect(() => {
+      const cargarBackOrderEspecifico = async () => {
+        if (pedidoIdFiltro) {
+          setCargando(true);
+      
+          const { data, error } = await supabase
+            .from("back_orders")
+            .select(`
+              *,
+              cuentas (
+                numero_cuenta,
+                cliente,
+                ferreteria,
+                tipo_comprobante,
+                numero_tel,
+                direccion
+              )
+            `)
+            .eq("pedido_origen_id", pedidoIdFiltro)
+            .maybeSingle();
+
+          if (data) {
+            setBackOrderSeleccionado(data);
+          } else {
+          
+            console.log("No se encontró Back Order para este pedido");
+          }
+          setCargando(false);
+        }
+      };
+
+      cargarBackOrderEspecifico();
+    }, [pedidoIdFiltro]);
 
     const descargarPDFBackOrder = async (backOrder: any) => {
     setGenerandoPDF(backOrder.id);
@@ -13166,7 +13213,7 @@ setResultado({
     } finally {
       setGenerandoPDF(null);
     }
-  };
+  }
 
     const confirmarBackOrder = async (backOrder: any) => {
       if (!backOrder) return;
@@ -13404,8 +13451,17 @@ setResultado({
           `¡Back Order confirmado! Pedido #${nuevoPedido.id} creado exitosamente.`,
         );
       } catch (error: any) {
-        console.error("Error confirmando back order:", error);
-        alert(`Error: ${error.message || error.details}`);
+  console.error("Error completo:", error);
+  console.error("Mensaje:", error?.message);
+  console.error("Detalles:", error?.details);
+  console.error("Código:", error?.code);
+  console.error("Hint:", error?.hint);
+
+  alert(
+    error?.message ||
+    error?.details ||
+    "Error desconocido al crear el Back Order"
+  );
       } finally {
         setProcesandoConfirmacion(false);
       }
@@ -13423,7 +13479,13 @@ setResultado({
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -40 }}
         >
-          <BackBtn onBack={() => setBackOrderSeleccionado(null)} />
+          <BackBtn onBack={() => {
+             setBackOrderSeleccionado(null);
+             if (pedidoIdFiltro && setPedidoIdParaBackOrder) {
+                setPedidoIdParaBackOrder(null);
+                setVistaPerfil("pedidos"); 
+             }
+          }} />
 
           <h2 className="text-xl font-bold text-zinc-900 mb-4">
             Detalle del Back Order
@@ -14193,6 +14255,72 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
     const completarPedido = async () => {
       setGuardando(true);
       try {
+     // Generar Back Order si hay productos faltantes
+        const { data: hojasDB } = await supabase
+          .from("hojas_surtido")
+          .select("productos_asignados")
+          .eq("pedido_id", pedidoSeleccionado.id);
+
+        if (hojasDB) {
+          const itemsFaltantes: any[] = [];
+          const codigosParaBuscar: string[] = [];
+
+          hojasDB.forEach((hoja: any) => {
+            const productos = JSON.parse(hoja.productos_asignados);
+            productos.forEach((p: any) => {
+              if (p.estado === "PA") {
+                itemsFaltantes.push({ ...p, cantidad_faltante: p.cantidad_pedida });
+                codigosParaBuscar.push(p.codigo);
+              } else if (p.estado === "parcial") {
+                const faltante = p.cantidad_pedida - p.cantidad_surtida;
+                if (faltante > 0) {
+                  itemsFaltantes.push({ ...p, cantidad_faltante: faltante });
+                  codigosParaBuscar.push(p.codigo);
+                }
+              }
+            });
+          });
+
+          if (itemsFaltantes.length > 0) {
+            const { data: productosInfo } = await supabase
+              .from("productos")
+              .select("CODIGO, P_MAYOREO, TITULO, IMAGEN, id")
+              .in("CODIGO", codigosParaBuscar);
+
+            if (productosInfo) {
+              const detallesBackOrder = itemsFaltantes.map((item) => {
+                const info = productosInfo.find((pi) => pi.CODIGO === item.codigo);
+                return {
+                  ...info,
+                  CODIGO: item.codigo,
+                  cantidad_faltante: item.cantidad_faltante,
+                  producto_id: info?.id
+                };
+              });
+
+              const totalBackOrder = detallesBackOrder.reduce(
+                (sum, item) => sum + (item.P_MAYOREO || 0) * item.cantidad_faltante,
+                0
+              );
+
+              const listaProductosString = detallesBackOrder
+                .map((p) => `${p.CODIGO}*${p.cantidad_faltante}`)
+                .join("-");
+
+              // Insertar Back Order 
+              await supabase.from("back_orders").insert({
+                cuenta_id: pedidoSeleccionado.cuentas?.id || pedidoSeleccionado.cuenta_id, 
+                pedido_origen_id: pedidoSeleccionado.id,
+                total: totalBackOrder,
+                lista_productos: listaProductosString,
+                productos_detalles: JSON.stringify(detallesBackOrder),
+                estado: "pendiente",
+              });
+              
+            }
+          }
+        }
+
         // Generar texto de detalles de empaque
         const detallesTexto = [
           ["Cajas", detallesEmpaque.cajas],
@@ -17921,7 +18049,7 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                                               <p className="text-xs text-zinc-500">
                                                 Código: {prod.CODIGO}
                                               </p>
-                                              {!esAdmin &&
+                                              {
                                                 !esMostrador &&
                                                 !esMostrador2 && (
                                                   <p className="text-xs text-orange-500 font-semibold">
@@ -18658,7 +18786,7 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                                         {art.CODIGO}
                                       </p>
 
-                                      {!esAdmin &&
+                                      {
                                         !esMostrador &&
                                         !esMostrador2 && (
                                           <p className="text-sm font-bold text-orange-500 mt-1">
@@ -19035,7 +19163,7 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                                   <p className="text-xs text-zinc-500">
                                     Código: {prod.CODIGO}
                                   </p>
-                                  {!esAdmin &&
+                                  {
                                     !esMostrador &&
                                     !esMostrador2 && (
                                       <p className="text-xs text-orange-500 font-semibold">
@@ -20053,6 +20181,7 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                       <HistorialPedidos
                         cuenta={cuenta}
                         setVistaPerfil={setVistaPerfil}
+                        setPedidoIdParaBackOrder={setPedidoIdParaBackOrder}
                       />
                     )}
 
@@ -20060,6 +20189,8 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                       <VistaBackOrders
                         cuenta={cuenta}
                         setVistaPerfil={setVistaPerfil}
+                        pedidoIdFiltro={pedidoIdParaBackOrder}         
+    setPedidoIdParaBackOrder={setPedidoIdParaBackOrder}
                       />
                     )}
 
