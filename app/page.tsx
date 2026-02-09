@@ -4100,6 +4100,12 @@ const { rastreando, error: errorGPS, ultimaUbicacion } = useRastreoGPS({
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState("");
     const [categoriasEdicion, setCategoriasEdicion] = useState<any[]>([]);
+    const [macroQuery, setMacroQuery] = useState("");
+const [macroSeleccionada, setMacroSeleccionada] = useState<any>(null);
+const [mostrarResultados, setMostrarResultados] = useState(false);
+const macrosFiltradas = macroCategorias.filter((macro: any) =>
+  macro.nombre.toLowerCase().includes(macroQuery.toLowerCase())
+);
 
     useEffect(() => {
       if (tipo === "subcategoria") {
@@ -4119,13 +4125,29 @@ const { rastreando, error: errorGPS, ultimaUbicacion } = useRastreoGPS({
     }, [tipo]);
 
     const handleSeleccionar = (item: any) => {
-      setItemSeleccionado(item);
-      setNombre(item.nombre || item.nombre_categoria);
-      setOrden(String(item.orden));
-      setImagenPreview(item.img || "");
-      setImagenFile(null);
-      setMensaje("");
-    };
+  setItemSeleccionado(item);
+  setNombre(item.nombre || item.nombre_categoria);
+  setOrden(String(item.orden));
+  setImagenPreview(item.img || "");
+  setImagenFile(null);
+  setMensaje("");
+
+  if (tipo === "subcategoria") {
+    if (item.macro_categoria_id) {
+      const macroPadre = macroCategorias.find((m: any) => m.id === item.macro_categoria_id);
+      if (macroPadre) {
+        setMacroQuery(macroPadre.nombre);
+        setMacroSeleccionada(macroPadre);
+      } else {
+        setMacroQuery("");
+        setMacroSeleccionada(null);
+      }
+    } else {
+      setMacroQuery("");
+      setMacroSeleccionada(null);
+    }
+  }
+};
 
     const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -4184,14 +4206,18 @@ const { rastreando, error: errorGPS, ultimaUbicacion } = useRastreoGPS({
         const tabla = tipo === "macro" ? "macro_categorias" : "categorias";
         const campoNombre = tipo === "macro" ? "nombre" : "nombre_categoria";
         const campoId = tipo === "macro" ? "id" : "id_categoria";
+const datosActualizar: any = {
+  [campoNombre]: nombre.trim().toUpperCase(),
+  orden: parseInt(orden),
+  img: urlImagen,
+};
 
+if (tipo === "subcategoria") {
+  datosActualizar.macro_categoria_id = macroSeleccionada?.id || null;
+}
         const { error: updateError } = await supabase
           .from(tabla)
-          .update({
-            [campoNombre]: nombre.trim().toUpperCase(),
-            orden: parseInt(orden),
-            img: urlImagen,
-          })
+          .update(datosActualizar)
           .eq(campoId, itemSeleccionado[campoId]);
 
         if (updateError) {
@@ -4387,6 +4413,61 @@ const { rastreando, error: errorGPS, ultimaUbicacion } = useRastreoGPS({
                 className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+
+
+            {/* --- AGREGAR ESTE BLOQUE --- */}
+{tipo === "subcategoria" && (
+  <div className="mb-4 relative">
+    <label className="block text-sm font-medium text-zinc-700 mb-2">
+      Categoría Padre (opcional)
+    </label>
+
+    <input
+      type="text"
+      value={macroQuery}
+      onChange={(e) => {
+        setMacroQuery(e.target.value);
+        setMostrarResultados(true);
+        setMacroSeleccionada(null);
+      }}
+      onFocus={() => setMostrarResultados(true)}
+      placeholder="Escribe el nombre de la categoría..."
+      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+    />
+
+    {mostrarResultados && macroQuery && (
+      <div className="absolute z-20 mt-1 w-full bg-white border border-zinc-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+        {macrosFiltradas.length > 0 ? (
+          macrosFiltradas.map((cat: any) => (
+            <button
+              type="button"
+              key={cat.id}
+              onClick={() => {
+                setMacroQuery(cat.nombre);
+                setMacroSeleccionada(cat);
+                setMostrarResultados(false);
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-zinc-700 hover:bg-orange-50 hover:text-orange-700"
+            >
+              {cat.nombre}
+            </button>
+          ))
+        ) : (
+          <div className="px-3 py-2 text-sm text-zinc-500">
+            No se encontraron categorías
+          </div>
+        )}
+      </div>
+    )}
+    
+    {macroSeleccionada && (
+       <p className="text-xs text-green-600 mt-1">
+          Vinculado a: {macroSeleccionada.nombre}
+       </p>
+    )}
+  </div>
+)}
+
 
             {/* Mensaje */}
             {mensaje && (
