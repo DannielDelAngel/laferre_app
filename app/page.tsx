@@ -4773,7 +4773,7 @@ if (tipo === "subcategoria") {
         const { data, error } = await supabase
           .from("productos")
           .select("*")
-          .order("orden_categoria", { ascending: true }); // AGREGA ESTA LÍNEA
+          .order("orden_categoria", { ascending: true });
 
         if (error) {
           console.error("Error cargando productos:", error.message);
@@ -11982,15 +11982,14 @@ if (backOrderExistente) {
     };
 
     useEffect(() => {
-      if (
-        pedidoSeleccionado &&
-        esAdmin &&
-        pedidoSeleccionado.estado === "encajado"
-      ) {
-        cargarDetallesEmpaque(pedidoSeleccionado.id);
-        cargarDatosEncajado(pedidoSeleccionado.id);
-      }
-    }, [pedidoSeleccionado]);
+  if (
+    pedidoSeleccionado &&
+    ["encajado","en_ruta", "entregado", "completado", "listo_para_recoger"].includes(pedidoSeleccionado.estado)
+  ) {
+    cargarDetallesEmpaque(pedidoSeleccionado.id);
+    cargarDatosEncajado(pedidoSeleccionado.id);
+  }
+}, [pedidoSeleccionado]);
 
     const eliminarPedido = async () => {
   if (!pedidoAEliminar) return;
@@ -12296,7 +12295,7 @@ if (backOrderExistente) {
           )}
 
           {/* INDICADOR DE ESCANEO PARA PEDIDOS ENTREGADOS */}
-          {pedidoSeleccionado.estado === "entregado" && (
+          {pedidoSeleccionado.estado === "entregado" && esAdmin && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex items-center gap-3">
               <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
               <div className="flex-1">
@@ -12311,48 +12310,58 @@ if (backOrderExistente) {
           )}
 
           {/* Detalles de empaque */}
-          <AnimatePresence>
-            {esAdmin && pedidoSeleccionado.estado === "encajado" && (
-              <motion.div
-                initial={{ opacity: 0, height: 0, y: -20 }}
-                animate={{ opacity: 1, height: "auto", y: 0 }}
-                exit={{ opacity: 0, height: 0, y: -20 }}
-                transition={{ duration: 0.4, ease: "easeOut" }}
-                className="overflow-hidden"
-              >
-                <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 mt-2 shadow-sm">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="p-2 bg-orange-100 rounded-full text-orange-600">
-                      <Box size={18} />
-                    </div>
-                    <h3 className="text-lg font-semibold text-zinc-900">
-                      Detalles de Empacado
-                    </h3>
-                  </div>
+<AnimatePresence>
+  {["encajado","en_ruta", "entregado", "completado","listo_para_recoger"].includes(pedidoSeleccionado.estado) && (
+    <motion.div
+      initial={{ opacity: 0, height: 0, y: -20 }}
+      animate={{ opacity: 1, height: "auto", y: 0 }}
+      exit={{ opacity: 0, height: 0, y: -20 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="overflow-hidden"
+    >
+      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 mt-2 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="p-2 bg-orange-100 rounded-full text-orange-600">
+            <Box size={18} />
+          </div>
+          <h3 className="text-lg font-semibold text-zinc-900">
+            Detalles de Empacado
+          </h3>
+        </div>
 
-                  <textarea
-                    value={detallesEmpaque?.detalles_empacado || ""}
-                    onChange={(e) => {
-                      setDetallesEmpaque({
-                        ...detallesEmpaque,
-                        detalles_empacado: e.target.value,
-                      });
-                    }}
-                    onBlur={() => guardarDetallesEmpaque()}
-                    rows={4}
-                    placeholder="Escribe aquí qué cajas se usaron, detalles del paquete, etc..."
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500 mb-2 bg-zinc-50"
-                  />
-                  <p className="text-xs text-zinc-400 text-right">
-                    Se guarda automáticamente al salir del campo
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        {esAdmin && pedidoSeleccionado.estado === "encajado" ? (
+          <>
+            <textarea
+              value={detallesEmpaque?.detalles_empacado || ""}
+              onChange={(e) => {
+                setDetallesEmpaque({
+                  ...detallesEmpaque,
+                  detalles_empacado: e.target.value,
+                });
+              }}
+              onBlur={() => guardarDetallesEmpaque()}
+              rows={4}
+              placeholder="Escribe aquí qué cajas se usaron, detalles del paquete, etc..."
+              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500 mb-2 bg-zinc-50"
+            />
+            <p className="text-xs text-zinc-400 text-right">
+              Se guarda automáticamente al salir del campo
+            </p>
+          </>
+        ) : (
+          <div className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 bg-zinc-100">
+            <p className="text-sm whitespace-pre-wrap">
+              {detallesEmpaque?.detalles_empacado || "Sin detalles de empaque registrados"}
+            </p>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
           <AnimatePresence>
-            {esAdmin && pedidoSeleccionado.estado === "encajado" && (
+  {["encajado","en_ruta", "entregado", "completado","listo_para_recoger"].includes(pedidoSeleccionado.estado) && (
               <motion.div
                 initial={{ opacity: 0, height: 0, y: -20 }}
                 animate={{ opacity: 1, height: "auto", y: 0 }}
@@ -12371,7 +12380,9 @@ if (backOrderExistente) {
                   </div>
                 ) : (
                   <>
+                  
                     {/* Información del cliente y tipo de comprobante */}
+                    {esAdmin && (
                     <div className="bg-zinc-50 rounded-lg p-3 mb-3 border border-zinc-200">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-zinc-600">
@@ -12382,7 +12393,7 @@ if (backOrderExistente) {
                         </span>
                       </div>
                     </div>
-
+                    )}
                     {/* Total Neto */}
                     <div className="bg-green-50 rounded-lg p-3 mb-3 border border-green-200">
                       <div className="flex justify-between items-center">
@@ -12399,6 +12410,7 @@ if (backOrderExistente) {
                       </div>
                     </div>
                     {/* String de Encajado */}
+                    {esAdmin && (
                     <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
                       <div className="flex items-center gap-2 mb-3">
                         <div className="p-2 bg-green-100 rounded-full text-green-600">
@@ -12443,6 +12455,7 @@ if (backOrderExistente) {
                         Formato: CODIGO*CANTIDAD-CODIGO*CANTIDAD
                       </p>
                     </div>
+                    )}
 
                     {/* Productos Faltantes y Back Order */}
                     {productosFaltantes.length > 0 && (
@@ -12535,9 +12548,9 @@ if (backOrderExistente) {
           </AnimatePresence>
 
           {/* informacion de entrega */}
-          {pedidoSeleccionado && (
-            <div className="mt-2 mb-2">
-              {(() => {
+{pedidoSeleccionado && !["entregado", "completado", "listo_para_recoger"].includes(pedidoSeleccionado.estado) && (
+  <div className="mt-2 mb-2">
+    {(() => {
                 const fechaPedido = new Date(pedidoSeleccionado.created_at);
                 const horaPedido = fechaPedido.getHours();
                 const esDomicilio = pedidoSeleccionado.es_domicilio;
@@ -18432,7 +18445,7 @@ cuenta_id: pedidoSeleccionado.cuenta_id,
                                     .eq("marca_id", marca.id)
                                     .order("orden_categoria", {
                                       ascending: true,
-                                    }); // AGREGA ESTA LÍNEA
+                                    }); 
 
                                   const productosNormalizados = (
                                     data || []
