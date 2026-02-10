@@ -13216,10 +13216,18 @@ if (backOrderExistente) {
   }
 
     const confirmarBackOrder = async (backOrder: any) => {
-      if (!backOrder) return;
-      setProcesandoConfirmacion(true);
+  if (!backOrder) return;
+  
+  const idCuentaFinal = backOrder.cuenta_id || backOrder.cuentas?.id;
+  
+  if (!idCuentaFinal) {
+    alert("Error crítico: Este Back Order no tiene una cuenta asociada válida. No se puede procesar.");
+    return;
+  }
 
-      try {
+  setProcesandoConfirmacion(true);
+
+  try {
         const jsPDFModule = await import("jspdf");
         const autoTableModule = await import("jspdf-autotable");
         const QRCodeModule = await import("qrcode");
@@ -13229,7 +13237,7 @@ if (backOrderExistente) {
         const { data: nuevoPedido, error: errorPedido } = await supabase
           .from("pedidos")
           .insert({
-            cuenta_id: backOrder.cuenta_id,
+            cuenta_id: idCuentaFinal,
             total: backOrder.total,
             estado: "nuevo_pedido",
             es_domicilio: false,
@@ -13808,7 +13816,7 @@ if (backOrderExistente) {
         .from("pedidos")
         .select(
           `
-        id, created_at, total,
+        id, created_at, total, cuenta_id,
         cuentas (cliente, ferreteria, numero_cuenta)
       `,
         )
@@ -14309,7 +14317,8 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
 
               // Insertar Back Order 
               await supabase.from("back_orders").insert({
-                cuenta_id: pedidoSeleccionado.cuentas?.id || pedidoSeleccionado.cuenta_id, 
+                
+cuenta_id: pedidoSeleccionado.cuenta_id,
                 pedido_origen_id: pedidoSeleccionado.id,
                 total: totalBackOrder,
                 lista_productos: listaProductosString,
@@ -17884,7 +17893,7 @@ const hojaCompleta = todosPA || (totalVerificado >= totalEsperado && totalEspera
                                     );
                                   });
 
-                                  query = query.limit(50);
+                                  query = query.limit(200);
 
                                   const { data, error } = await query;
 
