@@ -3790,6 +3790,7 @@ export default function HomePage() {
   const [productosSurtidos, setProductosSurtidos] = useState<
     Map<number, number>
   >(new Map());
+  const [totalBaseDatos, setTotalBaseDatos] = useState(0);
   const [escanerSurtirActivo, setEscanerSurtirActivo] = useState(false);
   const [paginaCarrito, setPaginaCarrito] = useState(1);
 const ITEMS_POR_PAGINA = 20;
@@ -3859,6 +3860,20 @@ const { rastreando, error: errorGPS, ultimaUbicacion } = useRastreoGPS({
   tiempoMinimo: 5000, // 5 segundos 
   habilitado: esRutas && enRuta,
 });
+
+useEffect(() => {
+  const obtenerTotalProductos = async () => {
+    const { count, error } = await supabase
+      .from("productos")
+      .select("*", { count: "exact", head: true });
+    
+    if (!error && count !== null) {
+      setTotalBaseDatos(count);
+    }
+  };
+  obtenerTotalProductos();
+}, []);
+
 
   useEffect(() => {
   // Si la página actual está vacía después de eliminar, volver a la anterior
@@ -7875,7 +7890,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
     const [numeroCuenta, setNumeroCuenta] = useState("");
     const [cliente, setCliente] = useState("");
     const [ferreteria, setFerreteria] = useState("");
-    const [tipoComprobante, setTipoComprobante] = useState("Nota de Remisión");
+    const [tipoComprobante, setTipoComprobante] = useState("Nota de Venta");
     const [direccion, setDireccion] = useState("");
     const [numeroTel, setNumeroTel] = useState("");
     const [guardando, setGuardando] = useState(false);
@@ -8021,7 +8036,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
       setTieneSaldoPendiente(false);
       setDocumentosPendientes([]);
       setNuevoDocumento({ tipo: "nota", numero: "", monto: "", codigo_barras: "" });
-      setTipoComprobante("Nota de Remisión");
+      setTipoComprobante("Nota de Venta");
       setHorarios([
         {
           dia: 0,
@@ -8296,7 +8311,7 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
       setModoVista("editar");
       setTieneSaldoPendiente(cuentaItem.tiene_saldo_pendiente || false);
       setRuta(cuentaItem.ruta || "");
-      setTipoComprobante(cuentaItem.tipo_comprobante || "Nota de Remisión");
+      setTipoComprobante(cuentaItem.tipo_comprobante || "Nota de Venta");
 
       // Cargar horarios de la base de datos
       try {
@@ -8867,8 +8882,8 @@ const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
                   onChange={(e) => setTipoComprobante(e.target.value)}
                   className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 >
-                  <option value="Nota de Remisión">Nota de Remisión</option>
-                  <option value="Factura">Factura</option>
+                  <option value="Nota de Venta">Nota de Venta</option>
+                  <option value="Factura CFDI">Factura CFDI</option>
                 </select>
               </div>
 
@@ -11010,7 +11025,7 @@ setResultado({
         docEnvio.text(`Página ${i} de ${pageCount2}`, 14, pageHeight - 8);
         docEnvio.text(`${fecha} ${hora}`, 160, pageHeight - 8);
       }
-
+{/*
       // Enviar PDF por correo
       const pdfBase64 = docEnvio.output("datauristring");
       await fetch("/api/enviar-pedido", {
@@ -11021,7 +11036,7 @@ setResultado({
           correoDestino: "bfmpedidos@gmail.com",
         }),
       });
-
+*/}
       // PDF PARA CLIENTE (docCliente)
       const docCliente = new jsPDF();
 
@@ -11868,6 +11883,7 @@ if (backOrderExistente) {
             .from("pedidos")
             .update({ pdf_url: publicUrl })
             .eq("id", nuevoPedido.id);
+            {/* 
 
           const pdfBase64 = doc.output("datauristring");
           await fetch("/api/enviar-pedido", {
@@ -11879,6 +11895,7 @@ if (backOrderExistente) {
               asunto: `Nuevo Pedido Back Order #${nuevoPedido.id} - ${datosCliente?.cliente}`,
             }),
           });
+          */}
         }
 
         // Marcar back order como confirmado
@@ -12389,7 +12406,7 @@ if (backOrderExistente) {
                           Tipo de comprobante:
                         </span>
                         <span className="font-semibold text-zinc-900">
-                          {cuentaPedido?.tipo_comprobante || "Nota de Remisión"}
+                          {cuentaPedido?.tipo_comprobante || "Nota de Venta"}
                         </span>
                       </div>
                     </div>
@@ -13448,7 +13465,8 @@ if (backOrderExistente) {
             .eq("id", nuevoPedido.id);
 
           const pdfBase64 = doc.output("datauristring");
-          // Enviar correo (sin esperar respuesta para no bloquear)
+          {/* Enviar correo 
+          // Enviar correo 
           fetch("/api/enviar-pedido", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -13458,6 +13476,7 @@ if (backOrderExistente) {
               asunto: `Nuevo Pedido Back Order #${nuevoPedido.id} - ${datosCliente?.cliente}`,
             }),
           }).catch((err) => console.error("Error envío correo:", err));
+           */}
         }
 
         // Marcar back order como confirmado
@@ -18351,7 +18370,8 @@ cuenta_id: pedidoSeleccionado.cuenta_id,
                           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
                             {macroCategorias.map((macro) => (
                               <div
-                                key={macro.id}
+                              //quitar si hay problemas de key, pero no deberia haber
+                              key={`macro-${macro.id}-${macro.nombre}`}
                                 onClick={async () => {
                                   localStorage.setItem(
                                     "scrollPos",
@@ -19205,22 +19225,26 @@ cuenta_id: pedidoSeleccionado.cuenta_id,
                             </div>
                           ))}
 
-                        {productos.filter(
-                          (prod) => esAdmin || (prod.visible ?? true),
-                        ).length > productosMostrados && (
-                          <button
-                            onClick={() =>
-                              setProductosMostrados((prev) => prev + 10)
-                            }
-                            className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition mt-4"
-                          >
-                            Ver más productos (
-                            {productos.filter(
-                              (prod) => esAdmin || (prod.visible ?? true),
-                            ).length - productosMostrados}{" "}
-                            restantes)
-                          </button>
-                        )}
+
+
+                        {productos.filter((prod) => esAdmin || (prod.visible ?? true)).length > productosMostrados && (
+  <button
+    onClick={() => setProductosMostrados((prev) => prev + 10)}
+    className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition mt-4"
+  >
+    {searchTerm === "" ? (
+      <>
+        Ver más productos (Mostrando {productosMostrados} de {totalBaseDatos})
+      </>
+    ) : (
+      <>
+        Ver más productos (
+        {productos.filter((prod) => esAdmin || (prod.visible ?? true)).length - productosMostrados}{" "}
+        restantes)
+      </>
+    )}
+  </button>
+)}
 
                         {searchTerm && productos.length === 0 && (
                           <p className="text-center text-zinc-500 py-10">
