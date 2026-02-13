@@ -3830,7 +3830,7 @@ export default function HomePage() {
     : false;
 
   // Cuentas de empleados
-const CUENTAS_EMPLEADOS = ["Empleado1", "Empleado2", "Empleado3", "Empleado4", "Empleado3", "Empleado4", "Empleado5", "Empleado6", "Empleado7", "Empleado8", "Empleado9", "Empleado10"];
+const CUENTAS_EMPLEADOS = ["Empleado1", "Empleado2", "Empleado3", "Empleado4", "Empleado5", "Empleado6", "Empleado7", "Empleado8", "Empleado9", "Empleado10"];
 
 const esEmpleado = cuenta?.numero_cuenta
   ? CUENTAS_EMPLEADOS.includes(cuenta.numero_cuenta)
@@ -8072,6 +8072,8 @@ const esEmpleado = cuenta?.numero_cuenta
     const [eliminando, setEliminando] = useState(false);
     const [entregaMismoDia, setEntregaMismoDia] = useState(false);
     const [ruta, setRuta] = useState("");
+    const [tipoVista, setTipoVista] = useState<"clientes" | "personal">("clientes"); 
+const [busqueda, setBusqueda] = useState(""); 
     const [horarios, setHorarios] = useState<any[]>([
       {
         dia: 0,
@@ -8270,47 +8272,105 @@ const esEmpleado = cuenta?.numero_cuenta
     };
 
     const agregarCuenta = async () => {
-      setGuardando(true);
-      setMensaje("");
+  setGuardando(true);
+  setMensaje("");
 
-      if (!numeroCuenta.trim()) {
-        setMensaje("El número de cuenta es obligatorio");
-        setGuardando(false);
-        return;
+  if (!numeroCuenta.trim()) {
+    setMensaje("El número de cuenta es obligatorio");
+    setGuardando(false);
+    return;
+  }
+
+  try {
+    // Insertar la cuenta
+    const { data: nuevaCuenta, error } = await supabase
+      .from("cuentas")
+      .insert([
+        {
+          numero_cuenta: numeroCuenta.trim(),
+          cliente: cliente.trim() || null,
+          ferreteria: ferreteria.trim() || null,
+          direccion: direccion.trim() || null,
+          numero_tel: numeroTel.trim() || null,
+          entrega_mismo_dia: entregaMismoDia,
+          tiene_saldo_pendiente: tieneSaldoPendiente,
+          ruta: ruta.trim() || null,
+          tipo_comprobante: tipoComprobante,
+          latitud: latitud ? parseFloat(latitud) : null,
+          longitud: longitud ? parseFloat(longitud) : null,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === "23505") {
+        setMensaje("Ya existe una cuenta con ese número");
+      } else {
+        setMensaje("Error al agregar la cuenta");
+      }
+      setGuardando(false);
+      return;
+    }
+
+    // Insertar horarios si los hay
+    if (nuevaCuenta) {
+      const horariosParaInsertar = horarios
+        .filter((h) => !h.cerrado && h.hora_inicio && h.hora_fin)
+        .map((h) => ({
+          cuenta_id: nuevaCuenta.id,
+          dia_semana: h.dia,
+          hora_inicio: h.hora_inicio,
+          hora_fin: h.hora_fin,
+          cerrado: false,
+        }));
+
+      if (horariosParaInsertar.length > 0) {
+        await supabase.from("horarios_recepcion").insert(horariosParaInsertar);
       }
 
-      try {
-        const { error } = await supabase.from("cuentas").insert([
-          {
-            numero_cuenta: numeroCuenta.trim(),
-            cliente: cliente.trim() || null,
-            ferreteria: ferreteria.trim() || null,
-            direccion: direccion.trim() || null,
-            numero_tel: numeroTel.trim() || null,
-            entrega_mismo_dia: false,
-          },
-        ]);
+      const diasCerrados = horarios
+        .filter((h) => h.cerrado)
+        .map((h) => ({
+          cuenta_id: nuevaCuenta.id,
+          dia_semana: h.dia,
+          hora_inicio: null,
+          hora_fin: null,
+          cerrado: true,
+        }));
 
-        if (error) {
-          if (error.code === "23505") {
-            setMensaje("Ya existe una cuenta con ese número");
-          } else {
-            setMensaje("Error al agregar la cuenta");
-          }
-        } else {
-          setMensaje("Cuenta agregada correctamente");
-          await cargarCuentas();
-          setTimeout(() => {
-            limpiarFormulario();
-            setModoVista("lista");
-          }, 1500);
-        }
-      } catch (error) {
-        setMensaje("Ocurrió un error inesperado");
-      } finally {
-        setGuardando(false);
+      if (diasCerrados.length > 0) {
+        await supabase.from("horarios_recepcion").insert(diasCerrados);
       }
-    };
+
+      // Insertar documentos pendientes 
+      if (tieneSaldoPendiente && documentosPendientes.length > 0) {
+        const docsParaInsertar = documentosPendientes.map((doc) => ({
+          cuenta_id: nuevaCuenta.id,
+          tipo_documento: doc.tipo_documento,
+          numero_documento: doc.numero_documento,
+          monto: parseFloat(doc.monto),
+          codigo_barras: doc.codigo_barras,
+          pagado: false,
+        }));
+
+        await supabase.from("documentos_pendientes").insert(docsParaInsertar);
+      }
+    }
+
+    setMensaje("Cuenta agregada correctamente");
+    await cargarCuentas();
+    setTimeout(() => {
+      limpiarFormulario();
+      setModoVista("lista");
+    }, 1500);
+  } catch (error) {
+    console.error("Error en agregarCuenta:", error);
+    setMensaje("Ocurrió un error inesperado");
+  } finally {
+    setGuardando(false);
+  }
+};
 
     const editarCuenta = async () => {
       if (!cuentaSeleccionada) return;
@@ -8478,6 +8538,32 @@ const esEmpleado = cuenta?.numero_cuenta
         setEliminando(false);
       }
     };
+
+    const cuentasFiltradas = cuentas.filter((c) => {
+  // Filtrar por tipo (personal o clientes)
+  const esPersonal = 
+    c.numero_cuenta.toLowerCase().startsWith('empleado') ||
+    c.numero_cuenta.toLowerCase().startsWith('rutas') ||
+    c.numero_cuenta.toLowerCase().startsWith('surtido') ||
+    c.numero_cuenta.toLowerCase().startsWith('almacen') ||
+    c.numero_cuenta.toLowerCase().startsWith('revision');
+  
+  if (tipoVista === "personal" && !esPersonal) return false;
+  if (tipoVista === "clientes" && esPersonal) return false;
+
+  // Filtrar por búsqueda
+  if (busqueda.trim()) {
+    const termino = busqueda.toLowerCase();
+    return (
+      c.numero_cuenta?.toLowerCase().includes(termino) ||
+      c.cliente?.toLowerCase().includes(termino) ||
+      c.ferreteria?.toLowerCase().includes(termino) ||
+      c.numero_tel?.toString().includes(termino)
+    );
+  }
+
+  return true;
+});
 
     const abrirEdicion = async (cuentaItem: any) => {
       setCuentaSeleccionada(cuentaItem);
@@ -8662,193 +8748,730 @@ const esEmpleado = cuenta?.numero_cuenta
           </h2>
 
           {/* VISTA LISTA */}
-          {modoVista === "lista" && (
-            <>
-              <button
-                onClick={() => setModoVista("agregar")}
-                className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition mb-4"
-              >
-                + Agregar Nueva Cuenta
-              </button>
+{modoVista === "lista" && (
+  <>
+    {/* Pestañas */}
+    <div className="flex gap-2 mb-4">
+      <button
+        onClick={() => {
+          setTipoVista("clientes");
+          setBusqueda("");
+        }}
+        className={`flex-1 py-3 rounded-xl font-semibold transition ${
+          tipoVista === "clientes"
+            ? "bg-orange-500 text-white"
+            : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+        }`}
+      >
+        Clientes
+      </button>
+      <button
+        onClick={() => {
+          setTipoVista("personal");
+          setBusqueda("");
+        }}
+        className={`flex-1 py-3 rounded-xl font-semibold transition ${
+          tipoVista === "personal"
+            ? "bg-blue-500 text-white"
+            : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+        }`}
+      >
+        Personal
+      </button>
+    </div>
 
-              {cargando ? (
-                <div className="flex justify-center py-10">
-                  <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {cuentas.map((cuentaItem) => (
-                    <div
-                      key={cuentaItem.id}
-                      onClick={() => abrirEdicion(cuentaItem)}
-                      className="bg-white border border-zinc-200 rounded-xl p-4 shadow-sm cursor-pointer hover:bg-zinc-50 transition"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          {cuentaItem.cliente &&
-                          cuentaItem.cliente !== "null" ? (
-                            <p className="font-bold text-zinc-900 text-lg">
-                              {cuentaItem.cliente}
-                            </p>
-                          ) : (
-                            <p className="text-zinc-500 text-sm italic">
-                              Sin nombre de cliente
-                            </p>
-                          )}
+    {/* Buscador */}
+    <div className="relative mb-4">
+      <input
+        type="text"
+        placeholder={`Buscar ${tipoVista === "clientes" ? "clientes" : "personal"}...`}
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        className="w-full pl-10 pr-10 py-3 border border-zinc-300 rounded-xl text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+      />
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth={2}
+        stroke="currentColor"
+        className="w-5 h-5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+        />
+      </svg>
+      {busqueda && (
+        <button
+          onClick={() => setBusqueda("")}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+            className="w-5 h-5"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      )}
+    </div>
 
-                          {cuentaItem.ferreteria && (
-                            <p className="text-sm text-zinc-500 mt-1">
-                              {cuentaItem.ferreteria}
-                            </p>
-                          )}
-                          {cuentaItem.numero_tel && (
-                            <p className="text-xs text-zinc-400 mt-1">
-                              Tel. {cuentaItem.numero_tel}
-                            </p>
-                          )}
-                        </div>
-                        <span className="text-zinc-400">›</span>
-                      </div>
-                    </div>
-                  ))}
+    {/* Estadísticas */}
+    <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200">
+        <p className="text-xs text-zinc-500 mb-1">
+          {tipoVista === "clientes" ? "Total Clientes" : "Total Personal"}
+        </p>
+        <p className="text-2xl font-bold text-zinc-900">
+          {cuentasFiltradas.length}
+        </p>
+      </div>
+      <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200">
+        <p className="text-xs text-zinc-500 mb-1">
+          {busqueda ? "Resultados" : "Total General"}
+        </p>
+        <p className="text-2xl font-bold text-zinc-900">
+          {busqueda ? cuentasFiltradas.length : cuentas.length}
+        </p>
+      </div>
+    </div>
 
-                  {cuentas.length === 0 && (
-                    <p className="text-center text-zinc-500 py-10">
-                      No hay cuentas registradas
-                    </p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+    <button
+      onClick={() => setModoVista("agregar")}
+      className={`w-full py-3 rounded-xl font-semibold transition mb-4 ${
+        tipoVista === "clientes"
+          ? "bg-orange-500 hover:bg-orange-600 text-white"
+          : "bg-blue-500 hover:bg-blue-600 text-white"
+      }`}
+    >
+      + Agregar {tipoVista === "clientes" ? "Cliente" : "Personal"}
+    </button>
+
+    {cargando ? (
+      <div className="flex justify-center py-10">
+        <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+      </div>
+    ) : (
+      <div className="space-y-3">
+        {cuentasFiltradas.map((cuentaItem) => (
+          <div
+            key={cuentaItem.id}
+            onClick={() => abrirEdicion(cuentaItem)}
+            className="bg-white border border-zinc-200 rounded-xl p-4 shadow-sm cursor-pointer hover:bg-zinc-50 transition"
+          >
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                {/* Badge de tipo */}
+                {(cuentaItem.numero_cuenta.toLowerCase().startsWith('empleado') ||
+                  cuentaItem.numero_cuenta.toLowerCase().startsWith('rutas') ||
+                  cuentaItem.numero_cuenta.toLowerCase().startsWith('surtido') ||
+                  cuentaItem.numero_cuenta.toLowerCase().startsWith('almacen') ||
+                  cuentaItem.numero_cuenta.toLowerCase().startsWith('revision')) && (
+                  <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold mb-2 bg-blue-100 text-blue-700">
+                    {cuentaItem.numero_cuenta.toLowerCase().startsWith('rutas') 
+                      ? 'Ruta' 
+                      : 'Personal'}
+                  </span>
+                )}
+                
+                {cuentaItem.cliente && cuentaItem.cliente !== "null" ? (
+                  <p className="font-bold text-zinc-900 text-lg">
+                    {cuentaItem.cliente}
+                  </p>
+                ) : (
+                  <p className="font-bold text-zinc-900 text-lg">
+                    {cuentaItem.numero_cuenta}
+                  </p>
+                )}
+
+                {cuentaItem.ferreteria && (
+                  <p className="text-sm text-zinc-500 mt-1">
+                    {cuentaItem.ferreteria}
+                  </p>
+                )}
+                
+                {cuentaItem.numero_tel && (
+                  <p className="text-xs text-zinc-400 mt-1">
+                    {cuentaItem.numero_tel}
+                  </p>
+                )}
+                
+                {cuentaItem.ruta && (
+                  <p className="text-xs text-blue-600 mt-1 font-medium">
+                    {cuentaItem.ruta}
+                  </p>
+                )}
+              </div>
+              <span className="text-zinc-400">›</span>
+            </div>
+          </div>
+        ))}
+
+        {cuentasFiltradas.length === 0 && !cargando && (
+          <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
+            {busqueda ? (
+              <>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-12 h-12 mx-auto text-zinc-300 mb-2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                  />
+                </svg>
+                <p className="text-zinc-500 font-medium">
+                  No se encontraron resultados
+                </p>
+                <p className="text-zinc-400 text-sm mt-1">
+                  Intenta con otro término de búsqueda
+                </p>
+              </>
+            ) : (
+              <>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-12 h-12 mx-auto text-zinc-300 mb-2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
+                  />
+                </svg>
+                <p className="text-zinc-500">
+                  No hay {tipoVista === "clientes" ? "clientes" : "personal"} registrados
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    )}
+  </>
+)}
 
           {/* VISTA AGREGAR */}
-          {modoVista === "agregar" && (
-            <>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Número de Cuenta <span className="text-red-500">*</span>
-                </label>
+{modoVista === "agregar" && (
+  <>
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-zinc-700 mb-2">
+        Número de Cuenta <span className="text-red-500">*</span>
+      </label>
+      <input
+        type="text"
+        value={numeroCuenta}
+        onChange={(e) => setNumeroCuenta(e.target.value)}
+        placeholder="Ej: C001 o Empleado1"
+        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+      />
+    </div>
+
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-zinc-700 mb-2">
+        Nombre del Cliente / Empleado
+      </label>
+      <input
+        type="text"
+        value={cliente}
+        onChange={(e) => setCliente(e.target.value)}
+        placeholder="Nombre completo"
+        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+      />
+    </div>
+
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-zinc-700 mb-2">
+        Nombre del Negocio
+      </label>
+      <input
+        type="text"
+        value={ferreteria}
+        onChange={(e) => setFerreteria(e.target.value)}
+        placeholder="Nombre del negocio"
+        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+      />
+    </div>
+
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-zinc-700 mb-2">
+        Dirección
+      </label>
+      <textarea
+        value={direccion}
+        onChange={(e) => setDireccion(e.target.value)}
+        placeholder="Dirección completa"
+        rows={3}
+        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+      />
+    </div>
+
+    {/* Coordenadas GPS */}
+    <div className="grid grid-cols-2 gap-3 mb-4">
+      <div>
+        <label className="text-sm text-zinc-600">Latitud</label>
+        <input
+          type="number"
+          step="any"
+          value={latitud}
+          onChange={(e) => setLatitud(e.target.value)}
+          className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          placeholder="Ej: 25.6866"
+        />
+      </div>
+      <div>
+        <label className="text-sm text-zinc-600">Longitud</label>
+        <input
+          type="number"
+          step="any"
+          value={longitud}
+          onChange={(e) => setLongitud(e.target.value)}
+          className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          placeholder="Ej: -100.3161"
+        />
+      </div>
+    </div>
+
+    {/* Horarios de Recepción */}
+    <div className="mb-4">
+      <label className="block text-sm font-semibold text-zinc-700 mb-3">
+        Horarios de Recepción de Pedidos
+      </label>
+      <p className="text-xs text-zinc-500 mb-3">
+        Define los horarios en los que esta cuenta puede recibir pedidos
+      </p>
+
+      <div className="space-y-2">
+        {horarios.map((horario, index) => (
+          <div
+            key={horario.dia}
+            className="bg-white border border-zinc-200 rounded-lg p-3"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-medium text-zinc-800 text-sm">
+                {horario.nombre}
+              </span>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-xs text-zinc-500">Cerrado</span>
                 <input
-                  type="text"
-                  value={numeroCuenta}
-                  onChange={(e) => setNumeroCuenta(e.target.value)}
-                  placeholder="Ej: C001"
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  type="checkbox"
+                  checked={horario.cerrado}
+                  onChange={(e) => {
+                    const nuevosHorarios = [...horarios];
+                    nuevosHorarios[index].cerrado = e.target.checked;
+                    if (e.target.checked) {
+                      nuevosHorarios[index].hora_inicio = "";
+                      nuevosHorarios[index].hora_fin = "";
+                    }
+                    setHorarios(nuevosHorarios);
+                  }}
+                  className="w-4 h-4 accent-orange-500"
                 />
-              </div>
+              </label>
+            </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Nombre del Cliente
-                </label>
-                <input
-                  type="text"
-                  value={cliente}
-                  onChange={(e) => setCliente(e.target.value)}
-                  placeholder="Nombre completo"
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Ferretería
-                </label>
-                <input
-                  type="text"
-                  value={ferreteria}
-                  onChange={(e) => setFerreteria(e.target.value)}
-                  placeholder="Nombre del negocio"
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Dirección
-                </label>
-                <textarea
-                  value={direccion}
-                  onChange={(e) => setDireccion(e.target.value)}
-                  placeholder="Dirección completa"
-                  rows={3}
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-
-              {/* Selector de Ruta */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Ruta de Entrega
-                </label>
-                <select
-                  value={ruta}
-                  onChange={(e) => setRuta(e.target.value)}
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
-                >
-                  <option value="">Seleccionar una ruta</option>
-                  {OPCIONES_RUTAS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Teléfono
-                </label>
-                <input
-                  type="text"
-                  value={numeroTel}
-                  onChange={(e) => setNumeroTel(e.target.value)}
-                  placeholder="Número de teléfono"
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-
-              {mensaje && (
-                <div
-                  className={`mb-4 p-3 rounded-lg text-sm ${
-                    mensaje.includes("Error") || mensaje.includes("obligatorio")
-                      ? "bg-red-50 text-red-700 border border-red-200"
-                      : "bg-green-50 text-green-700 border border-green-200"
-                  }`}
-                >
-                  {mensaje}
+            {!horario.cerrado && (
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs text-zinc-500 mb-1">
+                    Apertura
+                  </label>
+                  <input
+                    type="time"
+                    value={horario.hora_inicio}
+                    onChange={(e) => {
+                      const nuevosHorarios = [...horarios];
+                      nuevosHorarios[index].hora_inicio = e.target.value;
+                      setHorarios(nuevosHorarios);
+                    }}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
                 </div>
-              )}
+                <span className="text-zinc-400 mt-5">-</span>
+                <div className="flex-1">
+                  <label className="block text-xs text-zinc-500 mb-1">
+                    Cierre
+                  </label>
+                  <input
+                    type="time"
+                    value={horario.hora_fin}
+                    onChange={(e) => {
+                      const nuevosHorarios = [...horarios];
+                      nuevosHorarios[index].hora_fin = e.target.value;
+                      setHorarios(nuevosHorarios);
+                    }}
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+              </div>
+            )}
 
-              <div className="flex gap-3">
+            {horario.cerrado && (
+              <p className="text-xs text-zinc-400 italic">
+                No se reciben pedidos este día
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-zinc-700 mb-2">
+        Teléfono
+      </label>
+      <input
+        type="text"
+        value={numeroTel}
+        onChange={(e) => setNumeroTel(e.target.value)}
+        placeholder="Número de teléfono"
+        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+      />
+    </div>
+
+    {/* Selector de Ruta */}
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-zinc-700 mb-2">
+        Ruta de Entrega
+      </label>
+      <select
+        value={ruta}
+        onChange={(e) => setRuta(e.target.value)}
+        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+      >
+        <option value="">Seleccionar una ruta</option>
+        {OPCIONES_RUTAS.map((r) => (
+          <option key={r} value={r}>
+            {r}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    {/* Tipo de Comprobante */}
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-zinc-700 mb-2">
+        Tipo de Comprobante
+      </label>
+      <select
+        value={tipoComprobante}
+        onChange={(e) => setTipoComprobante(e.target.value)}
+        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+      >
+        <option value="Nota de Venta">Nota de Venta</option>
+        <option value="Factura CFDI">Factura CFDI</option>
+      </select>
+    </div>
+
+    {/* Entrega Mismo Día */}
+    <div className="mb-4">
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={entregaMismoDia}
+          onChange={(e) => setEntregaMismoDia(e.target.checked)}
+          className="w-5 h-5 accent-orange-500"
+        />
+        <span className="text-sm font-medium text-zinc-700">
+          Entrega el mismo día (antes de 10 AM)
+        </span>
+      </label>
+      <p className="text-xs text-zinc-500 mt-1 ml-7">
+        Si está activo, el cliente verá un contador para pedidos antes de las 10 AM
+      </p>
+    </div>
+
+    {/* Toggle de Saldo Pendiente */}
+    <div className="mb-4">
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={tieneSaldoPendiente}
+          onChange={(e) => setTieneSaldoPendiente(e.target.checked)}
+          className="w-5 h-5 accent-orange-500"
+        />
+        <span className="text-sm font-medium text-zinc-700">
+          Tiene saldo pendiente de pago
+        </span>
+      </label>
+      <p className="text-xs text-zinc-500 mt-1 ml-7">
+        Al activar, la cuenta no podrá realizar pedidos hasta liquidar
+      </p>
+    </div>
+
+    {/* Gestión de Documentos Pendientes */}
+    {tieneSaldoPendiente && (
+      <div className="mb-4 border-2 border-red-200 rounded-xl p-4 bg-red-50">
+        <h4 className="text-sm font-bold text-red-800 mb-3">
+          Documentos Pendientes de Pago
+        </h4>
+
+        {documentosPendientes.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {documentosPendientes.map((doc, index) => (
+              <div
+                key={doc.id || index}
+                className="flex items-center justify-between bg-white rounded-lg p-3 border border-red-300"
+              >
+                <div className="flex-1">
+                  <span className="inline-block px-2 py-1 rounded text-xs font-semibold mr-2 bg-red-100 text-red-800">
+                    {doc.tipo_documento.toUpperCase()}
+                  </span>
+                  <span className="text-sm font-medium text-zinc-800">
+                    #{doc.numero_documento}
+                  </span>
+                  <p className="text-xs text-zinc-600 mt-1">
+                    Monto: ${parseFloat(doc.monto).toFixed(2)}
+                  </p>
+                </div>
                 <button
                   onClick={() => {
-                    limpiarFormulario();
-                    setModoVista("lista");
+                    setDocumentosPendientes((prev) =>
+                      prev.filter((d, i) => i !== index),
+                    );
                   }}
-                  disabled={guardando}
-                  className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+                  className="text-red-600 hover:text-red-800 transition"
                 >
-                  Cancelar
-                </button>
-                <button
-                  onClick={agregarCuenta}
-                  disabled={guardando || !numeroCuenta}
-                  className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {guardando ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                      Guardando...
-                    </span>
-                  ) : (
-                    "Agregar Cuenta"
-                  )}
+                  <X size={18} />
                 </button>
               </div>
-            </>
-          )}
+            ))}
+
+            <div className="bg-red-100 rounded-lg p-3 border-2 border-red-400">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-bold text-red-900">
+                  Total Adeudo:
+                </span>
+                <span className="text-lg font-bold text-red-900">
+                  $
+                  {documentosPendientes
+                    .reduce((sum, doc) => sum + parseFloat(doc.monto), 0)
+                    .toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-lg p-3 border border-red-300">
+          <p className="text-xs font-semibold text-zinc-700 mb-2">
+            Agregar documento pendiente
+          </p>
+
+          <div className="space-y-2">
+            <div>
+              <label className="block text-xs text-zinc-600 mb-1">
+                Tipo de documento
+              </label>
+              <select
+                value={nuevoDocumento.tipo}
+                onChange={(e) =>
+                  setNuevoDocumento((prev) => ({
+                    ...prev,
+                    tipo: e.target.value,
+                  }))
+                }
+                className="w-full border border-zinc-300 rounded-lg px-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="nota">Nota</option>
+                <option value="factura">Factura</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-zinc-600 mb-1">
+                Número de documento
+              </label>
+              <input
+                type="text"
+                value={nuevoDocumento.numero}
+                onChange={(e) =>
+                  setNuevoDocumento((prev) => ({
+                    ...prev,
+                    numero: e.target.value,
+                  }))
+                }
+                placeholder="Ej: 12345"
+                className="w-full border border-zinc-300 rounded-lg px-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-zinc-600 mb-1">
+                Código de barras (RS)
+              </label>
+              <input
+                type="text"
+                value={nuevoDocumento.codigo_barras}
+                onChange={(e) =>
+                  setNuevoDocumento((prev) => ({
+                    ...prev,
+                    codigo_barras: e.target.value,
+                  }))
+                }
+                placeholder="Ej: RS-12345"
+                className="w-full border border-zinc-300 rounded-lg px-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-zinc-600 mb-1">
+                Monto
+              </label>
+              <div className="relative">
+                <span className="absolute left-2 top-2 text-zinc-500 text-sm">
+                  $
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={nuevoDocumento.monto}
+                  onChange={(e) =>
+                    setNuevoDocumento((prev) => ({
+                      ...prev,
+                      monto: e.target.value,
+                    }))
+                  }
+                  placeholder="0.00"
+                  className="w-full border border-zinc-300 rounded-lg pl-6 pr-2 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                if (
+                  !nuevoDocumento.numero ||
+                  !nuevoDocumento.monto ||
+                  !nuevoDocumento.codigo_barras
+                ) {
+                  alert("Por favor completa todos los campos");
+                  return;
+                }
+
+                setDocumentosPendientes((prev) => [
+                  ...prev,
+                  {
+                    id: Date.now(),
+                    tipo_documento: nuevoDocumento.tipo,
+                    numero_documento: nuevoDocumento.numero,
+                    monto: nuevoDocumento.monto,
+                    codigo_barras: nuevoDocumento.codigo_barras,
+                    pagado: false,
+                  },
+                ]);
+
+                setNuevoDocumento({
+                  tipo: "nota",
+                  numero: "",
+                  monto: "",
+                  codigo_barras: "",
+                });
+              }}
+              className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                className="w-4 h-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 4.5v15m7.5-7.5h-15"
+                />
+              </svg>
+              Agregar Documento
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 bg-yellow-50 border border-yellow-300 rounded-lg p-3">
+          <div className="flex gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              className="w-5 h-5 text-yellow-600 flex-shrink-0"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+              />
+            </svg>
+            <p className="text-xs text-yellow-800">
+              Esta cuenta no podrá realizar pedidos hasta que se liquiden todos los documentos pendientes
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {mensaje && (
+      <div
+        className={`mb-4 p-3 rounded-lg text-sm ${
+          mensaje.includes("Error") || mensaje.includes("obligatorio")
+            ? "bg-red-50 text-red-700 border border-red-200"
+            : "bg-green-50 text-green-700 border border-green-200"
+        }`}
+      >
+        {mensaje}
+      </div>
+    )}
+
+    <div className="flex gap-3">
+      <button
+        onClick={() => {
+          limpiarFormulario();
+          setModoVista("lista");
+        }}
+        disabled={guardando}
+        className="flex-1 border border-zinc-300 py-3 rounded-xl font-semibold text-zinc-600 hover:bg-zinc-50 transition disabled:opacity-50"
+      >
+        Cancelar
+      </button>
+      <button
+        onClick={agregarCuenta}
+        disabled={guardando || !numeroCuenta}
+        className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {guardando ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+            Guardando...
+          </span>
+        ) : (
+          "Agregar Cuenta"
+        )}
+      </button>
+    </div>
+  </>
+)}
 
           {/* VISTA EDITAR */}
           {modoVista === "editar" && cuentaSeleccionada && (
