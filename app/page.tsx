@@ -3830,7 +3830,7 @@ export default function HomePage() {
     : false;
 
   // Cuentas de empleados
-const CUENTAS_EMPLEADOS = ["Empleado1", "Empleado2", "Empleado3"];
+const CUENTAS_EMPLEADOS = ["Empleado1", "Empleado2", "Empleado3", "Empleado4", "Empleado3", "Empleado4", "Empleado5", "Empleado6", "Empleado7", "Empleado8", "Empleado9", "Empleado10"];
 
 const esEmpleado = cuenta?.numero_cuenta
   ? CUENTAS_EMPLEADOS.includes(cuenta.numero_cuenta)
@@ -16201,6 +16201,7 @@ if (backOrderExistente) {
       cantidadActual: number;
       cantidadObjetivo: number;
     } | null>(null);
+const [nombresEmpleados, setNombresEmpleados] = useState<Record<string, string>>({});
 
     useEffect(() => {
       window.scrollTo(0, 0);
@@ -16234,6 +16235,30 @@ if (backOrderExistente) {
         console.error("Error limpiando estado:", error);
       }
     };
+
+
+    // Función para cargar nombres de empleados
+const cargarNombresEmpleados = async (numeroCuentas: string[]) => {
+  if (numeroCuentas.length === 0) return;
+
+  const { data: cuentasInfo } = await supabase
+    .from('cuentas')
+    .select('numero_cuenta, cliente')
+    .in('numero_cuenta', numeroCuentas);
+
+  if (cuentasInfo) {
+    const mapa: Record<string, string> = {};
+    cuentasInfo.forEach((cuenta) => {
+      mapa[cuenta.numero_cuenta] = cuenta.cliente || cuenta.numero_cuenta;
+    });
+    setNombresEmpleados(mapa);
+  }
+};
+
+// Función helper para obtener nombre
+const obtenerNombreEmpleado = (numeroCuenta: string) => {
+  return nombresEmpleados[numeroCuenta] || numeroCuenta;
+};
 
     // Guardar progreso automáticamente cuando cambie
     useEffect(() => {
@@ -16310,6 +16335,15 @@ if (backOrderExistente) {
           );
 
           setHojasPedido(hojasConProductos);
+
+          // Cargar nombres de empleados
+const empleadosSurtiendo = hojasExistentes
+  .filter((h: any) => h.empleado_surtiendo)
+  .map((h: any) => h.empleado_surtiendo);
+
+if (empleadosSurtiendo.length > 0) {
+  await cargarNombresEmpleados([...new Set(empleadosSurtiendo)]);
+}
         } else {
           // Lógica de Creación Inicial
           const hojas: any[] = [];
@@ -16377,17 +16411,17 @@ if (backOrderExistente) {
       }
 
       if (
-        hoja.estado === "surtiendo" &&
-        hoja.empleado_surtiendo !== cuenta?.numero_cuenta
-      ) {
-        setModalAlerta({
-          visible: true,
-          titulo: "Hoja en Uso",
-          mensaje: `Esta hoja está siendo surtida por ${hoja.empleado_surtiendo}`,
-          tipo: "warning",
-        });
-        return;
-      }
+  hoja.estado === "surtiendo" &&
+  hoja.empleado_surtiendo !== cuenta?.numero_cuenta
+) {
+  setModalAlerta({
+    visible: true,
+    titulo: "Hoja en Uso",
+    mensaje: `Esta hoja está siendo surtida por ${obtenerNombreEmpleado(hoja.empleado_surtiendo)}`,
+    tipo: "warning",
+  });
+  return;
+}
 
       // Marcar hoja como "surtiendo"
       await supabase
@@ -16778,7 +16812,7 @@ if (backOrderExistente) {
           }`}>
             {hoja.empleado_surtiendo === cuenta?.numero_cuenta 
               ? 'Estás surtiendo esta hoja' 
-              : `Surtiendo: ${hoja.empleado_surtiendo}`}
+              : `Surtiendo: ${obtenerNombreEmpleado(hoja.empleado_surtiendo)}`}
           </p>
         </div>
       )}
