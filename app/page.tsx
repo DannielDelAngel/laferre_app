@@ -3829,7 +3829,13 @@ export default function HomePage() {
     ? CUENTAS_RUTAS.includes(cuenta.numero_cuenta)
     : false;
 
-  const esEmpleado = cuenta?.numero_cuenta === "Empleado";
+  // Cuentas de empleados
+const CUENTAS_EMPLEADOS = ["Empleado1", "Empleado2", "Empleado3"];
+
+const esEmpleado = cuenta?.numero_cuenta
+  ? CUENTAS_EMPLEADOS.includes(cuenta.numero_cuenta)
+  : false;
+
   const [mostrar, setMostrar] = useState(false);
   const [subTab, setSubTab] = useState("categorias"); // categorias | marcas
   const [marcas, setMarcas] = useState<any[]>([]);
@@ -10053,6 +10059,7 @@ export default function HomePage() {
           const descripcion = fila.DESCRIPCION || fila.descripcion;
           const cProducto = fila.C_PRODUCTO || fila.c_producto;
           const titulo = fila.TITULO || fila.titulo;
+          const existencia = fila.EXISTENCIA || fila.existencia;
 
           if (!codigo) {
             errores++;
@@ -10073,6 +10080,8 @@ export default function HomePage() {
             datosActualizar.C_PRODUCTO = cProducto;
           if (titulo !== undefined && titulo !== null)
             datosActualizar.TITULO = titulo;
+          if (existencia !== undefined && existencia !== null)  
+  datosActualizar.existencia = parseInt(existencia);
 
           // Si no hay nada que actualizar, saltar
           if (Object.keys(datosActualizar).length === 0) {
@@ -10233,11 +10242,11 @@ export default function HomePage() {
               <li>
                 Columnas opcionales: <strong>P_MAYOREO</strong>,{" "}
                 <strong>DESCRIPCION</strong>, <strong>C_PRODUCTO</strong>,{" "}
-                <strong>TITULO</strong>
+                <strong>TITULO</strong>, <strong>EXISTENCIA</strong>
               </li>
               <li>
                 También acepta minúsculas: codigo, p_mayoreo, precio,
-                descripcion, c_producto, titulo
+                descripcion, c_producto, titulo, existencia
               </li>
               <li>
                 la columna CODIGO debe ser tipo "general" y P_MAYOREO tipo
@@ -14637,57 +14646,62 @@ if (backOrderExistente) {
           });
         }
 
-       
-// Obtener todas las hojas del pedido
-const { data: hojasParaDescuento } = await supabase
-  .from("hojas_surtido")
-  .select("productos_asignados")
-  .eq("pedido_id", pedidoSeleccionado.id);
+        // Obtener todas las hojas del pedido
+        const { data: hojasParaDescuento } = await supabase
+          .from("hojas_surtido")
+          .select("productos_asignados")
+          .eq("pedido_id", pedidoSeleccionado.id);
 
-if (hojasParaDescuento) {
-  const codigosParaActualizar = new Map<string, number>(); 
+        if (hojasParaDescuento) {
+          const codigosParaActualizar = new Map<string, number>();
 
-  
-  hojasParaDescuento.forEach((hoja: any) => {
-    const productos = JSON.parse(hoja.productos_asignados);
-    
-    productos.forEach((p: any) => {
-      // Solo descontar productos que fueron surtidos (completo o parcial)
-      if (p.estado === "completo" || p.estado === "parcial") {
-        const cantidadSurtida = p.cantidad_surtida || 0;
-        
-        if (cantidadSurtida > 0) {
-          const cantidadActual = codigosParaActualizar.get(p.codigo) || 0;
-          codigosParaActualizar.set(p.codigo, cantidadActual + cantidadSurtida);
+          hojasParaDescuento.forEach((hoja: any) => {
+            const productos = JSON.parse(hoja.productos_asignados);
+
+            productos.forEach((p: any) => {
+              // Solo descontar productos que fueron surtidos (completo o parcial)
+              if (p.estado === "completo" || p.estado === "parcial") {
+                const cantidadSurtida = p.cantidad_surtida || 0;
+
+                if (cantidadSurtida > 0) {
+                  const cantidadActual =
+                    codigosParaActualizar.get(p.codigo) || 0;
+                  codigosParaActualizar.set(
+                    p.codigo,
+                    cantidadActual + cantidadSurtida,
+                  );
+                }
+              }
+            });
+          });
+
+          // Actualizar existencia de cada producto
+          for (const [
+            codigo,
+            cantidadDescontar,
+          ] of codigosParaActualizar.entries()) {
+            // Obtener existencia actual
+            const { data: productoActual } = await supabase
+              .from("productos")
+              .select("existencia, TITULO")
+              .eq("CODIGO", codigo)
+              .single();
+
+            if (productoActual) {
+              const existenciaActual = productoActual.existencia || 0;
+              const nuevaExistencia = Math.max(
+                0,
+                existenciaActual - cantidadDescontar,
+              );
+
+              // Actualizar existencia
+              await supabase
+                .from("productos")
+                .update({ existencia: nuevaExistencia })
+                .eq("CODIGO", codigo);
+            }
+          }
         }
-      }
-    });
-  });
-
-  // Actualizar existencia de cada producto
-  for (const [codigo, cantidadDescontar] of codigosParaActualizar.entries()) {
-    // Obtener existencia actual
-    const { data: productoActual } = await supabase
-      .from("productos")
-      .select("existencia, TITULO")
-      .eq("CODIGO", codigo)
-      .single();
-
-    if (productoActual) {
-      const existenciaActual = productoActual.existencia || 0;
-      const nuevaExistencia = Math.max(0, existenciaActual - cantidadDescontar);
-
-      // Actualizar existencia
-      await supabase
-        .from("productos")
-        .update({ existencia: nuevaExistencia })
-        .eq("CODIGO", codigo);
-
-    }
-  }
-
-}
-
 
         // Cambiar estado del pedido a encajado
         await supabase
@@ -15518,22 +15532,23 @@ if (hojasParaDescuento) {
                       className="object-contain"
                     />
                   </div>
-                  
 
                   <div className="flex-1">
                     {/* Mostrar existencia */}
-    <div className="mt-2 flex items-center gap-1">
-      <Package className="w-3 h-3 text-zinc-400" />
-      <p className={`text-xs font-semibold ${
-        (prod.existencia || 0) === 0 
-          ? 'text-red-500' 
-          : (prod.existencia || 0) < 10 
-            ? 'text-zinc-500' 
-            : 'text-zinc-500' 
-      }`}>
-        Stock: {prod.existencia || 0}
-      </p>
-    </div>
+                    <div className="mt-2 flex items-center gap-1">
+                      <Package className="w-3 h-3 text-zinc-400" />
+                      <p
+                        className={`text-xs font-semibold ${
+                          (prod.existencia || 0) === 0
+                            ? "text-red-500"
+                            : (prod.existencia || 0) < 10
+                              ? "text-zinc-500"
+                              : "text-zinc-500"
+                        }`}
+                      >
+                        Stock: {prod.existencia || 0}
+                      </p>
+                    </div>
                     {/* Controles de estado */}
                     <div className="flex gap-2 mt-2">
                       {estadoActual.estado === "PA" && (
@@ -16727,49 +16742,69 @@ if (hojasParaDescuento) {
 
               return (
                 <div
-                  key={hoja.id}
-                  onClick={() => seleccionarHoja(hoja)}
-                  className={`border-2 rounded-xl p-4 cursor-pointer transition ${
-                    hoja.estado === "completado"
-                      ? "bg-green-50 border-green-500"
-                      : hoja.estado === "surtiendo"
-                        ? "bg-yellow-50 border-yellow-500"
-                        : "bg-white border-zinc-200 hover:border-orange-400"
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="font-bold text-zinc-900 text-lg">
-                        Hoja #{hoja.numero_hoja}
-                      </p>
-                      <p className="text-sm text-zinc-600">
-                        {hoja.productos.length} productos ({totalUnidades}{" "}
-                        unidades)
-                      </p>
-                      {hoja.empleado_surtiendo &&
-                        hoja.estado === "surtiendo" && (
-                          <p className="text-xs text-yellow-700 mt-1">
-                            Surtiendo: {hoja.empleado_surtiendo}
-                          </p>
-                        )}
-                    </div>
-                    <div
-                      className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        hoja.estado === "completado"
-                          ? "bg-green-500 text-white"
-                          : hoja.estado === "surtiendo"
-                            ? "bg-yellow-500 text-white"
-                            : "bg-zinc-200 text-zinc-700"
-                      }`}
-                    >
-                      {hoja.estado === "completado"
-                        ? "✓ COMPLETO"
-                        : hoja.estado === "surtiendo"
-                          ? "EN PROCESO"
-                          : "PENDIENTE"}
-                    </div>
-                  </div>
-                </div>
+  key={hoja.id}
+  onClick={() => seleccionarHoja(hoja)}
+  className={`border-2 rounded-xl p-4 cursor-pointer transition ${
+    hoja.estado === "completado"
+      ? "bg-green-50 border-green-500 cursor-not-allowed"
+      : hoja.estado === "surtiendo"
+        ? hoja.empleado_surtiendo === cuenta?.numero_cuenta
+          ? "bg-blue-50 border-blue-500 hover:border-blue-600"
+          : "bg-yellow-50 border-yellow-500 cursor-not-allowed"
+        : "bg-white border-zinc-200 hover:border-orange-400"
+  }`}
+>
+  <div className="flex justify-between items-start mb-2">
+    <div className="flex-1">
+      <p className="font-bold text-zinc-900 text-lg">
+        Hoja #{hoja.numero_hoja}
+      </p>
+      <p className="text-sm text-zinc-600">
+        {hoja.productos.length} productos ({totalUnidades} unidades)
+      </p>
+      
+      {/* Indicador de quién está surtiendo */}
+      {hoja.empleado_surtiendo && hoja.estado === "surtiendo" && (
+        <div className="mt-2 flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${
+            hoja.empleado_surtiendo === cuenta?.numero_cuenta 
+              ? 'bg-blue-500 animate-pulse' 
+              : 'bg-yellow-500 animate-pulse'
+          }`}></div>
+          <p className={`text-xs font-semibold ${
+            hoja.empleado_surtiendo === cuenta?.numero_cuenta 
+              ? 'text-blue-700' 
+              : 'text-yellow-700'
+          }`}>
+            {hoja.empleado_surtiendo === cuenta?.numero_cuenta 
+              ? 'Estás surtiendo esta hoja' 
+              : `Surtiendo: ${hoja.empleado_surtiendo}`}
+          </p>
+        </div>
+      )}
+    </div>
+    
+    <div
+      className={`px-3 py-1 rounded-full text-xs font-bold ${
+        hoja.estado === "completado"
+          ? "bg-green-500 text-white"
+          : hoja.estado === "surtiendo"
+            ? hoja.empleado_surtiendo === cuenta?.numero_cuenta
+              ? "bg-blue-500 text-white"
+              : "bg-yellow-500 text-white"
+            : "bg-zinc-200 text-zinc-700"
+      }`}
+    >
+      {hoja.estado === "completado"
+        ? "✓ COMPLETO"
+        : hoja.estado === "surtiendo"
+          ? hoja.empleado_surtiendo === cuenta?.numero_cuenta
+            ? "TU HOJA"
+            : "EN USO"
+          : "PENDIENTE"}
+    </div>
+  </div>
+</div>
               );
             })}
           </div>
@@ -16906,18 +16941,20 @@ if (hojasParaDescuento) {
                     </p>
 
                     {/* Indicador de existencia */}
-<div className="flex items-center gap-1 text-xs">
-  <Package className="w-3 h-3 text-zinc-400" />
-  <span className={`font-semibold ${
-    (item.existencia || 0) === 0 
-      ? 'text-red-500' 
-      : (item.existencia || 0) < item.cantidad 
-        ?  'text-zinc-600'//'text-yellow-500' 
-        : 'text-zinc-600'
-  }`}>
-    Disponible: {item.existencia || 0}
-  </span>
-</div>
+                    <div className="flex items-center gap-1 text-xs">
+                      <Package className="w-3 h-3 text-zinc-400" />
+                      <span
+                        className={`font-semibold ${
+                          (item.existencia || 0) === 0
+                            ? "text-red-500"
+                            : (item.existencia || 0) < item.cantidad
+                              ? "text-zinc-600" //'text-yellow-500'
+                              : "text-zinc-600"
+                        }`}
+                      >
+                        Disponible: {item.existencia || 0}
+                      </span>
+                    </div>
 
                     {esPA && (
                       <div className="mt-2 bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
@@ -19188,20 +19225,22 @@ if (hojasParaDescuento) {
                                       )}
 
                                       {/* Mostrar existencia para admin */}
-  {esAdmin && (
-    <div className="mt-2 flex items-center gap-1">
-      <Package className="w-3 h-3 text-zinc-400" />
-      <p className={`text-xs font-semibold ${
-        (art.existencia || 0) === 0 
-          ? 'text-red-500' 
-          : (art.existencia || 0) < 10 
-            ? 'text-yellow-500' 
-            : 'text-green-500'
-      }`}>
-        Stock: {art.existencia || 0}
-      </p>
-    </div>
-  )}
+                                      {esAdmin && (
+                                        <div className="mt-2 flex items-center gap-1">
+                                          <Package className="w-3 h-3 text-zinc-400" />
+                                          <p
+                                            className={`text-xs font-semibold ${
+                                              (art.existencia || 0) === 0
+                                                ? "text-red-500"
+                                                : (art.existencia || 0) < 10
+                                                  ? "text-yellow-500"
+                                                  : "text-green-500"
+                                            }`}
+                                          >
+                                            Stock: {art.existencia || 0}
+                                          </p>
+                                        </div>
+                                      )}
 
                                       {/* Toggle (solo admin o admin mostrador) */}
                                       {(esAdmin ||
@@ -20315,8 +20354,8 @@ if (hojasParaDescuento) {
                           />
 
                           {/* Botón Inventario (solo admin) */}
-{esAdmin && (
-  <MenuItem
+                          {esAdmin && (
+                            <MenuItem
                               label="Inventario"
                               icon={<Package size={20} />}
                               onClick={() => {
@@ -20324,10 +20363,10 @@ if (hojasParaDescuento) {
                                   top: 0,
                                   behavior: "instant",
                                 });
-                                setVistaPerfil("inventario")
+                                setVistaPerfil("inventario");
                               }}
                             />
-)}
+                          )}
                           {(esAdmin || esRutas) && (
                             <MenuItem
                               label="Ver Rutas"
@@ -20341,9 +20380,9 @@ if (hojasParaDescuento) {
                               }}
                             />
                           )}
-                          
+
                           {esAdmin && (
-                           <MenuItem
+                            <MenuItem
                               label="Rastrear Rutas"
                               icon={<MapPinned size={20} />}
                               onClick={() => {
@@ -20351,7 +20390,7 @@ if (hojasParaDescuento) {
                                   top: 0,
                                   behavior: "instant",
                                 });
-                                setVistaPerfil("rastreo-rutas")
+                                setVistaPerfil("rastreo-rutas");
                               }}
                             />
                           )}
@@ -20649,26 +20688,25 @@ if (hojasParaDescuento) {
                       />
                     )}
 
-
                     {vistaPerfil === "inventario" && esAdmin && (
-  <motion.div
-    key="inventario"
-    initial={{ opacity: 0, x: 40 }}
-    animate={{ opacity: 1, x: 0 }}
-    exit={{ opacity: 0, x: -40 }}
-    transition={{ duration: 0.3, ease: "easeInOut" }}
-    drag="x"
-    dragConstraints={{ left: 0, right: 0 }}
-    onDragEnd={(event, info) => {
-      if (info.offset.x > 100) {
-        setVistaPerfil("menu");
-      }
-    }}
-  >
-    <BackBtn onBack={() => setVistaPerfil("menu")} />
-    <InventarioPanel />
-  </motion.div>
-)}
+                      <motion.div
+                        key="inventario"
+                        initial={{ opacity: 0, x: 40 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -40 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        onDragEnd={(event, info) => {
+                          if (info.offset.x > 100) {
+                            setVistaPerfil("menu");
+                          }
+                        }}
+                      >
+                        <BackBtn onBack={() => setVistaPerfil("menu")} />
+                        <InventarioPanel />
+                      </motion.div>
+                    )}
 
                     {vistaPerfil === "actualizar-bd" && (
                       <ActualizarBDView setVistaPerfil={setVistaPerfil} />
