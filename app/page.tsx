@@ -15980,52 +15980,51 @@ if (backOrderExistente) {
               </div>
 
               {/* Botones */}
-              <button
-                onClick={async () => {
-                  try {
-                    const response = await fetch(
-                      "http://192.168.100.9:3005/print",
-                      {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          cliente: pedidoSeleccionado.cuentas.cliente,
-                          pedido: pedidoSeleccionado.id,
-                          ...detallesEmpaque,
-                        }),
-                      },
-                    );
+             <button
+  onClick={async () => {
+    try {
+      const response = await fetch(
+        "https://192.168.5.115:3005/print", 
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cliente: pedidoSeleccionado.cuentas.cliente,
+            pedido: pedidoSeleccionado.id,
+            ...detallesEmpaque,
+          }),
+        },
+      );
 
-                    const data = await response.json();
+      const data = await response.json();
 
-                    if (data.ok && data.codigosGenerados) {
-                      // Guardar códigos en Supabase
-                      const codigosParaInsertar = data.codigosGenerados.map(
-                        (c: any) => ({
-                          pedido_id: pedidoSeleccionado.id,
-                          codigo: c.codigo,
-                          tipo: c.tipo,
-                          numero: c.numero,
-                        }),
-                      );
+      if (data.ok && data.codigosGenerados) {
+        const codigosParaInsertar = data.codigosGenerados.map(
+          (c: any) => ({
+            pedido_id: pedidoSeleccionado.id,
+            codigo: c.codigo,
+            tipo: c.tipo,
+            numero: c.numero,
+          }),
+        );
 
-                      await supabase
-                        .from("codigos_etiquetas")
-                        .insert(codigosParaInsertar);
+        await supabase
+          .from("codigos_etiquetas")
+          .insert(codigosParaInsertar);
 
-                      alert(
-                        `Etiquetas impresas: ${data.copias} (${data.codigosGenerados.length} con código)`,
-                      );
-                    }
-                  } catch (error) {
-                    console.error("Error imprimiendo:", error);
-                    alert("Error al imprimir etiquetas");
-                  }
-                }}
-                className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-blue-500 hover:bg-blue-600 active:scale-95 transition-transform"
-              >
-                IMPRIMIR ETIQUETAS
-              </button>
+        alert(
+          `✅ Etiquetas impresas: ${data.copias} (${data.codigosGenerados.length} con código)`,
+        );
+      }
+    } catch (error: any) {
+      console.error("Error imprimiendo:", error);
+      alert(`❌ Error al imprimir: ${error.message}`);
+    }
+  }}
+  className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-blue-500 hover:bg-blue-600 active:scale-95 transition-transform"
+>
+  🖨️ IMPRIMIR ETIQUETAS
+</button>
               <button
                 onClick={completarPedido}
                 disabled={guardando}
