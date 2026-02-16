@@ -3830,7 +3830,7 @@ export default function HomePage() {
     : false;
 
   // Cuentas de empleados
-const CUENTAS_EMPLEADOS = ["Empleado1", "Empleado2", "Empleado3", "Empleado4", "Empleado5", "Empleado6", "Empleado7", "Empleado8", "Empleado9", "Empleado10"];
+const CUENTAS_EMPLEADOS = ["Surtidor1", "Surtidor2", "Surtidor3", "Surtidor4", "Surtidor5", "Surtidor6", "Surtidor7", "Surtidor8", "Surtidor9", "Surtidor10"];
 
 const esEmpleado = cuenta?.numero_cuenta
   ? CUENTAS_EMPLEADOS.includes(cuenta.numero_cuenta)
@@ -12929,13 +12929,13 @@ if (backOrderExistente) {
     };
 
     useEffect(() => {
-      const fetchPedidos = async () => {
-        if (!cuenta?.id && !esAdmin) return;
+  const fetchPedidos = async () => {
+    if (!cuenta?.id && !esAdmin) return;
 
-        let query = supabase
-          .from("pedidos")
-          .select(
-            `
+    let query = supabase
+      .from("pedidos")
+      .select(
+        `
         id, 
         total, 
         created_at,
@@ -12952,122 +12952,124 @@ if (backOrderExistente) {
           entrega_mismo_dia
         )
       `,
-          )
-          .order("created_at", { ascending: false });
+      )
+      .order("created_at", { ascending: false });
 
-        if (!esAdmin) {
-          query = query.eq("cuenta_id", cuenta.id);
-        }
+    if (!esAdmin) {
+      query = query.eq("cuenta_id", cuenta.id);
+    }
 
-        const { data, error } = await query;
+    const { data, error } = await query;
 
-        if (!error && data) {
-          setPedidos(data);
-        }
-        setCargando(false);
-      };
+    if (!error && data) {
+      setPedidos(data);
+    }
+    setCargando(false);
+  };
 
-      fetchPedidos();
+  fetchPedidos();
 
-      const channel = supabase
-        .channel("pedidos-changes")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "pedidos",
-            ...(esAdmin ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` }),
-          },
-          async (payload) => {
-            console.log("Cambio detectado en pedidos:", payload);
+  const channel = supabase
+    .channel("pedidos-changes")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "pedidos",
+        ...(esAdmin ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` }),
+      },
+      async (payload) => {
+        console.log("Cambio detectado en pedidos:", payload);
 
-            if (payload.eventType === "UPDATE") {
-              const { data: pedidoActualizado } = await supabase
-                .from("pedidos")
-                .select(
-                  `
-                id, 
-                total, 
-                created_at,
-                cuenta_id,
-                pdf_url,
-                estado,
-                es_domicilio,
-                cuentas (
-                  numero_cuenta,
-                  cliente,
-                  ferreteria,
-                  numero_tel,
-                  entrega_mismo_dia
-                )
-              `,
-                )
-                .eq("id", payload.new.id)
-                .single();
+        if (payload.eventType === "UPDATE") {
+          const { data: pedidoActualizado } = await supabase
+            .from("pedidos")
+            .select(
+              `
+              id, 
+              total, 
+              created_at,
+              cuenta_id,
+              pdf_url,
+              estado,
+              es_domicilio,
+              cuentas (
+                numero_cuenta,
+                cliente,
+                ferreteria,
+                tipo_comprobante,
+                numero_tel,
+                entrega_mismo_dia
+              )
+            `,
+            )
+            .eq("id", payload.new.id)
+            .single();
 
-              if (pedidoActualizado) {
-                setPedidos((prev) =>
-                  prev.map((p) =>
-                    p.id === pedidoActualizado.id ? pedidoActualizado : p,
-                  ),
-                );
+          if (pedidoActualizado) {
+            setPedidos((prev) =>
+              prev.map((p) =>
+                p.id === pedidoActualizado.id ? pedidoActualizado : p,
+              ),
+            );
 
-                // Actualizar pedido seleccionado si es el mismo
-                if (
-                  pedidoSeleccionadoRef.current?.id === pedidoActualizado.id
-                ) {
-                  setPedidoSeleccionado(pedidoActualizado);
-                  setCuentaPedido(pedidoActualizado.cuentas || cuenta);
-                }
-
-                setActualizacionReciente(true);
-                setTimeout(() => setActualizacionReciente(false), 2000);
-              }
-            } else if (payload.eventType === "INSERT") {
-              const { data: nuevoPedido } = await supabase
-                .from("pedidos")
-                .select(
-                  `
-                id, 
-                total, 
-                created_at,
-                cuenta_id,
-                pdf_url,
-                estado,
-                es_domicilio,
-                cuentas (
-                  numero_cuenta,
-                  cliente,
-                  ferreteria,
-                  numero_tel,
-                  entrega_mismo_dia
-                )
-              `,
-                )
-                .eq("id", payload.new.id)
-                .single();
-
-              if (nuevoPedido) {
-                setPedidos((prev) => [nuevoPedido, ...prev]);
-                setActualizacionReciente(true);
-                setTimeout(() => setActualizacionReciente(false), 2000);
-              }
-            } else if (payload.eventType === "DELETE") {
-              setPedidos((prev) => prev.filter((p) => p.id !== payload.old.id));
-
-              if (pedidoSeleccionadoRef.current?.id === payload.old.id) {
-                setPedidoSeleccionado(null);
-              }
+            // Actualizar pedido seleccionado si es el mismo
+            if (
+              pedidoSeleccionadoRef.current?.id === pedidoActualizado.id
+            ) {
+              setPedidoSeleccionado(pedidoActualizado);
+              setCuentaPedido(pedidoActualizado.cuentas || cuenta);
             }
-          },
-        )
-        .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }, [cuenta, esAdmin]);
+            setActualizacionReciente(true);
+            setTimeout(() => setActualizacionReciente(false), 2000);
+          }
+        } else if (payload.eventType === "INSERT") {
+          const { data: nuevoPedido } = await supabase
+            .from("pedidos")
+            .select(
+              `
+              id, 
+              total, 
+              created_at,
+              cuenta_id,
+              pdf_url,
+              estado,
+              es_domicilio,
+              cuentas (
+                numero_cuenta,
+                cliente,
+                ferreteria,
+                tipo_comprobante,
+                numero_tel,
+                entrega_mismo_dia
+              )
+            `,
+            )
+            .eq("id", payload.new.id)
+            .single();
+
+          if (nuevoPedido) {
+            setPedidos((prev) => [nuevoPedido, ...prev]);
+            setActualizacionReciente(true);
+            setTimeout(() => setActualizacionReciente(false), 2000);
+          }
+        } else if (payload.eventType === "DELETE") {
+          setPedidos((prev) => prev.filter((p) => p.id !== payload.old.id));
+
+          if (pedidoSeleccionadoRef.current?.id === payload.old.id) {
+            setPedidoSeleccionado(null);
+          }
+        }
+      },
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [cuenta, esAdmin]);
 
     const verDetallePedido = (pedido: any) => {
       setPedidoSeleccionado(pedido);
@@ -13479,7 +13481,7 @@ if (backOrderExistente) {
               </span>
             </div>
             <div className="flex justify-between mb-2">
-              <span className="text-sm text-zinc-600">Ferretería</span>
+              <span className="text-sm text-zinc-600">Negocio</span>
               <span className="font-semibold text-zinc-900">
                 {cuentaPedido?.ferreteria || "N/A"}
               </span>
@@ -16013,7 +16015,7 @@ if (backOrderExistente) {
           .insert(codigosParaInsertar);
 
         alert(
-          `✅ Etiquetas impresas: ${data.copias} (${data.codigosGenerados.length} con código)`,
+          `Etiquetas impresas: ${data.copias} (${data.codigosGenerados.length} con código)`,
         );
       }
     } catch (error: any) {
@@ -19127,6 +19129,22 @@ if (empleadosSurtiendo.length > 0) {
                                               <p className="font-semibold text-sm text-zinc-800 truncate">
                                                 {prod.TITULO}
                                               </p>
+                                              {/* baners del producto */}
+  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+    <p className="text-xs text-zinc-500">
+      Código: {prod.CODIGO}
+    </p>
+    {prod.liquidacion && (
+      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600 border border-red-200 leading-none">
+        LIQUIDACIÓN
+      </span>
+    )}
+    {prod.top_ventas && (
+      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-600 border border-green-200 leading-none">
+        MAS VENDIDOS
+      </span>
+    )}
+  </div>
                                               <p className="text-xs text-zinc-500">
                                                 Código: {prod.CODIGO}
                                               </p>
@@ -20260,6 +20278,20 @@ if (empleadosSurtiendo.length > 0) {
                                   <p className="text-xs text-zinc-500">
                                     Código: {prod.CODIGO}
                                   </p>
+
+                                  <div className="flex gap-2 mt-1.5">
+    {prod.liquidacion && (
+      <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+        LIQUIDACIÓN
+      </span>
+    )}
+    {prod.top_ventas && (
+      <span className="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+        MAS VENDIDOS
+      </span>
+    )}
+  </div>
+
                                   {!esMostrador && !esMostrador2 && (
                                     <p className="text-xs text-orange-500 font-semibold">
                                       $
