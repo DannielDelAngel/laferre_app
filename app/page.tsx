@@ -11004,6 +11004,75 @@ if (categoriaId !== undefined && categoriaId !== null)
   }
 };
 
+const exportarErroresExcel = () => {
+  if (!resultado) return;
+
+  const XLSX = require('xlsx');
+
+  const wb = XLSX.utils.book_new();
+
+  if (resultado.productosNoEncontrados.length > 0) {
+    const noEncontradosData = resultado.productosNoEncontrados.map((codigo: string) => ({
+      'CÓDIGO': codigo,
+      'ESTADO': 'No encontrado en la base de datos',
+      'ACCIÓN REQUERIDA': 'Verificar si el código es correcto o agregar el producto'
+    }));
+
+    const ws1 = XLSX.utils.json_to_sheet(noEncontradosData);
+    
+    
+    ws1['!cols'] = [
+      { wch: 15 }, 
+      { wch: 40 }, 
+      { wch: 50 }  
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws1, 'No Encontrados');
+  }
+
+  if (resultado.detallesErrores && resultado.detallesErrores.length > 0) {
+    const erroresData = resultado.detallesErrores.map((error: any) => ({
+      'CÓDIGO': error.codigo,
+      'MOTIVO DEL ERROR': error.motivo,
+      'TIPO': error.motivo.includes('vacío') ? 'Dato vacío' : 
+              error.motivo.includes('actualizar') ? 'Error BD' : 
+              'Otro'
+    }));
+
+    const ws2 = XLSX.utils.json_to_sheet(erroresData);
+    
+   
+    ws2['!cols'] = [
+      { wch: 15 }, 
+      { wch: 60 }, 
+      { wch: 20 }  
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws2, 'Errores');
+  }
+
+  const resumenData = [
+    { 'MÉTRICA': 'Total procesados', 'CANTIDAD': resultado.total },
+    { 'MÉTRICA': 'Actualizados exitosamente', 'CANTIDAD': resultado.actualizados },
+    { 'MÉTRICA': 'No encontrados', 'CANTIDAD': resultado.noEncontrados },
+    { 'MÉTRICA': 'Con errores', 'CANTIDAD': resultado.errores },
+    { 'MÉTRICA': '% Éxito', 'CANTIDAD': `${((resultado.actualizados / resultado.total) * 100).toFixed(2)}%` }
+  ];
+
+  const ws3 = XLSX.utils.json_to_sheet(resumenData);
+  ws3['!cols'] = [
+    { wch: 30 }, 
+    { wch: 20 }  
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws3, 'Resumen');
+
+  // Descargar archivo
+  const fecha = new Date().toISOString().split('T')[0];
+  const hora = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
+  XLSX.writeFile(wb, `errores_actualizacion_${fecha}_${hora}.xlsx`);
+};
+
     return (
       <motion.div
         key="actualizar-bd"
@@ -11131,6 +11200,29 @@ if (categoriaId !== undefined && categoriaId !== null)
                   Errores: <strong>{resultado.errores}</strong>
                 </p>
               </div>
+
+               {(resultado.productosNoEncontrados.length > 0 || resultado.detallesErrores.length > 0) && (
+      <button
+        onClick={exportarErroresExcel}
+        className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={2}
+          stroke="currentColor"
+          className="w-5 h-5"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+          />
+        </svg>
+        Descargar Reporte de Errores (Excel)
+      </button>
+    )}
 
               {resultado.productosNoEncontrados.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-green-200">

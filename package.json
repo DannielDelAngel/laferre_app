@@ -37,7 +37,8 @@
     "react-native-screens": "^4.18.0",
     "react-native-vector-icons": "^10.3.0",
     "react-qr-barcode-scanner": "^2.1.17",
-    "react-window": "^2.2.6"
+    "react-window": "^2.2.6",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
