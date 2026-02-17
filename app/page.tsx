@@ -2,6 +2,15 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
+
+const ordenarProductos = (productos: any[]) => {
+  return productos.sort((a, b) => {
+    const ordenA = a.orden_categoria ?? a.id;
+    const ordenB = b.orden_categoria ?? b.id;
+    return ordenA - ordenB;
+  });
+};
+
 import {
   SquareStack,
   Search,
@@ -43,6 +52,23 @@ import {
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
+
+// Helper function to build search query
+const construirQueryBusqueda = async (searchTerm: string, categoria: any, marca: any) => {
+  let query = supabase
+    .from("productos")
+    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO");
+
+  if (categoria) {
+    query = query.eq("CATEGORIA_ID", categoria.id_categoria);
+  } else if (marca) {
+    query = query.eq("marca_id", marca.id);
+  }
+
+  query = query.or(`TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%,C_PRODUCTO.ilike.%${searchTerm}%`);
+
+  return await query.limit(50);
+};
 import {
   AnimatePresence,
   motion,
@@ -4232,6 +4258,82 @@ const esEmpleado = cuenta?.numero_cuenta
       }
     }, [tipo]);
 
+    const construirQueryBusqueda = (
+  value: string,
+  categoriaSeleccionada: any,
+  marcaSeleccionada: any
+) => {
+  const palabras = value.trim().split(/\s+/);
+
+  let query = supabase
+    .from("productos")
+    .select(`
+      *,
+      grupos_productos(
+        grupos(
+          id,
+          nombre
+        )
+      )
+    `);
+
+  if (categoriaSeleccionada) {
+    query = query.eq("CATEGORIA_ID", categoriaSeleccionada.id_categoria);
+  } else if (marcaSeleccionada) {
+    query = query.eq("marca_id", marcaSeleccionada.id);
+  }
+
+  palabras.forEach((palabra) => {
+    const soloNumeros = palabra.replace(/[^0-9]/g, '');
+    const esCodigo = /^\d{4,6}T?$/i.test(palabra);         
+    const esCodigoAlterno = /^\d{7,}/.test(soloNumeros);   
+
+    if (esCodigo) {
+      query = query.or(
+        `CODIGO.ilike.%${palabra}%,TITULO.ilike.%${palabra}%`
+      );
+    } else if (esCodigoAlterno) {
+      query = query.or(
+        `C_PRODUCTO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%`
+      );
+    } else {
+      query = query.or(
+        `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`
+      );
+    }
+  });
+
+  return query.limit(500);
+};
+
+const ordenarProductos = (data: any[]) => {
+  return data
+    .map((producto) => ({
+      ...producto,
+      visible: producto.visible ?? true,
+    }))
+    .sort((a, b) => {
+      const aEsTopVentas = a.grupos_productos?.some(
+        (gp: any) => gp.grupos?.nombre === 'Top ventas'
+      ) || a.top_ventas;
+      const bEsTopVentas = b.grupos_productos?.some(
+        (gp: any) => gp.grupos?.nombre === 'Top ventas'
+      ) || b.top_ventas;
+      const aEsLiquidacion = a.grupos_productos?.some(
+        (gp: any) => gp.grupos?.nombre === 'Liquidacion'
+      ) || a.liquidacion;
+      const bEsLiquidacion = b.grupos_productos?.some(
+        (gp: any) => gp.grupos?.nombre === 'Liquidacion'
+      ) || b.liquidacion;
+
+      if (aEsTopVentas && !bEsTopVentas) return -1;
+      if (!aEsTopVentas && bEsTopVentas) return 1;
+      if (aEsLiquidacion && !bEsLiquidacion) return -1;
+      if (!aEsLiquidacion && bEsLiquidacion) return 1;
+      return 0;
+    });
+};
+
     const handleSeleccionar = (item: any) => {
       setItemSeleccionado(item);
       setNombre(item.nombre || item.nombre_categoria);
@@ -8064,6 +8166,7 @@ const esEmpleado = cuenta?.numero_cuenta
     const [tipoComprobante, setTipoComprobante] = useState("Nota de Venta");
     const [direccion, setDireccion] = useState("");
     const [numeroTel, setNumeroTel] = useState("");
+const [numeroCuentaSicar, setNumeroCuentaSicar] = useState("");
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState("");
     const [mostrarModalEliminar, setMostrarModalEliminar] = useState(false);
@@ -8208,6 +8311,7 @@ const [busqueda, setBusqueda] = useState("");
       setDireccion("");
       setNumeroTel("");
       setMensaje("");
+      setNumeroCuentaSicar("");
       setCuentaSeleccionada(null);
       setTieneSaldoPendiente(false);
       setDocumentosPendientes([]);
@@ -8292,6 +8396,7 @@ const [busqueda, setBusqueda] = useState("");
           ferreteria: ferreteria.trim() || null,
           direccion: direccion.trim() || null,
           numero_tel: numeroTel.trim() || null,
+          numero_cuenta_sicar: numeroCuentaSicar.trim() || null,
           entrega_mismo_dia: entregaMismoDia,
           tiene_saldo_pendiente: tieneSaldoPendiente,
           ruta: ruta.trim() || null,
@@ -8393,6 +8498,7 @@ const [busqueda, setBusqueda] = useState("");
             ferreteria: ferreteria.trim() || null,
             direccion: direccion.trim() || null,
             numero_tel: numeroTel.trim() || null,
+            numero_cuenta_sicar: numeroCuentaSicar.trim() || null,
             entrega_mismo_dia: entregaMismoDia,
             tiene_saldo_pendiente: tieneSaldoPendiente,
             ruta: ruta.trim() || null,
@@ -8572,6 +8678,7 @@ const [busqueda, setBusqueda] = useState("");
       setFerreteria(cuentaItem.ferreteria || "");
       setDireccion(cuentaItem.direccion || "");
       setNumeroTel(cuentaItem.numero_tel ? String(cuentaItem.numero_tel) : "");
+      setNumeroCuentaSicar(cuentaItem.numero_cuenta_sicar || "");
       setEntregaMismoDia(cuentaItem.entrega_mismo_dia || false);
       setModoVista("editar");
       setTieneSaldoPendiente(cuentaItem.tiene_saldo_pendiente || false);
@@ -9148,6 +9255,22 @@ const [busqueda, setBusqueda] = useState("");
       />
     </div>
 
+    <div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Número de Cuenta SICAR
+  </label>
+  <input
+    type="text"
+    value={numeroCuentaSicar}
+    onChange={(e) => setNumeroCuentaSicar(e.target.value)}
+    placeholder="Número de cuenta en SICAR"
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+  />
+  <p className="text-xs text-zinc-500 mt-1">
+    Número de cuenta del cliente en el sistema SICAR (opcional)
+  </p>
+</div>
+
     {/* Selector de Ruta */}
     <div className="mb-4">
       <label className="block text-sm font-medium text-zinc-700 mb-2">
@@ -9655,6 +9778,22 @@ const [busqueda, setBusqueda] = useState("");
                   className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
+
+              <div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Número de Cuenta SICAR
+  </label>
+  <input
+    type="text"
+    value={numeroCuentaSicar}
+    onChange={(e) => setNumeroCuentaSicar(e.target.value)}
+    placeholder="Número de cuenta en SICAR"
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+  />
+  <p className="text-xs text-zinc-500 mt-1">
+    Número de cuenta del cliente en el sistema SICAR (opcional)
+  </p>
+</div>
 
               {/* Selector de Ruta */}
               <div className="mb-4">
@@ -10683,6 +10822,7 @@ const [busqueda, setBusqueda] = useState("");
           const cProducto = fila.C_PRODUCTO || fila.c_producto;
           const titulo = fila.TITULO || fila.titulo;
           const existencia = fila.EXISTENCIA || fila.existencia;
+          const categoriaId = fila.CATEGORIA_ID || fila.categoria_id;
 
           if (!codigo) {
             errores++;
@@ -10705,6 +10845,8 @@ const [busqueda, setBusqueda] = useState("");
             datosActualizar.TITULO = titulo;
           if (existencia !== undefined && existencia !== null)  
   datosActualizar.existencia = parseInt(existencia);
+if (categoriaId !== undefined && categoriaId !== null)
+  datosActualizar.CATEGORIA_ID = parseInt(categoriaId);
 
           // Si no hay nada que actualizar, saltar
           if (Object.keys(datosActualizar).length === 0) {
@@ -10720,7 +10862,7 @@ const [busqueda, setBusqueda] = useState("");
             // Buscar el producto por código
             const { data: producto, error: errorBusqueda } = await supabase
               .from("productos")
-              .select("id, CODIGO, P_MAYOREO, DESCRIPCION, C_PRODUCTO, TITULO")
+              .select("id, CODIGO, P_MAYOREO, DESCRIPCION, C_PRODUCTO, TITULO,CATEGORIA_ID, existencia")
               .eq("CODIGO", codigo)
               .single();
 
@@ -10779,62 +10921,88 @@ const [busqueda, setBusqueda] = useState("");
 
     // funcion de descarga de la tabla productos en .csv
     const descargarProductosCSV = async () => {
-      setDescargando(true);
-      try {
-        let todosLosProductos: any[] = [];
-        let desde = 0;
-        const limite = 1000;
+  setDescargando(true);
+  try {
+    let todosLosProductos: any[] = [];
+    let desde = 0;
+    const limite = 1000;
 
-        while (true) {
-          const { data, error } = await supabase
-            .from("productos")
-            .select("*")
-            .order("id", { ascending: true })
-            .range(desde, desde + limite - 1);
+    // Cargar productos con su categoría
+    while (true) {
+      const { data, error } = await supabase
+        .from("productos")
+        .select(`
+          *,
+          categorias (
+            nombre_categoria
+          )
+        `)
+        .order("id", { ascending: true })
+        .range(desde, desde + limite - 1);
 
-          if (error) throw error;
-          if (!data || data.length === 0) break;
+      if (error) throw error;
+      if (!data || data.length === 0) break;
 
-          todosLosProductos = [...todosLosProductos, ...data];
-          desde += limite;
+      todosLosProductos = [...todosLosProductos, ...data];
+      desde += limite;
+    }
+
+    if (todosLosProductos.length === 0) {
+      alert("No hay productos para descargar");
+      return;
+    }
+
+    // Construir CSV con nombre de categoría al lado de CATEGORIA_ID
+    const productosFormateados = todosLosProductos.map((p) => {
+      const { categorias, ...producto } = p;
+
+      // Insertar nombre_categoria justo después de CATEGORIA_ID
+      const resultado: any = {};
+      
+      Object.keys(producto).forEach((key) => {
+        resultado[key] = producto[key];
+        // Agregar nombre de categoría justo después de CATEGORIA_ID
+        if (key === 'CATEGORIA_ID') {
+          resultado['NOMBRE_CATEGORIA'] = categorias?.nombre_categoria ?? '';
         }
+      });
 
-        if (todosLosProductos.length === 0) {
-          alert("No hay productos para descargar");
-          return;
-        }
+      return resultado;
+    });
 
-        const headers = Object.keys(todosLosProductos[0]).join(",");
-        const rows = todosLosProductos.map((p) =>
-          Object.values(p)
-            .map((val) =>
-              typeof val === "string"
-                ? `"${val.replace(/"/g, '""')}"`
-                : (val ?? ""),
-            )
-            .join(","),
-        );
+    // Generar CSV
+    const headers = Object.keys(productosFormateados[0]).join(",");
+    const rows = productosFormateados.map((p) =>
+      Object.values(p)
+        .map((val) =>
+          typeof val === "string"
+            ? `"${val.replace(/"/g, '""')}"`
+            : val === null || val === undefined
+            ? ""
+            : val,
+        )
+        .join(","),
+    );
 
-        const csv = [headers, ...rows].join("\n");
+    const csv = [headers, ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }); 
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `productos_backup_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
 
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `productos_backup_${new Date().toISOString().split("T")[0]}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-
-        alert(`Descargados ${todosLosProductos.length} productos`);
-      } catch (err) {
-        console.error(err);
-        alert("Error al descargar la tabla");
-      } finally {
-        setDescargando(false);
-      }
-    };
+    alert(`Descargados ${todosLosProductos.length} productos`);
+  } catch (err) {
+    console.error(err);
+    alert("Error al descargar la tabla");
+  } finally {
+    setDescargando(false);
+  }
+};
 
     return (
       <motion.div
@@ -10865,11 +11033,11 @@ const [busqueda, setBusqueda] = useState("");
               <li>
                 Columnas opcionales: <strong>P_MAYOREO</strong>,{" "}
                 <strong>DESCRIPCION</strong>, <strong>C_PRODUCTO</strong>,{" "}
-                <strong>TITULO</strong>, <strong>EXISTENCIA</strong>
+                <strong>TITULO</strong>, <strong>EXISTENCIA</strong>, <strong>CATEGORIA_ID</strong>
               </li>
               <li>
                 También acepta minúsculas: codigo, p_mayoreo, precio,
-                descripcion, c_producto, titulo, existencia
+                descripcion, c_producto, titulo, existencia, categoria_id
               </li>
               <li>
                 la columna CODIGO debe ser tipo "general" y P_MAYOREO tipo
@@ -12531,6 +12699,7 @@ if (backOrderExistente) {
         *,
         cuentas (
           numero_cuenta,
+          numero_cuenta_sicar,
           cliente,
           ferreteria,
           numero_tel,
@@ -12945,6 +13114,7 @@ if (backOrderExistente) {
         es_domicilio,  
         cuentas (
           numero_cuenta,
+          numero_cuenta_sicar,
           cliente,
           ferreteria,
           tipo_comprobante,
@@ -12996,6 +13166,7 @@ if (backOrderExistente) {
               es_domicilio,
               cuentas (
                 numero_cuenta,
+                numero_cuenta_sicar,
                 cliente,
                 ferreteria,
                 tipo_comprobante,
@@ -13039,11 +13210,13 @@ if (backOrderExistente) {
               es_domicilio,
               cuentas (
                 numero_cuenta,
+                numero_cuenta_sicar,
                 cliente,
                 ferreteria,
                 tipo_comprobante,
                 numero_tel,
                 entrega_mismo_dia
+
               )
             `,
             )
@@ -13492,14 +13665,14 @@ if (backOrderExistente) {
                 {cuentaPedido?.numero_cuenta}
               </span>
             </div>
-            {cuentaPedido?.numero_tel && (
+            
               <div className="flex justify-between mb-2">
-                <span className="text-sm text-zinc-600">Teléfono</span>
+                <span className="text-sm text-zinc-600">No. cuenta sicar</span>
                 <span className="font-semibold text-zinc-900">
-                  {cuentaPedido.numero_tel}
+                  {cuentaPedido?.numero_cuenta_sicar || "N/A"}
                 </span>
               </div>
-            )}
+           
             <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
               <span className="font-bold text-zinc-900">Total</span>
               <span className="font-bold text-orange-500 text-lg">
@@ -18904,130 +19077,43 @@ if (empleadosSurtiendo.length > 0) {
                                 }
                                 value={searchTerm}
                                 onChange={async (e) => {
-                                  const value = e.target.value;
-                                  setSearchTerm(value);
+  const value = e.target.value;
+  setSearchTerm(value);
 
-                                  if (value.trim() === "") {
-                                    setProductos([]);
-                                    return;
-                                  }
+  if (value.trim() === "") {
+    setProductos([]);
+    return;
+  }
 
-                                  const palabras = value.trim().split(/\s+/);
+  const { data, error } = await construirQueryBusqueda(
+    value,
+    categoriaSeleccionada,
+    marcaSeleccionada
+  );
 
-                                  let query = supabase
-                                    .from("productos")
-                                    .select("*");
-
-                                  if (categoriaSeleccionada) {
-                                    query = query.eq(
-                                      "CATEGORIA_ID",
-                                      categoriaSeleccionada.id_categoria,
-                                    );
-                                  } else if (marcaSeleccionada) {
-                                    query = query.eq(
-                                      "marca_id",
-                                      marcaSeleccionada.id,
-                                    );
-                                  }
-
-                                  palabras.forEach((palabra) => {
-                                    query = query.or(
-                                      `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`,
-                                    );
-                                  });
-
-                                  query = query.limit(500);
-
-                                  const { data, error } = await query;
-
-                                  if (error) {
-                                    console.error(
-                                      "Error buscando productos:",
-                                      error.message,
-                                    );
-                                  } else {
-                                    const productosNormalizados = (
-                                      data || []
-                                    ).map((producto) => ({
-                                      ...producto,
-                                      visible: producto.visible ?? true,
-                                    }));
-
-                                    const productosOrdenados =
-                                      productosNormalizados.sort((a, b) => {
-                                        if (a.top_ventas && !b.top_ventas)
-                                          return -1;
-                                        if (!a.top_ventas && b.top_ventas)
-                                          return 1;
-
-                                        if (a.liquidacion && !b.liquidacion)
-                                          return -1;
-                                        if (!a.liquidacion && b.liquidacion)
-                                          return 1;
-
-                                        return 0;
-                                      });
-
-                                    setProductos(productosOrdenados);
-                                    setProductosMostrados(10);
-                                  }
-                                }}
+  if (error) {
+    console.error("Error buscando productos:", error.message);
+  } else {
+    setProductos(ordenarProductos(data || []));
+    setProductosMostrados(10);
+  }
+}}
                                 onFocus={() => {
-                                  if (searchTerm.trim()) {
-                                    const fetchProductos = async () => {
-                                      let query = supabase
-                                        .from("productos")
-                                        .select("*");
+  if (searchTerm.trim()) {
+    const fetchProductos = async () => {
+      const { data } = await construirQueryBusqueda(
+        searchTerm,
+        categoriaSeleccionada,
+        marcaSeleccionada
+      );
 
-                                      if (categoriaSeleccionada) {
-                                        query = query.eq(
-                                          "CATEGORIA_ID",
-                                          categoriaSeleccionada.id_categoria,
-                                        );
-                                      } else if (marcaSeleccionada) {
-                                        query = query.eq(
-                                          "marca_id",
-                                          marcaSeleccionada.id,
-                                        );
-                                      }
+      setProductos(ordenarProductos(data || []));
+      setProductosMostrados(10);
+    };
 
-                                      query = query
-                                        .or(
-                                          `TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%,C_PRODUCTO.ilike.%${searchTerm}%`,
-                                        )
-                                        .limit(500);
-
-                                      const { data } = await query;
-
-                                      const productosNormalizados = (
-                                        data || []
-                                      ).map((producto) => ({
-                                        ...producto,
-                                        visible: producto.visible ?? true,
-                                      }));
-
-                                      const productosOrdenados =
-                                        productosNormalizados.sort((a, b) => {
-                                          if (a.top_ventas && !b.top_ventas)
-                                            return -1;
-                                          if (!a.top_ventas && b.top_ventas)
-                                            return 1;
-
-                                          if (a.liquidacion && !b.liquidacion)
-                                            return -1;
-                                          if (!a.liquidacion && b.liquidacion)
-                                            return 1;
-
-                                          return 0;
-                                        });
-
-                                      setProductos(productosOrdenados);
-                                      setProductosMostrados(10);
-                                    };
-
-                                    fetchProductos();
-                                  }
-                                }}
+    fetchProductos();
+  }
+}}
                                 className="w-full rounded-full border bg-white border-zinc-300 pl-10 pr-10 py-2.5 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-white transition-all duration-200"
                               />
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
@@ -19145,9 +19231,7 @@ if (empleadosSurtiendo.length > 0) {
       </span>
     )}
   </div>
-                                              <p className="text-xs text-zinc-500">
-                                                Código: {prod.CODIGO}
-                                              </p>
+                                              
                                               {!esMostrador &&
                                                 !esMostrador2 && (
                                                   <p className="text-xs text-orange-500 font-semibold">
@@ -20461,7 +20545,7 @@ if (empleadosSurtiendo.length > 0) {
                               <div
                                 className="space-y-3"
                                 style={{
-                                  minHeight: "60vh",
+                                  minHeight: "10vh",
                                   overflowAnchor: "none",
                                 }}
                               >
@@ -21096,7 +21180,7 @@ if (empleadosSurtiendo.length > 0) {
                               }}
                             />
                           )}
-                          {esEmpleado && (
+                          {(esEmpleado || esAdmin) && (
                             <MenuItem
                               label="Surtir Pedidos"
                               icon={<Package size={20} />}
@@ -21110,7 +21194,7 @@ if (empleadosSurtiendo.length > 0) {
                             />
                           )}
 
-                          {esEmpleado && (
+                          {(esEmpleado || esAdmin) && (
                             <MenuItem
                               label="Revisar Pedidos"
                               icon={<PackageSearch size={20} />}
@@ -21454,11 +21538,11 @@ if (empleadosSurtiendo.length > 0) {
                       <VistaConfirmarPagos setVistaPerfil={setVistaPerfil} />
                     )}
 
-                    {vistaPerfil === "surtir" && esEmpleado && (
+                    {vistaPerfil === "surtir"  && (esEmpleado || esAdmin) && (
                       <VistaSurtir setVistaPerfil={setVistaPerfil} />
                     )}
 
-                    {vistaPerfil === "revision" && esEmpleado && (
+                    {vistaPerfil === "revision"  && (esEmpleado || esAdmin) && (
                       <VistaRevision setVistaPerfil={setVistaPerfil} />
                     )}
 
