@@ -3,14 +3,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
 
-const ordenarProductos = (productos: any[]) => {
-  return productos.sort((a, b) => {
-    const ordenA = a.orden_categoria ?? a.id;
-    const ordenB = b.orden_categoria ?? b.id;
-    return ordenA - ordenB;
-  });
-};
-
 import {
   SquareStack,
   Search,
@@ -49,6 +41,69 @@ import {
   ScanBarcode,
   MapPinned,
 } from "lucide-react";
+
+const ordenarProductos = (productos: any[], searchTerm: string) => {
+  if (!searchTerm.trim()) return productos;
+
+  const palabras = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const searchLower = searchTerm.toLowerCase();
+
+  const getPrioridad = (producto: any) => {
+    const title = (producto.TITULO || "").toLowerCase();
+    const code = (producto.CODIGO || "").toLowerCase();
+
+    // Código exacto
+    if (code === searchLower) return 0;
+
+    // Título exacto
+    if (title === searchLower) return 1;
+
+    // Título contiene la frase exacta (mismo orden)
+    if (title.includes(searchLower)) return 2;
+
+    // Título contiene TODAS las palabras (cualquier orden)
+    if (palabras.every((p) => title.includes(p))) return 3;
+
+    // Título contiene ALGUNAS palabras
+    if (palabras.some((p) => title.includes(p))) return 4;
+
+    // Código empieza con el término
+    if (code.startsWith(searchLower)) return 5;
+
+    // Código contiene el término
+    if (code.includes(searchLower)) return 6;
+
+    return 7;
+  };
+
+  const getBoost = (producto: any) => {
+    let boost = 0;
+    if (producto.top_ventas) boost += 2;
+    if (producto.liquidacion) boost += 1;
+    return boost;
+  };
+
+  return [...productos].sort((a, b) => {
+    const prioA = getPrioridad(a);
+    const prioB = getPrioridad(b);
+
+    // ordenar por relevancia de búsqueda
+    if (prioA !== prioB) return prioA - prioB;
+
+    // Dentro del mismo nivel de relevancia: boost por top_ventas y liquidacion
+    const boostDiff = getBoost(b) - getBoost(a);
+    if (boostDiff !== 0) return boostDiff;
+
+    // Desempate final: más palabras coincidentes en título
+    const titleA = (a.TITULO || "").toLowerCase();
+    const titleB = (b.TITULO || "").toLowerCase();
+    const matchesA = palabras.filter((p) => titleA.includes(p)).length;
+    const matchesB = palabras.filter((p) => titleB.includes(p)).length;
+
+    return matchesB - matchesA;
+  });
+};
+
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
@@ -65,10 +120,23 @@ const construirQueryBusqueda = async (searchTerm: string, categoria: any, marca:
     query = query.eq("marca_id", marca.id);
   }
 
-  query = query.or(`TITULO.ilike.%${searchTerm}%,CODIGO.ilike.%${searchTerm}%,C_PRODUCTO.ilike.%${searchTerm}%`);
+  const palabras = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
-  return await query.limit(50);
+  if (palabras.length === 1) {
+    query = query.or(
+      `TITULO.ilike.%${palabras[0]}%,CODIGO.ilike.%${palabras[0]}%,C_PRODUCTO.eq.${palabras[0]}`
+    );
+  } else {
+    palabras.forEach((palabra) => {
+      query = query.or(
+        `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`
+      );
+    });
+  }
+
+  return await query.limit(80);
 };
+
 import {
   AnimatePresence,
   motion,
@@ -3827,7 +3895,7 @@ export default function HomePage() {
   );
   const [carrito, setCarrito] = useState<any[]>([]);
   const [mostrarModalPedido, setMostrarModalPedido] = useState(false);
-  const [enviarDomicilio, setEnviarDomicilio] = useState(false);
+  const [enviarDomicilio, setEnviarDomicilio] = useState(true);
   const [recogerLocal, setRecogerLocal] = useState(false);
   const [cliente, setCliente] = useState("");
   const [ferreteria, setFerreteria] = useState("");
@@ -4285,18 +4353,21 @@ const esEmpleado = cuenta?.numero_cuenta
 
   palabras.forEach((palabra) => {
     const soloNumeros = palabra.replace(/[^0-9]/g, '');
-    const esCodigo = /^\d{4,6}T?$/i.test(palabra);         
-    const esCodigoAlterno = /^\d{7,}/.test(soloNumeros);   
+    const esCodigo = /^\d{4,6}T?$/i.test(palabra);
+    const esCodigoAlterno = /^\d{7,}/.test(soloNumeros);
 
     if (esCodigo) {
+      // Buscar por CODIGO (exacto o que empiece)
       query = query.or(
-        `CODIGO.ilike.%${palabra}%,TITULO.ilike.%${palabra}%`
+        `CODIGO.eq.${palabra},CODIGO.ilike.${palabra}%,CODIGO.ilike.%${palabra}%,TITULO.ilike.%${palabra}%`
       );
     } else if (esCodigoAlterno) {
+      // Buscar por código alterno
       query = query.or(
         `C_PRODUCTO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%`
       );
     } else {
+      // Búsqueda general
       query = query.or(
         `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`
       );
@@ -4304,34 +4375,6 @@ const esEmpleado = cuenta?.numero_cuenta
   });
 
   return query.limit(500);
-};
-
-const ordenarProductos = (data: any[]) => {
-  return data
-    .map((producto) => ({
-      ...producto,
-      visible: producto.visible ?? true,
-    }))
-    .sort((a, b) => {
-      const aEsTopVentas = a.grupos_productos?.some(
-        (gp: any) => gp.grupos?.nombre === 'Top ventas'
-      ) || a.top_ventas;
-      const bEsTopVentas = b.grupos_productos?.some(
-        (gp: any) => gp.grupos?.nombre === 'Top ventas'
-      ) || b.top_ventas;
-      const aEsLiquidacion = a.grupos_productos?.some(
-        (gp: any) => gp.grupos?.nombre === 'Liquidacion'
-      ) || a.liquidacion;
-      const bEsLiquidacion = b.grupos_productos?.some(
-        (gp: any) => gp.grupos?.nombre === 'Liquidacion'
-      ) || b.liquidacion;
-
-      if (aEsTopVentas && !bEsTopVentas) return -1;
-      if (!aEsTopVentas && bEsTopVentas) return 1;
-      if (aEsLiquidacion && !bEsLiquidacion) return -1;
-      if (!aEsLiquidacion && bEsLiquidacion) return 1;
-      return 0;
-    });
 };
 
     const handleSeleccionar = (item: any) => {
@@ -8174,6 +8217,7 @@ const [numeroCuentaSicar, setNumeroCuentaSicar] = useState("");
     const [errorEliminar, setErrorEliminar] = useState("");
     const [eliminando, setEliminando] = useState(false);
     const [entregaMismoDia, setEntregaMismoDia] = useState(false);
+    const [recogerEnTienda, setRecogerEnTienda] = useState(false);
     const [ruta, setRuta] = useState("");
     const [tipoVista, setTipoVista] = useState<"clientes" | "personal">("clientes"); 
 const [busqueda, setBusqueda] = useState(""); 
@@ -8398,6 +8442,7 @@ const [busqueda, setBusqueda] = useState("");
           numero_tel: numeroTel.trim() || null,
           numero_cuenta_sicar: numeroCuentaSicar.trim() || null,
           entrega_mismo_dia: entregaMismoDia,
+          recoger_en_tienda: recogerEnTienda, 
           tiene_saldo_pendiente: tieneSaldoPendiente,
           ruta: ruta.trim() || null,
           tipo_comprobante: tipoComprobante,
@@ -8500,6 +8545,7 @@ const [busqueda, setBusqueda] = useState("");
             numero_tel: numeroTel.trim() || null,
             numero_cuenta_sicar: numeroCuentaSicar.trim() || null,
             entrega_mismo_dia: entregaMismoDia,
+            recoger_en_tienda: recogerEnTienda, 
             tiene_saldo_pendiente: tieneSaldoPendiente,
             ruta: ruta.trim() || null,
             tipo_comprobante: tipoComprobante,
@@ -8681,6 +8727,7 @@ const [busqueda, setBusqueda] = useState("");
       setNumeroCuentaSicar(cuentaItem.numero_cuenta_sicar || "");
       setEntregaMismoDia(cuentaItem.entrega_mismo_dia || false);
       setModoVista("editar");
+      setRecogerEnTienda(cuentaItem.recoger_en_tienda || false);
       setTieneSaldoPendiente(cuentaItem.tiene_saldo_pendiente || false);
       setRuta(cuentaItem.ruta || "");
       setTipoComprobante(cuentaItem.tipo_comprobante || "Nota de Venta");
@@ -9323,6 +9370,24 @@ const [busqueda, setBusqueda] = useState("");
       </p>
     </div>
 
+    {/* Recoger en tienda */}
+<div className="mb-4">
+  <label className="flex items-center gap-2 cursor-pointer">
+    <input
+      type="checkbox"
+      checked={recogerEnTienda}
+      onChange={(e) => setRecogerEnTienda(e.target.checked)}
+      className="w-5 h-5 accent-orange-500"
+    />
+    <span className="text-sm font-medium text-zinc-700">
+      Permitir recoger en tienda
+    </span>
+  </label>
+  <p className="text-xs text-zinc-500 mt-1 ml-7">
+    Al activar, el cliente podrá elegir recoger su pedido en la tienda
+  </p>
+</div>
+
     {/* Toggle de Saldo Pendiente */}
     <div className="mb-4">
       <label className="flex items-center gap-2 cursor-pointer">
@@ -9845,6 +9910,25 @@ const [busqueda, setBusqueda] = useState("");
                   de las 10 AM
                 </p>
               </div>
+
+               {/* Recoger en tienda */}
+<div className="mb-4">
+  <label className="flex items-center gap-2 cursor-pointer">
+    <input
+      type="checkbox"
+      checked={recogerEnTienda}
+      onChange={(e) => setRecogerEnTienda(e.target.checked)}
+      className="w-5 h-5 accent-orange-500"
+    />
+    <span className="text-sm font-medium text-zinc-700">
+      Permitir recoger en tienda
+    </span>
+  </label>
+  <p className="text-xs text-zinc-500 mt-1 ml-7">
+    Al activar, el cliente podrá elegir recoger su pedido en la tienda
+  </p>
+</div>
+
               {/* Toggle de Saldo Pendiente */}
               <div className="mb-4">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -13705,16 +13789,21 @@ if (backOrderExistente) {
                       </div>
                     );
                   } else {
-                    return (
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                        <p className="text-sm text-green-800 font-semibold">
-                          {horaPedido < 15
-                            ? "Tu pedido estará listo para recoger en aproximadamente 3 horas. Mantente atento al estado de tu pedido."
-                            : "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"}
-                        </p>
-                      </div>
-                    );
-                  }
+  const totalPedido = pedidoSeleccionado.total || 0;
+  const tieneRecogerHabilitado = cuentaPedido?.recoger_en_tienda;
+
+  return (
+    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+      <p className="text-sm text-green-800 font-semibold">
+        {tieneRecogerHabilitado && totalPedido >= 2000
+          ? "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"
+          : horaPedido < 15
+            ? "Tu pedido estará listo para recoger en aproximadamente 3 horas. Mantente atento al estado de tu pedido."
+            : "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"}
+      </p>
+    </div>
+  );
+}
                 })()}
               </div>
             )}
@@ -19168,7 +19257,7 @@ if (empleadosSurtiendo.length > 0) {
                                       : "Buscar en Bodega Ferretera De Monterrey..."
                                 }
                                 value={searchTerm}
-                                onChange={async (e) => {
+                               onChange={async (e) => {
   const value = e.target.value;
   setSearchTerm(value);
 
@@ -19186,11 +19275,11 @@ if (empleadosSurtiendo.length > 0) {
   if (error) {
     console.error("Error buscando productos:", error.message);
   } else {
-    setProductos(ordenarProductos(data || []));
+    setProductos(ordenarProductos(data || [], value)); 
     setProductosMostrados(10);
   }
 }}
-                                onFocus={() => {
+      onFocus={() => {
   if (searchTerm.trim()) {
     const fetchProductos = async () => {
       const { data } = await construirQueryBusqueda(
@@ -19199,7 +19288,7 @@ if (empleadosSurtiendo.length > 0) {
         marcaSeleccionada
       );
 
-      setProductos(ordenarProductos(data || []));
+      setProductos(ordenarProductos(data || [], searchTerm)); 
       setProductosMostrados(10);
     };
 
@@ -21915,6 +22004,7 @@ if (empleadosSurtiendo.length > 0) {
                         </div>
 
                         {/* Toggle Recoger en Local */}
+                        {cuenta?.recoger_en_tienda && (
                         <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-zinc-200">
                           <div className="flex items-center gap-3">
                             <div
@@ -21959,6 +22049,7 @@ if (empleadosSurtiendo.length > 0) {
                             />
                           </label>
                         </div>
+                        )}
                       </div>
 
                       {/* Mensajes dinámicos según selección y hora */}
@@ -22006,24 +22097,29 @@ if (empleadosSurtiendo.length > 0) {
                           </motion.div>
                         )}
 
-                        {recogerLocal && (
-                          <motion.div
-                            key="recoger-info"
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-green-50 border border-green-200 rounded-lg p-3"
-                          >
-                            <p className="text-sm text-green-800 font-semibold">
-                              {(() => {
-                                const horaActual = new Date().getHours();
+                       {recogerLocal && (
+  <motion.div
+    key="recoger-info"
+    initial={{ opacity: 0, y: -10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="bg-green-50 border border-green-200 rounded-lg p-3"
+  >
+    <p className="text-sm text-green-800 font-semibold">
+      {(() => {
+        const total = carrito.reduce((sum, p) => sum + p.subtotal, 0);
+        const horaActual = new Date().getHours();
 
-                                return horaActual < 15
-                                  ? "Tu pedido estará listo para recoger en aproximadamente 3 horas. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"
-                                  : "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'";
-                              })()}
-                            </p>
-                          </motion.div>
-                        )}
+        if (total >= 2000) {
+          return "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'";
+        }
+
+        return horaActual < 15
+          ? "Tu pedido estará listo para recoger en aproximadamente 3 horas. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"
+          : "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'";
+      })()}
+    </p>
+  </motion.div>
+)}
                       </motion.div>
 
                       {/* Botones */}
