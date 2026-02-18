@@ -13289,14 +13289,15 @@ if (backOrderExistente) {
         estado,
         es_domicilio,  
         cuentas (
-          numero_cuenta,
-          numero_cuenta_sicar,
-          cliente,
-          ferreteria,
-          tipo_comprobante,
-          numero_tel,
-          entrega_mismo_dia
-        )
+  numero_cuenta,
+  numero_cuenta_sicar,
+  cliente,
+  ferreteria,
+  tipo_comprobante,
+  numero_tel,
+  entrega_mismo_dia,
+  recoger_en_tienda
+)
       `,
       )
       .order("created_at", { ascending: false });
@@ -13341,14 +13342,15 @@ if (backOrderExistente) {
               estado,
               es_domicilio,
               cuentas (
-                numero_cuenta,
-                numero_cuenta_sicar,
-                cliente,
-                ferreteria,
-                tipo_comprobante,
-                numero_tel,
-                entrega_mismo_dia
-              )
+  numero_cuenta,
+  numero_cuenta_sicar,
+  cliente,
+  ferreteria,
+  tipo_comprobante,
+  numero_tel,
+  entrega_mismo_dia,
+  recoger_en_tienda
+)
             `,
             )
             .eq("id", payload.new.id)
@@ -13385,15 +13387,15 @@ if (backOrderExistente) {
               estado,
               es_domicilio,
               cuentas (
-                numero_cuenta,
-                numero_cuenta_sicar,
-                cliente,
-                ferreteria,
-                tipo_comprobante,
-                numero_tel,
-                entrega_mismo_dia
-
-              )
+  numero_cuenta,
+  numero_cuenta_sicar,
+  cliente,
+  ferreteria,
+  tipo_comprobante,
+  numero_tel,
+  entrega_mismo_dia,
+  recoger_en_tienda
+)
             `,
             )
             .eq("id", payload.new.id)
@@ -15872,47 +15874,63 @@ if (backOrderExistente) {
 
               {/* Selectores de empaque */}
               <div className="space-y-3 mb-6">
-                {/* Cajas */}
-                <div className="bg-white rounded-lg p-3 border border-green-200">
-                  <label className="text-sm font-semibold text-zinc-700 mb-2 block">
-                    Cajas
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() =>
-                        setDetallesEmpaque((prev) => ({
-                          ...prev,
-                          cajas: Math.max(0, prev.cajas - 1),
-                        }))
-                      }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-                    >
-                      −
-                    </button>
-                    <input
-                      type="number"
-                      value={detallesEmpaque.cajas}
-                      onChange={(e) =>
-                        setDetallesEmpaque((prev) => ({
-                          ...prev,
-                          cajas: Math.max(0, parseInt(e.target.value) || 0),
-                        }))
-                      }
-                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
-                    />
-                    <button
-                      onClick={() =>
-                        setDetallesEmpaque((prev) => ({
-                          ...prev,
-                          cajas: prev.cajas + 1,
-                        }))
-                      }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
+              {/* Cajas */}
+<div className="bg-white rounded-lg p-2 sm:p-3 border border-green-200 w-full">
+  <label className="text-xs sm:text-sm font-semibold text-zinc-700 mb-1 sm:mb-2 block">
+    Cajas
+  </label>
+
+  <div className="flex items-center gap-2 w-full">
+    
+    {/* Botón menos */}
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          cajas: Math.max(0, prev.cajas - 1),
+        }))
+      }
+      className="w-10 h-10 flex-shrink-0 
+                 bg-zinc-200 hover:bg-zinc-300 
+                 rounded-md font-bold text-zinc-700 transition"
+    >
+      −
+    </button>
+
+    {/* Input */}
+    <input
+      type="number"
+      value={detallesEmpaque.cajas}
+      onChange={(e) =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          cajas: Math.max(0, parseInt(e.target.value) || 0),
+        }))
+      }
+      className="flex-1 min-w-0 text-center text-lg sm:text-xl font-bold 
+                 text-zinc-900 bg-white border border-zinc-300 
+                 rounded-md py-2"
+    />
+
+    {/* Botón más */}
+    <button
+      onClick={() =>
+        setDetallesEmpaque((prev) => ({
+          ...prev,
+          cajas: prev.cajas + 1,
+        }))
+      }
+      className="w-10 h-10 flex-shrink-0 
+                 bg-zinc-200 hover:bg-zinc-300 
+                 rounded-md font-bold text-zinc-700 transition"
+      >
+      +
+    </button>
+
+  </div>
+</div>
+
+
 
                 {/* Atados */}
                 <div className="bg-white rounded-lg p-3 border border-green-200">
@@ -15927,7 +15945,9 @@ if (backOrderExistente) {
                           atados: Math.max(0, prev.atados - 1),
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 
+                 bg-zinc-200 hover:bg-zinc-300 
+                 rounded-md font-bold text-zinc-700 transition"
                     >
                       −
                     </button>
@@ -15940,7 +15960,9 @@ if (backOrderExistente) {
                           atados: Math.max(0, parseInt(e.target.value) || 0),
                         }))
                       }
-                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                       className="flex-1 min-w-0 text-center text-lg sm:text-xl font-bold 
+                 text-zinc-900 bg-white border border-zinc-300 
+                 rounded-md py-2"
                     />
                     <button
                       onClick={() =>
@@ -15949,7 +15971,9 @@ if (backOrderExistente) {
                           atados: prev.atados + 1,
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 
+                 bg-zinc-200 hover:bg-zinc-300 
+                 rounded-md font-bold text-zinc-700 transition"
                     >
                       +
                     </button>
@@ -15969,7 +15993,7 @@ if (backOrderExistente) {
                           tubos: Math.max(0, prev.tubos - 1),
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       −
                     </button>
@@ -15982,7 +16006,9 @@ if (backOrderExistente) {
                           tubos: Math.max(0, parseInt(e.target.value) || 0),
                         }))
                       }
-                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                      className="flex-1 min-w-0 text-center text-lg sm:text-xl font-bold 
+                 text-zinc-900 bg-white border border-zinc-300 
+                 rounded-md py-2"
                     />
                     <button
                       onClick={() =>
@@ -15991,7 +16017,7 @@ if (backOrderExistente) {
                           tubos: prev.tubos + 1,
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0  bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       +
                     </button>
@@ -16011,7 +16037,7 @@ if (backOrderExistente) {
                           bolsas: Math.max(0, prev.bolsas - 1),
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       −
                     </button>
@@ -16024,7 +16050,9 @@ if (backOrderExistente) {
                           bolsas: Math.max(0, parseInt(e.target.value) || 0),
                         }))
                       }
-                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                      className="flex-1 min-w-0 text-center text-lg sm:text-xl font-bold 
+                 text-zinc-900 bg-white border border-zinc-300 
+                 rounded-md py-2"
                     />
                     <button
                       onClick={() =>
@@ -16033,7 +16061,7 @@ if (backOrderExistente) {
                           bolsas: prev.bolsas + 1,
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       +
                     </button>
@@ -16053,7 +16081,7 @@ if (backOrderExistente) {
                           rollos: Math.max(0, prev.rollos - 1),
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       −
                     </button>
@@ -16066,7 +16094,9 @@ if (backOrderExistente) {
                           rollos: Math.max(0, parseInt(e.target.value) || 0),
                         }))
                       }
-                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                       className="flex-1 min-w-0 text-center text-lg sm:text-xl font-bold 
+                 text-zinc-900 bg-white border border-zinc-300 
+                 rounded-md py-2"
                     />
                     <button
                       onClick={() =>
@@ -16075,7 +16105,7 @@ if (backOrderExistente) {
                           rollos: prev.rollos + 1,
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       +
                     </button>
@@ -16095,7 +16125,7 @@ if (backOrderExistente) {
                           galones: Math.max(0, prev.galones - 1),
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       −
                     </button>
@@ -16108,7 +16138,9 @@ if (backOrderExistente) {
                           galones: Math.max(0, parseInt(e.target.value) || 0),
                         }))
                       }
-                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                       className="flex-1 min-w-0 text-center text-lg sm:text-xl font-bold 
+                 text-zinc-900 bg-white border border-zinc-300 
+                 rounded-md py-2"
                     />
                     <button
                       onClick={() =>
@@ -16117,7 +16149,7 @@ if (backOrderExistente) {
                           galones: prev.galones + 1,
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       +
                     </button>
@@ -16137,7 +16169,7 @@ if (backOrderExistente) {
                           cubetas: Math.max(0, prev.cubetas - 1),
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       −
                     </button>
@@ -16150,7 +16182,9 @@ if (backOrderExistente) {
                           cubetas: Math.max(0, parseInt(e.target.value) || 0),
                         }))
                       }
-                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                       className="flex-1 min-w-0 text-center text-lg sm:text-xl font-bold 
+                 text-zinc-900 bg-white border border-zinc-300 
+                 rounded-md py-2"
                     />
                     <button
                       onClick={() =>
@@ -16159,7 +16193,7 @@ if (backOrderExistente) {
                           cubetas: prev.cubetas + 1,
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       +
                     </button>
@@ -16179,7 +16213,7 @@ if (backOrderExistente) {
                           losalit: Math.max(0, prev.losalit - 1),
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       −
                     </button>
@@ -16192,7 +16226,9 @@ if (backOrderExistente) {
                           losalit: Math.max(0, parseInt(e.target.value) || 0),
                         }))
                       }
-                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                       className="flex-1 min-w-0 text-center text-lg sm:text-xl font-bold 
+                 text-zinc-900 bg-white border border-zinc-300 
+                 rounded-md py-2"
                     />
                     <button
                       onClick={() =>
@@ -16201,7 +16237,7 @@ if (backOrderExistente) {
                           losalit: prev.losalit + 1,
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       +
                     </button>
@@ -16221,7 +16257,7 @@ if (backOrderExistente) {
                           porron: Math.max(0, prev.porron - 1),
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       −
                     </button>
@@ -16234,7 +16270,9 @@ if (backOrderExistente) {
                           porron: Math.max(0, parseInt(e.target.value) || 0),
                         }))
                       }
-                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                       className="flex-1 min-w-0 text-center text-lg sm:text-xl font-bold 
+                 text-zinc-900 bg-white border border-zinc-300 
+                 rounded-md py-2"
                     />
                     <button
                       onClick={() =>
@@ -16243,7 +16281,7 @@ if (backOrderExistente) {
                           porron: prev.porron + 1,
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       +
                     </button>
@@ -16263,7 +16301,7 @@ if (backOrderExistente) {
                           pieza: Math.max(0, prev.pieza - 1),
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       −
                     </button>
@@ -16276,7 +16314,9 @@ if (backOrderExistente) {
                           pieza: Math.max(0, parseInt(e.target.value) || 0),
                         }))
                       }
-                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                       className="flex-1 min-w-0 text-center text-lg sm:text-xl font-bold 
+                 text-zinc-900 bg-white border border-zinc-300 
+                 rounded-md py-2"
                     />
                     <button
                       onClick={() =>
@@ -16285,7 +16325,7 @@ if (backOrderExistente) {
                           pieza: prev.pieza + 1,
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       +
                     </button>
@@ -16305,7 +16345,7 @@ if (backOrderExistente) {
                           cilindro: Math.max(0, prev.cilindro - 1),
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       −
                     </button>
@@ -16318,7 +16358,9 @@ if (backOrderExistente) {
                           cilindro: Math.max(0, parseInt(e.target.value) || 0),
                         }))
                       }
-                      className="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg py-2"
+                       className="flex-1 min-w-0 text-center text-lg sm:text-xl font-bold 
+                 text-zinc-900 bg-white border border-zinc-300 
+                 rounded-md py-2"
                     />
                     <button
                       onClick={() =>
@@ -16327,7 +16369,7 @@ if (backOrderExistente) {
                           cilindro: prev.cilindro + 1,
                         }))
                       }
-                      className="w-10 h-10 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
+                      className="w-10 h-10 flex-shrink-0 bg-zinc-200 hover:bg-zinc-300 rounded-lg font-bold text-zinc-700 transition"
                     >
                       +
                     </button>
