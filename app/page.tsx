@@ -2064,6 +2064,7 @@ const VistaRutas = ({
         pdf_url,
         estado,
         es_domicilio,
+        requiere_recoleccion,
         cuentas (
           numero_cuenta,
           cliente,
@@ -13287,7 +13288,8 @@ if (backOrderExistente) {
         cuenta_id,
         pdf_url,
         estado,
-        es_domicilio,  
+        es_domicilio,
+        requiere_recoleccion,  
         cuentas (
   numero_cuenta,
   numero_cuenta_sicar,
@@ -13341,6 +13343,7 @@ if (backOrderExistente) {
               pdf_url,
               estado,
               es_domicilio,
+              requiere_recoleccion,
               cuentas (
   numero_cuenta,
   numero_cuenta_sicar,
@@ -13386,6 +13389,7 @@ if (backOrderExistente) {
               pdf_url,
               estado,
               es_domicilio,
+              requiere_recoleccion,
               cuentas (
   numero_cuenta,
   numero_cuenta_sicar,
@@ -13494,6 +13498,33 @@ if (backOrderExistente) {
               onEstadoChange={actualizarEstadoLocal}
             />
           )}
+
+          {/* Toggle requiere recolección */}
+{esAdmin && pedidoSeleccionado.estado === "surtiendo" && (
+  <button
+    onClick={async () => {
+  const nuevoValor = !pedidoSeleccionado.requiere_recoleccion;
+  await supabase
+    .from("pedidos")
+    .update({ requiere_recoleccion: nuevoValor })
+    .eq("id", pedidoSeleccionado.id);
+  setPedidoSeleccionado((prev: any) => ({ ...prev, requiere_recoleccion: nuevoValor }));
+  setPedidos((prev: any[]) =>
+    prev.map((p) =>
+      p.id === pedidoSeleccionado.id ? { ...p, requiere_recoleccion: nuevoValor } : p
+    )
+  );
+}}
+    className={`flex items-center justify-center w-full gap-2 px-3 py-2 rounded-lg text-sm font-semibold border transition ${
+      pedidoSeleccionado.requiere_recoleccion
+        ? "bg-yellow-100 border-yellow-400 text-yellow-700"
+        : "bg-white border-zinc-300 text-zinc-600"
+    }`}
+  >
+    <PackagePlus size={16} />
+    {pedidoSeleccionado.requiere_recoleccion ? "Recolección activada" : "Activar recolección"}
+  </button>
+)}
 
           {!esAdmin && (
             <div className="mb-4">
@@ -14958,6 +14989,507 @@ if (backOrderExistente) {
       </motion.div>
     );
   };
+const RecoleccionPanel = ({ supabase, onBack }: any) => {
+  const [pedidos, setPedidos] = useState<any[]>([]);
+  const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
+  const [hojas, setHojas] = useState<any[]>([]);
+  const [hojaActual, setHojaActual] = useState<any>(null);
+  const [cargando, setCargando] = useState(true);
+  const [productosSurtidos, setProductosSurtidos] = useState<Map<number, number>>(new Map());
+  const [ultimoEscaneo, setUltimoEscaneo] = useState("");
+  const [bufferEscaneo, setBufferEscaneo] = useState("");
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [mostrarModalCompletado, setMostrarModalCompletado] = useState(false);
+  const [modalAlerta, setModalAlerta] = useState<{ visible: boolean; titulo: string; mensaje: string; tipo: "error" | "warning" } | null>(null);
+  const [modalProductoActivo, setModalProductoActivo] = useState<{ visible: boolean; producto: any; cantidadActual: number; cantidadObjetivo: number } | null>(null);
+  const [guardando, setGuardando] = useState(false);
+
+  // Cargar pedidos en pendiente_recoleccion
+  useEffect(() => {
+    const cargar = async () => {
+      const { data } = await supabase
+        .from("pedidos")
+        .select("id, created_at, total, cuenta_id, cuentas(cliente, ferreteria, numero_cuenta)")
+        .eq("estado", "pendiente_recoleccion")
+        .order("created_at", { ascending: false });
+      setPedidos(data || []);
+      setCargando(false);
+    };
+    cargar();
+  }, []);
+
+  // Scroll al inicio al cambiar hoja
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [hojaActual]);
+
+  // Escáner de teclado (igual que surtido)
+  useEffect(() => {
+    if (!hojaActual || mostrarModalCompletado) return;
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        if (bufferEscaneo.trim()) {
+          procesarEscaneo(bufferEscaneo.trim());
+          setBufferEscaneo("");
+        }
+        return;
+      }
+      setBufferEscaneo((prev) => prev + e.key);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        if (bufferEscaneo.trim()) {
+          procesarEscaneo(bufferEscaneo.trim());
+          setBufferEscaneo("");
+        }
+      }, 100);
+    };
+
+    window.addEventListener("keypress", handleKeyPress);
+    return () => {
+      window.removeEventListener("keypress", handleKeyPress);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [bufferEscaneo, hojaActual, mostrarModalCompletado, productosSurtidos]);
+
+  // Detectar si todos los faltantes están completos
+  useEffect(() => {
+    if (!hojaActual) return;
+    const faltantes = hojaActual.productos.filter((p: any) => p.esFaltante);
+    if (faltantes.length === 0) return;
+
+    const todosCompletos = faltantes.every((item: any) => {
+      const surtidos = productosSurtidos.get(item.producto_id) || 0;
+      return surtidos >= item.cantidad_faltante;
+    });
+
+    if (todosCompletos) {
+      const timer = setTimeout(() => {
+        setMostrarModalCompletado(true);
+        if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [productosSurtidos, hojaActual]);
+
+  // Abrir pedido y cargar sus hojas
+  const abrirPedido = async (pedido: any) => {
+    setCargando(true);
+    const { data: hojasData } = await supabase
+      .from("hojas_surtido")
+      .select("*")
+      .eq("pedido_id", pedido.id)
+      .order("numero_hoja", { ascending: true });
+
+    if (!hojasData || hojasData.length === 0) {
+      alert("Este pedido no tiene hojas de surtido");
+      setCargando(false);
+      return;
+    }
+
+    const hojasConProductos = await Promise.all(
+      hojasData.map(async (hoja: any) => {
+        const itemsJson = JSON.parse(hoja.productos_asignados);
+        const codigos = itemsJson.map((p: any) => p.codigo);
+        const { data: productosDB } = await supabase
+          .from("productos")
+          .select("*")
+          .in("CODIGO", codigos);
+
+        const productos = itemsJson.map((itemJson: any) => {
+          const info = productosDB?.find((p: any) => p.CODIGO === itemJson.codigo);
+          const esFaltante = itemJson.estado === "PA" ||
+            (itemJson.estado === "parcial" && (itemJson.cantidad_pedida - itemJson.cantidad_surtida) > 0);
+          const cantidad_faltante = itemJson.estado === "PA"
+            ? itemJson.cantidad_pedida
+            : itemJson.cantidad_pedida - (itemJson.cantidad_surtida || 0);
+
+          return {
+            ...info,
+            producto_id: info?.id,
+            cantidad_pedida: itemJson.cantidad_pedida,
+            cantidad_surtida: itemJson.cantidad_surtida || 0,
+            cantidad_faltante: esFaltante ? cantidad_faltante : 0,
+            estadoOriginal: itemJson.estado,
+            esFaltante,
+          };
+        }).filter(Boolean);
+
+        // Faltantes primero, luego ya surtidos
+        productos.sort((a: any, b: any) => {
+          if (a.esFaltante && !b.esFaltante) return -1;
+          if (!a.esFaltante && b.esFaltante) return 1;
+          return (a.ubicacion || "ZZZZ").localeCompare(b.ubicacion || "ZZZZ", undefined, { numeric: true });
+        });
+
+        return { ...hoja, productos };
+      })
+    );
+
+    setPedidoSeleccionado(pedido);
+    setHojas(hojasConProductos);
+    setCargando(false);
+  };
+
+  const seleccionarHoja = (hoja: any) => {
+    const tieneFaltantes = hoja.productos.some((p: any) => p.esFaltante);
+    if (!tieneFaltantes) {
+      setModalAlerta({ visible: true, titulo: "Sin faltantes", mensaje: "Esta hoja no tiene productos faltantes.", tipo: "warning" });
+      return;
+    }
+    setHojaActual(hoja);
+    setProductosSurtidos(new Map());
+  };
+
+  const volverAHojas = () => {
+    setHojaActual(null);
+    setProductosSurtidos(new Map());
+    setMostrarModalCompletado(false);
+  };
+
+  const procesarEscaneo = (codigoEscaneado: string) => {
+    if (!hojaActual) return;
+    setUltimoEscaneo(codigoEscaneado);
+
+    const item = hojaActual.productos.find((p: any) =>
+      p.esFaltante && (p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado)
+    );
+
+    if (!item) {
+      if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+      setModalAlerta({ visible: true, titulo: "Producto Incorrecto", mensaje: `"${codigoEscaneado}" no es un faltante de esta hoja.`, tipo: "error" });
+      return;
+    }
+
+    const actual = productosSurtidos.get(item.producto_id) || 0;
+    if (actual >= item.cantidad_faltante) {
+      if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+      setModalAlerta({ visible: true, titulo: "Ya completo", mensaje: `"${item.TITULO}" ya tiene la cantidad recolectada.`, tipo: "warning" });
+      return;
+    }
+
+    const nueva = actual + 1;
+    const nuevoMapa = new Map(productosSurtidos);
+    nuevoMapa.set(item.producto_id, nueva);
+    setProductosSurtidos(nuevoMapa);
+
+    setModalProductoActivo({ visible: true, producto: item, cantidadActual: nueva, cantidadObjetivo: item.cantidad_faltante });
+    if (nueva >= item.cantidad_faltante) {
+      setTimeout(() => setModalProductoActivo(null), 1500);
+    }
+    if ("vibrate" in navigator) navigator.vibrate(50);
+  };
+
+  const confirmarHoja = async () => {
+    if (!hojaActual || !pedidoSeleccionado) return;
+    setGuardando(true);
+
+    // Actualizar productos_asignados: los faltantes pasan a "completo"
+    const productosActualizados = hojaActual.productos.map((item: any) => ({
+      codigo: item.CODIGO,
+      cantidad_pedida: item.cantidad_pedida,
+      cantidad_surtida: item.esFaltante
+        ? (item.cantidad_surtida || 0) + (productosSurtidos.get(item.producto_id) || 0)
+        : item.cantidad_surtida,
+      estado: item.esFaltante ? "completo" : item.estadoOriginal,
+    }));
+
+    await supabase
+      .from("hojas_surtido")
+      .update({ productos_asignados: JSON.stringify(productosActualizados) })
+      .eq("id", hojaActual.id);
+
+    // Actualizar hojas localmente
+    const hojasActualizadas = hojas.map((h) =>
+      h.id === hojaActual.id
+        ? { ...h, productos: h.productos.map((p: any) => ({ ...p, esFaltante: false })) }
+        : h
+    );
+    setHojas(hojasActualizadas);
+
+    // Verificar si todas las hojas ya no tienen faltantes
+    const todasSinFaltantes = hojasActualizadas.every((h) =>
+      h.productos.every((p: any) => !p.esFaltante)
+    );
+
+    if (todasSinFaltantes) {
+      await supabase.from("pedidos").update({ estado: "por_revisar" }).eq("id", pedidoSeleccionado.id);
+      if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+      alert("¡Recolección completa! El pedido pasó a revisión.");
+      setPedidos((prev) => prev.filter((p) => p.id !== pedidoSeleccionado.id));
+      setPedidoSeleccionado(null);
+      setHojas([]);
+    }
+
+    setMostrarModalCompletado(false);
+    setHojaActual(null);
+    setProductosSurtidos(new Map());
+    setGuardando(false);
+  };
+
+  // ── Vista: lista de pedidos ──
+  if (!pedidoSeleccionado) {
+    return (
+      <motion.div className="min-h-screen pb-10" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
+        <BackBtn onBack={onBack} />
+        <h2 className="text-xl font-bold text-zinc-900 mb-4">Recolección Pendiente</h2>
+        {cargando ? (
+          <div className="flex justify-center py-10"><div className="animate-spin h-8 w-8 border-4 border-yellow-500 border-t-transparent rounded-full" /></div>
+        ) : pedidos.length === 0 ? (
+          <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
+            <PackageSearch size={40} className="mx-auto text-zinc-300 mb-2" />
+            <p className="text-zinc-500">No hay pedidos pendientes de recolección</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pedidos.map((pedido) => (
+              <button key={pedido.id} onClick={() => abrirPedido(pedido)} className="w-full bg-white rounded-xl border border-yellow-300 p-4 text-left shadow-sm">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-bold text-zinc-900">{pedido.cuentas?.cliente || pedido.cuentas?.ferreteria || pedido.cuentas?.numero_cuenta}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Pedido #{pedido.id}</p>
+                  </div>
+                  <span className="text-xs bg-yellow-100 text-yellow-700 font-semibold px-2 py-1 rounded-full">Con faltantes</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+
+  // ── Vista: lista de hojas ──
+  if (!hojaActual) {
+    return (
+      <motion.div className="min-h-screen pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <BackBtn onBack={() => { setPedidoSeleccionado(null); setHojas([]); }} />
+        <h2 className="text-xl font-bold text-zinc-900 mb-2">Pedido #{pedidoSeleccionado.id} - Selecciona Hoja</h2>
+        <div className="space-y-3">
+          {hojas.map((hoja) => {
+            const faltantes = hoja.productos.filter((p: any) => p.esFaltante);
+            const completos = hoja.productos.filter((p: any) => !p.esFaltante);
+            return (
+              <div key={hoja.id} onClick={() => seleccionarHoja(hoja)}
+                className={`border-2 rounded-xl p-4 cursor-pointer transition ${
+                  faltantes.length === 0 ? "bg-green-50 border-green-400 cursor-not-allowed" : "bg-white border-yellow-300 hover:border-yellow-500"
+                }`}
+              >
+                <div className="flex justify-between items-center mb-1">
+                  <p className="font-bold text-zinc-900 text-lg">Hoja #{hoja.numero_hoja}</p>
+                  {faltantes.length === 0
+                    ? <span className="text-xs bg-green-100 text-green-700 font-semibold px-2 py-1 rounded-full">✓ Completa</span>
+                    : <span className="text-xs bg-yellow-100 text-yellow-700 font-semibold px-2 py-1 rounded-full">{faltantes.length} faltante(s)</span>
+                  }
+                </div>
+                <p className="text-xs text-zinc-500">{completos.length} ya surtidos · {faltantes.length} por recolectar</p>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Alerta */}
+        {modalAlerta?.visible && typeof document !== "undefined" && createPortal(
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
+            onClick={() => setModalAlerta(null)}
+          >
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center">
+              <p className="font-bold text-lg mb-2">{modalAlerta.titulo}</p>
+              <p className="text-zinc-600 text-sm mb-4">{modalAlerta.mensaje}</p>
+              <button onClick={() => setModalAlerta(null)} className="bg-zinc-800 text-white px-6 py-2 rounded-lg font-semibold">OK</button>
+            </div>
+          </motion.div>,
+          document.body
+        )}
+      </motion.div>
+    );
+  }
+
+  // ── Vista: surtido activo de faltantes ──
+  const faltantes = hojaActual.productos.filter((p: any) => p.esFaltante);
+  const surtidosTotal = faltantes.reduce((sum: number, item: any) => sum + (productosSurtidos.get(item.producto_id) || 0), 0);
+  const totalFaltantes = faltantes.reduce((sum: number, item: any) => sum + item.cantidad_faltante, 0);
+  const progreso = totalFaltantes > 0 ? (surtidosTotal / totalFaltantes) * 100 : 0;
+  const estaCompleto = surtidosTotal >= totalFaltantes && totalFaltantes > 0;
+
+  return (
+    <motion.div className="min-h-screen pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <BackBtn onBack={volverAHojas} />
+      <h2 className="text-xl font-bold text-zinc-900 mb-2">Pedido #{pedidoSeleccionado.id} - Hoja #{hojaActual.numero_hoja}</h2>
+
+      {/* Barra de progreso */}
+      <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+        <div className="flex justify-between mb-2">
+          <span className="text-sm font-semibold text-zinc-700">Faltantes recolectados</span>
+          <span className={`text-sm font-bold ${estaCompleto ? "text-green-600" : "text-yellow-600"}`}>{surtidosTotal} / {totalFaltantes}</span>
+        </div>
+        <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
+          <motion.div initial={{ width: 0 }} animate={{ width: `${progreso}%` }}
+            className={`h-full rounded-full transition-colors duration-300 ${estaCompleto ? "bg-green-500" : "bg-yellow-500"}`}
+          />
+        </div>
+        {estaCompleto && (
+          <motion.button initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            onClick={() => setMostrarModalCompletado(true)}
+            className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold shadow-md transition"
+          >
+            CONFIRMAR HOJA COMPLETA
+          </motion.button>
+        )}
+      </div>
+
+      {/* Indicador escaneo */}
+      {!estaCompleto && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 flex items-center gap-3">
+          <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse" />
+          <span className="text-sm text-yellow-800 font-medium">Esperando escaneo de faltantes...</span>
+        </div>
+      )}
+
+      {/* Lista de productos */}
+      <div className="space-y-2 pb-20">
+        {hojaActual.productos.map((item: any) => {
+          const surtido = productosSurtidos.get(item.producto_id) || 0;
+          const completado = !item.esFaltante || surtido >= item.cantidad_faltante;
+          const ultimoEscaneado = ultimoEscaneo === item.CODIGO || ultimoEscaneo === item.C_PRODUCTO;
+
+          return (
+            <motion.div key={item.producto_id}
+              animate={{
+                scale: ultimoEscaneado ? [1, 1.02, 1] : 1,
+                backgroundColor: !item.esFaltante ? "#dcfce7" : completado ? "#dcfce7" : "#ffffff",
+                borderColor: !item.esFaltante ? "#22c55e" : completado ? "#22c55e" : "#fde047",
+              }}
+              className="border-2 rounded-xl p-3 shadow-sm transition-colors duration-300"
+            >
+              <p className="text-sm font-semibold text-zinc-800 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">{item.CODIGO}</p>
+              <p className="text-sm font-semibold text-zinc-800 mb-2 line-clamp-3 leading-tight">{item.TITULO}</p>
+              <div className="flex items-center gap-3">
+                <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
+                  <Image
+                    src={item.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                    alt={item.TITULO} fill className="object-contain"
+                  />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-zinc-500">{item.ubicacion || "Sin ubicación"}</p>
+
+                  {!item.esFaltante ? (
+                    <div className="mt-1 bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded inline-block">
+                      ✓ Ya surtido: {item.cantidad_surtida}/{item.cantidad_pedida}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="flex-1 bg-zinc-200 h-2 rounded-full overflow-hidden">
+                        <div className={`h-full ${completado ? "bg-green-500" : "bg-yellow-500"}`}
+                          style={{ width: `${Math.min((surtido / item.cantidad_faltante) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <span className={`text-sm font-bold ${completado ? "text-green-600" : "text-yellow-600"}`}>
+                        {surtido}/{item.cantidad_faltante}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {completado && (
+                  <div className="bg-green-100 p-1 rounded-full text-green-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Modal confirmar hoja */}
+      {typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {mostrarModalCompletado && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
+            >
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+                  <CheckCircle size={40} className="text-green-500" />
+                </div>
+                <h3 className="text-xl font-bold text-zinc-900 mb-2">¡Faltantes recolectados!</h3>
+                <p className="text-zinc-600 text-sm mb-6">Todos los productos faltantes de esta hoja han sido recolectados.</p>
+                <button onClick={confirmarHoja} disabled={guardando}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold transition"
+                >
+                  {guardando ? "Guardando..." : "Confirmar y continuar →"}
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Modal alerta */}
+      {typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {modalAlerta?.visible && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
+              onClick={() => setModalAlerta(null)}
+            >
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${modalAlerta.tipo === "error" ? "bg-red-100" : "bg-yellow-100"}`}>
+                  <X size={36} className={modalAlerta.tipo === "error" ? "text-red-500" : "text-yellow-500"} />
+                </div>
+                <h3 className="text-xl font-bold text-zinc-900 mb-2">{modalAlerta.titulo}</h3>
+                <p className="text-zinc-600 text-sm mb-6">{modalAlerta.mensaje}</p>
+                <button onClick={() => setModalAlerta(null)} className="w-full bg-zinc-800 text-white py-3 rounded-xl font-bold">OK</button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Modal producto activo al escanear */}
+      {typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {modalProductoActivo?.visible && (
+            <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
+              className="fixed bottom-24 left-4 right-4 z-[50000]"
+              onClick={() => setModalProductoActivo(null)}
+            >
+              <div className="bg-zinc-900 text-white rounded-2xl p-4 shadow-2xl flex items-center gap-4">
+                <div className="relative w-14 h-14 bg-zinc-700 rounded-xl overflow-hidden flex-shrink-0">
+                  <Image src={modalProductoActivo.producto.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23374151' width='400' height='400'/%3E%3C/svg%3E"}
+                    alt="" fill className="object-contain"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm leading-tight line-clamp-2">{modalProductoActivo.producto.TITULO}</p>
+                  <p className="text-yellow-400 font-bold text-lg mt-1">
+                    {modalProductoActivo.cantidadActual} / {modalProductoActivo.cantidadObjetivo}
+                  </p>
+                </div>
+                {modalProductoActivo.cantidadActual >= modalProductoActivo.cantidadObjetivo && (
+                  <CheckCircle size={28} className="text-green-400 flex-shrink-0" />
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+    </motion.div>
+  );
+};
 
   const VistaRevision = ({ setVistaPerfil }: any) => {
     const [pedidosPorRevisar, setPedidosPorRevisar] = useState<any[]>([]);
@@ -17546,22 +18078,44 @@ if (empleadosSurtiendo.length > 0) {
           ),
         );
 
-        // Verificar si todas las hojas están completas
         const { data: todasHojas } = await supabase
-          .from("hojas_surtido")
-          .select("estado")
-          .eq("pedido_id", pedidoSurtir.id);
+  .from("hojas_surtido")
+  .select("estado, productos_asignados")
+  .eq("pedido_id", pedidoSurtir.id);
 
         const todasCompletas = todasHojas?.every(
           (h) => h.estado === "completado",
         );
 
         if (todasCompletas) {
-          await supabase
-            .from("pedidos")
-            .update({ estado: "por_revisar" })
-            .eq("id", pedidoSurtir.id);
-        }
+  const { data: pedidoInfo } = await supabase
+    .from("pedidos")
+    .select("requiere_recoleccion")
+    .eq("id", pedidoSurtir.id)
+    .single();
+
+  const hayFaltantes = todasHojas?.some((hoja: any) => {
+  if (!hoja.productos_asignados) return false;
+  try {
+    const productos = JSON.parse(hoja.productos_asignados);
+    return productos.some((p: any) =>
+      p.estado === "PA" || (p.estado === "parcial" && (p.cantidad_pedida - p.cantidad_surtida) > 0)
+    );
+  } catch {
+    return false;
+  }
+});
+
+  const nuevoEstado =
+    pedidoInfo?.requiere_recoleccion && hayFaltantes
+      ? "pendiente_recoleccion"
+      : "por_revisar";
+
+  await supabase
+    .from("pedidos")
+    .update({ estado: nuevoEstado })
+    .eq("id", pedidoSurtir.id);
+}
 
         setMostrarModalCompletado(false);
         setHojaActual(null);
@@ -17570,7 +18124,6 @@ if (empleadosSurtiendo.length > 0) {
         setProductosParciales(new Map());
         setProductosIngresoManual(new Set());
 
-        // Limpiar estado local guardado
         limpiarEstadoLocal(hojaActual.id);
       } catch (err) {
         console.error("Error al completar hoja:", err);
@@ -21431,6 +21984,17 @@ if (empleadosSurtiendo.length > 0) {
                             />
                           )}
 
+                          {(esEmpleado || esAdmin) && (
+  <MenuItem
+    label="Recolección Pendiente"
+    icon={<PackagePlus size={20} />}
+    onClick={() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      setVistaPerfil("recoleccion");
+    }}
+  />
+)}
+
                           {/* Ubicación */}
                           {!esAdmin && (
                             <MenuItem
@@ -21768,6 +22332,13 @@ if (empleadosSurtiendo.length > 0) {
                     {vistaPerfil === "revision"  && (esEmpleado || esAdmin) && (
                       <VistaRevision setVistaPerfil={setVistaPerfil} />
                     )}
+
+                    {vistaPerfil === "recoleccion" && (esEmpleado || esAdmin) && (
+  <RecoleccionPanel
+    supabase={supabase}
+    onBack={() => setVistaPerfil("menu")}
+  />
+)}
 
                     {vistaPerfil === "gestionar-banner" && (
                       <GestionarBannerView setVistaPerfil={setVistaPerfil} />
