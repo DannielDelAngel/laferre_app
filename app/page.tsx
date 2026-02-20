@@ -3918,7 +3918,7 @@ export default function HomePage() {
   const esAdminMostrador2 = cuenta?.numero_cuenta === "admin-M02";
   const ID_CUENTA_MOSTRADOR = 39;
   const ID_CUENTA_MOSTRADOR2 = 41;
-  const CUENTAS_RUTAS = ["Rutas", "Rutas2"];
+  const CUENTAS_RUTAS = ["Rutas1", "Rutas2"];
 
   const esRutas = cuenta?.numero_cuenta
     ? CUENTAS_RUTAS.includes(cuenta.numero_cuenta)
@@ -13989,6 +13989,7 @@ if (backOrderExistente) {
                 PDF no disponible para este pedido
               </p>
             </div>
+            
           )}
 
           {/* Modal de Confirmar Completado */}
@@ -15494,6 +15495,9 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
   const VistaRevision = ({ setVistaPerfil }: any) => {
     const [pedidosPorRevisar, setPedidosPorRevisar] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
+    const [cajas, setCajas] = useState<string[]>([]);
+const [esperandoCaja, setEsperandoCaja] = useState(false);
+const [nombresEmpleados, setNombresEmpleados] = useState<Record<string, string>>({});
     const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
     const [hojaActual, setHojaActual] = useState<any>(null);
     const [productosVerificados, setProductosVerificados] = useState<
@@ -15619,6 +15623,25 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
         .eq("pedido_id", pedido.id)
         .order("numero_hoja", { ascending: true });
 
+        const empleados = hojasData
+  ?.filter((h: any) => h.empleado_surtiendo)
+  .map((h: any) => h.empleado_surtiendo) || [];
+
+if (empleados.length > 0) {
+  const { data: cuentasInfo } = await supabase
+    .from("cuentas")
+    .select("numero_cuenta, cliente")
+    .in("numero_cuenta", [...new Set(empleados)]);
+
+  if (cuentasInfo) {
+    const mapa: Record<string, string> = {};
+    cuentasInfo.forEach((c: any) => {
+      mapa[c.numero_cuenta] = c.cliente || c.numero_cuenta;
+    });
+    setNombresEmpleados(mapa);
+  }
+}
+
       if (!hojasData || hojasData.length === 0) {
         alert("Este pedido no tiene hojas de surtido");
         return;
@@ -15709,39 +15732,50 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
     };
 
     // Lógica de escaneo
-    useEffect(() => {
-      if (!hojaActual || mostrarModalCompletado) return;
+  useEffect(() => {
+  if (!hojaActual) return;
 
-      const handleKeyPress = (e: KeyboardEvent) => {
-        if (e.key === "Enter") {
-          if (bufferEscaneo.trim()) {
-            procesarEscaneo(bufferEscaneo.trim());
-            setBufferEscaneo("");
-          }
-          return;
+  const handleKeyPress = (e: KeyboardEvent) => {
+    if (e.key === "Enter") {
+      if (bufferEscaneo.trim()) {
+        if (mostrarModalCompletado && esperandoCaja) {
+          // Escaneo de caja
+          const codigo = bufferEscaneo.trim();
+          setCajas((prev) =>
+            prev.includes(codigo) ? prev : [...prev, codigo]
+          );
+          if ("vibrate" in navigator) navigator.vibrate(50);
+        } else if (!mostrarModalCompletado) {
+          procesarEscaneo(bufferEscaneo.trim());
         }
-        setBufferEscaneo((prev) => prev + e.key);
+        setBufferEscaneo("");
+      }
+      return;
+    }
+    setBufferEscaneo((prev) => prev + e.key);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      if (bufferEscaneo.trim()) {
+        if (mostrarModalCompletado && esperandoCaja) {
+          const codigo = bufferEscaneo.trim();
+          setCajas((prev) =>
+            prev.includes(codigo) ? prev : [...prev, codigo]
+          );
+          if ("vibrate" in navigator) navigator.vibrate(50);
+        } else if (!mostrarModalCompletado) {
+          procesarEscaneo(bufferEscaneo.trim());
+        }
+        setBufferEscaneo("");
+      }
+    }, 100);
+  };
 
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
-          if (bufferEscaneo.trim()) {
-            procesarEscaneo(bufferEscaneo.trim());
-            setBufferEscaneo("");
-          }
-        }, 100);
-      };
-
-      window.addEventListener("keypress", handleKeyPress);
-      return () => {
-        window.removeEventListener("keypress", handleKeyPress);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      };
-    }, [
-      bufferEscaneo,
-      hojaActual,
-      productosVerificados,
-      mostrarModalCompletado,
-    ]);
+  window.addEventListener("keypress", handleKeyPress);
+  return () => {
+    window.removeEventListener("keypress", handleKeyPress);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  };
+}, [bufferEscaneo, hojaActual, productosVerificados, mostrarModalCompletado, esperandoCaja]);
 
     const procesarEscaneo = (codigoEscaneado: string) => {
       if (!hojaActual) return;
@@ -16938,9 +16972,14 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
           }),
         );
 
-        await supabase
-          .from("codigos_etiquetas")
-          .insert(codigosParaInsertar);
+       await supabase
+  .from("codigos_etiquetas")
+  .delete()
+  .eq("pedido_id", pedidoSeleccionado.id);
+
+await supabase
+  .from("codigos_etiquetas")
+  .insert(codigosParaInsertar);
 
         alert(
           `Etiquetas impresas: ${data.copias} (${data.codigosGenerados.length} con código)`,
@@ -16982,6 +17021,47 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
         <h2 className="text-xl font-bold text-zinc-900 mb-2">
           Hoja #{hojaActual.numero_hoja} - Revisión
         </h2>
+
+        {/* Info de la hoja */}
+{(hojaActual.empleado_surtiendo || (hojaActual.cajas && hojaActual.cajas.length > 0)) && (
+  <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-3 mb-4 flex flex-wrap gap-3">
+    {hojaActual.empleado_surtiendo && (
+      <div className="flex items-center gap-2">
+        <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-blue-600">
+            <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
+          </svg>
+        </div>
+        <div>
+          <p className="text-xs text-zinc-400">Surtido por</p>
+          <p className="text-sm font-bold text-zinc-800">
+            {nombresEmpleados[hojaActual.empleado_surtiendo] || hojaActual.empleado_surtiendo}
+          </p>
+        </div>
+      </div>
+    )}
+
+    {hojaActual.cajas && hojaActual.cajas.length > 0 && (
+      <div className="flex items-start gap-2">
+        <div className="w-7 h-7 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span className="text-sm">📦</span>
+        </div>
+        <div>
+          <p className="text-xs text-zinc-400">
+            {hojaActual.cajas.length === 1 ? "Caja" : "Cajas"}
+          </p>
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {hojaActual.cajas.map((c: string) => (
+              <span key={c} className="text-xs font-bold font-mono bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                {c}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
         {/* Barra de progreso */}
         <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
@@ -17721,6 +17801,8 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
     const [hojasPedido, setHojasPedido] = useState<any[]>([]);
     const [hojaActual, setHojaActual] = useState<any>(null);
     const [cargandoHojas, setCargandoHojas] = useState(true);
+    const [cajas, setCajas] = useState<string[]>([]);
+const [esperandoCaja, setEsperandoCaja] = useState(false);
     const [productosSurtidosHoja, setProductosSurtidosHoja] = useState<
       Map<number, number>
     >(new Map());
@@ -18061,13 +18143,14 @@ if (empleadosSurtiendo.length > 0) {
         });
 
         await supabase
-          .from("hojas_surtido")
-          .update({
-            estado: "completado",
-            fecha_completado: new Date().toISOString(),
-            productos_asignados: JSON.stringify(productosParaGuardar),
-          })
-          .eq("id", hojaActual.id);
+  .from("hojas_surtido")
+  .update({
+    estado: "completado",
+    fecha_completado: new Date().toISOString(),
+    productos_asignados: JSON.stringify(productosParaGuardar),
+    cajas: cajas,
+  })
+  .eq("id", hojaActual.id);
 
         // ACTUALIZAR EL ESTADO LOCAL DE HOJAS
         setHojasPedido((prevHojas) =>
@@ -18123,6 +18206,8 @@ if (empleadosSurtiendo.length > 0) {
         setProductosPA(new Set());
         setProductosParciales(new Map());
         setProductosIngresoManual(new Set());
+        setCajas([]);
+setEsperandoCaja(false);
 
         limpiarEstadoLocal(hojaActual.id);
       } catch (err) {
@@ -18134,38 +18219,55 @@ if (empleadosSurtiendo.length > 0) {
 
     // Lógica del escáner
     useEffect(() => {
-      if (!hojaActual || mostrarModalCompletado) return;
+  if (!hojaActual) return;
 
-      const handleKeyPress = (e: KeyboardEvent) => {
-        if (e.key === "Enter") {
-          if (bufferEscaneo.trim()) {
-            procesarEscaneo(bufferEscaneo.trim());
-            setBufferEscaneo("");
-          }
-          return;
+  const handleKeyPress = (e: KeyboardEvent) => {
+    if (e.key === "Enter") {
+      if (bufferEscaneo.trim()) {
+        if (mostrarModalCompletado && esperandoCaja) {
+          const codigo = bufferEscaneo.trim();
+          setCajas((prev) =>
+            prev.includes(codigo) ? prev : [...prev, codigo]
+          );
+          if ("vibrate" in navigator) navigator.vibrate(50);
+        } else if (!mostrarModalCompletado) {
+          procesarEscaneo(bufferEscaneo.trim());
         }
-        setBufferEscaneo((prev) => prev + e.key);
+        setBufferEscaneo("");
+      }
+      return;
+    }
+    setBufferEscaneo((prev) => prev + e.key);
 
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
-          if (bufferEscaneo.trim()) {
-            procesarEscaneo(bufferEscaneo.trim());
-            setBufferEscaneo("");
-          }
-        }, 100);
-      };
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      if (bufferEscaneo.trim()) {
+        if (mostrarModalCompletado && esperandoCaja) {
+          const codigo = bufferEscaneo.trim();
+          setCajas((prev) =>
+            prev.includes(codigo) ? prev : [...prev, codigo]
+          );
+          if ("vibrate" in navigator) navigator.vibrate(50);
+        } else if (!mostrarModalCompletado) {
+          procesarEscaneo(bufferEscaneo.trim());
+        }
+        setBufferEscaneo("");
+      }
+    }, 100);
+  };
 
-      window.addEventListener("keypress", handleKeyPress);
-      return () => {
-        window.removeEventListener("keypress", handleKeyPress);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      };
-    }, [
-      bufferEscaneo,
-      hojaActual,
-      productosSurtidosHoja,
-      mostrarModalCompletado,
-    ]);
+  window.addEventListener("keypress", handleKeyPress);
+  return () => {
+    window.removeEventListener("keypress", handleKeyPress);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  };
+}, [
+  bufferEscaneo,
+  hojaActual,
+  productosSurtidosHoja,
+  mostrarModalCompletado,
+  esperandoCaja,
+]);
 
     const procesarEscaneo = (codigoEscaneado: string) => {
       if (!hojaActual) return;
@@ -18293,9 +18395,11 @@ if (empleadosSurtiendo.length > 0) {
 
       if (todosManejados && hojaActual) {
         const timer = setTimeout(() => {
-          setMostrarModalCompletado(true);
-          if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
-        }, 500);
+  setMostrarModalCompletado(true);
+  setCajas([]);
+  setEsperandoCaja(true);
+  if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+}, 500);
         return () => clearTimeout(timer);
       }
     }, [productosSurtidosHoja, productosPA, productosParciales, hojaActual]);
@@ -18948,49 +19052,68 @@ if (empleadosSurtiendo.length > 0) {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={3}
-                        stroke="currentColor"
-                        className="w-14 h-14 text-green-600"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M4.5 12.75l6 6 9-13.5"
-                        />
-                      </svg>
-                    </div>
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-14 h-14 text-green-600">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+  </svg>
+</div>
 
-                    <h3 className="text-2xl font-bold mb-2 text-zinc-900">
-                      ¡Hoja Completa!
-                    </h3>
+<h3 className="text-2xl font-bold mb-2 text-zinc-900">¡Hoja Completa!</h3>
+<p className="text-zinc-600 text-base mb-4">
+  Has completado la <strong>Hoja #{hojaActual.numero_hoja}</strong>
+</p>
 
-                    <p className="text-zinc-600 text-lg mb-8">
-                      Has completado la{" "}
-                      <strong>Hoja #{hojaActual.numero_hoja}</strong> del
-                      pedido.
-                    </p>
+{/* Sección de cajas */}
+<div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4 mb-4 text-left">
+  <div className="flex items-center gap-2 mb-3">
+    <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse flex-shrink-0" />
+    <span className="text-sm font-bold text-orange-700">
+      Escanea las cajas donde depositaste los productos
+    </span>
+  </div>
 
-                    <button
-                      onClick={completarHoja}
-                      disabled={guardandoCierre}
-                      className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {guardandoCierre
-                        ? "GUARDANDO..."
-                        : "CONFIRMAR Y CONTINUAR"}
-                    </button>
+  {cajas.length > 0 && (
+    <div className="space-y-2 mb-3">
+      {cajas.map((caja, idx) => (
+        <div key={idx} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-orange-200">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">📦</span>
+            <span className="font-mono font-bold text-zinc-800 text-sm">{caja}</span>
+          </div>
+          <button
+            onClick={() => setCajas((prev) => prev.filter((_, i) => i !== idx))}
+            className="text-red-400 hover:text-red-600 font-bold text-sm"
+          >✕</button>
+        </div>
+      ))}
+    </div>
+  )}
 
-                    <button
-                      onClick={() => setMostrarModalCompletado(false)}
-                      className="mt-4 text-zinc-400 text-sm hover:text-zinc-600 underline"
-                      disabled={guardandoCierre}
-                    >
-                      Revisar de nuevo
-                    </button>
+  <p className="text-xs text-orange-500 text-center">
+    {cajas.length === 0
+      ? "Apunta el escáner al código de cada caja"
+      : "Escanea otra caja si hay más"}
+  </p>
+</div>
+
+<button
+  onClick={completarHoja}
+  disabled={guardandoCierre || cajas.length === 0}
+  className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+>
+  {guardandoCierre
+    ? "GUARDANDO..."
+    : cajas.length === 0
+      ? "Escanea al menos una caja"
+      : `CONFIRMAR (${cajas.length} caja${cajas.length > 1 ? "s" : ""})`}
+</button>
+
+<button
+  onClick={() => { setMostrarModalCompletado(false); setEsperandoCaja(false); }}
+  className="mt-4 text-zinc-400 text-sm hover:text-zinc-600 underline"
+  disabled={guardandoCierre}
+>
+  Revisar de nuevo
+</button>
                   </motion.div>
                 </motion.div>
               )}
