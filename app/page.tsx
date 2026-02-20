@@ -1564,6 +1564,31 @@ const VistaProducto = ({
                     </span>
                   </div>
                 )}
+
+                {esAdmin && (
+                  <>
+                    <div className="flex justify-between py-2">
+                      <span className="font-medium">Stock</span>
+                      <span className={`font-bold ${
+                        (producto.existencia || 0) === 0
+                          ? "text-red-500"
+                          : (producto.existencia || 0) < 10
+                            ? "text-yellow-500"
+                            : "text-green-600"
+                      }`}>
+                        {producto.existencia ?? 0} unidades
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span className="font-medium">Ubicación</span>
+                      <span className="text-zinc-600 text-sm">
+                        {producto.ubicacion || "Sin ubicación"}
+                      </span>
+                    </div>
+                  </>
+                )}
+              
+              
               </div>
 
               <div className="mt-5 px-4">
@@ -18532,9 +18557,14 @@ setEsperandoCaja(false);
       >
         <BackBtn onBack={volverAHojas} />
 
-        <h2 className="text-xl font-bold text-zinc-900 mb-2">
-          Pedido #{pedidoSurtir.id} - Hoja #{hojaActual.numero_hoja}
-        </h2>
+        <h2 className="text-xl font-bold text-zinc-900 mb-1">
+  Pedido #{pedidoSurtir.id} - Hoja #{hojaActual.numero_hoja}
+</h2>
+{pedidoSurtir.cuentas?.cliente && (
+  <p className="text-sm text-zinc-500 mb-3 font-medium">
+    {pedidoSurtir.cuentas.cliente}
+  </p>
+)}
 
         {/* Barra de progreso */}
         <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
@@ -21256,11 +21286,29 @@ setEsperandoCaja(false);
                                     className="object-contain"
                                   />
                                 </div>
+
                                 <div>
                                   <p className="font-semibold">{prod.TITULO}</p>
                                   <p className="text-xs text-zinc-500">
                                     Código: {prod.CODIGO}
                                   </p>
+                                   {/* Mostrar existencia para admin */}
+                                      {esAdmin && (
+                                        <div className=" flex items-center gap-1">
+                                          <Package className="w-3 h-3 text-zinc-400" />
+                                          <p
+                                            className={`text-xs font-semibold ${
+                                              (prod.existencia || 0) === 0
+                                                ? "text-zinc-500"
+                                                : (prod.existencia || 0) < 10
+                                                  ? "text-zinc-500"
+                                                  : "text-zinc-500"
+                                            }`}
+                                          >
+                                            Stock: {prod.existencia || 0}
+                                          </p>
+                                        </div>
+                                      )}
 
                                   <div className="flex gap-2 mt-1.5">
     {prod.liquidacion && (
@@ -21274,6 +21322,7 @@ setEsperandoCaja(false);
       </span>
     )}
   </div>
+ 
 
                                   {!esMostrador && !esMostrador2 && (
                                     <p className="text-xs text-orange-500 font-semibold">
