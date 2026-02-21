@@ -10932,7 +10932,8 @@ const [busqueda, setBusqueda] = useState("");
           const cProducto = fila.C_PRODUCTO || fila.c_producto;
           const titulo = fila.TITULO || fila.titulo;
           const existencia = fila.EXISTENCIA || fila.existencia;
-          const categoriaId = fila.CATEGORIA_ID || fila.categoria_id;
+const categoriaId = fila.CATEGORIA_ID || fila.categoria_id;
+const ubicacion = fila.UBICACION || fila.ubicacion;
 
           if (!codigo) {
             errores++;
@@ -10957,6 +10958,8 @@ const [busqueda, setBusqueda] = useState("");
   datosActualizar.existencia = parseInt(existencia);
 if (categoriaId !== undefined && categoriaId !== null)
   datosActualizar.CATEGORIA_ID = parseInt(categoriaId);
+if (ubicacion !== undefined && ubicacion !== null)
+  datosActualizar.ubicacion = ubicacion;
 
           // Si no hay nada que actualizar, saltar
           if (Object.keys(datosActualizar).length === 0) {
@@ -11212,11 +11215,11 @@ const exportarErroresExcel = () => {
               <li>
                 Columnas opcionales: <strong>P_MAYOREO</strong>,{" "}
                 <strong>DESCRIPCION</strong>, <strong>C_PRODUCTO</strong>,{" "}
-                <strong>TITULO</strong>, <strong>EXISTENCIA</strong>, <strong>CATEGORIA_ID</strong>
+                <strong>TITULO</strong>, <strong>EXISTENCIA</strong>, <strong>CATEGORIA_ID</strong>, <strong>UBICACION</strong>
               </li>
               <li>
                 También acepta minúsculas: codigo, p_mayoreo, precio,
-                descripcion, c_producto, titulo, existencia, categoria_id
+                descripcion, c_producto, titulo, existencia, categoria_id, ubicacion
               </li>
               <li>
                 la columna CODIGO debe ser tipo "general" y P_MAYOREO tipo
@@ -11393,7 +11396,7 @@ const exportarErroresExcel = () => {
                 Procesando...
               </span>
             ) : (
-              "Actualizar Precios"
+              "Actualizar Base de Datos"
             )}
           </button>
 
