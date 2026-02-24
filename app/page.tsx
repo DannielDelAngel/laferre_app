@@ -112,7 +112,7 @@ import BarcodeScannerComponent from "react-qr-barcode-scanner";
 const construirQueryBusqueda = async (searchTerm: string, categoria: any, marca: any) => {
   let query = supabase
     .from("productos")
-    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO");
+    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales")
 
   if (categoria) {
     query = query.eq("CATEGORIA_ID", categoria.id_categoria);
@@ -250,6 +250,11 @@ const VistaProducto = ({
     producto.marca_id ? String(producto.marca_id) : "",
   );
 
+  const [marcaQuery, setMarcaQuery] = useState(
+  producto.marca_id ? (marcas.find((m: any) => m.id === producto.marca_id)?.nombre_marca || "") : ""
+);
+const [mostrarResultadosMarca, setMostrarResultadosMarca] = useState(false);
+
   const [imagenAmpliada, setImagenAmpliada] = useState(false);
   const [scale, setScale] = useState(1);
   const [posicion, setPosicion] = useState({ x: 0, y: 0 });
@@ -291,6 +296,7 @@ const VistaProducto = ({
   );
 
   const [claveAlterna, setClaveAlterna] = useState(producto.C_PRODUCTO || "");
+  const [permiteDecimales, setPermiteDecimales] = useState(producto.permite_decimales || false);
 
   const [edicionAvanzada, setEdicionAvanzada] = useState(() => {
     if (typeof window !== "undefined") {
@@ -441,39 +447,51 @@ const VistaProducto = ({
   }, [producto.id]);
 
   const handleChange = (e: any) => {
-    const value = e.target.value;
-
-    if (value === "") {
-      setCantidad("");
-      return;
-    }
-
+  const value = e.target.value;
+  if (value === "") { setCantidad(""); return; }
+  if (producto.permite_decimales) {
+    const num = parseFloat(value);
+    if (!isNaN(num) && num > 0) setCantidad(value);
+  } else {
     const num = parseInt(value, 10);
-    if (!isNaN(num) && num >= 1) {
-      setCantidad(num.toString());
-    }
-  };
+    if (!isNaN(num) && num >= 1) setCantidad(num.toString());
+  }
+};
 
   const handleBlur = () => {
-    if (cantidad === "" || parseInt(cantidad) < 1) {
-      setCantidad("1");
-    }
-  };
+  if (producto.permite_decimales) {
+    const num = parseFloat(cantidad);
+    if (!cantidad || isNaN(num) || num <= 0) setCantidad("0.5");
+  } else {
+    if (cantidad === "" || parseInt(cantidad) < 1) setCantidad("1");
+  }
+};
 
   const handleAdd = (): void =>
-    setCantidad((c: string): string =>
-      c === "" ? "1" : (parseInt(c, 10) + 1).toString(),
-    );
+  setCantidad((c: string): string => {
+    if (producto.permite_decimales) {
+      const n = parseFloat(c) || 0;
+      return parseFloat((n + 0.5).toFixed(2)).toString();
+    }
+    return c === "" ? "1" : (parseInt(c, 10) + 1).toString();
+  });
 
-  const handleSubtract = (): void =>
-    setCantidad((c: string): string => {
-      if (c === "" || parseInt(c, 10) <= 1) return "1";
-      return (parseInt(c, 10) - 1).toString();
-    });
+const handleSubtract = (): void =>
+  setCantidad((c: string): string => {
+    if (producto.permite_decimales) {
+      const n = parseFloat(c) || 0;
+      const result = parseFloat((n - 0.5).toFixed(2));
+      return result <= 0 ? "0.5" : result.toString();
+    }
+    if (c === "" || parseInt(c, 10) <= 1) return "1";
+    return (parseInt(c, 10) - 1).toString();
+  });
 
   // FUNCIÓN PARA AGREGAR O MODIFICAR EN CARRITO
   const agregarOModificarCarrito = () => {
-    const cant = parseInt(cantidad) || 1;
+   const cant = producto.permite_decimales
+  ? parseFloat(cantidad) || 0.5
+  : parseInt(cantidad) || 1;
 
     if (esDesdeCarrito) {
       // Modificar cantidad existente
@@ -648,6 +666,7 @@ const VistaProducto = ({
           CODIGO: codigo,
           P_MAYOREO: parseFloat(precio),
           C_PRODUCTO: claveAlterna,
+          permite_decimales: permiteDecimales,
         })
         .eq("id", producto.id);
 
@@ -666,6 +685,7 @@ const VistaProducto = ({
         producto.ubicacion = ubicacion;
         producto.CODIGO = codigo;
         producto.P_MAYOREO = parseFloat(precio);
+        producto.permite_decimales = permiteDecimales;
 
         setImagenFile(null);
 
@@ -781,7 +801,9 @@ const VistaProducto = ({
     }
   };
 
-  const cantidadNum = parseInt(cantidad) || 1;
+  const cantidadNum = producto.permite_decimales
+  ? parseFloat(cantidad) || 0.5
+  : parseInt(cantidad) || 1;
 
   const handleCandadoClick = () => {
     if (edicionAvanzada) {
@@ -1182,23 +1204,52 @@ const VistaProducto = ({
               </div>
 
               {/* Marca */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 mb-2">
-                  Marca
-                </label>
-                <select
-                  value={marcaId}
-                  onChange={(e) => setMarcaId(e.target.value)}
-                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
-                >
-                  <option value="">Sin marca</option>
-                  {marcas.map((marca: any) => (
-                    <option key={marca.id} value={marca.id}>
-                      {marca.nombre_marca}
-                    </option>
-                  ))}
-                </select>
-              </div>
+<div className="mb-4 relative">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Marca
+  </label>
+  <input
+    type="text"
+    value={marcaQuery}
+    onChange={(e) => {
+      setMarcaQuery(e.target.value);
+      setMostrarResultadosMarca(true);
+      setMarcaId("");
+    }}
+    onFocus={() => setMostrarResultadosMarca(true)}
+    placeholder="Escribe el nombre de la marca..."
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+  />
+  {mostrarResultadosMarca && marcaQuery && (
+    <div className="absolute z-20 mt-1 w-full bg-white border border-zinc-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+      {marcas.filter((m: any) =>
+        m.nombre_marca.toLowerCase().startsWith(marcaQuery.toLowerCase())
+      ).length > 0 ? (
+        marcas
+          .filter((m: any) =>
+            m.nombre_marca.toLowerCase().startsWith(marcaQuery.toLowerCase())
+          )
+          .map((marca: any) => (
+            <button
+              type="button"
+              key={marca.id}
+              onClick={() => {
+                setMarcaQuery(marca.nombre_marca);
+                setMarcaId(String(marca.id));
+                setMostrarResultadosMarca(false);
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-zinc-700 hover:bg-orange-50 hover:text-orange-700"
+            >
+              {marca.nombre_marca}
+            </button>
+          ))
+      ) : (
+        <div className="px-3 py-2 text-sm text-zinc-500">
+          No se encontraron marcas</div>
+      )}
+    </div>
+  )}
+</div>
 
               <div className="mb-4">
                 <label className="block text-sm font-medium text-zinc-700 mb-2">
@@ -1225,6 +1276,23 @@ const VistaProducto = ({
                   {mensaje}
                 </div>
               )}
+
+              <div className="mb-4">
+  <label className="flex items-center gap-2 cursor-pointer">
+    <input
+      type="checkbox"
+      checked={permiteDecimales}
+      onChange={(e) => setPermiteDecimales(e.target.checked)}
+      className="w-5 h-5 accent-orange-500"
+    />
+    <span className="text-sm font-medium text-zinc-700">
+      Permite cantidades con decimales
+    </span>
+  </label>
+  <p className="text-xs text-zinc-500 mt-1 ml-7">
+    Ej: 0.5 = mitad, 0.25 = cuarto del precio unitario
+  </p>
+</div>
 
               {/* Botones */}
               <div className="space-y-3">
@@ -1602,14 +1670,24 @@ const VistaProducto = ({
                   </button>
 
                   {/* Input editable */}
-                  <input
-                    type="number"
-                    min="1"
-                    value={cantidad}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    className="w-20 text-center border border-zinc-400 rounded-xl text-lg font-semibold text-black py-2"
-                  />
+                 <input
+  type="number"
+  min={producto.permite_decimales ? "0.5" : "1"}
+  step={producto.permite_decimales ? "0.5" : "1"}
+  value={cantidad}
+  onChange={handleChange}
+  onBlur={handleBlur}
+  className="w-20 text-center border border-zinc-400 rounded-xl text-lg font-semibold text-black py-2"
+  onKeyDown={(e) => {
+    if (producto.permite_decimales) {
+      const val = cantidad.toString();
+      const partes = val.split(".");
+      if (partes[1]?.length >= 2 && !["Backspace","Delete","ArrowLeft","ArrowRight","Tab"].includes(e.key)) {
+        if (e.key !== ".") e.preventDefault();
+      }
+    }
+  }}
+/>
 
                   {/* Botón sumar */}
                   <button
@@ -8299,6 +8377,7 @@ const [busqueda, setBusqueda] = useState("");
       },
     ]);
     const [tieneSaldoPendiente, setTieneSaldoPendiente] = useState(false);
+    const [bloquearPorSaldo, setBloquearPorSaldo] = useState(false);
     const [documentosPendientes, setDocumentosPendientes] = useState<any[]>([]);
     const [nuevoDocumento, setNuevoDocumento] = useState({
       tipo: "nota",
@@ -8384,6 +8463,7 @@ const [busqueda, setBusqueda] = useState("");
       setNumeroCuentaSicar("");
       setCuentaSeleccionada(null);
       setTieneSaldoPendiente(false);
+      setBloquearPorSaldo(false);
       setDocumentosPendientes([]);
       setNuevoDocumento({
         tipo: "nota",
@@ -8470,6 +8550,7 @@ const [busqueda, setBusqueda] = useState("");
           entrega_mismo_dia: entregaMismoDia,
           recoger_en_tienda: recogerEnTienda, 
           tiene_saldo_pendiente: tieneSaldoPendiente,
+          bloquear_por_saldo: bloquearPorSaldo,
           ruta: ruta.trim() || null,
           tipo_comprobante: tipoComprobante,
           latitud: latitud ? parseFloat(latitud) : null,
@@ -8573,6 +8654,7 @@ const [busqueda, setBusqueda] = useState("");
             entrega_mismo_dia: entregaMismoDia,
             recoger_en_tienda: recogerEnTienda, 
             tiene_saldo_pendiente: tieneSaldoPendiente,
+            bloquear_por_saldo: bloquearPorSaldo,
             ruta: ruta.trim() || null,
             tipo_comprobante: tipoComprobante,
             latitud: latitud ? parseFloat(latitud) : null,
@@ -8755,6 +8837,7 @@ const [busqueda, setBusqueda] = useState("");
       setModoVista("editar");
       setRecogerEnTienda(cuentaItem.recoger_en_tienda || false);
       setTieneSaldoPendiente(cuentaItem.tiene_saldo_pendiente || false);
+      setBloquearPorSaldo(cuentaItem.bloquear_por_saldo || false);
       setRuta(cuentaItem.ruta || "");
       setTipoComprobante(cuentaItem.tipo_comprobante || "Nota de Venta");
 
@@ -9415,22 +9498,45 @@ const [busqueda, setBusqueda] = useState("");
 </div>
 
     {/* Toggle de Saldo Pendiente */}
-    <div className="mb-4">
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={tieneSaldoPendiente}
-          onChange={(e) => setTieneSaldoPendiente(e.target.checked)}
-          className="w-5 h-5 accent-orange-500"
-        />
-        <span className="text-sm font-medium text-zinc-700">
-          Tiene saldo pendiente de pago
-        </span>
-      </label>
-      <p className="text-xs text-zinc-500 mt-1 ml-7">
-        Al activar, la cuenta no podrá realizar pedidos hasta liquidar
-      </p>
-    </div>
+<div className="mb-4">
+  <label className="flex items-center gap-2 cursor-pointer">
+    <input
+      type="checkbox"
+      checked={tieneSaldoPendiente}
+      onChange={(e) => {
+        setTieneSaldoPendiente(e.target.checked);
+        if (!e.target.checked) setBloquearPorSaldo(false);
+      }}
+      className="w-5 h-5 accent-orange-500"
+    />
+    <span className="text-sm font-medium text-zinc-700">
+      Tiene saldo pendiente de pago
+    </span>
+  </label>
+  <p className="text-xs text-zinc-500 mt-1 ml-7">
+    Indica que la cuenta tiene documentos pendientes registrados
+  </p>
+</div>
+
+{/* Toggle bloquear por saldo */}
+{tieneSaldoPendiente && (
+  <div className="mb-4 ml-4 border-l-4 border-orange-300 pl-3">
+    <label className="flex items-center gap-2 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={bloquearPorSaldo}
+        onChange={(e) => setBloquearPorSaldo(e.target.checked)}
+        className="w-5 h-5 accent-red-500"
+      />
+      <span className="text-sm font-medium text-zinc-700">
+        Bloquear pedidos por saldo pendiente
+      </span>
+    </label>
+    <p className="text-xs text-zinc-500 mt-1 ml-7">
+      Al activar, la cuenta <span className="font-semibold text-red-600">no podrá realizar pedidos</span> hasta liquidar
+    </p>
+  </div>
+)}
 
     {/* Gestión de Documentos Pendientes */}
     {tieneSaldoPendiente && (
@@ -9956,22 +10062,45 @@ const [busqueda, setBusqueda] = useState("");
 </div>
 
               {/* Toggle de Saldo Pendiente */}
-              <div className="mb-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={tieneSaldoPendiente}
-                    onChange={(e) => setTieneSaldoPendiente(e.target.checked)}
-                    className="w-5 h-5 accent-orange-500"
-                  />
-                  <span className="text-sm font-medium text-zinc-700">
-                    Tiene saldo pendiente de pago
-                  </span>
-                </label>
-                <p className="text-xs text-zinc-500 mt-1 ml-7">
-                  Al activar, la cuenta no podrá realizar pedidos hasta liquidar
-                </p>
-              </div>
+<div className="mb-4">
+  <label className="flex items-center gap-2 cursor-pointer">
+    <input
+      type="checkbox"
+      checked={tieneSaldoPendiente}
+      onChange={(e) => {
+        setTieneSaldoPendiente(e.target.checked);
+        if (!e.target.checked) setBloquearPorSaldo(false);
+      }}
+      className="w-5 h-5 accent-orange-500"
+    />
+    <span className="text-sm font-medium text-zinc-700">
+      Tiene saldo pendiente de pago
+    </span>
+  </label>
+  <p className="text-xs text-zinc-500 mt-1 ml-7">
+    Indica que la cuenta tiene documentos pendientes registrados
+  </p>
+</div>
+
+{/* Toggle bloquear por saldo */}
+{tieneSaldoPendiente && (
+  <div className="mb-4 ml-4 border-l-4 border-orange-300 pl-3">
+    <label className="flex items-center gap-2 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={bloquearPorSaldo}
+        onChange={(e) => setBloquearPorSaldo(e.target.checked)}
+        className="w-5 h-5 accent-red-500"
+      />
+      <span className="text-sm font-medium text-zinc-700">
+        Bloquear pedidos por saldo pendiente
+      </span>
+    </label>
+    <p className="text-xs text-zinc-500 mt-1 ml-7">
+      Al activar, la cuenta <span className="font-semibold text-red-600">no podrá realizar pedidos</span> hasta liquidar
+    </p>
+  </div>
+)}
 
               {/* Gestión de Documentos Pendientes */}
               {tieneSaldoPendiente && (
@@ -11438,6 +11567,10 @@ const exportarErroresExcel = () => {
     const [imagenesAdicionalesFiles, setImagenesAdicionalesFiles] = useState<
       File[]
     >([]);
+    const [categoriaQuery, setCategoriaQuery] = useState("");
+const [mostrarResultadosCat, setMostrarResultadosCat] = useState(false);
+const [marcaQuery, setMarcaQuery] = useState("");
+const [mostrarResultadosMarca, setMostrarResultadosMarca] = useState(false);
 
     const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -11749,41 +11882,98 @@ const exportarErroresExcel = () => {
           </div>
 
           {/* Categoría */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-zinc-700 mb-2">
-              Subcategoría
-            </label>
-            <select
-              value={categoriaId}
-              onChange={(e) => setCategoriaId(e.target.value)}
-              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+<div className="mb-4 relative">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Subcategoría
+  </label>
+  <input
+    type="text"
+    value={categoriaQuery}
+    onChange={(e) => {
+      setCategoriaQuery(e.target.value);
+      setMostrarResultadosCat(true);
+      setCategoriaId("");
+    }}
+    onFocus={() => setMostrarResultadosCat(true)}
+    placeholder="Escribe el nombre de la subcategoría..."
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+  />
+  {mostrarResultadosCat && categoriaQuery && (
+    <div className="absolute z-20 mt-1 w-full bg-white border border-zinc-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+      {categoriasAdmin.filter((cat: any) =>
+        cat.nombre_categoria.toLowerCase().startsWith(categoriaQuery.toLowerCase())
+      ).length > 0 ? (
+        categoriasAdmin
+          .filter((cat: any) =>
+            cat.nombre_categoria.toLowerCase().startsWith(categoriaQuery.toLowerCase())
+          )
+          .map((cat: any) => (
+            <button
+              type="button"
+              key={cat.id_categoria}
+              onClick={() => {
+                setCategoriaQuery(cat.nombre_categoria);
+                setCategoriaId(String(cat.id_categoria));
+                setMostrarResultadosCat(false);
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-zinc-700 hover:bg-orange-50 hover:text-orange-700"
             >
-              <option value="">Seleccionar Subcategoría</option>
-              {categoriasAdmin.map((cat) => (
-                <option key={cat.id_categoria} value={String(cat.id_categoria)}>
-                  {cat.nombre_categoria}
-                </option>
-              ))}
-            </select>
-          </div>
+              {cat.nombre_categoria}
+            </button>
+          ))
+      ) : (
+        <div className="px-3 py-2 text-sm text-zinc-500">No se encontraron categorías</div>
+      )}
+    </div>
+  )}
+</div>
+
           {/* Marca */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-zinc-700 mb-2">
-              Marca
-            </label>
-            <select
-              value={marcaId}
-              onChange={(e) => setMarcaId(e.target.value)}
-              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+<div className="mb-4 relative">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Marca
+  </label>
+  <input
+    type="text"
+    value={marcaQuery}
+    onChange={(e) => {
+      setMarcaQuery(e.target.value);
+      setMostrarResultadosMarca(true);
+      setMarcaId("");
+    }}
+    onFocus={() => setMostrarResultadosMarca(true)}
+    placeholder="Escribe el nombre de la marca..."
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+  />
+  {mostrarResultadosMarca && marcaQuery && (
+    <div className="absolute z-20 mt-1 w-full bg-white border border-zinc-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+      {marcas.filter((m: any) =>
+        m.nombre_marca.toLowerCase().startsWith(marcaQuery.toLowerCase())
+      ).length > 0 ? (
+        marcas
+          .filter((m: any) =>
+            m.nombre_marca.toLowerCase().startsWith(marcaQuery.toLowerCase())
+          )
+          .map((marca: any) => (
+            <button
+              type="button"
+              key={marca.id}
+              onClick={() => {
+                setMarcaQuery(marca.nombre_marca);
+                setMarcaId(String(marca.id));
+                setMostrarResultadosMarca(false);
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-zinc-700 hover:bg-orange-50 hover:text-orange-700"
             >
-              <option value="">Sin marca</option>
-              {marcas.map((marca) => (
-                <option key={marca.id} value={marca.id}>
-                  {marca.nombre_marca}
-                </option>
-              ))}
-            </select>
-          </div>
+              {marca.nombre_marca}
+            </button>
+          ))
+      ) : (
+        <div className="px-3 py-2 text-sm text-zinc-500">No se encontraron marcas</div>
+      )}
+    </div>
+  )}
+</div>
 
           {/* Mensaje */}
           {mensaje && (
@@ -11829,6 +12019,7 @@ const exportarErroresExcel = () => {
       </motion.div>
     );
   };
+
   // Función para enviar el pedido
 
   const enviarPedido = async () => {
@@ -11844,7 +12035,7 @@ const exportarErroresExcel = () => {
       }
 
       // saldo pendiente
-      if (cuenta.tiene_saldo_pendiente) {
+      if (cuenta.tiene_saldo_pendiente && cuenta.bloquear_por_saldo) {
         const { data: docsPendientes, error: docsError } = await supabase
           .from("documentos_pendientes")
           .select("*")
@@ -23368,16 +23559,12 @@ setEsperandoCaja(false);
                       }`}
                     />
 
-                    {activeTab !== "carrito" &&
-                      carrito.reduce((sum, item) => sum + item.cantidad, 0) >
-                        0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center text-xs font-bold bg-orange-500 text-white shadow-md">
-                          {carrito.reduce(
-                            (sum, item) => sum + item.cantidad,
-                            0,
-                          )}
-                        </span>
-                      )}
+                   {activeTab !== "carrito" &&
+  carrito.reduce((sum, item) => sum + Math.floor(item.cantidad), 0) > 0 && (
+    <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center text-xs font-bold bg-orange-500 text-white shadow-md">
+      {carrito.reduce((sum, item) => sum + Math.floor(item.cantidad), 0)}
+    </span>
+  )}
                   </div>
                   <span
                     className={`mt-1 transition-all duration-300 ${
