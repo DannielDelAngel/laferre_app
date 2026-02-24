@@ -15018,11 +15018,14 @@ if (backOrderExistente) {
       </motion.div>
     );
   };
-const RecoleccionPanel = ({ supabase, onBack }: any) => {
+
+const RecoleccionPanel = ({ supabase, onBack, esAdmin }: any) => {
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
   const [hojas, setHojas] = useState<any[]>([]);
   const [hojaActual, setHojaActual] = useState<any>(null);
+  const [codigosRecoleccion, setCodigosRecoleccion] = useState<Map<number, string>>(new Map());
+  const [guardandoCodigo, setGuardandoCodigo] = useState<number | null>(null);
   const [cargando, setCargando] = useState(true);
   const [productosSurtidos, setProductosSurtidos] = useState<Map<number, number>>(new Map());
   const [ultimoEscaneo, setUltimoEscaneo] = useState("");
@@ -15032,8 +15035,42 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
   const [modalAlerta, setModalAlerta] = useState<{ visible: boolean; titulo: string; mensaje: string; tipo: "error" | "warning" } | null>(null);
   const [modalProductoActivo, setModalProductoActivo] = useState<{ visible: boolean; producto: any; cantidadActual: number; cantidadObjetivo: number } | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [productosPA, setProductosPA] = useState<Set<number>>(new Set());
+  const [productosParciales, setProductosParciales] = useState<Map<number, { pedida: number; encontrada: number }>>(new Map());
+  const [modalProductoProblema, setModalProductoProblema] = useState<{ visible: boolean; producto: any } | null>(null);
+  const [cantidadParcialInput, setCantidadParcialInput] = useState("");
+  const [productosIngresoManual, setProductosIngresoManual] = useState<Set<number>>(new Set());
 
-  // Cargar pedidos en pendiente_recoleccion
+  const STORAGE_KEY = (hojaId: number) => `recoleccion_hoja_${hojaId}`;
+
+  const guardarEstadoLocal = (hojaId: number) => {
+    try {
+      localStorage.setItem(STORAGE_KEY(hojaId), JSON.stringify({
+        productosSurtidos: Array.from(productosSurtidos.entries()),
+        productosPA: Array.from(productosPA),
+        productosParciales: Array.from(productosParciales.entries()),
+        productosIngresoManual: Array.from(productosIngresoManual),
+      }));
+    } catch {}
+  };
+
+  const cargarEstadoLocal = (hojaId: number) => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY(hojaId));
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  };
+
+  const limpiarEstadoLocal = (hojaId: number) => {
+    try { localStorage.removeItem(STORAGE_KEY(hojaId)); } catch {}
+  };
+
+  // guardar en localStorage cada vez que cambia el estado
+  useEffect(() => {
+    if (!hojaActual) return;
+    guardarEstadoLocal(hojaActual.id);
+  }, [productosSurtidos, productosPA, productosParciales, productosIngresoManual]);
+
   useEffect(() => {
     const cargar = async () => {
       const { data } = await supabase
@@ -15047,51 +15084,37 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
     cargar();
   }, []);
 
-  // Scroll al inicio al cambiar hoja
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [hojaActual]);
 
-  // Escáner de teclado (igual que surtido)
   useEffect(() => {
     if (!hojaActual || mostrarModalCompletado) return;
-
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
-        if (bufferEscaneo.trim()) {
-          procesarEscaneo(bufferEscaneo.trim());
-          setBufferEscaneo("");
-        }
+        if (bufferEscaneo.trim()) { procesarEscaneo(bufferEscaneo.trim()); setBufferEscaneo(""); }
         return;
       }
       setBufferEscaneo((prev) => prev + e.key);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
-        if (bufferEscaneo.trim()) {
-          procesarEscaneo(bufferEscaneo.trim());
-          setBufferEscaneo("");
-        }
+        if (bufferEscaneo.trim()) { procesarEscaneo(bufferEscaneo.trim()); setBufferEscaneo(""); }
       }, 100);
     };
-
     window.addEventListener("keypress", handleKeyPress);
-    return () => {
-      window.removeEventListener("keypress", handleKeyPress);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
+    return () => { window.removeEventListener("keypress", handleKeyPress); if (timeoutRef.current) clearTimeout(timeoutRef.current); };
   }, [bufferEscaneo, hojaActual, mostrarModalCompletado, productosSurtidos]);
 
-  // Detectar si todos los faltantes están completos
   useEffect(() => {
     if (!hojaActual) return;
     const faltantes = hojaActual.productos.filter((p: any) => p.esFaltante);
     if (faltantes.length === 0) return;
-
     const todosCompletos = faltantes.every((item: any) => {
-      const surtidos = productosSurtidos.get(item.producto_id) || 0;
-      return surtidos >= item.cantidad_faltante;
+      if (productosPA.has(item.producto_id)) return true;
+      if (productosParciales.has(item.producto_id)) return true;
+      if (productosIngresoManual.has(item.producto_id)) return true;
+      return (productosSurtidos.get(item.producto_id) || 0) >= item.cantidad_faltante;
     });
-
     if (todosCompletos) {
       const timer = setTimeout(() => {
         setMostrarModalCompletado(true);
@@ -15099,164 +15122,191 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [productosSurtidos, hojaActual]);
+  }, [productosSurtidos, productosPA, productosParciales, productosIngresoManual, hojaActual]);
 
-  // Abrir pedido y cargar sus hojas
   const abrirPedido = async (pedido: any) => {
     setCargando(true);
     const { data: hojasData } = await supabase
-      .from("hojas_surtido")
-      .select("*")
-      .eq("pedido_id", pedido.id)
-      .order("numero_hoja", { ascending: true });
-
-    if (!hojasData || hojasData.length === 0) {
-      alert("Este pedido no tiene hojas de surtido");
-      setCargando(false);
-      return;
-    }
-
+      .from("hojas_surtido").select("*").eq("pedido_id", pedido.id).order("numero_hoja", { ascending: true });
+    if (!hojasData || hojasData.length === 0) { alert("Este pedido no tiene hojas de surtido"); setCargando(false); return; }
     const hojasConProductos = await Promise.all(
       hojasData.map(async (hoja: any) => {
         const itemsJson = JSON.parse(hoja.productos_asignados);
         const codigos = itemsJson.map((p: any) => p.codigo);
-        const { data: productosDB } = await supabase
-          .from("productos")
-          .select("*")
-          .in("CODIGO", codigos);
-
+        const { data: productosDB } = await supabase.from("productos").select("*").in("CODIGO", codigos);
         const productos = itemsJson.map((itemJson: any) => {
           const info = productosDB?.find((p: any) => p.CODIGO === itemJson.codigo);
-          const esFaltante = itemJson.estado === "PA" ||
-            (itemJson.estado === "parcial" && (itemJson.cantidad_pedida - itemJson.cantidad_surtida) > 0);
-          const cantidad_faltante = itemJson.estado === "PA"
-            ? itemJson.cantidad_pedida
-            : itemJson.cantidad_pedida - (itemJson.cantidad_surtida || 0);
-
-          return {
-            ...info,
-            producto_id: info?.id,
-            cantidad_pedida: itemJson.cantidad_pedida,
-            cantidad_surtida: itemJson.cantidad_surtida || 0,
-            cantidad_faltante: esFaltante ? cantidad_faltante : 0,
-            estadoOriginal: itemJson.estado,
-            esFaltante,
-          };
+          const esFaltante = itemJson.estado === "PA" || (itemJson.estado === "parcial" && (itemJson.cantidad_pedida - itemJson.cantidad_surtida) > 0);
+          const cantidad_faltante = itemJson.estado === "PA" ? itemJson.cantidad_pedida : itemJson.cantidad_pedida - (itemJson.cantidad_surtida || 0);
+          return { ...info, producto_id: info?.id, cantidad_pedida: itemJson.cantidad_pedida, cantidad_surtida: itemJson.cantidad_surtida || 0, cantidad_faltante: esFaltante ? cantidad_faltante : 0, estadoOriginal: itemJson.estado, esFaltante };
         }).filter(Boolean);
-
-        // Faltantes primero, luego ya surtidos
         productos.sort((a: any, b: any) => {
           if (a.esFaltante && !b.esFaltante) return -1;
           if (!a.esFaltante && b.esFaltante) return 1;
           return (a.ubicacion || "ZZZZ").localeCompare(b.ubicacion || "ZZZZ", undefined, { numeric: true });
         });
-
         return { ...hoja, productos };
       })
     );
-
     setPedidoSeleccionado(pedido);
     setHojas(hojasConProductos);
+    // Cargar códigos de recolección guardados
+    const mapaInicialCodigos = new Map<number, string>();
+    hojasConProductos.forEach((h: any) => {
+      if (h.codigo_recoleccion) mapaInicialCodigos.set(h.id, h.codigo_recoleccion);
+    });
+    setCodigosRecoleccion(mapaInicialCodigos);
     setCargando(false);
   };
 
   const seleccionarHoja = (hoja: any) => {
     const tieneFaltantes = hoja.productos.some((p: any) => p.esFaltante);
-    if (!tieneFaltantes) {
-      setModalAlerta({ visible: true, titulo: "Sin faltantes", mensaje: "Esta hoja no tiene productos faltantes.", tipo: "warning" });
-      return;
-    }
+    if (!tieneFaltantes) { setModalAlerta({ visible: true, titulo: "Sin faltantes", mensaje: "Esta hoja no tiene productos faltantes.", tipo: "warning" }); return; }
     setHojaActual(hoja);
-    setProductosSurtidos(new Map());
+
+    // restaurar desde localStorage si existe
+    const guardado = cargarEstadoLocal(hoja.id);
+    if (guardado) {
+      setProductosSurtidos(new Map(guardado.productosSurtidos || []));
+      setProductosPA(new Set(guardado.productosPA || []));
+      setProductosParciales(new Map(guardado.productosParciales || []));
+      setProductosIngresoManual(new Set(guardado.productosIngresoManual || []));
+    } else {
+      setProductosSurtidos(new Map());
+      setProductosPA(new Set());
+      setProductosParciales(new Map());
+      setProductosIngresoManual(new Set());
+    }
+    setMostrarModalCompletado(false);
   };
 
   const volverAHojas = () => {
     setHojaActual(null);
     setProductosSurtidos(new Map());
     setMostrarModalCompletado(false);
+    setProductosPA(new Set());
+    setProductosParciales(new Map());
+    setProductosIngresoManual(new Set());
   };
 
   const procesarEscaneo = (codigoEscaneado: string) => {
     if (!hojaActual) return;
     setUltimoEscaneo(codigoEscaneado);
-
-    const item = hojaActual.productos.find((p: any) =>
-      p.esFaltante && (p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado)
-    );
-
+    const item = hojaActual.productos.find((p: any) => p.esFaltante && (p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado));
     if (!item) {
       if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
       setModalAlerta({ visible: true, titulo: "Producto Incorrecto", mensaje: `"${codigoEscaneado}" no es un faltante de esta hoja.`, tipo: "error" });
       return;
     }
-
+    if (productosPA.has(item.producto_id)) {
+      setModalAlerta({ visible: true, titulo: "Marcado como PA", mensaje: `"${item.TITULO}" está marcado como agotado. Toca la tarjeta para cambiarlo.`, tipo: "warning" });
+      return;
+    }
+    if (productosParciales.has(item.producto_id)) {
+      setModalAlerta({ visible: true, titulo: "Ya tiene parcial", mensaje: `"${item.TITULO}" ya tiene cantidad parcial. Toca la tarjeta para cambiarlo.`, tipo: "warning" });
+      return;
+    }
+    if (productosIngresoManual.has(item.producto_id)) {
+      setModalAlerta({ visible: true, titulo: "Ya ingresado manualmente", mensaje: `"${item.TITULO}" ya fue ingresado manual. Toca la tarjeta para cambiarlo.`, tipo: "warning" });
+      return;
+    }
     const actual = productosSurtidos.get(item.producto_id) || 0;
     if (actual >= item.cantidad_faltante) {
       if ("vibrate" in navigator) navigator.vibrate([100, 100]);
       setModalAlerta({ visible: true, titulo: "Ya completo", mensaje: `"${item.TITULO}" ya tiene la cantidad recolectada.`, tipo: "warning" });
       return;
     }
-
     const nueva = actual + 1;
     const nuevoMapa = new Map(productosSurtidos);
     nuevoMapa.set(item.producto_id, nueva);
     setProductosSurtidos(nuevoMapa);
-
     setModalProductoActivo({ visible: true, producto: item, cantidadActual: nueva, cantidadObjetivo: item.cantidad_faltante });
-    if (nueva >= item.cantidad_faltante) {
-      setTimeout(() => setModalProductoActivo(null), 1500);
-    }
+    if (nueva >= item.cantidad_faltante) { setTimeout(() => setModalProductoActivo(null), 1500); }
     if ("vibrate" in navigator) navigator.vibrate(50);
   };
 
   const confirmarHoja = async () => {
-    if (!hojaActual || !pedidoSeleccionado) return;
-    setGuardando(true);
+  if (!hojaActual || !pedidoSeleccionado) return;
+  setGuardando(true);
 
-    // Actualizar productos_asignados: los faltantes pasan a "completo"
-    const productosActualizados = hojaActual.productos.map((item: any) => ({
+  const productosActualizados = hojaActual.productos.map((item: any) => {
+    if (!item.esFaltante) return {
       codigo: item.CODIGO,
       cantidad_pedida: item.cantidad_pedida,
-      cantidad_surtida: item.esFaltante
-        ? (item.cantidad_surtida || 0) + (productosSurtidos.get(item.producto_id) || 0)
-        : item.cantidad_surtida,
-      estado: item.esFaltante ? "completo" : item.estadoOriginal,
-    }));
+      cantidad_surtida: item.cantidad_surtida,
+      estado: item.estadoOriginal,
+      ingreso_manual: item.ingreso_manual ?? false,  
+    };
 
-    await supabase
-      .from("hojas_surtido")
-      .update({ productos_asignados: JSON.stringify(productosActualizados) })
-      .eq("id", hojaActual.id);
+    const esPA = productosPA.has(item.producto_id);
+    const parcialInfo = productosParciales.get(item.producto_id);
+    const esManual = productosIngresoManual.has(item.producto_id);
+    const escaneado = productosSurtidos.get(item.producto_id) || 0;
 
-    // Actualizar hojas localmente
-    const hojasActualizadas = hojas.map((h) =>
-      h.id === hojaActual.id
-        ? { ...h, productos: h.productos.map((p: any) => ({ ...p, esFaltante: false })) }
-        : h
-    );
-    setHojas(hojasActualizadas);
+    let cantidad_surtida_final: number;
+    let estado_final: string;
 
-    // Verificar si todas las hojas ya no tienen faltantes
-    const todasSinFaltantes = hojasActualizadas.every((h) =>
-      h.productos.every((p: any) => !p.esFaltante)
-    );
-
-    if (todasSinFaltantes) {
-      await supabase.from("pedidos").update({ estado: "por_revisar" }).eq("id", pedidoSeleccionado.id);
-      if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
-      alert("¡Recolección completa! El pedido pasó a revisión.");
-      setPedidos((prev) => prev.filter((p) => p.id !== pedidoSeleccionado.id));
-      setPedidoSeleccionado(null);
-      setHojas([]);
+    if (esPA) {
+      cantidad_surtida_final = item.cantidad_surtida;
+      estado_final = item.cantidad_surtida > 0 ? "parcial" : "PA";
+    } else if (parcialInfo) {
+      cantidad_surtida_final = item.cantidad_surtida + parcialInfo.encontrada;
+      estado_final = cantidad_surtida_final >= item.cantidad_pedida ? "completo" : "parcial";
+    } else if (esManual) {
+      cantidad_surtida_final = item.cantidad_surtida + escaneado;
+      estado_final = cantidad_surtida_final >= item.cantidad_pedida ? "completo" : "parcial";
+    } else {
+      cantidad_surtida_final = item.cantidad_surtida + escaneado;
+      estado_final = cantidad_surtida_final >= item.cantidad_pedida ? "completo" : "parcial";
     }
 
-    setMostrarModalCompletado(false);
-    setHojaActual(null);
-    setProductosSurtidos(new Map());
-    setGuardando(false);
+    return {
+      codigo: item.CODIGO,
+      cantidad_pedida: item.cantidad_pedida,
+      cantidad_surtida: cantidad_surtida_final,
+      estado: estado_final,
+      ingreso_manual: esPA ? null : esManual || !!parcialInfo ? true : false,
+    };
+  });
+
+  await supabase.from("hojas_surtido").update({ productos_asignados: JSON.stringify(productosActualizados) }).eq("id", hojaActual.id);
+
+  const hojasActualizadas = hojas.map((h) =>
+    h.id === hojaActual.id
+      ? { ...h, productos: h.productos.map((p: any) => ({ ...p, esFaltante: false })) }
+      : h
+  );
+  setHojas(hojasActualizadas);
+
+  const todasSinFaltantes = hojasActualizadas.every((h) => h.productos.every((p: any) => !p.esFaltante));
+  if (todasSinFaltantes) {
+    await supabase.from("pedidos").update({ estado: "por_revisar" }).eq("id", pedidoSeleccionado.id);
+    if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+    alert("¡Recolección completa! El pedido pasó a revisión.");
+    setPedidos((prev) => prev.filter((p) => p.id !== pedidoSeleccionado.id));
+    setPedidoSeleccionado(null);
+    setHojas([]);
+  }
+
+  limpiarEstadoLocal(hojaActual.id);
+  setMostrarModalCompletado(false);
+  setHojaActual(null);
+  setProductosSurtidos(new Map());
+  setProductosPA(new Set());
+  setProductosParciales(new Map());
+  setProductosIngresoManual(new Set());
+  setGuardando(false);
+};
+
+  const guardarCodigoRecoleccion = async (hojaId: number, codigo: string) => {
+    setGuardandoCodigo(hojaId);
+    await supabase.from("hojas_surtido").update({ codigo_recoleccion: codigo.trim() || null }).eq("id", hojaId);
+    const nuevo = new Map(codigosRecoleccion);
+    nuevo.set(hojaId, codigo.trim());
+    setCodigosRecoleccion(nuevo);
+    setGuardandoCodigo(null);
   };
 
-  // ── Vista: lista de pedidos ──
   if (!pedidoSeleccionado) {
     return (
       <motion.div className="min-h-screen pb-10" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
@@ -15288,7 +15338,6 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
     );
   }
 
-  // ── Vista: lista de hojas ──
   if (!hojaActual) {
     return (
       <motion.div className="min-h-screen pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -15298,56 +15347,97 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
           {hojas.map((hoja) => {
             const faltantes = hoja.productos.filter((p: any) => p.esFaltante);
             const completos = hoja.productos.filter((p: any) => !p.esFaltante);
+            const tieneGuardado = !!cargarEstadoLocal(hoja.id);
+            const codigoActual = codigosRecoleccion.get(hoja.id) || "";
             return (
-              <div key={hoja.id} onClick={() => seleccionarHoja(hoja)}
-                className={`border-2 rounded-xl p-4 cursor-pointer transition ${
-                  faltantes.length === 0 ? "bg-green-50 border-green-400 cursor-not-allowed" : "bg-white border-yellow-300 hover:border-yellow-500"
-                }`}
-              >
-                <div className="flex justify-between items-center mb-1">
+              <div key={hoja.id}
+                className={`border-2 rounded-xl p-4 transition ${faltantes.length === 0 ? "bg-green-50 border-green-400" : "bg-white border-yellow-300 hover:border-yellow-500"}`}>
+                {/* Cabecera clickeable para seleccionar hoja */}
+                <div className="flex justify-between items-center mb-1 cursor-pointer" onClick={() => seleccionarHoja(hoja)}>
                   <p className="font-bold text-zinc-900 text-lg">Hoja #{hoja.numero_hoja}</p>
-                  {faltantes.length === 0
-                    ? <span className="text-xs bg-green-100 text-green-700 font-semibold px-2 py-1 rounded-full">✓ Completa</span>
-                    : <span className="text-xs bg-yellow-100 text-yellow-700 font-semibold px-2 py-1 rounded-full">{faltantes.length} faltante(s)</span>
-                  }
+                  <div className="flex items-center gap-2">
+                    {tieneGuardado && faltantes.length > 0 && (
+                      <span className="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-1 rounded-full">↻ En progreso</span>
+                    )}
+                    {faltantes.length === 0
+                      ? <span className="text-xs bg-green-100 text-green-700 font-semibold px-2 py-1 rounded-full">✓ Completa</span>
+                      : <span className="text-xs bg-yellow-100 text-yellow-700 font-semibold px-2 py-1 rounded-full">{faltantes.length} faltante(s)</span>
+                    }
+                  </div>
                 </div>
-                <p className="text-xs text-zinc-500">{completos.length} ya surtidos · {faltantes.length} por recolectar</p>
+                <p className="text-xs text-zinc-500 mb-3 cursor-pointer" onClick={() => seleccionarHoja(hoja)}>{completos.length} ya surtidos · {faltantes.length} por recolectar</p>
+
+                {/* Código de recolección */}
+                {esAdmin ? (
+                  <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={codigoActual}
+                      onChange={(e) => {
+                        const nuevo = new Map(codigosRecoleccion);
+                        nuevo.set(hoja.id, e.target.value);
+                        setCodigosRecoleccion(nuevo);
+                      }}
+                      onBlur={() => guardarCodigoRecoleccion(hoja.id, codigoActual)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } }}
+                      placeholder="Código del pedido de recolección"
+                      className="flex-1 border-2 border-zinc-200 focus:border-yellow-400 rounded-lg px-3 py-2 text-sm text-zinc-800 outline-none transition"
+                    />
+                    {guardandoCodigo === hoja.id ? (
+                      <div className="w-5 h-5 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    ) : codigoActual ? (
+                      <span className="text-green-500 flex-shrink-0">✓</span>
+                    ) : null}
+                  </div>
+                ) : codigoActual ? (
+                  <div className="flex items-center gap-2 mt-1 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2">
+                    <span className="text-xs text-zinc-500 font-medium">Código recolección:</span>
+                    <span className="text-sm font-bold text-zinc-800 font-mono">{codigoActual}</span>
+                  </div>
+                ) : null}
               </div>
             );
           })}
         </div>
-
-        {/* Alerta */}
         {modalAlerta?.visible && typeof document !== "undefined" && createPortal(
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
-            onClick={() => setModalAlerta(null)}
-          >
+            className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4" onClick={() => setModalAlerta(null)}>
             <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center">
               <p className="font-bold text-lg mb-2">{modalAlerta.titulo}</p>
               <p className="text-zinc-600 text-sm mb-4">{modalAlerta.mensaje}</p>
               <button onClick={() => setModalAlerta(null)} className="bg-zinc-800 text-white px-6 py-2 rounded-lg font-semibold">OK</button>
             </div>
-          </motion.div>,
-          document.body
+          </motion.div>, document.body
         )}
       </motion.div>
     );
   }
 
-  // ── Vista: surtido activo de faltantes ──
   const faltantes = hojaActual.productos.filter((p: any) => p.esFaltante);
-  const surtidosTotal = faltantes.reduce((sum: number, item: any) => sum + (productosSurtidos.get(item.producto_id) || 0), 0);
-  const totalFaltantes = faltantes.reduce((sum: number, item: any) => sum + item.cantidad_faltante, 0);
+  const totalFaltantes = faltantes.reduce((sum: number, item: any) => {
+    if (productosPA.has(item.producto_id)) return sum;
+    const parcial = productosParciales.get(item.producto_id);
+    if (parcial) return sum + parcial.encontrada;
+    if (productosIngresoManual.has(item.producto_id)) return sum + (productosSurtidos.get(item.producto_id) || 0);
+    return sum + item.cantidad_faltante;
+  }, 0);
+  const surtidosTotal = faltantes.reduce((sum: number, item: any) => {
+    if (productosPA.has(item.producto_id)) return sum;
+    return sum + (productosSurtidos.get(item.producto_id) || 0);
+  }, 0);
   const progreso = totalFaltantes > 0 ? (surtidosTotal / totalFaltantes) * 100 : 0;
-  const estaCompleto = surtidosTotal >= totalFaltantes && totalFaltantes > 0;
+  const estaCompleto = faltantes.every((item: any) => {
+    if (productosPA.has(item.producto_id)) return true;
+    if (productosParciales.has(item.producto_id)) return true;
+    if (productosIngresoManual.has(item.producto_id)) return true;
+    return (productosSurtidos.get(item.producto_id) || 0) >= item.cantidad_faltante;
+  });
 
   return (
     <motion.div className="min-h-screen pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <BackBtn onBack={volverAHojas} />
       <h2 className="text-xl font-bold text-zinc-900 mb-2">Pedido #{pedidoSeleccionado.id} - Hoja #{hojaActual.numero_hoja}</h2>
 
-      {/* Barra de progreso */}
       <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
         <div className="flex justify-between mb-2">
           <span className="text-sm font-semibold text-zinc-700">Faltantes recolectados</span>
@@ -15355,20 +15445,17 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
         </div>
         <div className="w-full bg-zinc-200 rounded-full h-3 overflow-hidden">
           <motion.div initial={{ width: 0 }} animate={{ width: `${progreso}%` }}
-            className={`h-full rounded-full transition-colors duration-300 ${estaCompleto ? "bg-green-500" : "bg-yellow-500"}`}
-          />
+            className={`h-full rounded-full transition-colors duration-300 ${estaCompleto ? "bg-green-500" : "bg-yellow-500"}`} />
         </div>
         {estaCompleto && (
           <motion.button initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             onClick={() => setMostrarModalCompletado(true)}
-            className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold shadow-md transition"
-          >
+            className="w-full mt-3 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold shadow-md transition">
             CONFIRMAR HOJA COMPLETA
           </motion.button>
         )}
       </div>
 
-      {/* Indicador escaneo */}
       {!estaCompleto && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 flex items-center gap-3">
           <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse" />
@@ -15376,48 +15463,53 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
         </div>
       )}
 
-      {/* Lista de productos */}
       <div className="space-y-2 pb-20">
         {hojaActual.productos.map((item: any) => {
           const surtido = productosSurtidos.get(item.producto_id) || 0;
-          const completado = !item.esFaltante || surtido >= item.cantidad_faltante;
+          const esPA = productosPA.has(item.producto_id);
+          const parcialInfo = productosParciales.get(item.producto_id);
+          const esManual = productosIngresoManual.has(item.producto_id);
+          const completado = !item.esFaltante || esPA || !!parcialInfo || esManual || surtido >= item.cantidad_faltante;
           const ultimoEscaneado = ultimoEscaneo === item.CODIGO || ultimoEscaneo === item.C_PRODUCTO;
 
           return (
             <motion.div key={item.producto_id}
               animate={{
                 scale: ultimoEscaneado ? [1, 1.02, 1] : 1,
-                backgroundColor: !item.esFaltante ? "#dcfce7" : completado ? "#dcfce7" : "#ffffff",
-                borderColor: !item.esFaltante ? "#22c55e" : completado ? "#22c55e" : "#fde047",
+                backgroundColor: esPA ? "#fef3c7" : parcialInfo ? "#fed7aa" : !item.esFaltante ? "#dcfce7" : completado ? "#dcfce7" : "#ffffff",
+                borderColor: esPA ? "#fbbf24" : parcialInfo ? "#fb923c" : !item.esFaltante ? "#22c55e" : completado ? "#22c55e" : "#fde047",
               }}
               className="border-2 rounded-xl p-3 shadow-sm transition-colors duration-300"
+              onClick={() => { if (item.esFaltante) setModalProductoProblema({ visible: true, producto: item }); }}
             >
               <p className="text-sm font-semibold text-zinc-800 mt-1 font-mono bg-zinc-100 inline-block px-1 rounded">{item.CODIGO}</p>
               <p className="text-sm font-semibold text-zinc-800 mb-2 line-clamp-3 leading-tight">{item.TITULO}</p>
               <div className="flex items-center gap-3">
                 <div className="relative w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
-                  <Image
-                    src={item.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
-                    alt={item.TITULO} fill className="object-contain"
-                  />
+                  <Image src={item.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                    alt={item.TITULO} fill className="object-contain" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-zinc-500">{item.ubicacion || "Sin ubicación"}</p>
-
                   {!item.esFaltante ? (
-                    <div className="mt-1 bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded inline-block">
-                      ✓ Ya surtido: {item.cantidad_surtida}/{item.cantidad_pedida}
+                    <div className="mt-1 bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded inline-block">✓ Ya surtido: {item.cantidad_surtida}/{item.cantidad_pedida}</div>
+                  ) : esPA ? (
+                    <div className="mt-2 bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">PA - AGOTADO</div>
+                  ) : parcialInfo ? (
+                    <div className="mt-2 bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">PARCIAL: {parcialInfo.encontrada}/{parcialInfo.pedida}</div>
+                  ) : esManual ? (
+                    <div className="mt-2 flex flex-col gap-1">
+                      <div className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
+                        MANUAL: {surtido}/{item.cantidad_faltante}
+                      </div>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 mt-2">
                       <div className="flex-1 bg-zinc-200 h-2 rounded-full overflow-hidden">
                         <div className={`h-full ${completado ? "bg-green-500" : "bg-yellow-500"}`}
-                          style={{ width: `${Math.min((surtido / item.cantidad_faltante) * 100, 100)}%` }}
-                        />
+                          style={{ width: `${Math.min((surtido / item.cantidad_faltante) * 100, 100)}%` }} />
                       </div>
-                      <span className={`text-sm font-bold ${completado ? "text-green-600" : "text-yellow-600"}`}>
-                        {surtido}/{item.cantidad_faltante}
-                      </span>
+                      <span className={`text-sm font-bold ${completado ? "text-green-600" : "text-yellow-600"}`}>{surtido}/{item.cantidad_faltante}</span>
                     </div>
                   )}
                 </div>
@@ -15439,27 +15531,26 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
         <AnimatePresence>
           {mostrarModalCompletado && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
-            >
+              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4">
               <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
-                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
-                onClick={(e) => e.stopPropagation()}
-              >
+                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center" onClick={(e) => e.stopPropagation()}>
                 <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
                   <CheckCircle size={40} className="text-green-500" />
                 </div>
                 <h3 className="text-xl font-bold text-zinc-900 mb-2">¡Faltantes recolectados!</h3>
-                <p className="text-zinc-600 text-sm mb-6">Todos los productos faltantes de esta hoja han sido recolectados.</p>
+                <p className="text-zinc-600 text-sm mb-6">Todos los productos faltantes de esta hoja han sido procesados.</p>
                 <button onClick={confirmarHoja} disabled={guardando}
-                  className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold transition"
-                >
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold transition">
                   {guardando ? "Guardando..." : "Confirmar y continuar →"}
+                </button>
+                <button onClick={() => setMostrarModalCompletado(false)} disabled={guardando}
+                  className="mt-3 text-zinc-400 text-sm hover:text-zinc-600 underline">
+                  Revisar de nuevo
                 </button>
               </motion.div>
             </motion.div>
           )}
-        </AnimatePresence>,
-        document.body
+        </AnimatePresence>, document.body
       )}
 
       {/* Modal alerta */}
@@ -15467,13 +15558,9 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
         <AnimatePresence>
           {modalAlerta?.visible && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4"
-              onClick={() => setModalAlerta(null)}
-            >
+              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4" onClick={() => setModalAlerta(null)}>
               <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
-                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
-                onClick={(e) => e.stopPropagation()}
-              >
+                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center" onClick={(e) => e.stopPropagation()}>
                 <div className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${modalAlerta.tipo === "error" ? "bg-red-100" : "bg-yellow-100"}`}>
                   <X size={36} className={modalAlerta.tipo === "error" ? "text-red-500" : "text-yellow-500"} />
                 </div>
@@ -15483,8 +15570,7 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
               </motion.div>
             </motion.div>
           )}
-        </AnimatePresence>,
-        document.body
+        </AnimatePresence>, document.body
       )}
 
       {/* Modal producto activo al escanear */}
@@ -15492,20 +15578,15 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
         <AnimatePresence>
           {modalProductoActivo?.visible && (
             <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
-              className="fixed bottom-24 left-4 right-4 z-[50000]"
-              onClick={() => setModalProductoActivo(null)}
-            >
+              className="fixed bottom-24 left-4 right-4 z-[50000]" onClick={() => setModalProductoActivo(null)}>
               <div className="bg-zinc-900 text-white rounded-2xl p-4 shadow-2xl flex items-center gap-4">
                 <div className="relative w-14 h-14 bg-zinc-700 rounded-xl overflow-hidden flex-shrink-0">
                   <Image src={modalProductoActivo.producto.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23374151' width='400' height='400'/%3E%3C/svg%3E"}
-                    alt="" fill className="object-contain"
-                  />
+                    alt="" fill className="object-contain" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm leading-tight line-clamp-2">{modalProductoActivo.producto.TITULO}</p>
-                  <p className="text-yellow-400 font-bold text-lg mt-1">
-                    {modalProductoActivo.cantidadActual} / {modalProductoActivo.cantidadObjetivo}
-                  </p>
+                  <p className="text-yellow-400 font-bold text-lg mt-1">{modalProductoActivo.cantidadActual} / {modalProductoActivo.cantidadObjetivo}</p>
                 </div>
                 {modalProductoActivo.cantidadActual >= modalProductoActivo.cantidadObjetivo && (
                   <CheckCircle size={28} className="text-green-400 flex-shrink-0" />
@@ -15513,9 +15594,107 @@ const RecoleccionPanel = ({ supabase, onBack }: any) => {
               </div>
             </motion.div>
           )}
-        </AnimatePresence>,
-        document.body
+        </AnimatePresence>, document.body
       )}
+
+      {/* Modal PA / Parcial / Ingreso Manual */}
+      {typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {modalProductoProblema?.visible && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm">
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center" onClick={(e) => e.stopPropagation()}>
+
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-100 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-10 h-10 text-yellow-600">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold mb-1 text-zinc-900">Problema con Producto</h3>
+                <p className="text-zinc-600 text-sm mb-1 font-semibold line-clamp-2">{modalProductoProblema.producto?.TITULO}</p>
+                <p className="text-zinc-400 text-xs mb-4">Faltante: {modalProductoProblema.producto?.cantidad_faltante}</p>
+
+                {/* Botón PA */}
+                <button
+                  onClick={() => {
+                    const id = modalProductoProblema.producto.producto_id;
+                    const nuevosPA = new Set(productosPA);
+                    if (nuevosPA.has(id)) {
+                      nuevosPA.delete(id);
+                      const nm = new Map(productosSurtidos); nm.set(id, 0); setProductosSurtidos(nm);
+                    } else {
+                      nuevosPA.add(id);
+                      const np = new Map(productosParciales); np.delete(id); setProductosParciales(np);
+                      const nim = new Set(productosIngresoManual); nim.delete(id); setProductosIngresoManual(nim);
+                      const nm = new Map(productosSurtidos); nm.delete(id); setProductosSurtidos(nm);
+                    }
+                    setProductosPA(nuevosPA);
+                    setModalProductoProblema(null);
+                    if ("vibrate" in navigator) navigator.vibrate(50);
+                  }}
+                  className={`w-full py-3 rounded-xl text-white font-bold text-base shadow-lg active:scale-95 transition mb-3 ${
+                    productosPA.has(modalProductoProblema.producto?.producto_id) ? "bg-red-500 hover:bg-red-600" : "bg-yellow-500 hover:bg-yellow-600"
+                  }`}
+                >
+                  {productosPA.has(modalProductoProblema.producto?.producto_id) ? "QUITAR PA" : "PA - Producto Agotado"}
+                </button>
+
+                {/* Input ingreso manual */}
+                <input
+                  type="number" min="1" max={modalProductoProblema.producto?.cantidad_faltante}
+                  value={cantidadParcialInput}
+                  onChange={(e) => setCantidadParcialInput(e.target.value)}
+                  placeholder="Cantidad encontrada"
+                  className="w-full border-2 text-zinc-600 border-orange-300 rounded-xl px-4 py-3 text-center text-lg mb-3 focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+                <div className="flex gap-3">
+                  <button onClick={() => { setModalProductoProblema(null); setCantidadParcialInput(""); }}
+                    className="flex-1 py-3 rounded-xl border-2 border-zinc-300 text-zinc-700 font-bold hover:bg-zinc-50 transition">
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => {
+                      const cantidad = parseInt(cantidadParcialInput);
+                      const producto = modalProductoProblema.producto;
+                      if (!cantidad || cantidad < 1 || cantidad > producto.cantidad_faltante) {
+                        alert(`Ingresa una cantidad entre 1 y ${producto.cantidad_faltante}`); return;
+                      }
+
+                      const id = producto.producto_id;
+
+                      // limpiar PA
+                      const nuevosPA = new Set(productosPA); nuevosPA.delete(id); setProductosPA(nuevosPA);
+
+                      if (cantidad < producto.cantidad_faltante) {
+                        const np = new Map(productosParciales);
+                        np.set(id, { pedida: producto.cantidad_faltante, encontrada: cantidad });
+                        setProductosParciales(np);
+                        const nim = new Set(productosIngresoManual); nim.delete(id); setProductosIngresoManual(nim);
+                      } else {
+                        const nim = new Set(productosIngresoManual); nim.add(id); setProductosIngresoManual(nim);
+                        const np = new Map(productosParciales); np.delete(id); setProductosParciales(np);
+                      }
+
+                      const nm = new Map(productosSurtidos); nm.set(id, cantidad); setProductosSurtidos(nm);
+
+                      setModalProductoProblema(null);
+                      setCantidadParcialInput("");
+                      if ("vibrate" in navigator) navigator.vibrate(50);
+                    }}
+                    disabled={!cantidadParcialInput}
+                    className="flex-1 py-3 rounded-xl bg-orange-500 text-white font-bold text-base shadow-lg hover:bg-orange-600 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Aplicar
+                  </button>
+                </div>
+
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>, document.body
+      )}
+
     </motion.div>
   );
 };
@@ -20894,12 +21073,13 @@ setEsperandoCaja(false);
                                       <p className="text-xs text-orange-500 font-medium">
                                         {getNombreMarca(art.marca_id)}
                                       </p>
+                                      <p className="text-s text-zinc-600 mt-1">
+                                       Codigo: {art.CODIGO}
+                                      </p>
                                       <p className="text-sm font-semibold text-zinc-700 line-clamp-2">
                                         {art.TITULO}
                                       </p>
-                                      <p className="text-xs text-zinc-500 mt-1">
-                                        {art.CODIGO}
-                                      </p>
+                                      
 
                                       {!esMostrador && !esMostrador2 && (
                                         <p className="text-sm font-bold text-orange-500 mt-1">
@@ -20914,23 +21094,30 @@ setEsperandoCaja(false);
                                         </p>
                                       )}
 
-                                      {/* Mostrar existencia para admin */}
-                                      {esAdmin && (
-                                        <div className="mt-2 flex items-center gap-1">
-                                          <Package className="w-3 h-3 text-zinc-400" />
-                                          <p
-                                            className={`text-xs font-semibold ${
-                                              (art.existencia || 0) === 0
-                                                ? "text-red-500"
-                                                : (art.existencia || 0) < 10
-                                                  ? "text-yellow-500"
-                                                  : "text-green-500"
-                                            }`}
-                                          >
-                                            Stock: {art.existencia || 0}
-                                          </p>
-                                        </div>
-                                      )}
+                                      {/* Mostrar existencia y ubicacion para admin */}
+                                      {(esAdmin || esRutas || esEmpleado) && (
+  <div className="mt-2 flex items-center gap-2">
+    <Package className="w-3 h-3 text-zinc-400" />
+    <p
+      className={`text-xs font-semibold ${
+        (art.existencia || 0) === 0
+          ? "text-red-500"
+          : (art.existencia || 0) < 10
+            ? "text-yellow-500"
+            : "text-green-500"
+      }`}
+    >
+      Stock: {art.existencia || 0}
+    </p>
+    {art.ubicacion && (
+      <>
+        <span className="text-zinc-300">·</span>
+        <MapPin className="w-3 h-3 text-zinc-400" />
+        <p className="text-xs font-semibold text-zinc-500">{art.ubicacion}</p>
+      </>
+    )}
+  </div>
+)}
 
                                       {/* Toggle (solo admin o admin mostrador) */}
                                       {(esAdmin ||
@@ -21291,27 +21478,35 @@ setEsperandoCaja(false);
                                 </div>
 
                                 <div>
-                                  <p className="font-semibold">{prod.TITULO}</p>
-                                  <p className="text-xs text-zinc-500">
+                                  <p className="text-sm text-zinc-600">
                                     Código: {prod.CODIGO}
                                   </p>
+                                  <p className="font-semibold">{prod.TITULO}</p>
+                                  
                                    {/* Mostrar existencia para admin */}
-                                      {esAdmin && (
-                                        <div className=" flex items-center gap-1">
-                                          <Package className="w-3 h-3 text-zinc-400" />
-                                          <p
-                                            className={`text-xs font-semibold ${
-                                              (prod.existencia || 0) === 0
-                                                ? "text-zinc-500"
-                                                : (prod.existencia || 0) < 10
-                                                  ? "text-zinc-500"
-                                                  : "text-zinc-500"
-                                            }`}
-                                          >
-                                            Stock: {prod.existencia || 0}
-                                          </p>
-                                        </div>
-                                      )}
+                                      {(esAdmin || esRutas || esEmpleado) && (
+  <div className="mt-2 flex items-center gap-2">
+    <Package className="w-3 h-3 text-zinc-400" />
+    <p
+      className={`text-xs font-semibold ${
+        (prod.existencia || 0) === 0
+          ? "text-red-500"
+          : (prod.existencia || 0) < 10
+            ? "text-zinc-500"
+            : "text-zinc-500"
+      }`}
+    >
+      Stock: {prod.existencia || 0}
+    </p>
+    {prod.ubicacion && (
+      <>
+        <span className="text-zinc-300">·</span>
+        <MapPin className="w-3 h-3 text-zinc-400" />
+        <p className="text-xs font-semibold text-zinc-500">{prod.ubicacion}</p>
+      </>
+    )}
+  </div>
+)}
 
                                   <div className="flex gap-2 mt-1.5">
     {prod.liquidacion && (
@@ -21543,12 +21738,13 @@ setEsperandoCaja(false);
                                           setProductoSeleccionado(item);
                                         }}
                                       >
+                                        <p className="text-sm text-zinc-600 mt-0.5">
+                                          Código: {item.CODIGO}
+                                        </p>
                                         <p className="text-sm font-semibold text-zinc-800 line-clamp-2 leading-tight">
                                           {item.TITULO}
                                         </p>
-                                        <p className="text-xs text-zinc-600 mt-0.5">
-                                          {item.CODIGO}
-                                        </p>
+                                        
                                         <div className="flex items-center gap-2 mt-1">
                                           <p className="text-sm font-bold text-orange-600">
                                             ${item.P_MAYOREO?.toFixed(2)}
@@ -22512,6 +22708,7 @@ setEsperandoCaja(false);
   <RecoleccionPanel
     supabase={supabase}
     onBack={() => setVistaPerfil("menu")}
+    esAdmin={esAdmin}
   />
 )}
 
@@ -23011,12 +23208,13 @@ setEsperandoCaja(false);
                                   <p className="text-xs text-orange-500 font-medium">
                                     {getNombreMarca(prod.marca_id)}
                                   </p>
+                                  <p className="text-sm text-zinc-600 mt-1">
+                                    Código: {prod.CODIGO}
+                                  </p>
                                   <p className="text-sm font-semibold text-zinc-700 line-clamp-2">
                                     {prod.TITULO}
                                   </p>
-                                  <p className="text-xs text-zinc-500 mt-1">
-                                    {prod.CODIGO}
-                                  </p>
+                                  
                                   {!esMostrador && !esMostrador2 && (
                                     <p className="text-sm font-bold text-orange-500 mt-1">
                                       ${" "}
