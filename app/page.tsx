@@ -20109,6 +20109,39 @@ setEsperandoCaja(false);
     );
   }
 
+  const Acordeon = ({ titulo, icono, children }: { titulo: string; icono: React.ReactNode; children: React.ReactNode }) => {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <div className="rounded-xl border border-zinc-200 overflow-hidden">
+      <button
+        onClick={() => setAbierto(!abierto)}
+        className="w-full flex items-center justify-between px-4 py-5 bg-zinc-50 hover:bg-zinc-100 transition"
+      >
+        <div className="flex items-center gap-2 text-zinc-700 font-semibold text-sm">
+          {icono}
+          {titulo}
+        </div>
+        <motion.div animate={{ rotate: abierto ? 180 : 0 }} transition={{ duration: 0.2 }}>
+          <ChevronLeft size={18} className="rotate-[-90deg] text-zinc-400" />
+        </motion.div>
+      </button>
+      <AnimatePresence initial={false}>
+        {abierto && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden bg-white px-2 pb-2 pt-1 space-y-1"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
   const MenuItem = ({ label, icon, onClick, danger }: any) => (
     <motion.button
       onClick={onClick}
@@ -22279,339 +22312,147 @@ setEsperandoCaja(false);
                         </p>
 
                         {/* OPCIONES DEL MENÚ */}
-                        <div className="w-full mt-8 space-y-3">
-                          {/* Historial de pedidos */}
-                          <MenuItem
-                            icon={<History size={20} />}
-                            label="Mis pedidos"
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("pedidos");
-                            }}
-                          />
-
-                          <MenuItem
-                            icon={<PackageX size={20} />}
-                            label="Back Orders"
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("back-orders");
-                            }}
-                          />
-
-                          {esAdmin && (
-                            <MenuItem
-                              label="Actualizar base de datos"
-                              icon={<DatabaseBackup size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("actualizar-bd");
-                              }}
-                            />
-                          )}
-
-                          {esAdmin && (
-                            <MenuItem
-                              label="Agregar producto"
-                              icon={<PackagePlus size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("agregar-producto");
-                              }}
-                            />
-                          )}
-
-                          {esAdmin && (
-                            <>
-                              <MenuItem
-                                label="Agregar o Eliminar Subcategorías"
-                                icon={<Boxes size={20} />}
-                                onClick={() => {
-                                  window.scrollTo({
-                                    top: 0,
-                                    behavior: "instant",
-                                  });
-                                  setVistaPerfil("gestionar-categorias");
-                                }}
-                              />
-                              {/*
-                              <MenuItem
-                                label="Asignar Subcategorías"
-                                icon={<Box size={20} />}
-                                onClick={() => {
-                                  window.scrollTo({
-                                    top: 0,
-                                    behavior: "instant",
-                                  });
-                                  setVistaPerfil("asignar-categorias");
-                                }}
-                              />*/}
-                            </>
-                          )}
-
-                          {esAdmin && (
-                            <MenuItem
-                              label="Agregar o Eliminar Categorías"
-                              icon={<SquareStack size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("gestionar-macro-categorias");
-                              }}
-                            />
-                          )}
-
-                          {esAdmin && (
-                            <MenuItem
-                              label="Edición de Categorías y Subcategorías"
-                              icon={<FilePenLine size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("edicion-categorias");
-                              }}
-                            />
-                          )}
-
-                          {esAdmin && (
-                            <MenuItem
-                              label="Agregar, Editar o Eliminar Marcas"
-                              icon={<Codesandbox size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("gestionar-marcas");
-                              }}
-                            />
-                          )}
-
-                          {esAdmin && (
-                            <MenuItem
-                              label="Gestionar Cuentas"
-                              icon={<Users size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("gestionar-cuentas");
-                              }}
-                            />
-                          )}
-
-                          {esAdmin && (
-                            <MenuItem
-                              label="Ordenar Posicion de elementos"
-                              icon={<ListOrdered size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("ordenar-productos");
-                              }}
-                            />
-                          )}
-
-                          {esAdmin && (
-                            <MenuItem
-                              label="Gestionar Banner de Anuncios"
-                              icon={<Megaphone size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("gestionar-banner");
-                              }}
-                            />
-                          )}
-
-                          {esAdmin && (
-                            <MenuItem
-                              label="Eliminación Masiva de Productos"
-                              icon={<X size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("eliminacion-masiva");
-                              }}
-                            />
-                          )}
-
-                          {/* personal info  */}
-                          <MenuItem
-                            label="Informacion Personal"
-                            icon={<UserCog size={20} />}
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("settings");
-                            }}
-                          />
-
-                          {/* Botón Inventario (solo admin) */}
-                          {esAdmin && (
-                            <MenuItem
-                              label="Inventario"
-                              icon={<Package size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("inventario");
-                              }}
-                            />
-                          )}
-                          {(esAdmin || esRutas) && (
-                            <MenuItem
-                              label="Ver Rutas"
-                              icon={<MapPin size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("rutas");
-                              }}
-                            />
-                          )}
-
-                          {esAdmin && (
-                            <MenuItem
-                              label="Rastrear Rutas"
-                              icon={<MapPinned size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("rastreo-rutas");
-                              }}
-                            />
-                          )}
-
-                          {esAdmin && (
-                            <MenuItem
-                              label="Confirmar Pagos"
-                              icon={<DollarSign size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("confirmar_pagos");
-                              }}
-                            />
-                          )}
-                          {(esEmpleado || esAdmin) && (
-                            <MenuItem
-                              label="Surtir Pedidos"
-                              icon={<Package size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("surtir");
-                              }}
-                            />
-                          )}
-
-                          {(esEmpleado || esAdmin) && (
-                            <MenuItem
-                              label="Revisar Pedidos"
-                              icon={<PackageSearch size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("revision");
-                              }}
-                            />
-                          )}
-
-                          {(esEmpleado || esAdmin) && (
+                        
+<div className="w-full mt-8 space-y-3">
+  {!(esAdmin || esEmpleado || esRutas) && (
+     <> 
   <MenuItem
-    label="Recolección Pendiente"
-    icon={<PackagePlus size={20} />}
-    onClick={() => {
-      window.scrollTo({ top: 0, behavior: "instant" });
-      setVistaPerfil("recoleccion");
-    }}
+    icon={<History size={20} />}
+    label="Mis pedidos"
+    onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("pedidos"); }}
   />
-)}
+  <MenuItem
+    icon={<PackageX size={20} />}
+    label="Back Orders"
+    onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("back-orders"); }}
+  />
 
-                          {/* Ubicación */}
-                          {!esAdmin && (
-                            <MenuItem
-                              icon={<MapPin size={20} />}
-                              label="Ubicación de tienda"
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("ubicacion");
-                              }}
-                            />
-                          )}
-                          {!esAdmin && (
-                            <MenuItem
-                              label="Apoyo"
-                              icon={<FileQuestionMark size={20} />}
-                              onClick={() => {
-                                window.scrollTo({
-                                  top: 0,
-                                  behavior: "instant",
-                                });
-                                setVistaPerfil("apoyo");
-                              }}
-                            />
-                          )}
+    <MenuItem
+      icon={<MapPin size={20} />}
+      label="Ubicación de tienda"
+      onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("ubicacion"); }}
+    />
 
-                          {/* Dirección 
-                          <MenuItem
-                            label="Shipping Address"
-                            icon={<MapPinHouse size={20} />}
-                            onClick={() => {
-                              window.scrollTo({ top: 0, behavior: "instant" });
-                              setVistaPerfil("address");
-                            }}
-                          />*/}
+    <MenuItem
+      label="Apoyo"
+      icon={<FileQuestionMark size={20} />}
+      onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("apoyo"); }}
+    />
+    </>
+  )}
 
-                          {/* Logout */}
-                          <MenuItem
-                            label="Cerrar sesión"
-                            icon={<LogOut size={20} />}
-                            onClick={() => {
-                              if (cuenta?.numero_cuenta) {
-                                localStorage.removeItem(
-                                  `enRuta_${cuenta.numero_cuenta}`,
-                                );
-                              }
+  {(esAdmin || esEmpleado || esRutas) && (
+    <div className="space-y-2 pt-2">
 
-                              setCuentaActiva(null);
-                              setCuenta(null);
-                            }}
-                            danger
-                          />
-                        </div>
+
+       {/* Pedidos */}
+       {esAdmin && (
+  <Acordeon titulo="Pedidos" icono={<History size={18} />}>
+    <MenuItem
+      icon={<History size={20} />}
+      label="Historial de pedidos"
+      onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("pedidos"); }}
+    />
+    <MenuItem
+      icon={<PackageX size={20} />}
+      label="Back Orders"
+      onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("back-orders"); }}
+    />
+  </Acordeon>
+      )}
+
+      {/* Productos */}
+      {esAdmin && (
+        <Acordeon titulo="Productos" icono={<Package size={18} />}>
+          <MenuItem label="Agregar producto" icon={<PackagePlus size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("agregar-producto"); }} />
+          <MenuItem label="Actualizar base de datos" icon={<DatabaseBackup size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("actualizar-bd"); }} />
+          <MenuItem label="Eliminación masiva" icon={<X size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("eliminacion-masiva"); }} />
+          <MenuItem label="Inventario" icon={<Package size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("inventario"); }} />
+        </Acordeon>
+      )}
+
+      {/* Categorías y Marcas */}
+      {esAdmin && (
+        <Acordeon titulo="Categorías y Marcas" icono={<Boxes size={18} />}>
+          <MenuItem label="Agregar o Eliminar Subcategorías" icon={<Boxes size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("gestionar-categorias"); }} />
+          <MenuItem label="Agregar o Eliminar Categorías" icon={<SquareStack size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("gestionar-macro-categorias"); }} />
+          <MenuItem label="Edición de Categorías y Subcategorías" icon={<FilePenLine size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("edicion-categorias"); }} />
+          <MenuItem label="Agregar, Editar o Eliminar Marcas" icon={<Codesandbox size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("gestionar-marcas"); }} />
+          <MenuItem label="Ordenar Posición de elementos" icon={<ListOrdered size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("ordenar-productos"); }} />
+        </Acordeon>
+      )}
+
+      {/* Cuentas y Pagos */}
+      {esAdmin && (
+        <Acordeon titulo="Cuentas y Pagos" icono={<Users size={18} />}>
+          <MenuItem label="Gestionar Cuentas" icon={<Users size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("gestionar-cuentas"); }} />
+          <MenuItem label="Confirmar Pagos" icon={<DollarSign size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("confirmar_pagos"); }} />
+          <MenuItem label="Gestionar Banner de Anuncios" icon={<Megaphone size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("gestionar-banner"); }} />
+        </Acordeon>
+      )}
+
+      {/* Operaciones */}
+      {(esAdmin || esEmpleado || esRutas) && (
+        <Acordeon titulo="Operaciones" icono={<Truck size={18} />}>
+          {(esAdmin || esEmpleado) && (
+            <MenuItem label="Surtir Pedidos" icon={<Package size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("surtir"); }} />
+          )}
+          {(esAdmin || esEmpleado) && (
+            <MenuItem label="Revisar Pedidos" icon={<PackageSearch size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("revision"); }} />
+          )}
+          {(esAdmin || esEmpleado) && (
+            <MenuItem label="Recolección Pendiente" icon={<PackagePlus size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("recoleccion"); }} />
+          )}
+          {(esAdmin || esRutas) && (
+            <MenuItem label="Ver Rutas" icon={<MapPin size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("rutas"); }} />
+          )}
+          {esAdmin && (
+            <MenuItem label="Rastrear Rutas" icon={<MapPinned size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("rastreo-rutas"); }} />
+          )}
+        </Acordeon>
+      )}
+ {(esAdmin || esEmpleado || esRutas) && (
+       <Acordeon titulo="Mi Cuenta" icono={<UserCog size={18} />}>
+    <MenuItem
+      label="Información Personal"
+      icon={<UserCog size={20} />}
+      onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("settings"); }}
+    />
+    <MenuItem
+      label="Cerrar sesión"
+      icon={<LogOut size={20} />}
+      onClick={() => {
+        if (cuenta?.numero_cuenta) localStorage.removeItem(`enRuta_${cuenta.numero_cuenta}`);
+        setCuentaActiva(null);
+        setCuenta(null);
+      }}
+      danger
+    />
+  </Acordeon>
+        )}
+    </div>
+  )}
+ {!(esAdmin || esEmpleado || esRutas) && (
+  <>
+  <MenuItem
+    label="Informacion Personal"
+    icon={<UserCog size={20} />}
+    onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("settings"); }}
+  />
+  <MenuItem
+    label="Cerrar sesión"
+    icon={<LogOut size={20} />}
+    onClick={() => {
+      if (cuenta?.numero_cuenta) localStorage.removeItem(`enRuta_${cuenta.numero_cuenta}`);
+      setCuentaActiva(null);
+      setCuenta(null);
+    }}
+    danger
+  />
+  </>
+ )}
+
+</div>
                       </motion.div>
                     )}
 
