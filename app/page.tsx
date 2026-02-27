@@ -40,6 +40,7 @@ import {
   ChevronLeft,
   ScanBarcode,
   MapPinned,
+  Layers,
 } from "lucide-react";
 
 const ordenarProductos = (productos: any[], searchTerm: string) => {
@@ -155,6 +156,7 @@ import { updateTag } from "next/cache";
 import { useRastreoGPS } from "@/hooks/useRastreoGPS";
 import VistaRastreoRutas from "./VistaRastreoRutas";
 import InventarioPanel from "./InventarioPanel";
+import GestionarGruposView from "./GestionarGruposView";
 
 const MapaUbicacion = dynamic(() => import("./MapaUbicacion"), {
   ssr: false,
@@ -4084,6 +4086,37 @@ const esEmpleado = cuenta?.numero_cuenta
   const [pedidoIdParaBackOrder, setPedidoIdParaBackOrder] = useState<
     number | null
   >(null);
+
+  // ── Grupos de subcategoría ──────────────────────────────────────
+const [gruposSubcat, setGruposSubcat] = useState<any[]>([]);
+const [grupoActivoId, setGrupoActivoId] = useState<number | "todos" | null>(null);
+
+const cargarGruposDeSubcat = async (subcatId: number) => {
+  setGruposSubcat([]);
+  setGrupoActivoId(null);
+
+  const { data: gruposData } = await supabase
+    .from("grupos")
+    .select("id, nombre, orden, imagen") 
+    .eq("subcategoria_id", subcatId)
+    .order("orden", { ascending: true });
+
+  if (!gruposData || gruposData.length === 0) return;
+
+  const gruposConProds = await Promise.all(
+    gruposData.map(async (g: any) => {
+      const { data: relaciones } = await supabase
+        .from("grupos_productos")
+        .select("producto_id")
+        .eq("grupo_id", g.id);
+      return { ...g, productoIds: (relaciones || []).map((r: any) => r.producto_id) };
+    })
+  );
+
+  setGruposSubcat(gruposConProds);
+  setGrupoActivoId("todos");
+};
+
   const [enRuta, setEnRuta] = useState(() => {
     if (typeof window !== "undefined" && cuenta?.numero_cuenta) {
       const guardado = localStorage.getItem(`enRuta_${cuenta.numero_cuenta}`);
@@ -15930,7 +15963,7 @@ const [nombresEmpleados, setNombresEmpleados] = useState<Record<string, string>>
     });
     const [modalCantidad, setModalCantidad] = useState<any>(null);
     const [cantidadManual, setCantidadManual] = useState("");
-
+const [contenedores, setContenedores] = useState<Map<string, string>>(new Map());
     useEffect(() => {
       window.scrollTo(0, 0);
     }, [pedidoSeleccionado, hojaActual]);
@@ -15943,21 +15976,22 @@ const [nombresEmpleados, setNombresEmpleados] = useState<Record<string, string>>
     } | null>(null);
 
     useEffect(() => {
-      cargarPedidosPorRevisar();
-
-      const channel = supabase
-        .channel("revision-realtime")
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "pedidos" },
-          () => cargarPedidosPorRevisar(),
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }, []);
+  const init = async () => {
+    cargarPedidosPorRevisar();
+    const { data: contenedoresData } = await supabase
+      .from("contenedores").select("codigo, nombre").eq("activo", true);
+    if (contenedoresData) {
+      const mapa = new Map<string, string>();
+      contenedoresData.forEach((c: any) => mapa.set(c.codigo, c.nombre));
+      setContenedores(mapa);
+    }
+  };
+  init();
+  const channel = supabase.channel("revision-realtime")
+    .on("postgres_changes", { event: "*", schema: "public", table: "pedidos" }, () => cargarPedidosPorRevisar())
+    .subscribe();
+  return () => { supabase.removeChannel(channel); };
+}, []);
 
     const limpiarEstadoLocal = () => {
       localStorage.removeItem("revision_estado");
@@ -16021,9 +16055,11 @@ const [nombresEmpleados, setNombresEmpleados] = useState<Record<string, string>>
         .eq("pedido_id", pedido.id)
         .order("numero_hoja", { ascending: true });
 
-        const empleados = hojasData
-  ?.filter((h: any) => h.empleado_surtiendo)
-  .map((h: any) => h.empleado_surtiendo) || [];
+
+const empleados = [
+  ...(hojasData?.filter((h: any) => h.empleado_surtiendo).map((h: any) => h.empleado_surtiendo) || []),
+  ...(hojasData?.filter((h: any) => h.revisando_por).map((h: any) => h.revisando_por) || []),
+];
 
 if (empleados.length > 0) {
   const { data: cuentasInfo } = await supabase
@@ -16097,37 +16133,48 @@ if (empleados.length > 0) {
         .update({ estado: "revisando" })
         .eq("id", pedido.id);
     };
-    const seleccionarHoja = (hoja: any) => {
-      if (hojasProcesadas.has(hoja.id)) {
-        alert("Esta hoja ya fue revisada");
-        return;
-      }
+    const seleccionarHoja = async (hoja: any) => {
+  if (hojasProcesadas.has(hoja.id)) {
+    alert("Esta hoja ya fue revisada");
+    return;
+  }
 
-      setHojaActual(hoja);
+  setHojaActual(hoja);
 
-      // Cargar estado guardado si existe
-      const estadoGuardado = cargarEstadoLocalHoja(hoja.id);
-      if (estadoGuardado) {
-        const mapaVerificados = new Map();
-        (estadoGuardado.productosVerificados || []).forEach(
-          ([key, value]: [number, number]) => {
-            mapaVerificados.set(key, value);
-          },
-        );
-        setProductosVerificados(mapaVerificados);
+  await supabase
+    .from("hojas_surtido")
+    .update({ revisando_por: cuenta?.numero_cuenta || null })
+    .eq("id", hoja.id);
 
-        const mapaCambios = new Map();
-        (estadoGuardado.cambiosEstado || []).forEach(
-          ([key, value]: [number, any]) => {
-            mapaCambios.set(key, value);
-          },
-        );
-        setCambiosEstado(mapaCambios);
-      } else {
-        setProductosVerificados(new Map());
-        setCambiosEstado(new Map());
-      }
-    };
+  setHojas((prev) =>
+    prev.map((h) =>
+      h.id === hoja.id ? { ...h, revisando_por: cuenta?.numero_cuenta } : h
+    )
+  );
+
+  // Cargar estado guardado si existe
+  const estadoGuardado = cargarEstadoLocalHoja(hoja.id);
+  if (estadoGuardado) {
+    const mapaVerificados = new Map();
+    (estadoGuardado.productosVerificados || []).forEach(
+      ([key, value]: [number, number]) => {
+        mapaVerificados.set(key, value);
+      },
+    );
+    setProductosVerificados(mapaVerificados);
+
+    const mapaCambios = new Map();
+    (estadoGuardado.cambiosEstado || []).forEach(
+      ([key, value]: [number, any]) => {
+        mapaCambios.set(key, value);
+      },
+    );
+    setCambiosEstado(mapaCambios);
+  } else {
+    setProductosVerificados(new Map());
+    setCambiosEstado(new Map());
+  }
+};
 
     // Lógica de escaneo
   useEffect(() => {
@@ -16442,6 +16489,7 @@ if (empleados.length > 0) {
             .from("hojas_surtido")
             .update({
               productos_asignados: JSON.stringify(productosActualizados),
+              revisando_por: null,
             })
             .eq("id", hojaActual.id);
         }
@@ -16772,34 +16820,56 @@ if (empleados.length > 0) {
               const procesada = hojasProcesadas.has(hoja.id);
               return (
                 <div
-                  key={hoja.id}
-                  onClick={() => !procesada && seleccionarHoja(hoja)}
-                  className={`border-2 rounded-xl p-4 transition ${
-                    procesada
-                      ? "bg-green-50 border-green-500 cursor-not-allowed"
-                      : "bg-white border-zinc-200 cursor-pointer hover:border-blue-400"
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-bold text-zinc-900 text-lg">
-                        Hoja #{hoja.numero_hoja}
-                      </p>
-                      <p className="text-sm text-zinc-600">
-                        {hoja.productos.length} productos
-                      </p>
-                    </div>
-                    <div
-                      className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        procesada
-                          ? "bg-green-500 text-white"
-                          : "bg-zinc-200 text-zinc-700"
-                      }`}
-                    >
-                      {procesada ? "✓ REVISADO" : "PENDIENTE"}
-                    </div>
-                  </div>
-                </div>
+  key={hoja.id}
+  onClick={() => !procesada && seleccionarHoja(hoja)}
+  className={`border-2 rounded-xl p-4 transition ${
+    procesada
+      ? "bg-green-50 border-green-500 cursor-not-allowed"
+      : hoja.revisando_por && hoja.revisando_por !== cuenta?.numero_cuenta
+        ? "bg-yellow-50 border-yellow-300 cursor-pointer"
+        : "bg-white border-zinc-200 cursor-pointer hover:border-blue-400"
+  }`}
+>
+  <div className="flex justify-between items-start">
+    <div>
+      <p className="font-bold text-zinc-900 text-lg">Hoja #{hoja.numero_hoja}</p>
+      <p className="text-sm text-zinc-600">{hoja.productos.length} productos</p>
+    </div>
+    <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+      procesada
+        ? "bg-green-500 text-white"
+        : hoja.revisando_por
+          ? hoja.revisando_por === cuenta?.numero_cuenta
+            ? "bg-blue-500 text-white"
+            : "bg-yellow-500 text-white"
+          : "bg-zinc-200 text-zinc-700"
+    }`}>
+      {procesada
+        ? "✓ REVISADO"
+        : hoja.revisando_por
+          ? hoja.revisando_por === cuenta?.numero_cuenta
+            ? "EN REVISIÓN"
+            : "OCUPADA"
+          : "PENDIENTE"}
+    </div>
+  </div>
+
+  {/* quien revisa */}
+  {!procesada && hoja.revisando_por && (
+    <div className="mt-2 flex items-center gap-2">
+      <div className={`w-2 h-2 rounded-full animate-pulse ${
+        hoja.revisando_por === cuenta?.numero_cuenta ? "bg-blue-500" : "bg-yellow-500"
+      }`} />
+      <p className={`text-xs font-semibold ${
+        hoja.revisando_por === cuenta?.numero_cuenta ? "text-blue-700" : "text-yellow-700"
+      }`}>
+        {hoja.revisando_por === cuenta?.numero_cuenta
+          ? "Estás revisando esta hoja"
+          : `Revisando: ${nombresEmpleados[hoja.revisando_por] || hoja.revisando_por}`}
+      </p>
+    </div>
+  )}
+</div>
               );
             })}
           </div>
@@ -17414,7 +17484,16 @@ await supabase
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
-        <BackBtn onBack={() => setHojaActual(null)} />
+        <BackBtn onBack={async () => {
+  await supabase
+    .from("hojas_surtido")
+    .update({ revisando_por: null })
+    .eq("id", hojaActual.id);
+  setHojas((prev) =>
+    prev.map((h) => h.id === hojaActual.id ? { ...h, revisando_por: null } : h)
+  );
+  setHojaActual(null);
+}} />
 
         <h2 className="text-xl font-bold text-zinc-900 mb-2">
           Hoja #{hojaActual.numero_hoja} - Revisión
@@ -17450,10 +17529,10 @@ await supabase
           </p>
           <div className="flex flex-wrap gap-1 mt-0.5">
             {hojaActual.cajas.map((c: string) => (
-              <span key={c} className="text-xs font-bold font-mono bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
-                {c}
-              </span>
-            ))}
+  <span key={c} className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+    {contenedores.get(c) || c}
+  </span>
+))}
           </div>
         </div>
       </div>
@@ -18234,6 +18313,7 @@ const [esperandoCaja, setEsperandoCaja] = useState(false);
       cantidadObjetivo: number;
     } | null>(null);
 const [nombresEmpleados, setNombresEmpleados] = useState<Record<string, string>>({});
+const [contenedores, setContenedores] = useState<Map<string, string>>(new Map());
 
     useEffect(() => {
       window.scrollTo(0, 0);
@@ -18375,6 +18455,14 @@ const empleadosSurtiendo = hojasExistentes
 
 if (empleadosSurtiendo.length > 0) {
   await cargarNombresEmpleados([...new Set(empleadosSurtiendo)]);
+}
+// Cargar contenedores
+const { data: contenedoresData } = await supabase
+  .from("contenedores").select("codigo, nombre").eq("activo", true);
+if (contenedoresData) {
+  const mapa = new Map<string, string>();
+  contenedoresData.forEach((c: any) => mapa.set(c.codigo, c.nombre));
+  setContenedores(mapa);
 }
         } else {
           // Lógica de Creación Inicial
@@ -18624,10 +18712,13 @@ setEsperandoCaja(false);
       if (bufferEscaneo.trim()) {
         if (mostrarModalCompletado && esperandoCaja) {
           const codigo = bufferEscaneo.trim();
-          setCajas((prev) =>
-            prev.includes(codigo) ? prev : [...prev, codigo]
-          );
-          if ("vibrate" in navigator) navigator.vibrate(50);
+if (!contenedores.has(codigo)) {
+  if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+  setModalAlerta({ visible: true, titulo: "Código inválido", mensaje: `"${codigo}" no es una caja o canasta registrada.`, tipo: "error" });
+} else if (!cajas.includes(codigo)) {
+  setCajas((prev) => [...prev, codigo]);
+  if ("vibrate" in navigator) navigator.vibrate(50);
+}
         } else if (!mostrarModalCompletado) {
           procesarEscaneo(bufferEscaneo.trim());
         }
@@ -18642,10 +18733,13 @@ setEsperandoCaja(false);
       if (bufferEscaneo.trim()) {
         if (mostrarModalCompletado && esperandoCaja) {
           const codigo = bufferEscaneo.trim();
-          setCajas((prev) =>
-            prev.includes(codigo) ? prev : [...prev, codigo]
-          );
-          if ("vibrate" in navigator) navigator.vibrate(50);
+if (!contenedores.has(codigo)) {
+  if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+  setModalAlerta({ visible: true, titulo: "Código inválido", mensaje: `"${codigo}" no es una caja o canasta registrada.`, tipo: "error" });
+} else if (!cajas.includes(codigo)) {
+  setCajas((prev) => [...prev, codigo]);
+  if ("vibrate" in navigator) navigator.vibrate(50);
+}
         } else if (!mostrarModalCompletado) {
           procesarEscaneo(bufferEscaneo.trim());
         }
@@ -19480,7 +19574,9 @@ setEsperandoCaja(false);
         <div key={idx} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-orange-200">
           <div className="flex items-center gap-2">
             <span className="text-sm">📦</span>
-            <span className="font-mono font-bold text-zinc-800 text-sm">{caja}</span>
+            <span className="font-bold text-zinc-800 text-sm">
+  {contenedores.get(caja) || caja}
+</span>
           </div>
           <button
             onClick={() => setCajas((prev) => prev.filter((_, i) => i !== idx))}
@@ -21021,6 +21117,7 @@ setEsperandoCaja(false);
                                 }
                                 setArticulos([]);
                                 setCategoriaSeleccionada(cat);
+                                cargarGruposDeSubcat(cat.id_categoria);
 
                                 const { data, error } = await supabase
                                   .from("productos")
@@ -21156,29 +21253,84 @@ setEsperandoCaja(false);
                             </h2>
                           </div>
 
+                          {/* Tarjetas de grupos */}
+{gruposSubcat.length > 0 && categoriaSeleccionada && !searchTerm && (
+  <>
+    {grupoActivoId !== null && grupoActivoId !== "todos" && (
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          onClick={() => setGrupoActivoId("todos")}
+          className="flex items-center gap-1 text-zinc-500 hover:text-zinc-800 text-sm font-medium transition"
+        >
+          <ChevronLeft size={18} />
+          Volver a grupos
+        </button>
+        <span className="text-sm font-bold text-zinc-800">
+          {gruposSubcat.find((g) => g.id === grupoActivoId)?.nombre}
+        </span>
+      </div>
+    )}
+
+    {/* Vista: grid de tarjetas de grupos */}
+    {(grupoActivoId === null || grupoActivoId === "todos") && (
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 mb-6">
+        {gruposSubcat.map((g) => (
+          <div
+            key={g.id}
+            onClick={() => setGrupoActivoId(g.id)}
+            className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+          >
+           <div className="relative w-full h-40 ">
+  {g.imagen ? (
+    <Image src={g.imagen} alt={g.nombre} fill className="object-contain" />
+  ) : (
+    <div className="w-full h-full flex items-center justify-center">
+      <Layers size={36} className="text-zinc-300" />
+    </div>
+  )}
+</div>
+            <div className="p-2 text-center">
+              <p className="text-sm font-semibold text-zinc-800">{g.nombre}</p>
+              <p className="text-xs text-zinc-400 mt-0.5">{g.productoIds?.length ?? 0} productos</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </>
+)}
+
                           {/* Grid productos */}
                           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 pb-10">
                             <AnimatePresence>
                               {articulos
                                 .filter((a) => {
-                                  if (!esAdmin && !a.visible) return false;
-                                  if (
-                                    (esMostrador || esMostrador2) &&
-                                    idsOcultosMostrador.includes(a.id)
-                                  ) {
-                                    return false;
-                                  }
-                                  return (
-                                    (a.TITULO &&
-                                      a.TITULO.toLowerCase().includes(
-                                        searchTerm.toLowerCase(),
-                                      )) ||
-                                    (a.CODIGO &&
-                                      a.CODIGO.toLowerCase().includes(
-                                        searchTerm.toLowerCase(),
-                                      ))
-                                  );
-                                })
+  if (!esAdmin && !a.visible) return false;
+  if (
+    (esMostrador || esMostrador2) &&
+    idsOcultosMostrador.includes(a.id)
+  ) {
+    return false;
+  }
+
+  if (gruposSubcat.length > 0 && categoriaSeleccionada && !searchTerm) {
+    const todosLosIdsEnGrupos = gruposSubcat.flatMap((g) => g.productoIds);
+
+    if (grupoActivoId === null || grupoActivoId === "todos") {
+      if (todosLosIdsEnGrupos.includes(a.id)) return false;
+    } else {
+      const grupo = gruposSubcat.find((g) => g.id === grupoActivoId);
+      if (!grupo || !grupo.productoIds.includes(a.id)) return false;
+    }
+  }
+
+  return (
+    (a.TITULO &&
+      a.TITULO.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (a.CODIGO &&
+      a.CODIGO.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+})
                                 .map((art) => (
                                   <motion.div
                                     key={art.id}
@@ -22308,7 +22460,7 @@ setEsperandoCaja(false);
 
                         {/* Teléfono */}
                         <p className="text-zinc-500 text-sm mt-1">
-                          {cuenta?.numero_cuenta ?? "Sin teléfono"}
+                          {cuenta?.numero_tel ?? "Sin teléfono"}
                         </p>
 
                         {/* OPCIONES DEL MENÚ */}
@@ -22368,6 +22520,7 @@ setEsperandoCaja(false);
           <MenuItem label="Actualizar base de datos" icon={<DatabaseBackup size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("actualizar-bd"); }} />
           <MenuItem label="Eliminación masiva" icon={<X size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("eliminacion-masiva"); }} />
           <MenuItem label="Inventario" icon={<Package size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("inventario"); }} />
+          <MenuItem label="gestionar grupos" icon={<Package size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("gestionar-grupos"); }} />
         </Acordeon>
       )}
 
@@ -22649,6 +22802,10 @@ setEsperandoCaja(false);
                         setPedidoIdParaBackOrder={setPedidoIdParaBackOrder}
                       />
                     )}
+
+                    {vistaPerfil === "gestionar-grupos" && esAdmin && (
+  <GestionarGruposView setVistaPerfil={setVistaPerfil} />
+)}
 
                     {vistaPerfil === "inventario" && esAdmin && (
                       <motion.div

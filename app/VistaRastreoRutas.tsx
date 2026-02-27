@@ -202,7 +202,9 @@ useEffect(() => {
             </div>
           </div>
         ) : (
-          <MapaRastreo ubicaciones={ubicaciones} />
+          <div style={{ position: "relative", zIndex: 0 }}>
+  <MapaRastreo ubicaciones={ubicaciones} />
+</div>
         )}
 
         {/* Lista de rutas */}

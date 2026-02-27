@@ -31,8 +31,8 @@ const MapaRastreo = ({ ubicaciones }: MapaRastreoProps) => {
 
     // Inicializar mapa solo una vez
     if (!mapRef.current) {
-      // Centro de Monterrey, México
-      const center: [number, number] = [25.6866, -100.3161];
+      // Centro de Matamoros, Tamaulipas
+      const center: [number, number] = [25.8520977, -97.5017951];
 
       mapRef.current = L.map(containerRef.current).setView(center, 12);
 
@@ -165,9 +165,10 @@ const MapaRastreo = ({ ubicaciones }: MapaRastreoProps) => {
 
   return (
     <div
-      ref={containerRef}
-      className="h-[400px] md:h-[600px] rounded-xl overflow-hidden shadow-lg border-2 border-zinc-200"
-    />
+  ref={containerRef}
+  style={{ zIndex: 0, position: "relative" }}
+  className="h-[400px] md:h-[600px] rounded-xl overflow-hidden shadow-lg border-2 border-zinc-200"
+/>
   );
 };
 
