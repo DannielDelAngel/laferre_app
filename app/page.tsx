@@ -2157,6 +2157,28 @@ const VistaRutas = ({
     }
   };
 
+  const [rutasActivas, setRutasActivas] = useState<Record<string, boolean>>(() => {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(localStorage.getItem('rutasActivas') ?? '{}');
+  } catch { return {}; }
+});
+
+const toggleRuta = async (ruta: string, activa: boolean) => {
+  if (!activa && cuenta?.numero_cuenta) {
+    await supabase
+      .from('rastreo_rutas')
+      .update({ en_ruta: false })
+      .eq('cuenta_id', String(cuenta.numero_cuenta));
+  }
+  setRutasActivas(prev => {
+    const next = { ...prev, [ruta]: activa };
+    localStorage.setItem('rutasActivas', JSON.stringify(next));
+    return next;
+  });
+  setEnRuta(activa); 
+};
+
   const cargarPedidosRuta = async () => {
     const { data, error } = await supabase
       .from("pedidos")
@@ -3635,8 +3657,10 @@ const VistaRutas = ({
             new Set([
               ...Object.keys(pedidosPorRuta),
               ...Object.keys(documentosPorRuta),
+               ...Object.keys(rutasActivas).filter(r => rutasActivas[r]),
             ]),
           ).map((ruta) => {
+            const estaEnRuta = rutasActivas[ruta] ?? false;
             const pedidos = pedidosPorRuta[ruta] || [];
             const todosDocumentos = documentosPorRuta[ruta] || [];
             const documentos = todosDocumentos.filter(
@@ -3754,36 +3778,20 @@ const VistaRutas = ({
                         <div className="space-y-3">
                           <button
                             onClick={async (e) => {
-                              e.stopPropagation();
-
-                              if (!enRuta) {
-                                const iniciada = await iniciarRuta(ruta);
-
-                                if (!iniciada) return;
-                                setEnRuta(true);
-
-                                if (cuenta?.numero_cuenta) {
-                                  localStorage.setItem(
-                                    `enRuta_${cuenta.numero_cuenta}`,
-                                    "true",
-                                  );
-                                }
-                              } else {
-                                setEnRuta(false);
-
-                                if (cuenta?.numero_cuenta) {
-                                  localStorage.setItem(
-                                    `enRuta_${cuenta.numero_cuenta}`,
-                                    "false",
-                                  );
-                                }
-                              }
-                            }}
-                            className={`w-full py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${
-                              enRuta
-                                ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
-                                : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
-                            }`}
+  e.stopPropagation();
+  if (!estaEnRuta) {
+    const iniciada = await iniciarRuta(ruta);
+    if (!iniciada) return;
+    await toggleRuta(ruta, true);
+  } else {
+    await toggleRuta(ruta, false); 
+  }
+}}
+className={`w-full py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${
+  estaEnRuta
+    ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
+    : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+}`}
                           >
                             {enRuta ? (
                               <>
@@ -3812,26 +3820,26 @@ const VistaRutas = ({
                           </button>
 
                           {/* Feedback visual del GPS */}
-                          {enRuta && rastreando && (
-                            <div className="p-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
-                              <span className="text-[10px] text-green-700 font-bold uppercase tracking-wider flex items-center gap-1">
-                                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                                GPS Activo
-                              </span>
-                              {ultimaUbicacion && (
-                                <span className="text-[10px] text-green-600 font-mono">
-                                  {ultimaUbicacion.lat.toFixed(4)},{" "}
-                                  {ultimaUbicacion.lng.toFixed(4)}
-                                </span>
-                              )}
-                            </div>
-                          )}
+{estaEnRuta && rastreando && (   
+  <div className="p-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+    <span className="text-[10px] text-green-700 font-bold uppercase tracking-wider flex items-center gap-1">
+      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+      GPS Activo
+    </span>
+    {ultimaUbicacion && (
+      <span className="text-[10px] text-green-600 font-mono">
+        {ultimaUbicacion.lat.toFixed(4)},{" "}
+        {ultimaUbicacion.lng.toFixed(4)}
+      </span>
+    )}
+  </div>
+)}
 
-                          {enRuta && errorGPS && (
-                            <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-[10px] text-red-600">
-                              ⚠️ {errorGPS}
-                            </div>
-                          )}
+{estaEnRuta && errorGPS && (   
+  <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-[10px] text-red-600">
+    ⚠️ {errorGPS}
+  </div>
+)}
                         </div>
                       </div>
                     </motion.div>
@@ -6770,6 +6778,8 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
     const [guardando, setGuardando] = useState(false);
     const [mensaje, setMensaje] = useState("");
     const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
+    const [marcaSeleccionada, setMarcaSeleccionada] = useState<any>(null);
+const [productosMarca, setProductosMarca] = useState<any[]>([]);
 
     useEffect(() => {
       cargarDatos();
@@ -6806,6 +6816,34 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
 
       setCargando(false);
     };
+
+    const cargarProductosPorMarca = async (marcaId: number) => {
+  const { data } = await supabase
+    .from("productos")
+    .select("*")
+    .eq("marca_id", marcaId)
+    .order("orden_marca", { ascending: true }); 
+  setProductosMarca(data || []);
+};
+
+const guardarOrdenProductosMarca = async () => {
+  setGuardando(true);
+  setMensaje("");
+  try {
+    for (let i = 0; i < productosMarca.length; i++) {
+      await supabase
+        .from("productos")
+        .update({ orden_marca: i + 1 }) 
+        .eq("id", productosMarca[i].id);
+    }
+    setMensaje("Orden de productos guardado correctamente");
+    setTimeout(() => setMensaje(""), 2000);
+  } catch (error: any) {
+    setMensaje("Error al guardar el orden");
+  } finally {
+    setGuardando(false);
+  }
+};
 
     const cargarProductos = async (categoriaId: number) => {
       const { data } = await supabase
@@ -6919,15 +6957,17 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
       >
         <BackBtn
           onBack={() => {
-            if (categoriaSeleccionada || macroCategoriaSeleccionada) {
-              setCategoriaSeleccionada(null);
-              setMacroCategoriaSeleccionada(null);
-              setProductos([]);
-              setSubcategorias([]);
-            } else {
-              setVistaPerfil("menu");
-            }
-          }}
+  if (categoriaSeleccionada || macroCategoriaSeleccionada || marcaSeleccionada) {
+    setCategoriaSeleccionada(null);
+    setMacroCategoriaSeleccionada(null);
+    setMarcaSeleccionada(null);   
+    setProductos([]);
+    setSubcategorias([]);
+    setProductosMarca([]);         
+  } else {
+    setVistaPerfil("menu");
+  }
+}}
         />
 
         <h2 className="text-xl font-bold text-zinc-900 mb-6">
@@ -6982,6 +7022,7 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
               setPestanaActiva("marcas");
               setCategoriaSeleccionada(null);
               setMacroCategoriaSeleccionada(null);
+              setMarcaSeleccionada(null); 
             }}
             className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
               pestanaActiva === "marcas"
@@ -7429,101 +7470,171 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
             )}
           </div>
         )}
-        {pestanaActiva === "marcas" && (
-          <div>
-            <p className="text-sm text-zinc-600 mb-6">
-              Mantén presionado y arrastra para reordenar las marcas
-            </p>
+        {pestanaActiva === "marcas" && !marcaSeleccionada && (
+  <div>
+    <p className="text-sm text-zinc-600 mb-4">
+      Selecciona una marca para ordenar sus productos, o arrastra para reordenar las marcas:
+    </p>
 
-            {cargando ? (
-              <div className="flex justify-center py-10">
-                <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-              </div>
-            ) : (
-              <>
-                <Reorder.Group
-                  axis="y"
-                  values={marcas}
-                  onReorder={setMarcas}
-                  className="space-y-3 mb-4"
+    {cargando ? (
+      <div className="flex justify-center py-10">
+        <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+      </div>
+    ) : (
+      <>
+        <Reorder.Group
+          axis="y"
+          values={marcas}
+          onReorder={setMarcas}
+          className="space-y-3 mb-4"
+        >
+          {marcas.map((marca, index) => (
+            <Reorder.Item
+              key={marca.id}
+              value={marca}
+              onDrag={handleDrag}
+              onDragEnd={handleDragEnd}
+              dragListener={true}
+              dragControls={undefined}
+            >
+              <motion.div className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm hover:border-orange-300 transition">
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0 cursor-grab active:cursor-grabbing">
+                  {marca.img ? (
+                    <img src={marca.img} alt={marca.nombre_marca} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+
+                {/* Nombre clickeable para entrar a productos */}
+                <div
+                  className="flex-1 cursor-pointer"
+                  onClick={() => {
+                    setMarcaSeleccionada(marca);
+                    cargarProductosPorMarca(marca.id);
+                  }}
                 >
-                  {marcas.map((marca, index) => (
-                    <Reorder.Item
-                      key={marca.id}
-                      value={marca}
-                      onDrag={handleDrag}
-                      onDragEnd={handleDragEnd}
-                      dragListener={true}
-                      dragControls={undefined}
-                    >
-                      <motion.div className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition">
-                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
-                          {marca.img ? (
-                            <img
-                              src={marca.img}
-                              alt={marca.nombre_marca}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-zinc-400">
-                              <svg
-                                className="w-8 h-8"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-semibold text-sm text-zinc-800">
-                            {marca.nombre_marca}
-                          </p>
-                        </div>
+                  <p className="font-semibold text-sm text-zinc-800">{marca.nombre_marca}</p>
+                  <p className="text-xs text-orange-500 mt-0.5">Ver productos →</p>
+                </div>
 
-                        <div className="flex flex-col items-center gap-2">
-                          <span className="text-zinc-400 font-mono text-sm">
-                            #{index + 1}
-                          </span>
-                          <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
-                            <svg
-                              className="w-5 h-5 text-zinc-400"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M4 8h16M4 16h16"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </motion.div>
-                    </Reorder.Item>
-                  ))}
-                </Reorder.Group>
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-zinc-400 font-mono text-sm">#{index + 1}</span>
+                  <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                  </div>
+                </div>
+              </motion.div>
+            </Reorder.Item>
+          ))}
+        </Reorder.Group>
 
-                <button
-                  onClick={guardarOrdenMarcas}
-                  disabled={guardando}
-                  className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
-                >
-                  {guardando ? "Guardando..." : "Guardar Orden"}
-                </button>
-              </>
-            )}
-          </div>
-        )}
+        <button
+          onClick={guardarOrdenMarcas}
+          disabled={guardando}
+          className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
+        >
+          {guardando ? "Guardando..." : "Guardar Orden de Marcas"}
+        </button>
+      </>
+    )}
+  </div>
+)}
+
+{pestanaActiva === "marcas" && marcaSeleccionada && (
+  <div>
+    <h3 className="text-lg font-bold text-zinc-900 mb-2">
+      {marcaSeleccionada.nombre_marca}
+    </h3>
+    <p className="text-sm text-zinc-600 mb-6">
+      Mantén presionado y arrastra para reordenar los productos
+    </p>
+
+    {productosMarca.length === 0 ? (
+      <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
+        <p className="text-zinc-500">Esta marca no tiene productos</p>
+      </div>
+    ) : (
+      <>
+        <Reorder.Group
+          axis="y"
+          values={productosMarca}
+          onReorder={setProductosMarca}
+          className="space-y-3 mb-4"
+        >
+          {productosMarca.map((prod, index) => (
+            <Reorder.Item
+              key={prod.id}
+              value={prod}
+              onDrag={handleDrag}
+              onDragEnd={handleDragEnd}
+              dragListener={true}
+              dragControls={undefined}
+            >
+              <motion.div className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition">
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                  {prod.IMAGEN ? (
+                    <img src={prod.IMAGEN} alt={prod.TITULO} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-zinc-800 truncate">{prod.TITULO}</p>
+                  {prod.P_MAYOREO && (
+                    <p className="text-lg font-bold text-orange-600 mt-1">
+                      ${parseFloat(prod.P_MAYOREO).toFixed(2)}
+                    </p>
+                  )}
+                  <p className="text-xs text-zinc-500">Código: {prod.CODIGO}</p>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    {!prod.visible && (
+                      <span className="text-xs bg-zinc-200 text-zinc-700 px-2 py-0.5 rounded">Oculto</span>
+                    )}
+                    {prod.liquidacion && (
+                      <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Liquidación</span>
+                    )}
+                    {prod.top_ventas && (
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Top Ventas</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-zinc-400 font-mono text-sm">#{index + 1}</span>
+                  <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                  </div>
+                </div>
+              </motion.div>
+            </Reorder.Item>
+          ))}
+        </Reorder.Group>
+
+        <button
+          onClick={guardarOrdenProductosMarca}
+          disabled={guardando}
+          className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50"
+        >
+          {guardando ? "Guardando..." : "Guardar Orden"}
+        </button>
+      </>
+    )}
+  </div>
+)}
       </motion.div>
     );
   };
@@ -21035,7 +21146,7 @@ if (!contenedores.has(codigo)) {
                                       "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID",
                                     )
                                     .eq("marca_id", marca.id)
-                                    .order("orden_categoria", {
+                                    .order("orden_marca", {
                                       ascending: true,
                                     });
 
