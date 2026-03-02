@@ -113,7 +113,7 @@ import BarcodeScannerComponent from "react-qr-barcode-scanner";
 const construirQueryBusqueda = async (searchTerm: string, categoria: any, marca: any) => {
   let query = supabase
     .from("productos")
-    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales")
+    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales, existencia, ubicacion")
 
   if (categoria) {
     query = query.eq("CATEGORIA_ID", categoria.id_categoria);
@@ -251,6 +251,23 @@ const VistaProducto = ({
   const [marcaId, setMarcaId] = useState(
     producto.marca_id ? String(producto.marca_id) : "",
   );
+  const [subcategoriaMarcaId, setSubcategoriaMarcaId] = useState(
+  producto.subcategoria_marca_id ? String(producto.subcategoria_marca_id) : "",
+);
+const [subcategoriasDisponibles, setSubcategoriasDisponibles] = useState<any[]>([]);
+
+useEffect(() => {
+  const cargarSubcats = async () => {
+    if (marcaId) {
+      const { data } = await supabase.from('subcategorias_marca').select('*').eq('marca_id', marcaId);
+      setSubcategoriasDisponibles(data || []);
+    } else {
+      setSubcategoriasDisponibles([]);
+      setSubcategoriaMarcaId("");
+    }
+  };
+  cargarSubcats();
+}, [marcaId]);
 
   const [marcaQuery, setMarcaQuery] = useState(
   producto.marca_id ? (marcas.find((m: any) => m.id === producto.marca_id)?.nombre_marca || "") : ""
@@ -656,15 +673,16 @@ const handleSubtract = (): void =>
       }
 
       const { error: updateError } = await supabase
-        .from("productos")
-        .update({
-          TITULO: titulo,
-          DESCRIPCION: descripcion,
-          CATEGORIA_ID: parseInt(categoriaId),
-          orden_categoria: ordenCategoria,
-          marca_id: marcaId ? parseInt(marcaId) : null,
-          IMAGEN: urlImagen,
-          ubicacion: ubicacion,
+  .from("productos")
+  .update({
+    TITULO: titulo,
+    DESCRIPCION: descripcion,
+    CATEGORIA_ID: parseInt(categoriaId),
+    orden_categoria: ordenCategoria,
+    marca_id: marcaId ? parseInt(marcaId) : null,
+    subcategoria_marca_id: subcategoriaMarcaId ? parseInt(subcategoriaMarcaId) : null, 
+    IMAGEN: urlImagen,
+    ubicacion: ubicacion,
           CODIGO: codigo,
           P_MAYOREO: parseFloat(precio),
           C_PRODUCTO: claveAlterna,
@@ -1207,6 +1225,25 @@ const handleSubtract = (): void =>
 
               {/* Marca */}
 <div className="mb-4 relative">
+{marcaId && subcategoriasDisponibles.length > 0 && (
+  <div className="mb-4 relative">
+    <label className="block text-sm font-medium text-zinc-700 mb-2">
+      Subcategoría de la Marca (Opcional)
+    </label>
+    <select
+      value={subcategoriaMarcaId}
+      onChange={(e) => setSubcategoriaMarcaId(e.target.value)}
+      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+    >
+      <option value="">Sin subcategoría...</option>
+      {subcategoriasDisponibles.map((sub: any) => (
+        <option key={sub.id} value={sub.id}>
+          {sub.nombre}
+        </option>
+      ))}
+    </select>
+  </div>
+)}
   <label className="block text-sm font-medium text-zinc-700 mb-2">
     Marca
   </label>
@@ -4024,6 +4061,8 @@ export default function HomePage() {
   const [itemsPedido, setItemsPedido] = useState([]);
   const [cargandoItems, setCargandoItems] = useState(false);
   const [actualizacionReciente, setActualizacionReciente] = useState(false);
+  const [subcategoriasMarca, setSubcategoriasMarca] = useState<any[]>([]);
+const [subcategoriaMarcaSeleccionada, setSubcategoriaMarcaSeleccionada] = useState<any>(null);
   const esAdmin = cuenta?.numero_cuenta === "Admin01";
   const esMostrador = cuenta?.numero_cuenta === "Mostrador";
   const esAdminMostrador = cuenta?.numero_cuenta === "admin-M01";
@@ -4094,10 +4133,51 @@ const esEmpleado = cuenta?.numero_cuenta
   const [pedidoIdParaBackOrder, setPedidoIdParaBackOrder] = useState<
     number | null
   >(null);
-
-  // ── Grupos de subcategoría ──────────────────────────────────────
 const [gruposSubcat, setGruposSubcat] = useState<any[]>([]);
 const [grupoActivoId, setGrupoActivoId] = useState<number | "todos" | null>(null);
+const [gruposMarca, setGruposMarca] = useState<any[]>([]);
+const [grupoMarcaActivoId, setGrupoMarcaActivoId] = useState<number | 'todos' | null>(null);
+
+
+const cargarGruposDeMarca = async (marcaId: number) => {
+  const { data: subcats } = await supabase
+    .from('subcategorias_marca')
+    .select('id')
+    .eq('marca_id', marcaId);
+
+  if (!subcats || subcats.length === 0) {
+    setGruposMarca([]);
+    return;
+  }
+
+  const subcatIds = subcats.map((s: any) => s.id);
+
+  const { data: grupos } = await supabase
+    .from('grupos_marca')
+    .select('id, nombre, imagen, orden, subcategoria_marca_id')
+    .in('subcategoria_marca_id', subcatIds)
+    .order('orden', { ascending: true });
+
+  if (!grupos || grupos.length === 0) {
+    setGruposMarca([]);
+    return;
+  }
+
+  const gruposConProductos = await Promise.all(
+    grupos.map(async (grupo: any) => {
+      const { data: relaciones } = await supabase
+        .from('grupos_marca_productos')
+        .select('producto_id')
+        .eq('grupo_id', grupo.id);
+      return {
+        ...grupo,
+        productoIds: relaciones?.map((r: any) => r.producto_id) || [],
+      };
+    })
+  );
+
+  setGruposMarca(gruposConProductos);
+};
 
 const cargarGruposDeSubcat = async (subcatId: number) => {
   setGruposSubcat([]);
@@ -4814,7 +4894,6 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
               />
             </div>
 
-            {/* --- AGREGAR ESTE BLOQUE --- */}
             {tipo === "subcategoria" && (
               <div className="mb-4 relative">
                 <label className="block text-sm font-medium text-zinc-700 mb-2">
@@ -6292,6 +6371,566 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
     );
   };
 
+  const GestionarSubcategoriasMarca = ({ setVistaPerfil }: any) => {
+  const [marcas, setMarcas] = useState<any[]>([]);
+  const [marcaSeleccionada, setMarcaSeleccionada] = useState<any>(null);
+  const [subcategorias, setSubcategorias] = useState<any[]>([]);
+  const [vista, setVista] = useState<'lista' | 'form'>('lista');
+  const [itemEditando, setItemEditando] = useState<any>(null);
+  const [nombre, setNombre] = useState('');
+  const [orden, setOrden] = useState('0');
+  const [imagenFile, setImagenFile] = useState<File | null>(null);
+  const [imagenPreview, setImagenPreview] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState('');
+
+  useEffect(() => { cargarMarcas(); }, []);
+
+  const cargarMarcas = async () => {
+    const { data } = await supabase.from('marcas').select('*').order('orden', { ascending: true });
+    setMarcas(data || []);
+  };
+
+  const cargarSubcategorias = async (marcaId: number) => {
+    const { data } = await supabase
+      .from('subcategorias_marca')
+      .select('*')
+      .eq('marca_id', marcaId)
+      .order('orden', { ascending: true });
+    setSubcategorias(data || []);
+  };
+
+  const handleGuardar = async () => {
+    if (!nombre.trim()) { setMensaje('El nombre es requerido'); return; }
+    setGuardando(true);
+    setMensaje('');
+    try {
+      let imgUrl = imagenPreview;
+      if (imagenFile) {
+        const ext = imagenFile.name.split('.').pop();
+        const path = `subcategorias_marca/${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('imagenes').upload(path, imagenFile, { upsert: true });
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('imagenes').getPublicUrl(path);
+          imgUrl = urlData.publicUrl;
+        }
+      }
+      if (itemEditando) {
+        await supabase.from('subcategorias_marca').update({ nombre, orden: parseInt(orden), img: imgUrl }).eq('id', itemEditando.id);
+        setMensaje('Subcategoría actualizada');
+      } else {
+        await supabase.from('subcategorias_marca').insert({ nombre, orden: parseInt(orden), img: imgUrl, marca_id: marcaSeleccionada.id });
+        setMensaje('Subcategoría creada');
+      }
+      await cargarSubcategorias(marcaSeleccionada.id);
+      setTimeout(() => { setVista('lista'); setMensaje(''); }, 1200);
+    } catch {
+      setMensaje('Error al guardar');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const handleEliminar = async (id: number) => {
+    if (!confirm('¿Eliminar esta subcategoría? También se eliminarán sus grupos.')) return;
+    const { data: gruposData } = await supabase.from('grupos_marca').select('id').eq('subcategoria_marca_id', id);
+    if (gruposData && gruposData.length > 0) {
+      const ids = gruposData.map((g: any) => g.id);
+      await supabase.from('grupos_marca_productos').delete().in('grupo_id', ids);
+    }
+    await supabase.from('grupos_marca').delete().eq('subcategoria_marca_id', id);
+    await supabase.from('subcategorias_marca').delete().eq('id', id);
+    await cargarSubcategorias(marcaSeleccionada.id);
+  };
+
+  const abrirForm = (item?: any) => {
+    setItemEditando(item || null);
+    setNombre(item?.nombre || '');
+    setOrden(String(item?.orden ?? subcategorias.length));
+    setImagenPreview(item?.img || '');
+    setImagenFile(null);
+    setMensaje('');
+    setVista('form');
+  };
+
+  // seleccionar marca
+  if (!marcaSeleccionada) {
+    return (
+      <motion.div className="min-h-screen pb-20" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
+        <BackBtn onBack={() => setVistaPerfil('menu')} />
+        <h2 className="text-xl font-bold text-zinc-900 mb-6">Subcategorías por Marca</h2>
+        <p className="text-sm text-zinc-600 mb-4">Selecciona una marca:</p>
+        <div className="space-y-2">
+          {marcas.map((marca) => (
+            <div key={marca.id} onClick={() => { 
+              setMarcaSeleccionada(marca); 
+              cargarSubcategorias(marca.id); 
+            }}
+              className="flex items-center gap-3 p-4 bg-white rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition">
+              {marca.img
+                ? <img src={marca.img} className="w-12 h-12 object-contain rounded-lg flex-shrink-0" />
+                : <div className="w-12 h-12 bg-zinc-100 rounded-lg flex-shrink-0 flex items-center justify-center text-zinc-400 text-xs">Sin img</div>
+              }
+              <span className="font-semibold text-zinc-800 flex-1">{marca.nombre_marca}</span>
+              <span className="text-zinc-400">›</span>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+    );
+  }
+
+  // formulario
+  if (vista === 'form') {
+    return (
+      <motion.div className="min-h-screen pb-20" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
+        <BackBtn onBack={() => { setVista('lista'); setMensaje(''); }} />
+        <h2 className="text-xl font-bold text-zinc-900 mb-6">
+          {itemEditando ? 'Editar' : 'Nueva'} Subcategoría — {marcaSeleccionada.nombre_marca}
+        </h2>
+        {mensaje && (
+          <div className={`mb-4 p-3 rounded-lg text-sm ${mensaje.includes('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
+            {mensaje}
+          </div>
+        )}
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-zinc-700 mb-1">Nombre</label>
+            <input value={nombre} onChange={(e) => setNombre(e.target.value)}
+              className="w-full border-2 border-zinc-200 text-zinc-800 rounded-xl p-3 focus:border-orange-400 outline-none"
+              placeholder="Nombre de la subcategoría" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-zinc-700 mb-1">Orden</label>
+            <input type="number" value={orden} onChange={(e) => setOrden(e.target.value)}
+              className="w-full border-2 border-zinc-200 text-zinc-800 rounded-xl p-3 focus:border-orange-400 outline-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-zinc-700 mb-1">Imagen</label>
+            {imagenPreview && <img src={imagenPreview} className="w-24 h-24 object-contain rounded-xl mb-2 border border-zinc-200" />}
+            <input type="file" accept="image/*" onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) { setImagenFile(file); setImagenPreview(URL.createObjectURL(file)); }
+            }} className="w-full text-sm text-zinc-800" />
+          </div>
+          <button onClick={handleGuardar} disabled={guardando}
+            className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50">
+            {guardando ? 'Guardando...' : itemEditando ? 'Actualizar' : 'Crear Subcategoría'}
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // lista de subcategorías
+  return (
+    <motion.div className="min-h-screen pb-20" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
+      <BackBtn onBack={() => { 
+        setMarcaSeleccionada(null); 
+        setSubcategorias([]); 
+        setGruposMarca([]);
+setGrupoMarcaActivoId(null);
+        }} />
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-zinc-900">{marcaSeleccionada.nombre_marca}</h2>
+          <p className="text-sm text-zinc-500">{subcategorias.length} subcategorías</p>
+        </div>
+        <button onClick={() => abrirForm()}
+          className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-orange-600 transition">
+          <Plus size={18} /> Nueva
+        </button>
+      </div>
+      {subcategorias.length === 0 ? (
+        <div className="text-center py-10 bg-zinc-50 rounded-xl border-2 border-dashed border-zinc-300">
+          <p className="text-zinc-500 font-semibold">No hay subcategorías</p>
+          <p className="text-sm text-zinc-400 mt-1">Crea la primera subcategoría para esta marca</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {subcategorias.map((sub) => (
+            <div key={sub.id} className="flex items-center gap-3 bg-white p-4 rounded-xl border-2 border-zinc-200 shadow-sm">
+              {sub.img
+                ? <img src={sub.img} className="w-12 h-12 object-contain rounded-lg flex-shrink-0" />
+                : <div className="w-12 h-12 bg-zinc-100 rounded-lg flex-shrink-0 flex items-center justify-center text-zinc-400 text-xs">Sin img</div>
+              }
+              <div className="flex-1">
+                <p className="font-semibold text-zinc-900">{sub.nombre}</p>
+                <p className="text-xs text-zinc-500">Orden: {sub.orden}</p>
+              </div>
+              <button onClick={() => abrirForm(sub)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition">
+                <Edit2 size={18} />
+              </button>
+              <button onClick={() => handleEliminar(sub.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition">
+                <X size={18} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
+const GestionarGruposMarca = ({ setVistaPerfil }: any) => {
+  const [marcas, setMarcas] = useState<any[]>([]);
+  const [marcaSeleccionada, setMarcaSeleccionada] = useState<any>(null);
+  const [subcategorias, setSubcategorias] = useState<any[]>([]);
+  const [subcatSeleccionada, setSubcatSeleccionada] = useState<any>(null);
+  const [grupos, setGrupos] = useState<any[]>([]);
+  const [vista, setVista] = useState<'lista' | 'form'>('lista');
+  const [itemEditando, setItemEditando] = useState<any>(null);
+  const [nombre, setNombre] = useState('');
+  const [orden, setOrden] = useState('0');
+  const [imagenFile, setImagenFile] = useState<File | null>(null);
+  const [imagenPreview, setImagenPreview] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState('');
+  const [vistaAsignar, setVistaAsignar] = useState(false);
+  const [grupoAsignando, setGrupoAsignando] = useState<any>(null);
+  const [productosGrupo, setProductosGrupo] = useState<any[]>([]);
+  const [busquedaProducto, setBusquedaProducto] = useState('');
+  const [resultadosBusqueda, setResultadosBusqueda] = useState<any[]>([]);
+  const [buscando, setBuscando] = useState(false);
+
+  useEffect(() => { cargarMarcas(); }, []);
+
+  const cargarMarcas = async () => {
+    const { data } = await supabase.from('marcas').select('*').order('orden', { ascending: true });
+    setMarcas(data || []);
+  };
+
+  const cargarSubcategorias = async (marcaId: number) => {
+    const { data } = await supabase
+      .from('subcategorias_marca')
+      .select('*')
+      .eq('marca_id', marcaId)
+      .order('orden', { ascending: true });
+    setSubcategorias(data || []);
+  };
+
+  const cargarGrupos = async (subcatId: number) => {
+    const { data } = await supabase
+      .from('grupos_marca')
+      .select('*')
+      .eq('subcategoria_marca_id', subcatId)
+      .order('orden', { ascending: true });
+    setGrupos(data || []);
+  };
+
+  const cargarProductosGrupo = async (grupoId: number) => {
+    const { data } = await supabase
+      .from('grupos_marca_productos')
+      .select('producto_id, productos(id, TITULO, CODIGO, IMAGEN, P_MAYOREO)')
+      .eq('grupo_id', grupoId);
+    setProductosGrupo(data?.map((d: any) => d.productos) || []);
+  };
+
+  const buscarProductos = async (term: string) => {
+    if (!term.trim()) { setResultadosBusqueda([]); return; }
+    setBuscando(true);
+    const { data } = await supabase
+      .from('productos')
+      .select('id, TITULO, CODIGO, IMAGEN, P_MAYOREO')
+      .or(`TITULO.ilike.%${term}%,CODIGO.ilike.%${term}%`)
+      .eq('marca_id', marcaSeleccionada.id)
+      .limit(20);
+    setResultadosBusqueda(data || []);
+    setBuscando(false);
+  };
+
+  const agregarProductoAGrupo = async (producto: any) => {
+    const yaExiste = productosGrupo.some((p: any) => p.id === producto.id);
+    if (yaExiste) return;
+    await supabase.from('grupos_marca_productos').insert({ grupo_id: grupoAsignando.id, producto_id: producto.id });
+    await cargarProductosGrupo(grupoAsignando.id);
+  };
+
+  const quitarProductoDeGrupo = async (productoId: number) => {
+    await supabase.from('grupos_marca_productos').delete().eq('grupo_id', grupoAsignando.id).eq('producto_id', productoId);
+    await cargarProductosGrupo(grupoAsignando.id);
+  };
+
+  const handleGuardar = async () => {
+    if (!nombre.trim()) { setMensaje('El nombre es requerido'); return; }
+    setGuardando(true);
+    setMensaje('');
+    try {
+      let imgUrl = imagenPreview;
+      if (imagenFile) {
+        const ext = imagenFile.name.split('.').pop();
+        const path = `grupos_marca/${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('imagenes').upload(path, imagenFile, { upsert: true });
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('imagenes').getPublicUrl(path);
+          imgUrl = urlData.publicUrl;
+        }
+      }
+      if (itemEditando) {
+        await supabase.from('grupos_marca').update({ nombre, orden: parseInt(orden), imagen: imgUrl }).eq('id', itemEditando.id);
+        setMensaje('Grupo actualizado');
+      } else {
+        await supabase.from('grupos_marca').insert({ nombre, orden: parseInt(orden), imagen: imgUrl, subcategoria_marca_id: subcatSeleccionada.id });
+        setMensaje('Grupo creado');
+      }
+      await cargarGrupos(subcatSeleccionada.id);
+      setTimeout(() => { setVista('lista'); setMensaje(''); }, 1200);
+    } catch {
+      setMensaje('Error al guardar');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const handleEliminar = async (id: number) => {
+    if (!confirm('¿Eliminar este grupo?')) return;
+    await supabase.from('grupos_marca_productos').delete().eq('grupo_id', id);
+    await supabase.from('grupos_marca').delete().eq('id', id);
+    await cargarGrupos(subcatSeleccionada.id);
+  };
+
+  const abrirForm = (item?: any) => {
+    setItemEditando(item || null);
+    setNombre(item?.nombre || '');
+    setOrden(String(item?.orden ?? grupos.length));
+    setImagenPreview(item?.imagen || '');
+    setImagenFile(null);
+    setMensaje('');
+    setVista('form');
+  };
+
+  // Vista asignar productos al grupo
+  if (vistaAsignar && grupoAsignando) {
+    return (
+      <motion.div className="min-h-screen pb-20" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
+        <BackBtn onBack={() => { setVistaAsignar(false); setGrupoAsignando(null); setBusquedaProducto(''); setResultadosBusqueda([]); }} />
+        <h2 className="text-xl font-bold text-zinc-900 mb-1">Productos en grupo</h2>
+        <p className="text-sm text-zinc-500 mb-4">{grupoAsignando.nombre} — {marcaSeleccionada.nombre_marca}</p>
+
+        {/* Buscador, solo productos de esta marca */}
+        <div className="relative mb-4">
+          <input
+            value={busquedaProducto}
+            onChange={(e) => { setBusquedaProducto(e.target.value); buscarProductos(e.target.value); }}
+            className="w-full border-2 border-zinc-200 rounded-xl p-3 pl-10 focus:border-orange-400 outline-none"
+            placeholder="Buscar producto de esta marca..."
+          />
+          <Search size={18} className="absolute left-3 top-3.5 text-zinc-400" />
+        </div>
+
+        {/* Resultados de busqueda */}
+        {resultadosBusqueda.length > 0 && (
+          <div className="bg-white rounded-xl border-2 border-zinc-200 mb-4 overflow-hidden shadow-sm">
+            <div className="px-4 py-2 bg-zinc-50 border-b border-zinc-200">
+              <p className="text-xs font-bold text-zinc-600 uppercase">Resultados — toca para agregar</p>
+            </div>
+            <div className="divide-y divide-zinc-100 max-h-64 overflow-y-auto">
+              {resultadosBusqueda.map((prod: any) => {
+                const yaEnGrupo = productosGrupo.some((p: any) => p.id === prod.id);
+                return (
+                  <div key={prod.id}
+                    onClick={() => !yaEnGrupo && agregarProductoAGrupo(prod)}
+                    className={`flex items-center gap-3 p-3 transition ${yaEnGrupo ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-orange-50'}`}>
+                    {prod.IMAGEN
+                      ? <img src={prod.IMAGEN} className="w-10 h-10 object-contain rounded-lg flex-shrink-0" />
+                      : <div className="w-10 h-10 bg-zinc-100 rounded-lg flex-shrink-0" />
+                    }
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-zinc-900 truncate">{prod.TITULO}</p>
+                      <p className="text-xs text-zinc-500">{prod.CODIGO}</p>
+                    </div>
+                    {yaEnGrupo
+                      ? <span className="text-xs text-green-600 font-bold">Ya agregado</span>
+                      : <Plus size={18} className="text-orange-500 flex-shrink-0" />
+                    }
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Productos actuales del grupo */}
+        <h3 className="text-sm font-bold text-zinc-700 mb-2 uppercase tracking-wide">
+          En este grupo ({productosGrupo.length})
+        </h3>
+        {productosGrupo.length === 0 ? (
+          <div className="text-center py-8 bg-zinc-50 rounded-xl border-2 border-dashed border-zinc-300">
+            <p className="text-zinc-400 text-sm">Busca productos arriba para agregarlos</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {productosGrupo.map((prod: any) => (
+              <div key={prod.id} className="flex items-center gap-3 bg-white p-3 rounded-xl border-2 border-zinc-200 shadow-sm">
+                {prod.IMAGEN
+                  ? <img src={prod.IMAGEN} className="w-10 h-10 object-contain rounded-lg flex-shrink-0" />
+                  : <div className="w-10 h-10 bg-zinc-100 rounded-lg flex-shrink-0" />
+                }
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-zinc-900 truncate">{prod.TITULO}</p>
+                  <p className="text-xs text-zinc-500">{prod.CODIGO}</p>
+                </div>
+                <button onClick={() => quitarProductoDeGrupo(prod.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition">
+                  <X size={18} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+
+  // seleccionar marca
+  if (!marcaSeleccionada) {
+    return (
+      <motion.div className="min-h-screen pb-20" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
+        <BackBtn onBack={() => setVistaPerfil('menu')} />
+        <h2 className="text-xl font-bold text-zinc-900 mb-6">Grupos por Marca</h2>
+        <p className="text-sm text-zinc-600 mb-4">Selecciona una marca:</p>
+        <div className="space-y-2">
+          {marcas.map((marca) => (
+            <div key={marca.id} onClick={() => { setMarcaSeleccionada(marca); cargarSubcategorias(marca.id); }}
+              className="flex items-center gap-3 p-4 bg-white rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition">
+              {marca.img
+                ? <img src={marca.img} className="w-12 h-12 object-contain rounded-lg flex-shrink-0" />
+                : <div className="w-12 h-12 bg-zinc-100 rounded-lg flex-shrink-0 flex items-center justify-center text-zinc-400 text-xs">Sin img</div>
+              }
+              <span className="font-semibold text-zinc-800 flex-1">{marca.nombre_marca}</span>
+              <span className="text-zinc-400">›</span>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+    );
+  }
+
+  // seleccionar subcategoría
+  if (!subcatSeleccionada) {
+    return (
+      <motion.div className="min-h-screen pb-20" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
+        <BackBtn onBack={() => { setMarcaSeleccionada(null);setGruposMarca([]);
+setGrupoMarcaActivoId(null); setSubcategorias([]); }} />
+        <h2 className="text-xl font-bold text-zinc-900 mb-1">{marcaSeleccionada.nombre_marca}</h2>
+        <p className="text-sm text-zinc-500 mb-4">Selecciona una subcategoría:</p>
+        {subcategorias.length === 0 ? (
+          <div className="text-center py-10 bg-zinc-50 rounded-xl border-2 border-dashed border-zinc-300">
+            <p className="text-zinc-500 font-semibold">No hay subcategorías</p>
+            <p className="text-sm text-zinc-400 mt-1">Crea subcategorías primero en "Subcategorías por Marca"</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {subcategorias.map((sub) => (
+              <div key={sub.id} onClick={() => { setSubcatSeleccionada(sub); cargarGrupos(sub.id); }}
+                className="flex items-center gap-3 p-4 bg-white rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition">
+                {sub.img
+                  ? <img src={sub.img} className="w-12 h-12 object-contain rounded-lg flex-shrink-0" />
+                  : <div className="w-12 h-12 bg-zinc-100 rounded-lg flex-shrink-0 flex items-center justify-center text-zinc-400 text-xs">Sin img</div>
+                }
+                <span className="font-semibold text-zinc-800 flex-1">{sub.nombre}</span>
+                <span className="text-zinc-400">›</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+
+  // formulario
+  if (vista === 'form') {
+    return (
+      <motion.div className="min-h-screen pb-20" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
+        <BackBtn onBack={() => { setVista('lista'); setMensaje(''); }} />
+        <h2 className="text-xl font-bold text-zinc-900 mb-6">
+          {itemEditando ? 'Editar' : 'Nuevo'} Grupo — {subcatSeleccionada.nombre}
+        </h2>
+        {mensaje && (
+          <div className={`mb-4 p-3 rounded-lg text-sm ${mensaje.includes('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
+            {mensaje}
+          </div>
+        )}
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-zinc-700 mb-1">Nombre</label>
+            <input value={nombre} onChange={(e) => setNombre(e.target.value)}
+              className="w-full border-2 border-zinc-200 text-zinc-800 rounded-xl p-3 focus:border-orange-400 outline-none"
+              placeholder="Nombre del grupo" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-zinc-700 mb-1">Orden</label>
+            <input type="number" value={orden} onChange={(e) => setOrden(e.target.value)}
+              className="w-full border-2 border-zinc-200 text-zinc-800 rounded-xl p-3 focus:border-orange-400 outline-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-zinc-700 mb-1">Imagen</label>
+            {imagenPreview && <img src={imagenPreview} className="w-24 h-24 object-contain rounded-xl mb-2 border border-zinc-200" />}
+            <input type="file" accept="image/*" onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) { setImagenFile(file); setImagenPreview(URL.createObjectURL(file)); }
+            }} className="w-full text-sm text-zinc-800" />
+          </div>
+          <button onClick={handleGuardar} disabled={guardando}
+            className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50">
+            {guardando ? 'Guardando...' : itemEditando ? 'Actualizar' : 'Crear Grupo'}
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // lista de grupos
+  return (
+    <motion.div className="min-h-screen pb-20" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
+      <BackBtn onBack={() => { setSubcatSeleccionada(null); setGrupos([]); }} />
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-zinc-900">{subcatSeleccionada.nombre}</h2>
+          <p className="text-sm text-zinc-500">{marcaSeleccionada.nombre_marca} · {grupos.length} grupos</p>
+        </div>
+        <button onClick={() => abrirForm()}
+          className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-orange-600 transition">
+          <Plus size={18} /> Nuevo
+        </button>
+      </div>
+      {grupos.length === 0 ? (
+        <div className="text-center py-10 bg-zinc-50 rounded-xl border-2 border-dashed border-zinc-300">
+          <p className="text-zinc-500 font-semibold">No hay grupos</p>
+          <p className="text-sm text-zinc-400 mt-1">Crea el primer grupo para esta subcategoría</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {grupos.map((grupo) => (
+            <div key={grupo.id} className="flex items-center gap-3 bg-white p-4 rounded-xl border-2 border-zinc-200 shadow-sm">
+              {grupo.imagen
+                ? <img src={grupo.imagen} className="w-12 h-12 object-contain rounded-lg flex-shrink-0" />
+                : <div className="w-12 h-12 bg-zinc-100 rounded-lg flex-shrink-0 flex items-center justify-center text-zinc-400 text-xs">Sin img</div>
+              }
+              <div className="flex-1">
+                <p className="font-semibold text-zinc-900">{grupo.nombre}</p>
+                <p className="text-xs text-zinc-500">Orden: {grupo.orden}</p>
+              </div>
+              {/* Botón asignar productos */}
+              <button
+                onClick={() => { setGrupoAsignando(grupo); cargarProductosGrupo(grupo.id); setVistaAsignar(true); }}
+                className="p-2 text-orange-500 hover:bg-orange-50 rounded-lg transition" title="Asignar productos">
+                <Package size={18} />
+              </button>
+              <button onClick={() => abrirForm(grupo)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition">
+                <Edit2 size={18} />
+              </button>
+              <button onClick={() => handleEliminar(grupo.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition">
+                <X size={18} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
+
   const GestionarMacroCategoriasView = ({ setVistaPerfil }: any) => {
     const [nombre, setNombre] = useState("");
     const [orden, setOrden] = useState("");
@@ -6960,7 +7599,9 @@ const guardarOrdenProductosMarca = async () => {
   if (categoriaSeleccionada || macroCategoriaSeleccionada || marcaSeleccionada) {
     setCategoriaSeleccionada(null);
     setMacroCategoriaSeleccionada(null);
-    setMarcaSeleccionada(null);   
+    setMarcaSeleccionada(null); 
+    setGruposMarca([]);
+setGrupoMarcaActivoId(null);  
     setProductos([]);
     setSubcategorias([]);
     setProductosMarca([]);         
@@ -7023,6 +7664,8 @@ const guardarOrdenProductosMarca = async () => {
               setCategoriaSeleccionada(null);
               setMacroCategoriaSeleccionada(null);
               setMarcaSeleccionada(null); 
+              setGruposMarca([]);
+setGrupoMarcaActivoId(null);
             }}
             className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
               pestanaActiva === "marcas"
@@ -11306,22 +11949,21 @@ if (ubicacion !== undefined && ubicacion !== null)
     };
 
     // funcion de descarga de la tabla productos en .csv
-    const descargarProductosCSV = async () => {
+  const descargarProductosCSV = async () => {
   setDescargando(true);
   try {
     let todosLosProductos: any[] = [];
     let desde = 0;
     const limite = 1000;
 
-    // Cargar productos con su categoría
     while (true) {
       const { data, error } = await supabase
         .from("productos")
         .select(`
           *,
-          categorias (
-            nombre_categoria
-          )
+          categorias ( nombre_categoria ),
+          marcas ( nombre_marca ),
+          subcategorias_marca ( nombre )
         `)
         .order("id", { ascending: true })
         .range(desde, desde + limite - 1);
@@ -11333,41 +11975,42 @@ if (ubicacion !== undefined && ubicacion !== null)
       desde += limite;
     }
 
-    if (todosLosProductos.length === 0) {
-      alert("No hay productos para descargar");
-      return;
-    }
-
-    // Construir CSV con nombre de categoría al lado de CATEGORIA_ID
     const productosFormateados = todosLosProductos.map((p) => {
-      const { categorias, ...producto } = p;
+      const { categorias, marcas, subcategorias_marca, ...producto } = p;
 
-      // Insertar nombre_categoria justo después de CATEGORIA_ID
       const resultado: any = {};
       
       Object.keys(producto).forEach((key) => {
         resultado[key] = producto[key];
-        // Agregar nombre de categoría justo después de CATEGORIA_ID
+
         if (key === 'CATEGORIA_ID') {
-          resultado['NOMBRE_CATEGORIA'] = categorias?.nombre_categoria ?? '';
+          resultado['NOMBRE_CATEGORIA'] = categorias?.nombre_categoria ?? 'Sin Categoría';
+        }
+        
+        if (key === 'marca_id') {
+          resultado['NOMBRE_MARCA'] = marcas?.nombre_marca ?? 'Sin Marca';
+        }
+
+        if (key === 'subcategoria_marca_id') {
+          resultado['NOMBRE_SUBCATEGORIA_MARCA'] = subcategorias_marca?.nombre ?? 'N/A';
         }
       });
 
       return resultado;
     });
 
-    // Generar CSV
     const headers = Object.keys(productosFormateados[0]).join(",");
     const rows = productosFormateados.map((p) =>
       Object.values(p)
-        .map((val) =>
-          typeof val === "string"
-            ? `"${val.replace(/"/g, '""')}"`
-            : val === null || val === undefined
-            ? ""
-            : val,
-        )
-        .join(","),
+        .map((val) => {
+          if (typeof val === "string") {
+          
+            const limpio = val.replace(/\r?\n|\r/g, " ").replace(/"/g, '""');
+            return `"${limpio}"`;
+          }
+          return val === null || val === undefined ? "" : val;
+        })
+        .join(",")
     );
 
     const csv = [headers, ...rows].join("\n");
@@ -11375,16 +12018,16 @@ if (ubicacion !== undefined && ubicacion !== null)
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `productos_backup_${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = `productos_completo_${new Date().toISOString().split("T")[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
 
-    alert(`Descargados ${todosLosProductos.length} productos`);
+    alert(`Éxito: Se procesaron ${todosLosProductos.length} productos.`);
   } catch (err) {
-    console.error(err);
-    alert("Error al descargar la tabla");
+    console.error("Error en descarga:", err);
+    alert("Error al descargar. Asegúrate de haber ejecutado el comando SQL para crear la relación.");
   } finally {
     setDescargando(false);
   }
@@ -11715,7 +12358,22 @@ const exportarErroresExcel = () => {
 const [mostrarResultadosCat, setMostrarResultadosCat] = useState(false);
 const [marcaQuery, setMarcaQuery] = useState("");
 const [mostrarResultadosMarca, setMostrarResultadosMarca] = useState(false);
+const [subcategoriaMarcaId, setSubcategoriaMarcaId] = useState("");
+const [subcategoriasDisponibles, setSubcategoriasDisponibles] = useState<any[]>([]);
 
+// Cargar subcategorías automáticamente cuando eliges una marca
+useEffect(() => {
+  const cargarSubcats = async () => {
+    if (marcaId) {
+      const { data } = await supabase.from('subcategorias_marca').select('*').eq('marca_id', marcaId);
+      setSubcategoriasDisponibles(data || []);
+    } else {
+      setSubcategoriasDisponibles([]);
+      setSubcategoriaMarcaId("");
+    }
+  };
+  cargarSubcats();
+}, [marcaId]);
     const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) {
@@ -20554,40 +21212,57 @@ if (!contenedores.has(codigo)) {
                                 }}
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() => {
-                                  if (
-                                    categoriaSeleccionada ||
-                                    marcaSeleccionada
-                                  ) {
-                                    setCategoriaSeleccionada(null);
-                                    setMarcaSeleccionada(null);
-                                    setSearchTerm("");
-                                    setProductos([]);
-                                    const savedScroll =
-                                      localStorage.getItem("scrollPos");
-                                    if (savedScroll) {
-                                      setTimeout(() => {
-                                        window.scrollTo({
-                                          top: parseInt(savedScroll),
-                                          behavior: "instant",
-                                        });
-                                      }, 50);
-                                    }
-                                  } else if (macroCategoriaSeleccionada) {
-                                    setMacroCategoriaSeleccionada(null);
-                                    setSearchTerm("");
-                                    setProductos([]);
-                                    const savedScroll =
-                                      localStorage.getItem("scrollPos");
-                                    if (savedScroll) {
-                                      setTimeout(() => {
-                                        window.scrollTo({
-                                          top: parseInt(savedScroll),
-                                          behavior: "instant",
-                                        });
-                                      }, 50);
-                                    }
-                                  }
-                                }}
+
+  if (subcategoriaMarcaSeleccionada) {
+    
+    if (subcategoriaMarcaSeleccionada === "DIRECTO") {
+      setSubcategoriaMarcaSeleccionada(null);
+      setMarcaSeleccionada(null);
+      setSubcategoriasMarca([]);
+    } else {
+      setSubcategoriaMarcaSeleccionada(null);
+    }
+    setGruposMarca([]);
+    setGrupoMarcaActivoId(null);
+    setArticulos([]);
+  } 
+ 
+  else if (categoriaSeleccionada || marcaSeleccionada) {
+    setCategoriaSeleccionada(null);
+    setMarcaSeleccionada(null);
+    setSubcategoriasMarca([]); 
+    setGruposMarca([]);
+    setGrupoMarcaActivoId(null);
+    setSearchTerm("");
+    setProductos([]);
+
+    const savedScroll = localStorage.getItem("scrollPos");
+    if (savedScroll) {
+      setTimeout(() => {
+        window.scrollTo({
+          top: parseInt(savedScroll),
+          behavior: "instant",
+        });
+      }, 50);
+    }
+  } 
+
+  else if (macroCategoriaSeleccionada) {
+    setMacroCategoriaSeleccionada(null);
+    setSearchTerm("");
+    setProductos([]);
+
+    const savedScroll = localStorage.getItem("scrollPos");
+    if (savedScroll) {
+      setTimeout(() => {
+        window.scrollTo({
+          top: parseInt(savedScroll),
+          behavior: "instant",
+        });
+      }, 50);
+    }
+  }
+}}
                                 className="bg-white text-orange-500 rounded-full p-2 transition-colors flex-shrink-0 shadow-md hover:bg-orange-50"
                               >
                                 <ChevronLeft size={20} />
@@ -20840,6 +21515,8 @@ if (!contenedores.has(codigo)) {
                                   setMacroCategoriaSeleccionada(null);
                                   setCategoriaSeleccionada(null);
                                   setMarcaSeleccionada(null);
+                                  setGruposMarca([]);
+setGrupoMarcaActivoId(null);
                                   setSearchTerm("");
                                   setProductos([]);
                                 }}
@@ -20858,6 +21535,8 @@ if (!contenedores.has(codigo)) {
                                     onClick={() => {
                                       setCategoriaSeleccionada(null);
                                       setMarcaSeleccionada(null);
+                                      setGruposMarca([]);
+setGrupoMarcaActivoId(null);
                                       setSearchTerm("");
                                       setProductos([]);
                                     }}
@@ -21126,47 +21805,55 @@ if (!contenedores.has(codigo)) {
                             {marcas.map((marca) => (
                               <div
                                 key={marca.id}
-                                onClick={async () => {
-                                  localStorage.setItem(
-                                    "scrollPos",
-                                    window.scrollY.toString(),
-                                  );
-                                  if (window.scrollY > 100) {
-                                    window.scrollTo({
-                                      top: 0,
-                                      behavior: "instant",
-                                    });
-                                  }
-                                  setArticulos([]);
-                                  setMarcaSeleccionada(marca);
+                               
+                             onClick={async () => {
+  localStorage.setItem("scrollPos", window.scrollY.toString());
+  if (window.scrollY > 100) {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+  setArticulos([]);
+  setMarcaSeleccionada(marca);
+  setSubcategoriasMarca([]);
+  setSubcategoriaMarcaSeleccionada(null);
+  setGruposMarca([]);
+  setGrupoMarcaActivoId(null);
 
-                                  const { data, error } = await supabase
-                                    .from("productos")
-                                    .select(
-                                      "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID",
-                                    )
-                                    .eq("marca_id", marca.id)
-                                    .order("orden_marca", {
-                                      ascending: true,
-                                    });
 
-                                  const productosNormalizados = (
-                                    data || []
-                                  ).map((producto) => ({
-                                    ...producto,
-                                    visible: producto.visible ?? true,
-                                  }));
+  const { data: subcats } = await supabase
+    .from("subcategorias_marca")
+    .select("*")
+    .eq("marca_id", marca.id)
+    .order("orden", { ascending: true });
 
-                                  setArticulos(
-                                    error ? [] : productosNormalizados,
-                                  );
-                                  requestAnimationFrame(() => {
-                                    window.scrollTo({
-                                      top: 0,
-                                      behavior: "instant",
-                                    });
-                                  });
-                                }}
+  if (subcats && subcats.length > 0) {
+
+    setSubcategoriasMarca(subcats);
+  } else {
+
+    setSubcategoriasMarca([]);
+    setSubcategoriaMarcaSeleccionada("DIRECTO"); 
+    
+    cargarGruposDeMarca(marca.id);
+
+
+    const { data: productos, error } = await supabase
+      .from("productos")
+      .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion")
+      .eq("marca_id", marca.id) 
+      .order("orden_marca", { ascending: true });
+
+    const productosNormalizados = (productos || []).map((p) => ({
+      ...p, 
+      visible: p.visible ?? true
+    }));
+
+    setArticulos(error ? [] : productosNormalizados);
+  }
+
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  });
+}}
                                 className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
                               >
                                 <div className="relative w-full h-28 sm:h-36 md:h-40 overflow-hidden">
@@ -21280,6 +21967,86 @@ if (!contenedores.has(codigo)) {
                           </p>
                         )}
                       </motion.div>
+
+                      ) : (marcaSeleccionada && !subcategoriaMarcaSeleccionada && subcategoriaMarcaSeleccionada !== "DIRECTO") ? (
+  /* Mostrar subcategorías dentro de la marca seleccionada */
+  <motion.div
+    key="subcategorias-marca"
+    className="min-h-screen px-3 mt-4"
+    initial={{ opacity: 0, x: 40 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: -40 }}
+    transition={{ duration: 0.3, ease: "easeInOut" }}
+  >
+    <h2 className="text-xl font-bold text-zinc-800 mb-4">
+      {marcaSeleccionada.nombre_marca}
+    </h2>
+
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+      {subcategoriasMarca.map((subcat) => (
+        <div
+          key={subcat.id}
+          onClick={async () => {
+  localStorage.setItem("scrollPos", window.scrollY.toString());
+  setArticulos([]);
+  setSubcategoriaMarcaSeleccionada(subcat);
+  setGruposMarca([]);
+  setGrupoMarcaActivoId(null);
+  
+  const { data: grupos } = await supabase
+    .from('grupos_marca')
+    .select('id, nombre, imagen, orden, subcategoria_marca_id')
+    .eq('subcategoria_marca_id', subcat.id)
+    .order('orden', { ascending: true });
+
+  if (grupos && grupos.length > 0) {
+    const gruposConProductos = await Promise.all(
+      grupos.map(async (g: any) => {
+        const { data: rel } = await supabase
+          .from('grupos_marca_productos')
+          .select('producto_id')
+          .eq('grupo_id', g.id);
+        return { ...g, productoIds: rel?.map((r: any) => r.producto_id) || [] };
+      })
+    );
+    setGruposMarca(gruposConProductos);
+  }
+
+ 
+  const { data: productos, error } = await supabase
+    .from("productos")
+    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id")
+    .eq("marca_id", marcaSeleccionada.id)
+    .eq("subcategoria_marca_id", subcat.id) 
+    .order("orden_marca", { ascending: true });
+
+  const productosNormalizados = (productos || []).map((p) => ({
+    ...p, 
+    visible: p.visible ?? true
+  }));
+  
+  setArticulos(error ? [] : productosNormalizados);
+  window.scrollTo({ top: 0, behavior: "instant" });
+}}
+          className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+        >
+          <div className="relative w-full h-40">
+            <SkeletonImage
+              src={subcat.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+              alt={subcat.nombre}
+              className="object-contain"
+            />
+          </div>
+          <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+            {subcat.nombre}
+          </div>
+        </div>
+      ))}
+    </div>
+    {subcategoriasMarca.length === 0 && (
+      <p className="text-center text-zinc-500 py-10">No hay subcategorías en esta marca.</p>
+    )}
+  </motion.div>
                     ) : (
                       /* Vista de productos (cuando hay categoría o marca seleccionada) */
                       <AnimatePresence mode="wait">
@@ -21299,6 +22066,8 @@ if (!contenedores.has(codigo)) {
                             if (info.offset.x > 100) {
                               setCategoriaSeleccionada(null);
                               setMarcaSeleccionada(null);
+                              setGruposMarca([]);
+setGrupoMarcaActivoId(null);
                               const savedScroll =
                                 localStorage.getItem("scrollPos");
                               if (savedScroll) {
@@ -21411,6 +22180,52 @@ if (!contenedores.has(codigo)) {
   </>
 )}
 
+{/* Tarjetas de grupos de MARCA */}
+{gruposMarca.length > 0 && marcaSeleccionada && !searchTerm && (
+  <>
+    {grupoMarcaActivoId !== null && grupoMarcaActivoId !== 'todos' && (
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          onClick={() => setGrupoMarcaActivoId('todos')}
+          className="flex items-center gap-1 text-zinc-500 hover:text-zinc-800 text-sm font-medium transition"
+        >
+          <ChevronLeft size={18} />
+          Volver a grupos
+        </button>
+        <span className="text-sm font-bold text-zinc-800">
+          {gruposMarca.find((g) => g.id === grupoMarcaActivoId)?.nombre}
+        </span>
+      </div>
+    )}
+
+    {(grupoMarcaActivoId === null || grupoMarcaActivoId === 'todos') && (
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 mb-6">
+        {gruposMarca.map((g) => (
+          <div
+            key={g.id}
+            onClick={() => setGrupoMarcaActivoId(g.id)}
+            className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+          >
+            <div className="relative w-full h-40">
+              {g.imagen ? (
+                <Image src={g.imagen} alt={g.nombre} fill className="object-contain" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Layers size={36} className="text-zinc-300" />
+                </div>
+              )}
+            </div>
+            <div className="p-2 text-center">
+              <p className="text-sm font-semibold text-zinc-800">{g.nombre}</p>
+              <p className="text-xs text-zinc-400 mt-0.5">{g.productoIds?.length ?? 0} productos</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </>
+)}
+
                           {/* Grid productos */}
                           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 pb-10">
                             <AnimatePresence>
@@ -21434,6 +22249,19 @@ if (!contenedores.has(codigo)) {
       if (!grupo || !grupo.productoIds.includes(a.id)) return false;
     }
   }
+
+if (gruposMarca.length > 0 && marcaSeleccionada && !searchTerm) {
+  const todosLosIdsEnGrupos = gruposMarca.flatMap((g) => g.productoIds);
+
+  if (grupoMarcaActivoId === null || grupoMarcaActivoId === 'todos') {
+   
+    if (todosLosIdsEnGrupos.includes(a.id)) return false;
+  } else {
+
+    const grupo = gruposMarca.find((g) => g.id === grupoMarcaActivoId);
+    if (!grupo || !grupo.productoIds.includes(a.id)) return false;
+  }
+}
 
   return (
     (a.TITULO &&
@@ -22643,6 +23471,8 @@ if (!contenedores.has(codigo)) {
           <MenuItem label="Edición de Categorías y Subcategorías" icon={<FilePenLine size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("edicion-categorias"); }} />
           <MenuItem label="Agregar, Editar o Eliminar Marcas" icon={<Codesandbox size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("gestionar-marcas"); }} />
           <MenuItem label="Ordenar Posición de elementos" icon={<ListOrdered size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("ordenar-productos"); }} />
+          <MenuItem label="Subcategorías por Marca" icon={<Layers size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("subcategorias-marca"); }} />
+          <MenuItem label="Grupos por Marca" icon={<Boxes size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("grupos-marca"); }} />
         </Acordeon>
       )}
 
@@ -22916,6 +23746,13 @@ if (!contenedores.has(codigo)) {
 
                     {vistaPerfil === "gestionar-grupos" && esAdmin && (
   <GestionarGruposView setVistaPerfil={setVistaPerfil} />
+)}
+
+{vistaPerfil === 'subcategorias-marca' && (
+  <GestionarSubcategoriasMarca setVistaPerfil={setVistaPerfil} />
+)}
+{vistaPerfil === 'grupos-marca' && (
+  <GestionarGruposMarca setVistaPerfil={setVistaPerfil} />
 )}
 
                     {vistaPerfil === "inventario" && esAdmin && (
@@ -23585,6 +24422,8 @@ if (!contenedores.has(codigo)) {
                     if (categoriaSeleccionada || marcaSeleccionada) {
                       setCategoriaSeleccionada(null);
                       setMarcaSeleccionada(null);
+                      setGruposMarca([]);
+setGrupoMarcaActivoId(null);
                     } else if (macroCategoriaSeleccionada) {
                       setMacroCategoriaSeleccionada(null);
                     } else {
@@ -23610,6 +24449,8 @@ if (!contenedores.has(codigo)) {
                   window.scrollTo({ top: 0, behavior: "instant" });
                   setCategoriaSeleccionada(null);
                   setMarcaSeleccionada(null);
+                  setGruposMarca([]);
+setGrupoMarcaActivoId(null);
                   setMacroCategoriaSeleccionada(null);
                   buscarStateRef.current = {
                     categoria: null,
