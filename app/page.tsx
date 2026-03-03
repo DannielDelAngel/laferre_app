@@ -7419,6 +7419,9 @@ setGrupoMarcaActivoId(null); setSubcategorias([]); }} />
     const { handleDrag, handleDragEnd } = useAutoScrollOnDrag();
     const [marcaSeleccionada, setMarcaSeleccionada] = useState<any>(null);
 const [productosMarca, setProductosMarca] = useState<any[]>([]);
+const [subcategoriasMarcaOrden, setSubcategoriasMarcaOrden] = useState<any[]>([]);
+const [subcategoriaMarcaSeleccionada, setSubcategoriaMarcaSeleccionada] = useState<any>(null);
+
 
     useEffect(() => {
       cargarDatos();
@@ -7461,7 +7464,44 @@ const [productosMarca, setProductosMarca] = useState<any[]>([]);
     .from("productos")
     .select("*")
     .eq("marca_id", marcaId)
-    .order("orden_marca", { ascending: true }); 
+    .order("orden_marca", { ascending: true });
+  setProductosMarca(data || []);
+};
+
+const cargarSubcategoriasMarcaOrden = async (marcaId: number) => {
+  const { data } = await supabase
+    .from("subcategorias_marca")
+    .select("*")
+    .eq("marca_id", marcaId)
+    .order("orden", { ascending: true });
+  setSubcategoriasMarcaOrden(data || []);
+};
+
+const guardarOrdenSubcategoriasMarca = async () => {
+  setGuardando(true);
+  setMensaje("");
+  try {
+    for (let i = 0; i < subcategoriasMarcaOrden.length; i++) {
+      await supabase
+        .from("subcategorias_marca")
+        .update({ orden: i + 1 })
+        .eq("id", subcategoriasMarcaOrden[i].id);
+    }
+    setMensaje("Orden de subcategorías guardado correctamente");
+    setTimeout(() => setMensaje(""), 2000);
+  } catch (error) {
+    setMensaje("Error al guardar el orden");
+  } finally {
+    setGuardando(false);
+  }
+};
+
+const cargarProductosPorSubcategoriaMarca = async (subcatId: number) => {
+  const { data } = await supabase
+    .from("productos")
+    .select("*")
+    .eq("subcategoria_marca_id", subcatId)
+    .order("orden_marca", { ascending: true });
   setProductosMarca(data || []);
 };
 
@@ -7595,16 +7635,19 @@ const guardarOrdenProductosMarca = async () => {
         exit={{ opacity: 0, x: -40 }}
       >
         <BackBtn
-          onBack={() => {
-  if (categoriaSeleccionada || macroCategoriaSeleccionada || marcaSeleccionada) {
+         onBack={() => {
+  if (subcategoriaMarcaSeleccionada) {
+    setSubcategoriaMarcaSeleccionada(null);
+    setProductosMarca([]);
+  } else if (categoriaSeleccionada || macroCategoriaSeleccionada || marcaSeleccionada) {
     setCategoriaSeleccionada(null);
     setMacroCategoriaSeleccionada(null);
-    setMarcaSeleccionada(null); 
-    setGruposMarca([]);
-setGrupoMarcaActivoId(null);  
+    setMarcaSeleccionada(null);
     setProductos([]);
     setSubcategorias([]);
-    setProductosMarca([]);         
+    setProductosMarca([]);
+    setSubcategoriasMarcaOrden([]);
+    setSubcategoriaMarcaSeleccionada(null);
   } else {
     setVistaPerfil("menu");
   }
@@ -7660,13 +7703,11 @@ setGrupoMarcaActivoId(null);
           </button>
           <button
             onClick={() => {
-              setPestanaActiva("marcas");
-              setCategoriaSeleccionada(null);
-              setMacroCategoriaSeleccionada(null);
-              setMarcaSeleccionada(null); 
-              setGruposMarca([]);
-setGrupoMarcaActivoId(null);
-            }}
+  setPestanaActiva("marcas");
+  setCategoriaSeleccionada(null);
+  setMacroCategoriaSeleccionada(null);
+  setMarcaSeleccionada(null);
+}}
             className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
               pestanaActiva === "marcas"
                 ? "bg-orange-500 text-white"
@@ -8155,15 +8196,15 @@ setGrupoMarcaActivoId(null);
 
                 {/* Nombre clickeable para entrar a productos */}
                 <div
-                  className="flex-1 cursor-pointer"
-                  onClick={() => {
-                    setMarcaSeleccionada(marca);
-                    cargarProductosPorMarca(marca.id);
-                  }}
-                >
-                  <p className="font-semibold text-sm text-zinc-800">{marca.nombre_marca}</p>
-                  <p className="text-xs text-orange-500 mt-0.5">Ver productos →</p>
-                </div>
+  className="flex-1 cursor-pointer"
+  onClick={() => {
+    setMarcaSeleccionada(marca);
+    cargarSubcategoriasMarcaOrden(marca.id);
+  }}
+>
+  <p className="font-semibold text-sm text-zinc-800">{marca.nombre_marca}</p>
+  <p className="text-xs text-orange-500 mt-0.5">Ver subcategorías y productos →</p>
+</div>
 
                 <div className="flex flex-col items-center gap-2">
                   <span className="text-zinc-400 font-mono text-sm">#{index + 1}</span>
@@ -8190,18 +8231,116 @@ setGrupoMarcaActivoId(null);
   </div>
 )}
 
-{pestanaActiva === "marcas" && marcaSeleccionada && (
+{pestanaActiva === "marcas" && marcaSeleccionada && !subcategoriaMarcaSeleccionada && (
   <div>
-    <h3 className="text-lg font-bold text-zinc-900 mb-2">
+    <h3 className="text-lg font-bold text-zinc-900 mb-1">
       {marcaSeleccionada.nombre_marca}
     </h3>
+
+    {subcategoriasMarcaOrden.length > 0 && (
+      <div className="mb-6">
+        <p className="text-sm text-zinc-600 mb-3">
+          Arrastra para reordenar las subcategorías, o toca una para ver sus productos:
+        </p>
+        <Reorder.Group
+          axis="y"
+          values={subcategoriasMarcaOrden}
+          onReorder={setSubcategoriasMarcaOrden}
+          className="space-y-3 mb-4"
+        >
+          {subcategoriasMarcaOrden.map((subcat, index) => (
+            <Reorder.Item
+              key={subcat.id}
+              value={subcat}
+              onDrag={handleDrag}
+              onDragEnd={handleDragEnd}
+              dragListener={true}
+              dragControls={undefined}
+            >
+              <motion.div className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm hover:border-orange-300 transition">
+                <div className="w-14 h-14 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0 cursor-grab active:cursor-grabbing">
+                  {subcat.img ? (
+                    <img src={subcat.img} alt={subcat.nombre} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                      <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <div
+                  className="flex-1 cursor-pointer"
+                  onClick={() => {
+                    setSubcategoriaMarcaSeleccionada(subcat);
+                    cargarProductosPorSubcategoriaMarca(subcat.id);
+                  }}
+                >
+                  <p className="font-semibold text-sm text-zinc-800">{subcat.nombre}</p>
+                  <p className="text-xs text-orange-500 mt-0.5">Ver productos →</p>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-zinc-400 font-mono text-sm">#{index + 1}</span>
+                  <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center cursor-grab active:cursor-grabbing">
+                    <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                  </div>
+                </div>
+              </motion.div>
+            </Reorder.Item>
+          ))}
+        </Reorder.Group>
+        <button
+          onClick={guardarOrdenSubcategoriasMarca}
+          disabled={guardando}
+          className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 mb-6"
+        >
+          {guardando ? "Guardando..." : "Guardar Orden de Subcategorías"}
+        </button>
+      </div>
+    )}
+
+    {subcategoriasMarcaOrden.length === 0 && (
+      <p className="text-sm text-zinc-500 mb-4">Esta marca no tiene subcategorías.</p>
+    )}
+
+    <p className="text-sm font-semibold text-zinc-700 mb-3">
+      {subcategoriasMarcaOrden.length > 0 ? "Todos los productos de la marca:" : "Productos de la marca:"}
+    </p>
+    <button
+      onClick={() => {
+        setSubcategoriaMarcaSeleccionada({ id: null, nombre: "Todos los productos" });
+        cargarProductosPorMarca(marcaSeleccionada.id);
+      }}
+      className="w-full flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm hover:border-orange-300 transition text-left"
+    >
+      <div className="w-14 h-14 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
+        <svg className="w-7 h-7 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+        </svg>
+      </div>
+      <div className="flex-1">
+        <p className="font-semibold text-sm text-zinc-800">Todos los productos</p>
+        <p className="text-xs text-orange-500 mt-0.5">Ver y reordenar todos →</p>
+      </div>
+    </button>
+  </div>
+)}
+
+{pestanaActiva === "marcas" && marcaSeleccionada && subcategoriaMarcaSeleccionada && (
+  <div>
+    <h3 className="text-lg font-bold text-zinc-900 mb-1">
+      {marcaSeleccionada.nombre_marca}
+    </h3>
+    <p className="text-sm text-zinc-500 mb-1">{subcategoriaMarcaSeleccionada.nombre}</p>
     <p className="text-sm text-zinc-600 mb-6">
       Mantén presionado y arrastra para reordenar los productos
     </p>
 
     {productosMarca.length === 0 ? (
       <div className="text-center py-10 bg-zinc-50 rounded-xl border border-zinc-200">
-        <p className="text-zinc-500">Esta marca no tiene productos</p>
+        <p className="text-zinc-500">No hay productos en esta sección</p>
       </div>
     ) : (
       <>
@@ -8232,7 +8371,6 @@ setGrupoMarcaActivoId(null);
                     </div>
                   )}
                 </div>
-
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm text-zinc-800 truncate">{prod.TITULO}</p>
                   {prod.P_MAYOREO && (
@@ -8242,18 +8380,11 @@ setGrupoMarcaActivoId(null);
                   )}
                   <p className="text-xs text-zinc-500">Código: {prod.CODIGO}</p>
                   <div className="flex gap-2 mt-1 flex-wrap">
-                    {!prod.visible && (
-                      <span className="text-xs bg-zinc-200 text-zinc-700 px-2 py-0.5 rounded">Oculto</span>
-                    )}
-                    {prod.liquidacion && (
-                      <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Liquidación</span>
-                    )}
-                    {prod.top_ventas && (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Top Ventas</span>
-                    )}
+                    {!prod.visible && <span className="text-xs bg-zinc-200 text-zinc-700 px-2 py-0.5 rounded">Oculto</span>}
+                    {prod.liquidacion && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Liquidación</span>}
+                    {prod.top_ventas && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Top Ventas</span>}
                   </div>
                 </div>
-
                 <div className="flex flex-col items-center gap-2">
                   <span className="text-zinc-400 font-mono text-sm">#{index + 1}</span>
                   <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
@@ -8266,7 +8397,6 @@ setGrupoMarcaActivoId(null);
             </Reorder.Item>
           ))}
         </Reorder.Group>
-
         <button
           onClick={guardarOrdenProductosMarca}
           disabled={guardando}
