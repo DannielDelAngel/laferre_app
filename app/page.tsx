@@ -4054,7 +4054,7 @@ export default function HomePage() {
   const [enviando, setEnviando] = useState(false);
   const [mensajeExito, setMensajeExito] = useState("");
   const [numeroCuenta, setNumeroCuenta] = useState("");
-  const [errorCuenta, setErrorCuenta] = useState(""); //error si no existe
+  const [errorCuenta, setErrorCuenta] = useState(""); 
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState(null);
@@ -4062,6 +4062,7 @@ export default function HomePage() {
   const [cargandoItems, setCargandoItems] = useState(false);
   const [actualizacionReciente, setActualizacionReciente] = useState(false);
   const [subcategoriasMarca, setSubcategoriasMarca] = useState<any[]>([]);
+  const [articulosSinSubcat, setArticulosSinSubcat] = useState<any[]>([]);
 const [subcategoriaMarcaSeleccionada, setSubcategoriaMarcaSeleccionada] = useState<any>(null);
   const esAdmin = cuenta?.numero_cuenta === "Admin01";
   const esMostrador = cuenta?.numero_cuenta === "Mostrador";
@@ -4133,6 +4134,8 @@ const esEmpleado = cuenta?.numero_cuenta
   const [pedidoIdParaBackOrder, setPedidoIdParaBackOrder] = useState<
     number | null
   >(null);
+  const [mostrarOverlayBusqueda, setMostrarOverlayBusqueda] = useState(false);
+const [tabAnterior, setTabAnterior] = useState<string>("categorias");
 const [gruposSubcat, setGruposSubcat] = useState<any[]>([]);
 const [grupoActivoId, setGrupoActivoId] = useState<number | "todos" | null>(null);
 const [gruposMarca, setGruposMarca] = useState<any[]>([]);
@@ -13739,10 +13742,11 @@ useEffect(() => {
   };
 
   const HistorialPedidos = ({
-    cuenta,
-    setVistaPerfil,
-    setPedidoIdParaBackOrder,
-  }: any) => {
+  cuenta,
+  setVistaPerfil,
+  setPedidoIdParaBackOrder,
+  ocultarBackBtn,
+}: any) => {
     const [pedidos, setPedidos] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
     const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
@@ -15338,7 +15342,7 @@ if (backOrderExistente) {
           }
         }}
       >
-        <BackBtn onBack={() => setVistaPerfil("menu")} />
+        {!ocultarBackBtn && <BackBtn onBack={() => setVistaPerfil("menu")} />}
 
         <h2 className="text-xl font-bold text-zinc-900 mb-4">
           {esAdmin ? "Todos los Pedidos" : "Tus Pedidos"}
@@ -21317,7 +21321,7 @@ if (!contenedores.has(codigo)) {
 
               <div className="max-w-2xl mx-auto">
                 <AnimatePresence mode="wait">
-                  {!["carrito", "perfil", "ubicacion"].includes(activeTab) ? (
+                  {!["carrito", "perfil", "ubicacion", "buscar"].includes(activeTab) ? (
                     <motion.div
                       key="header-search"
                       initial={{ opacity: 0, y: -8 }}
@@ -21401,89 +21405,83 @@ if (!contenedores.has(codigo)) {
                         </AnimatePresence>
 
                         {/* Campo de búsqueda */}
-                        <AnimatePresence mode="wait">
-                          {(activeTab === "buscar" ||
-                            activeTab === "categorias") && (
-                            <motion.div
-                              key="search-bar"
-                              initial={{ opacity: 0, y: -6 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -6 }}
-                              transition={{ duration: 0.2 }}
-                              className="relative flex-1"
-                            >
-                              <input
-                                ref={searchInputRef}
-                                type="text"
-                                placeholder={
-                                  categoriaSeleccionada
-                                    ? `Buscar en ${categoriaSeleccionada.nombre_categoria}`
-                                    : marcaSeleccionada
-                                      ? `Buscar en ${marcaSeleccionada.nombre_marca}`
-                                      : "Buscar en Bodega Ferretera De Monterrey..."
-                                }
-                                value={searchTerm}
-                               onChange={async (e) => {
-  const value = e.target.value;
-  setSearchTerm(value);
+                       
+<AnimatePresence mode="wait">
+ {activeTab === "categorias" && (
+    <motion.div
+      key="search-bar"
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -6 }}
+      transition={{ duration: 0.2 }}
+      className="relative flex-1"
+    >
+      <input
+        ref={searchInputRef}
+        type="text"
+        // Solo readOnly cuando NO hay categoría/marca seleccionada
+        readOnly={!categoriaSeleccionada && !marcaSeleccionada}
+        placeholder={
+          categoriaSeleccionada
+            ? `Buscar en ${categoriaSeleccionada.nombre_categoria}`
+            : marcaSeleccionada
+              ? `Buscar en ${marcaSeleccionada.nombre_marca}`
+              : "Buscar en Bodega Ferretera De Monterrey..."
+        }
+        // value controlado: vacío si no hay contexto, searchTerm si hay
+        value={categoriaSeleccionada || marcaSeleccionada ? searchTerm : ""}
+        onChange={(e) => {
+          // Solo funciona cuando hay categoría o marca seleccionada
+          if (categoriaSeleccionada || marcaSeleccionada) {
+            setSearchTerm(e.target.value);
+          }
+        }}
+        onFocus={async () => {
+          // Si NO hay categoría/marca → abrir overlay global
+          if (!categoriaSeleccionada && !marcaSeleccionada) {
+            setTabAnterior(activeTab);
+            setMostrarOverlayBusqueda(true);
+            const { data } = await construirQueryBusqueda("", null, null);
+            setProductos(ordenarProductos(data || [], ""));
+            setProductosMostrados(10);
+          }
+          // Si hay contexto → el input ya es editable, no hace falta overlay
+        }}
+        onClick={async () => {
+          // Si NO hay categoría/marca → abrir overlay global
+          if (!categoriaSeleccionada && !marcaSeleccionada) {
+            setTabAnterior(activeTab);
+            setMostrarOverlayBusqueda(true);
+            const { data } = await construirQueryBusqueda("", null, null);
+            setProductos(ordenarProductos(data || [], ""));
+            setProductosMostrados(10);
+          }
+        }}
+        className={`w-full rounded-full border bg-white border-zinc-300 pl-10 pr-10 py-2.5 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all duration-200 ${
+          !categoriaSeleccionada && !marcaSeleccionada ? "cursor-pointer focus:ring-white" : ""
+        }`}
+      />
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
 
-  if (value.trim() === "") {
-    setProductos([]);
-    return;
-  }
-
-  const { data, error } = await construirQueryBusqueda(
-    value,
-    categoriaSeleccionada,
-    marcaSeleccionada
-  );
-
-  if (error) {
-    console.error("Error buscando productos:", error.message);
-  } else {
-    setProductos(ordenarProductos(data || [], value)); 
-    setProductosMostrados(10);
-  }
-}}
-      onFocus={() => {
-  if (searchTerm.trim()) {
-    const fetchProductos = async () => {
-      const { data } = await construirQueryBusqueda(
-        searchTerm,
-        categoriaSeleccionada,
-        marcaSeleccionada
-      );
-
-      setProductos(ordenarProductos(data || [], searchTerm)); 
-      setProductosMostrados(10);
-    };
-
-    fetchProductos();
-  }
-}}
-                                className="w-full rounded-full border bg-white border-zinc-300 pl-10 pr-10 py-2.5 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-white transition-all duration-200"
-                              />
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5" />
-
-                              {/* Botón limpiar búsqueda */}
-                              <AnimatePresence>
-                                {searchTerm && (
-                                  <motion.button
-                                    initial={{ scale: 0, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    exit={{ scale: 0, opacity: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    whileTap={{ scale: 0.9 }}
-                                    onClick={() => {
-                                      setSearchTerm("");
-                                      setProductos([]);
-                                    }}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
-                                  >
-                                    <X size={18} />
-                                  </motion.button>
-                                )}
-                              </AnimatePresence>
+      {/* Botón limpiar búsqueda */}
+      <AnimatePresence>
+        {searchTerm && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => {
+              setSearchTerm("");
+              setProductos([]);
+            }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
+          >
+            <X size={18} />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
                               {/* Botón escáner (solo en Buscar) */}
                               <AnimatePresence>
@@ -21495,9 +21493,7 @@ if (!contenedores.has(codigo)) {
                                     transition={{ duration: 0.2 }}
                                     whileTap={{ scale: 0.9 }}
                                     onClick={() => {
-                                      if (activeTab !== "buscar") {
-                                        setActiveTab("buscar");
-                                      }
+                                     
                                       setScannerOpen(true);
                                     }}
                                     className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-600 transition-colors"
@@ -21512,8 +21508,7 @@ if (!contenedores.has(codigo)) {
                                 {searchTerm &&
                                   productos.length > 0 &&
                                   !categoriaSeleccionada &&
-                                  !marcaSeleccionada &&
-                                  activeTab !== "buscar" && (
+                                  !marcaSeleccionada && (
                                     <motion.div
                                       initial={{ opacity: 0, y: -10 }}
                                       animate={{ opacity: 1, y: 0 }}
@@ -21958,6 +21953,14 @@ setGrupoMarcaActivoId(null);
   if (subcats && subcats.length > 0) {
 
     setSubcategoriasMarca(subcats);
+
+const { data: sinSubcat } = await supabase
+  .from("productos")
+  .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id")
+  .eq("marca_id", marca.id)
+  .is("subcategoria_marca_id", null)
+  .order("orden_marca", { ascending: true });
+setArticulosSinSubcat((sinSubcat || []).map((p: any) => ({ ...p, visible: p.visible ?? true })));
   } else {
 
     setSubcategoriasMarca([]);
@@ -22117,47 +22120,41 @@ setGrupoMarcaActivoId(null);
         <div
           key={subcat.id}
           onClick={async () => {
-  localStorage.setItem("scrollPos", window.scrollY.toString());
-  setArticulos([]);
-  setSubcategoriaMarcaSeleccionada(subcat);
-  setGruposMarca([]);
-  setGrupoMarcaActivoId(null);
-  
-  const { data: grupos } = await supabase
-    .from('grupos_marca')
-    .select('id, nombre, imagen, orden, subcategoria_marca_id')
-    .eq('subcategoria_marca_id', subcat.id)
-    .order('orden', { ascending: true });
+            localStorage.setItem("scrollPos", window.scrollY.toString());
+            setArticulos([]);
+            setSubcategoriaMarcaSeleccionada(subcat);
+            setGruposMarca([]);
+            setGrupoMarcaActivoId(null);
+            
+            const { data: grupos } = await supabase
+              .from('grupos_marca')
+              .select('id, nombre, imagen, orden, subcategoria_marca_id')
+              .eq('subcategoria_marca_id', subcat.id)
+              .order('orden', { ascending: true });
 
-  if (grupos && grupos.length > 0) {
-    const gruposConProductos = await Promise.all(
-      grupos.map(async (g: any) => {
-        const { data: rel } = await supabase
-          .from('grupos_marca_productos')
-          .select('producto_id')
-          .eq('grupo_id', g.id);
-        return { ...g, productoIds: rel?.map((r: any) => r.producto_id) || [] };
-      })
-    );
-    setGruposMarca(gruposConProductos);
-  }
+            if (grupos && grupos.length > 0) {
+              const gruposConProductos = await Promise.all(
+                grupos.map(async (g: any) => {
+                  const { data: rel } = await supabase
+                    .from('grupos_marca_productos')
+                    .select('producto_id')
+                    .eq('grupo_id', g.id);
+                  return { ...g, productoIds: rel?.map((r: any) => r.producto_id) || [] };
+                })
+              );
+              setGruposMarca(gruposConProductos);
+            }
 
- 
-  const { data: productos, error } = await supabase
-    .from("productos")
-    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id")
-    .eq("marca_id", marcaSeleccionada.id)
-    .eq("subcategoria_marca_id", subcat.id) 
-    .order("orden_marca", { ascending: true });
+            const { data: productos, error } = await supabase
+              .from("productos")
+              .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id")
+              .eq("marca_id", marcaSeleccionada.id)
+              .eq("subcategoria_marca_id", subcat.id)
+              .order("orden_marca", { ascending: true });
 
-  const productosNormalizados = (productos || []).map((p) => ({
-    ...p, 
-    visible: p.visible ?? true
-  }));
-  
-  setArticulos(error ? [] : productosNormalizados);
-  window.scrollTo({ top: 0, behavior: "instant" });
-}}
+            setArticulos(error ? [] : (productos || []).map((p) => ({ ...p, visible: p.visible ?? true })));
+            window.scrollTo({ top: 0, behavior: "instant" });
+          }}
           className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
         >
           <div className="relative w-full h-40">
@@ -22173,6 +22170,35 @@ setGrupoMarcaActivoId(null);
         </div>
       ))}
     </div>
+
+    {/* Productos sin subcategoría */}
+    {articulosSinSubcat.length > 0 && (
+      <div className="mt-6">
+        <h3 className="text-base font-semibold text-zinc-700 mb-3">Otros productos</h3>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+          {articulosSinSubcat.map((prod) => (
+            <div
+              key={prod.id}
+              onClick={() => {
+                setProductoSeleccionado(prod);
+              }}
+              className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+            >
+              <div className="relative w-full h-40">
+                <SkeletonImage
+                  src={prod.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+                  alt={prod.TITULO}
+                  className="object-contain"
+                />
+              </div>
+              <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+                {prod.TITULO}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
     {subcategoriasMarca.length === 0 && (
       <p className="text-center text-zinc-500 py-10">No hay subcategorías en esta marca.</p>
     )}
@@ -22747,8 +22773,24 @@ if (gruposMarca.length > 0 && marcaSeleccionada && !searchTerm) {
                   </motion.div>
                 )}
 
-                {/* Buscar */}
+                {/* Pedidos */}
                 {activeTab === "buscar" && (
+                  <motion.div
+                    key="buscar"
+                    initial={{ opacity: 0, x: -40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 40 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    <HistorialPedidos
+                      cuenta={cuenta}
+                      setVistaPerfil={setVistaPerfil}
+                      setPedidoIdParaBackOrder={setPedidoIdParaBackOrder}
+                      ocultarBackBtn={activeTab === "buscar"}
+                    />
+                  </motion.div>
+                )}
+                {false && (
                   <motion.div
                     key="buscar"
                     initial={{ opacity: 0, x: -40 }}
@@ -24597,8 +24639,8 @@ setGrupoMarcaActivoId(null);
                     : "hover:text-orange-500"
                 }`}
               >
-                <Search size={20} />
-                <span className="mt-1">BUSCAR</span>
+                <History size={20} />
+<span className="mt-1">PEDIDOS</span>
               </button>
 
               {/* 3. BOTÓN CARRITO */}
@@ -24701,6 +24743,301 @@ setGrupoMarcaActivoId(null);
           </motion.div>
         )}
       </AnimatePresence>
+
+     {/* OVERLAY BUSQUEDA GLOBAL */}
+<AnimatePresence>
+  {mostrarOverlayBusqueda && (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 20 }}
+      transition={{ duration: 0.25 }}
+      className="fixed inset-0 z-[200] bg-white flex flex-col"
+    >
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 pt-12 pb-3 border-b border-zinc-200 bg-white">
+        <button
+          onClick={() => {
+            setMostrarOverlayBusqueda(false);
+            setSearchTerm("");
+            setProductos([]);
+          }}
+          className="text-zinc-500 hover:text-zinc-800 transition flex-shrink-0"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <div className="relative flex-1">
+          <input
+            autoFocus
+            type="text"
+            placeholder="Buscar en Bodega Ferretera..."
+            value={searchTerm}
+onChange={async (e) => {
+  const value = e.target.value;
+  setSearchTerm(value);
+  if (!value.trim()) {
+    const { data } = await construirQueryBusqueda("", null, null);
+    setProductos(ordenarProductos(data || [], ""));
+    setProductosMostrados(10);
+    return;
+  }
+  const { data } = await construirQueryBusqueda(value, null, null);
+  setProductos(ordenarProductos(data || [], value));
+  setProductosMostrados(10);
+}}
+
+onClick={async () => {
+  setSearchTerm("");
+  const { data } = await construirQueryBusqueda("", null, null);
+  setProductos(ordenarProductos(data || [], ""));
+  setProductosMostrados(10);
+}}
+            className="w-full rounded-full border border-zinc-300 bg-zinc-50 pl-10 pr-10 py-2.5 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
+          {searchTerm && (
+            <button
+              onClick={async () => {
+                setSearchTerm("");
+                const { data } = await construirQueryBusqueda("", null, null);
+                setProductos(ordenarProductos(data || [], ""));
+                setProductosMostrados(10);
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        {!searchTerm && (
+          <button
+            onClick={() => setScannerOpen(true)}
+            className="text-orange-500 flex-shrink-0"
+          >
+            <ScanBarcode size={22} />
+          </button>
+        )}
+      </div>
+
+      {/* Escaner de codigo de barras */}
+      {scannerOpen && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.3 }}
+          className="mb-4 rounded-xl overflow-hidden border-2 border-orange-300 shadow-lg bg-white mx-4 mt-3"
+        >
+          <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+              <span className="text-white text-sm font-medium">
+                Escaneando codigo de barras...
+              </span>
+            </div>
+            <button
+              onClick={() => setScannerOpen(false)}
+              className="text-white hover:bg-white/20 rounded-full p-1 transition"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="relative bg-black">
+            <BarcodeScannerComponent
+              width="100%"
+              height={280}
+              onUpdate={async (err: any, result) => {
+                if (result) {
+                  const codigo = result.getText();
+                  if (codigo) {
+                    if ("vibrate" in navigator) navigator.vibrate(100);
+                    setSearchTerm(codigo);
+                    setTimeout(() => setScannerOpen(false), 300);
+                    try {
+                      const { data, error } = await supabase
+                        .from("productos")
+                        .select(
+                          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, existencia, ubicacion",
+                        )
+                        .or(
+                          `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%,C_PRODUCTO.ilike.%${codigo}%`,
+                        )
+                        .limit(50);
+
+                      if (error) {
+                        console.error("Error buscando por codigo:", error.message);
+                        alert("Error al buscar el producto. Intenta de nuevo.");
+                        return;
+                      }
+
+                      const productosNormalizados = (data || []).map((producto) => ({
+                        ...producto,
+                        visible: producto.visible ?? true,
+                      }));
+
+                      setProductos(productosNormalizados);
+                      setProductosMostrados(10);
+                      if (productosNormalizados.length === 0) {
+                        alert(`No se encontraron productos con el codigo: ${codigo}`);
+                      }
+                    } catch (error) {
+                      console.error("Error procesando codigo:", error);
+                      alert("Ocurrio un error al procesar el codigo escaneado.");
+                    }
+                  }
+                } else if (err) {
+                  if ((err as Error)?.name !== "NotFoundException") {
+                    console.error("Error del escaner:", err);
+                  }
+                }
+              }}
+            />
+
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div className="border-2 border-white w-64 h-32 rounded-lg shadow-2xl">
+                <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-orange-500"></div>
+                <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-orange-500"></div>
+                <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-orange-500"></div>
+                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-orange-500"></div>
+              </div>
+            </div>
+            <div className="absolute bottom-4 left-0 right-0 text-center">
+              <p className="text-white text-sm font-medium bg-black/60 backdrop-blur-sm inline-block px-4 py-2 rounded-full">
+                Centra el codigo de barras en el marco
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-2 p-3 bg-zinc-50">
+            <button
+              onClick={() => setScannerOpen(false)}
+              className="flex-1 bg-white border border-zinc-300 text-zinc-700 py-2.5 rounded-lg font-semibold hover:bg-zinc-50 transition flex items-center justify-center gap-2"
+            >
+              <X size={18} />
+              Cancelar
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Resultados */}
+      <div className="flex-1 overflow-y-auto px-4 pb-32 pt-3">
+        <div className="mt-4 space-y-3">
+          {productos
+            .filter((prod) => esAdmin || (prod.visible ?? true))
+            .slice(0, productosMostrados)
+            .map((prod) => (
+              <div
+                key={prod.id}
+                onClick={() => {
+                  const scrollY = window.scrollY;
+                  localStorage.setItem("scrollProducto", scrollY.toString());
+                  setMostrarOverlayBusqueda(false);
+                  setProductoSeleccionado(prod);
+                }}
+                className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="relative w-12 h-12 rounded-md overflow-hidden bg-zinc-100">
+                    <Image
+                      src={prod.IMAGEN || "https://via.placeholder.com/150?text=Sin+imagen"}
+                      alt={prod.TITULO || "Imagen de producto"}
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-zinc-600">Codigo: {prod.CODIGO}</p>
+                    <p className="font-semibold">{prod.TITULO}</p>
+
+                    {/* Stock y ubicacion - solo admin / rutas / empleado */}
+                    {(esAdmin || esRutas || esEmpleado) && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <Package className="w-3 h-3 text-zinc-400" />
+                        <p
+                          className={`text-xs font-semibold ${
+                            (prod.existencia || 0) === 0
+                              ? "text-red-500"
+                              : (prod.existencia || 0) < 10
+                                ? "text-zinc-500"
+                                : "text-zinc-500"
+                          }`}
+                        >
+                          Stock: {prod.existencia || 0}
+                        </p>
+                        {prod.ubicacion && (
+                          <>
+                            <span className="text-zinc-300">.</span>
+                            <MapPin className="w-3 h-3 text-zinc-400" />
+                            <p className="text-xs font-semibold text-zinc-500">{prod.ubicacion}</p>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Badges */}
+                    <div className="flex gap-2 mt-1.5">
+                      {prod.liquidacion && (
+                        <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                          LIQUIDACION
+                        </span>
+                      )}
+                      {prod.top_ventas && (
+                        <span className="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                          MAS VENDIDOS
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Precio */}
+                    {!esMostrador && !esMostrador2 && (
+                      <p className="text-xs text-orange-500 font-semibold">
+                        ${prod.P_MAYOREO?.toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <span className="text-zinc-400">{">"}</span>
+              </div>
+            ))}
+
+          {/* Ver mas - texto identico al original segun si hay searchTerm o no */}
+          {productos.filter(
+            (prod) => esAdmin || (prod.visible ?? true),
+          ).length > productosMostrados && (
+            <button
+              onClick={() => setProductosMostrados((prev) => prev + 10)}
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition mt-4"
+            >
+              {searchTerm === "" ? (
+                <>Ver mas productos (Mostrando {productosMostrados} de {totalBaseDatos})</>
+              ) : (
+                <>
+                  Ver mas productos (
+                  {productos.filter((prod) => esAdmin || (prod.visible ?? true)).length - productosMostrados}
+                  {" "}restantes)
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Sin resultados - solo cuando hay busqueda activa */}
+          {searchTerm && productos.length === 0 && (
+            <p className="text-center text-zinc-500 py-10">
+              No se encontraron resultados.
+            </p>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  )}
+</AnimatePresence>
+
     </>
   );
 }
