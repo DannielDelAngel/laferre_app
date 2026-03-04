@@ -1499,6 +1499,21 @@ const handleSubtract = (): void =>
                 {producto.TITULO}
               </h2>
 
+              {(producto.caja || producto.master) && (
+  <div className="flex justify-center gap-3 mt-2">
+    {producto.caja && (
+      <span className="text-xs bg-zinc-100 border border-zinc-200 rounded-full px-3 py-1 text-zinc-600 font-medium">
+        Caja: {producto.caja} pzas
+      </span>
+    )}
+    {producto.master && (
+      <span className="text-xs bg-zinc-100 border border-zinc-200 rounded-full px-3 py-1 text-zinc-600 font-medium">
+        Master: {producto.master} pzas
+      </span>
+    )}
+  </div>
+)}
+
               {/* Descripción / Información Adicional */}
               {producto.DESCRIPCION && (
                 <div className="mt-5 px-4">
@@ -1673,6 +1688,13 @@ const handleSubtract = (): void =>
                     </span>
                   </div>
                 )}
+
+                {producto.unidad_venta && (
+  <div className="flex justify-between py-2">
+    <span className="font-medium">Unidad de venta</span>
+    <span className="text-zinc-600">{producto.unidad_venta}</span>
+  </div>
+)}
                 {!esAdmin && !esMostrador && !esMostrador2 && (
                   <div className="flex justify-between py-2">
                     <span className="font-medium">Total de artículo</span>
@@ -16647,6 +16669,11 @@ const RecoleccionPanel = ({ supabase, onBack, esAdmin }: any) => {
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-zinc-500">{item.ubicacion || "Sin ubicación"}</p>
+                  {item.unidad_venta && (
+                    <span className="text-xs bg-zinc-100 border border-zinc-200 rounded-full px-3 py-1 text-zinc-600 font-medium">
+                      {item.unidad_venta}
+                    </span>
+                  )}
                   {!item.esFaltante ? (
                     <div className="mt-1 bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded inline-block">✓ Ya surtido: {item.cantidad_surtida}/{item.cantidad_pedida}</div>
                   ) : esPA ? (
@@ -18450,6 +18477,23 @@ await supabase
       </div>
     )}
 
+    {pedidoSeleccionado?.cuentas?.cliente && (
+  <div className="flex items-center gap-2">
+    <div className="w-7 h-7 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-orange-600">
+        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 01-1.581.814L10 14.197l-4.419 2.617A1 1 0 014 16V4z" clipRule="evenodd" />
+      </svg>
+    </div>
+    <div>
+      <p className="text-xs text-zinc-400">Cliente</p>
+      <p className="text-sm font-bold text-zinc-800">{pedidoSeleccionado.cuentas.cliente}</p>
+      {pedidoSeleccionado.cuentas.ferreteria && (
+        <p className="text-xs text-zinc-500">{pedidoSeleccionado.cuentas.ferreteria}</p>
+      )}
+    </div>
+  </div>
+)}
+
     {hojaActual.cajas && hojaActual.cajas.length > 0 && (
       <div className="flex items-start gap-2">
         <div className="w-7 h-7 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -18589,6 +18633,13 @@ await supabase
                       >
                         Stock: {prod.existencia || 0}
                       </p>
+
+                      {prod.unidad_venta && (
+                        <span className="text-xs bg-zinc-100 border border-zinc-200 rounded-full px-3 py-1 text-zinc-600 font-medium">
+                          {prod.unidad_venta}
+                        </span>
+                      )}
+                      
                     </div>
                     {/* Controles de estado */}
                     <div className="flex gap-2 mt-2">
@@ -20078,6 +20129,9 @@ if (!contenedores.has(codigo)) {
                   <div className="flex-1">
                     <p className="text-xs text-zinc-500">
                       {item.ubicacion || "Sin ubicación"}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {item.unidad_venta || "Sin unidad de venta"}
                     </p>
 
                     {/* Indicador de existencia */}
@@ -24654,7 +24708,7 @@ setGrupoMarcaActivoId(null);
                 }`}
               >
                 <Hammer size={20} />
-                <span className="mt-1">CATEGORÍAS</span>
+                <span className="mt-1">CATÁLOGO</span>
               </button>
 
               {/* 2. BOTÓN BUSCAR */}
