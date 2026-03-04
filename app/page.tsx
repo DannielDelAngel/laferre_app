@@ -4212,22 +4212,22 @@ const cargarGruposDeMarca = async (marcaId: number) => {
     grupos.map(async (grupo: any) => {
       const { data: relaciones } = await supabase
         .from('grupos_marca_productos')
-        .select('producto_id')
-        .eq('grupo_id', grupo.id);
+        .select('producto_id, orden')
+        .eq('grupo_id', grupo.id)
+        .order('orden', { ascending: true });
+
       return {
         ...grupo,
         productoIds: relaciones?.map((r: any) => r.producto_id) || [],
       };
     })
   );
-
   setGruposMarca(gruposConProductos);
 };
 
 const cargarGruposDeSubcat = async (subcatId: number) => {
   setGruposSubcat([]);
   setGrupoActivoId(null);
-
   const { data: gruposData } = await supabase
     .from("grupos")
     .select("id, nombre, orden, imagen") 
@@ -4240,15 +4240,17 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
     gruposData.map(async (g: any) => {
       const { data: relaciones } = await supabase
         .from("grupos_productos")
-        .select("producto_id")
-        .eq("grupo_id", g.id);
+        .select("producto_id, orden") 
+        .eq("grupo_id", g.id)
+        .order("orden", { ascending: true }); 
+
       return { ...g, productoIds: (relaciones || []).map((r: any) => r.producto_id) };
     })
   );
-
   setGruposSubcat(gruposConProds);
   setGrupoActivoId("todos");
 };
+
 
   const [enRuta, setEnRuta] = useState(() => {
     if (typeof window !== "undefined" && cuenta?.numero_cuenta) {
@@ -7446,7 +7448,7 @@ setGrupoMarcaActivoId(null); setSubcategorias([]); }} />
 
   const VistaOrdenarProductos = ({ setVistaPerfil }: any) => {
     const [pestanaActiva, setPestanaActiva] = useState<
-      "productos" | "subcategorias" | "categorias" | "marcas"
+      "productos" | "subcategorias" | "categorias" | "marcas" | "grupos"
     >("productos");
     const [categorias, setCategorias] = useState<any[]>([]);
     const [categoriaSeleccionada, setCategoriaSeleccionada] =
@@ -7466,15 +7468,17 @@ setGrupoMarcaActivoId(null); setSubcategorias([]); }} />
 const [productosMarca, setProductosMarca] = useState<any[]>([]);
 const [subcategoriasMarcaOrden, setSubcategoriasMarcaOrden] = useState<any[]>([]);
 const [subcategoriaMarcaSeleccionada, setSubcategoriaMarcaSeleccionada] = useState<any>(null);
-
+const [grupos, setGrupos] = useState<any[]>([]);
+const [grupoSeleccionado, setGrupoSeleccionado] = useState<any>(null);
+const [productosGrupo, setProductosGrupo] = useState<any[]>([]);
+const [tipoGrupo, setTipoGrupo] = useState<"marca" | "subcat">("marca");
 
     useEffect(() => {
       cargarDatos();
-    }, [pestanaActiva]);
+    }, [pestanaActiva, tipoGrupo]);
 
     const cargarDatos = async () => {
       setCargando(true);
-
       if (pestanaActiva === "productos") {
         const { data } = await supabase
           .from("categorias")
@@ -7499,9 +7503,71 @@ const [subcategoriaMarcaSeleccionada, setSubcategoriaMarcaSeleccionada] = useSta
           .select("*")
           .order("orden", { ascending: true });
         setMarcas(data || []);
+      } else if (pestanaActiva === "grupos") {
+        
+        if (tipoGrupo === "marca") {
+          cargarGruposMarca();
+        } else {
+          cargarGruposNormales();
+        }
+        return;
       }
 
       setCargando(false);
+    };
+
+    const cargarGruposNormales = async () => {
+      setCargando(true);
+      const { data: gruposData, error } = await supabase
+        .from("grupos")
+        .select("id, nombre, imagen, subcategoria_id, orden")
+        .order("orden", { ascending: true });
+
+      // Extraer los nombres de las subcategorías para mostrarlas en la UI
+      const subcatIds = [...new Set((gruposData || []).map((g: any) => g.subcategoria_id).filter(Boolean))];
+      let subcatsMap: Record<number, string> = {};
+
+      if (subcatIds.length > 0) {
+        const { data: subcats } = await supabase
+          .from("categorias")
+          .select("id_categoria, nombre_categoria")
+          .in("id_categoria", subcatIds);
+
+        (subcats || []).forEach((s: any) => { subcatsMap[s.id_categoria] = s.nombre_categoria; });
+      }
+
+      const merged = (gruposData || []).map((g: any) => ({
+        ...g,
+        subcategoria_nombre: g.subcategoria_id ? subcatsMap[g.subcategoria_id] : null,
+      }));
+
+      setGrupos(merged);
+      setCargando(false);
+    };
+
+    const cargarProductosGrupoNormal = async (grupoId: number) => {
+      const { data: relaciones } = await supabase
+        .from("grupos_productos")
+        .select("id, orden, producto_id")
+        .eq("grupo_id", grupoId)
+        .order("orden", { ascending: true });
+
+      if (!relaciones || relaciones.length === 0) {
+        setProductosGrupo([]);
+        return;
+      }
+
+      const ids = relaciones.map((r: any) => r.producto_id);
+      const { data: prods } = await supabase
+        .from("productos")
+        .select("id, TITULO, IMAGEN, CODIGO")
+        .in("id", ids);
+
+      const merged = relaciones.map((r: any) => ({
+        ...r,
+        productos: prods?.find((p: any) => p.id === r.producto_id) || null,
+      }));
+      setProductosGrupo(merged);
     };
 
     const cargarProductosPorMarca = async (marcaId: number) => {
@@ -7511,6 +7577,82 @@ const [subcategoriaMarcaSeleccionada, setSubcategoriaMarcaSeleccionada] = useSta
     .eq("marca_id", marcaId)
     .order("orden_marca", { ascending: true });
   setProductosMarca(data || []);
+};
+
+const cargarGruposMarca = async () => {
+  setCargando(true);
+  
+  const { data: gruposData, error } = await supabase
+    .from("grupos_marca")
+    .select("id, nombre, imagen, subcategoria_marca_id, orden")
+    .order("orden", { ascending: true });
+
+  console.log("grupos_marca data:", gruposData, "error:", error);
+
+const subcatIds = [...new Set((gruposData || []).map((g: any) => g.subcategoria_marca_id).filter(Boolean))];
+let subcatsMap: Record<number, string> = {};
+
+if (subcatIds.length > 0) {
+  const { data: subcats } = await supabase
+    .from("subcategorias_marca")
+    .select("id, nombre")
+    .in("id", subcatIds);
+  (subcats || []).forEach((s: any) => { subcatsMap[s.id] = s.nombre; });
+}
+
+const merged = (gruposData || []).map((g: any) => ({
+  ...g,
+  subcategorias_marca: g.subcategoria_marca_id ? { nombre: subcatsMap[g.subcategoria_marca_id] } : null,
+}));
+
+setGrupos(merged);
+setCargando(false);
+
+};
+
+const cargarProductosGrupoMarca = async (grupoId: number) => {
+  const { data: relaciones } = await supabase
+    .from("grupos_marca_productos")
+    .select("id, orden, producto_id")
+    .eq("grupo_id", grupoId)
+    .order("orden", { ascending: true });
+
+  if (!relaciones || relaciones.length === 0) {
+    setProductosGrupo([]);
+    return;
+  }
+
+  const ids = relaciones.map((r: any) => r.producto_id);
+  const { data: prods } = await supabase
+    .from("productos")
+    .select("id, TITULO, IMAGEN, CODIGO")
+    .in("id", ids);
+
+  const merged = relaciones.map((r: any) => ({
+    ...r,
+    productos: prods?.find((p: any) => p.id === r.producto_id) || null,
+  }));
+
+  setProductosGrupo(merged);
+};
+
+const guardarOrdenProductosGrupo = async () => {
+  setGuardando(true);
+  setMensaje("");
+  try {
+    for (let i = 0; i < productosGrupo.length; i++) {
+      await supabase
+        .from(tipoGrupo === "marca" ? "grupos_marca_productos" : "grupos_productos")
+        .update({ orden: i + 1 })
+        .eq("id", productosGrupo[i].id);
+    }
+    setMensaje("Orden guardado correctamente");
+    setTimeout(() => setMensaje(""), 2000);
+  } catch {
+    setMensaje("Error al guardar el orden");
+  } finally {
+    setGuardando(false);
+  }
 };
 
 const cargarSubcategoriasMarcaOrden = async (marcaId: number) => {
@@ -7684,7 +7826,10 @@ const guardarOrdenProductosMarca = async () => {
   if (subcategoriaMarcaSeleccionada) {
     setSubcategoriaMarcaSeleccionada(null);
     setProductosMarca([]);
-  } else if (categoriaSeleccionada || macroCategoriaSeleccionada || marcaSeleccionada) {
+ } else if (grupoSeleccionado) {
+  setGrupoSeleccionado(null);
+  setProductosGrupo([]);
+} else if (categoriaSeleccionada || macroCategoriaSeleccionada || marcaSeleccionada) {
     setCategoriaSeleccionada(null);
     setMacroCategoriaSeleccionada(null);
     setMarcaSeleccionada(null);
@@ -7761,6 +7906,23 @@ const guardarOrdenProductosMarca = async () => {
           >
             MARCAS
           </button>
+          <button
+  onClick={() => {
+    setPestanaActiva("grupos");
+    setCategoriaSeleccionada(null);
+    setMacroCategoriaSeleccionada(null);
+    setMarcaSeleccionada(null);
+    setGrupoSeleccionado(null);
+    setProductosGrupo([]);
+  }}
+  className={`flex-1 py-3 rounded-lg font-semibold transition text-xs ${
+    pestanaActiva === "grupos"
+      ? "bg-orange-500 text-white"
+      : "text-zinc-600 hover:bg-zinc-100"
+  }`}
+>
+  GRUPOS
+</button>
         </div>
 
         {mensaje && (
@@ -8103,6 +8265,139 @@ const guardarOrdenProductosMarca = async () => {
             </button>
           </div>
         )}
+
+        {pestanaActiva === "grupos" && !grupoSeleccionado && (
+  <div>
+    <p className="text-sm text-zinc-600 mb-4">
+      Selecciona un grupo para ordenar sus productos:
+    </p>
+
+    {/* Toggle para cambiar entre Normales y de Marca */}
+    <div className="flex gap-2 mb-4 bg-zinc-100 rounded-lg p-1">
+      <button
+        onClick={() => setTipoGrupo("subcat")}
+        className={`flex-1 py-2 rounded-md text-sm font-semibold transition ${
+          tipoGrupo === "subcat" ? "bg-white shadow text-orange-500" : "text-zinc-500 hover:bg-zinc-200"
+        }`}
+      >
+        Grupos Normales
+      </button>
+      <button
+        onClick={() => setTipoGrupo("marca")}
+        className={`flex-1 py-2 rounded-md text-sm font-semibold transition ${
+          tipoGrupo === "marca" ? "bg-white shadow text-orange-500" : "text-zinc-500 hover:bg-zinc-200"
+        }`}
+      >
+        Grupos de Marca
+      </button>
+    </div>
+
+    {cargando ? (
+      <div className="flex justify-center py-10">
+        <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+      </div>
+    ) : (
+      <div className="space-y-2">
+        {grupos.map((grupo) => (
+          <motion.div
+            key={grupo.id}
+            onClick={() => {
+              setGrupoSeleccionado(grupo);
+              // Dependiendo del tipo de grupo activo, cargamos de la tabla correspondiente
+              if (tipoGrupo === "marca") {
+                cargarProductosGrupoMarca(grupo.id);
+              } else {
+                cargarProductosGrupoNormal(grupo.id);
+              }
+            }}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className="flex items-center justify-between p-4 rounded-xl border-2 border-zinc-200 cursor-pointer hover:border-orange-400 transition bg-white"
+          >
+            <div className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+              {grupo.imagen ? (
+                <img src={grupo.imagen} alt={grupo.nombre} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-zinc-400 text-xl">🗂️</div>
+              )}
+            </div>
+            <div className="flex-1 px-3">
+              <p className="font-semibold text-zinc-800">{grupo.nombre}</p>
+              {/* Mostramos el nombre de la subcategoría padre según el tipo de grupo */}
+              {grupo.subcategorias_marca?.nombre && (
+                <p className="text-xs text-zinc-500">{grupo.subcategorias_marca.nombre}</p>
+              )}
+              {grupo.subcategoria_nombre && (
+                <p className="text-xs text-zinc-500">{grupo.subcategoria_nombre}</p>
+              )}
+            </div>
+            <span className="text-zinc-400">›</span>
+          </motion.div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+{pestanaActiva === "grupos" && grupoSeleccionado && (
+  <div>
+    <h3 className="text-lg font-bold text-zinc-900 mb-1">
+      {grupoSeleccionado.nombre}
+    </h3>
+    <p className="text-sm text-zinc-600 mb-4">
+      Mantén presionado y arrastra para reordenar
+    </p>
+
+    <Reorder.Group
+      axis="y"
+      values={productosGrupo}
+      onReorder={setProductosGrupo}
+      className="space-y-3 mb-4"
+    >
+      {productosGrupo.map((item, index) => {
+        const prod = item.productos;
+        return (
+          <Reorder.Item
+            key={item.id}
+            value={item}
+            onDrag={handleDrag}
+            onDragEnd={handleDragEnd}
+          >
+            <motion.div className="flex items-center gap-3 p-3 bg-white rounded-xl border-2 border-zinc-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-300 transition">
+              <div className="w-14 h-14 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                {prod?.IMAGEN ? (
+                  <img src={prod.IMAGEN} alt={prod.TITULO} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-zinc-400 text-xl">📦</div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm text-zinc-800 line-clamp-2">{prod?.TITULO}</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Código: {prod?.CODIGO}</p>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-zinc-400 font-mono text-sm">#{index + 1}</span>
+                <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                  </svg>
+                </div>
+              </div>
+            </motion.div>
+          </Reorder.Item>
+        );
+      })}
+    </Reorder.Group>
+
+    <button
+      onClick={guardarOrdenProductosGrupo}
+      disabled={guardando}
+      className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition disabled:opacity-50"
+    >
+      {guardando ? "Guardando..." : "Guardar Orden"}
+    </button>
+  </div>
+)}
 
         {pestanaActiva === "categorias" && (
           <div>
@@ -22267,37 +22562,129 @@ setArticulosSinSubcat((sinSubcat || []).map((p: any) => ({ ...p, visible: p.visi
     </div>
 
     {/* Productos sin subcategoría */}
-    {articulosSinSubcat.length > 0 && (
-      <div className="mt-6">
-        <h3 className="text-base font-semibold text-zinc-700 mb-3">Otros productos</h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-          {articulosSinSubcat.map((prod) => (
-            <div
-              key={prod.id}
-              onClick={() => {
-                setProductoSeleccionado(prod);
-              }}
-              className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-            >
-              <div className="relative w-full h-40">
-                <SkeletonImage
-                  src={prod.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
-                  alt={prod.TITULO}
-                  className="object-contain"
-                />
-              </div>
-              <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
-                {prod.TITULO}
-              </div>
-              
+{articulosSinSubcat.length > 0 && (
+  <div className="mt-6">
+    <h3 className="text-base font-semibold text-zinc-700 mb-3 px-1">Otros productos</h3>
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 pb-10">
+      {articulosSinSubcat.map((prod) => (
+        <motion.div
+          key={prod.id}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          onClick={() => {
+            const scrollY = window.scrollY;
+            localStorage.setItem("scrollProducto", scrollY.toString());
+            setProductoSeleccionado(prod);
+          }}
+          className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
+        >
+          <div className="relative w-full h-40 bg-white">
+            <SkeletonImage
+              src={
+                prod.IMAGEN ||
+                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
+              }
+              alt={prod.TITULO}
+              className="object-contain"
+            />
+
+            {/* Badges de Liquidación y Top Ventas */}
+            <div className="absolute top-2 right-2 flex flex-col gap-1">
+              {prod.liquidacion && (
+                <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
+                  LIQUIDACIÓN
+                </span>
+              )}
+              {prod.top_ventas && (
+                <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
+                  MAS VENDIDOS
+                </span>
+              )}
             </div>
-          ))}
-        </div>
-      </div>
-    )}
-    {subcategoriasMarca.length === 0 && (
-      <p className="text-center text-zinc-500 py-10">No hay subcategorías en esta marca.</p>
-    )}
+
+            {/* Botón agregar al carrito */}
+            <motion.button
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              whileTap={{ scale: 0.85 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if ("vibrate" in navigator) navigator.vibrate(50);
+                setCarrito((prev) => {
+                  const existe = prev.find((p) => p.id === prod.id);
+                  if (existe) {
+                    return prev.map((p) =>
+                      p.id === prod.id
+                        ? { ...p, cantidad: p.cantidad + 1, subtotal: (p.cantidad + 1) * p.P_MAYOREO }
+                        : p
+                    );
+                  } else {
+                    return [...prev, { ...prod, cantidad: 1, subtotal: prod.P_MAYOREO }];
+                  }
+                });
+              }}
+              className="absolute bottom-2 right-2 w-10 h-10 bg-zinc-100 hover:bg-zinc-200 rounded-full shadow-lg flex items-center justify-center transition-colors z-10"
+            >
+              <ShoppingCart className="w-5 h-5 text-orange-500" strokeWidth={2.2} />
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 rounded-full flex items-center justify-center shadow">
+                <Plus className="w-3 h-3 text-white" strokeWidth={3} />
+              </span>
+            </motion.button>
+          </div>
+
+          <div className="p-2">
+            <p className="text-xs text-orange-500 font-medium">
+              {getNombreMarca(prod.marca_id)}
+            </p>
+            <p className="text-s text-zinc-600 mt-1">Codigo: {prod.CODIGO}</p>
+            <p className="text-sm font-semibold text-zinc-700 line-clamp-2">{prod.TITULO}</p>
+
+            {!esMostrador && !esMostrador2 && (
+              <p className="text-sm font-bold text-orange-500 mt-1">
+                ${" "}
+                {prod.P_MAYOREO?.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </p>
+            )}
+
+            {/* Existencia y ubicación para admin/rutas/empleado */}
+            {(esAdmin || esRutas || esEmpleado) && (
+              <div className="mt-2 flex items-center gap-2">
+                <Package className="w-3 h-3 text-zinc-400" />
+                <p className={`text-xs font-semibold ${
+                  (prod.existencia || 0) === 0
+                    ? "text-red-500"
+                    : (prod.existencia || 0) < 10
+                      ? "text-yellow-500"
+                      : "text-green-500"
+                }`}>
+                  Stock: {prod.existencia || 0}
+                </p>
+                {prod.ubicacion && (
+                  <>
+                    <span className="text-zinc-300">·</span>
+                    <MapPin className="w-3 h-3 text-zinc-400" />
+                    <p className="text-xs font-semibold text-zinc-500">{prod.ubicacion}</p>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  </div>
+)}
+
+{subcategoriasMarca.length === 0 && articulosSinSubcat.length === 0 && (
+  <p className="text-center text-zinc-500 py-10">
+    No hay productos disponibles en esta marca.
+  </p>
+)}
   </motion.div>
                     ) : (
                       /* Vista de productos (cuando hay categoría o marca seleccionada) */
@@ -22515,13 +22902,59 @@ if (gruposMarca.length > 0 && marcaSeleccionada && !searchTerm) {
   }
 }
 
-  return (
-    (a.TITULO &&
-      a.TITULO.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (a.CODIGO &&
-      a.CODIGO.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-})
+if (!esAdmin && !a.visible) return false;
+                                  if ((esMostrador || esMostrador2) && idsOcultosMostrador.includes(a.id)) return false;
+                                  
+                                  if (gruposSubcat.length > 0 && categoriaSeleccionada && !searchTerm) {
+                                    const todosLosIdsEnGrupos = gruposSubcat.flatMap((g) => g.productoIds);
+                                    if (grupoActivoId === null || grupoActivoId === "todos") {
+                                      if (todosLosIdsEnGrupos.includes(a.id)) return false;
+                                    } else {
+                                      const grupo = gruposSubcat.find((g) => g.id === grupoActivoId);
+                                      if (!grupo || !grupo.productoIds.includes(a.id)) return false;
+                                    }
+                                  }
+
+                                  if (gruposMarca.length > 0 && marcaSeleccionada && !searchTerm) {
+                                    const todosLosIdsEnGrupos = gruposMarca.flatMap((g) => g.productoIds);
+                                    if (grupoMarcaActivoId === null || grupoMarcaActivoId === 'todos') {
+                                      if (todosLosIdsEnGrupos.includes(a.id)) return false;
+                                    } else {
+                                      const grupo = gruposMarca.find((g) => g.id === grupoMarcaActivoId);
+                                      if (!grupo || !grupo.productoIds.includes(a.id)) return false;
+                                    }
+                                  }
+
+ return (
+                                    (a.TITULO && a.TITULO.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                                    (a.CODIGO && a.CODIGO.toLowerCase().includes(searchTerm.toLowerCase()))
+                                  );
+                                })
+                                .sort((a, b) => {
+                                  // Si hay un grupo de subcategoría normal activo
+                                  if (gruposSubcat.length > 0 && categoriaSeleccionada && !searchTerm && grupoActivoId !== null && grupoActivoId !== "todos") {
+                                    const grupo = gruposSubcat.find((g) => g.id === grupoActivoId);
+                                    if (grupo) {
+                                      const indexA = grupo.productoIds.indexOf(a.id);
+                                      const indexB = grupo.productoIds.indexOf(b.id);
+                                      return indexA - indexB;
+                                    }
+                                  }
+
+                                  // Si hay un grupo de marca activo
+                                  if (gruposMarca.length > 0 && marcaSeleccionada && !searchTerm && grupoMarcaActivoId !== null && grupoMarcaActivoId !== "todos") {
+                                    const grupo = gruposMarca.find((g) => g.id === grupoMarcaActivoId);
+                                    if (grupo) {
+                                      const indexA = grupo.productoIds.indexOf(a.id);
+                                      const indexB = grupo.productoIds.indexOf(b.id);
+                                      return indexA - indexB;
+                                    }
+                                  }
+
+                                  // Mantiene el orden original (alfabético/base de datos) si no hay grupo seleccionado
+                                  return 0;
+                                })
+
                                 .map((art) => (
                                   <motion.div
                                     key={art.id}
@@ -23121,30 +23554,26 @@ if (gruposMarca.length > 0 && marcaSeleccionada && !searchTerm) {
                           ))}
 
                         {productos.filter(
-                          (prod) => esAdmin || (prod.visible ?? true),
-                        ).length > productosMostrados && (
-                          <button
-                            onClick={() =>
-                              setProductosMostrados((prev) => prev + 10)
-                            }
-                            className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition mt-4"
-                          >
-                            {searchTerm === "" ? (
-                              <>
-                                Ver más productos (Mostrando{" "}
-                                {productosMostrados} de {totalBaseDatos})
-                              </>
-                            ) : (
-                              <>
-                                Ver más productos (
-                                {productos.filter(
-                                  (prod) => esAdmin || (prod.visible ?? true),
-                                ).length - productosMostrados}{" "}
-                                restantes)
-                              </>
-                            )}
-                          </button>
-                        )}
+  (prod) => esAdmin || (prod.visible ?? true),
+).length > productosMostrados && (
+  <button
+    onClick={() => setProductosMostrados((prev) => prev + 10)}
+    className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition mt-4"
+  >
+    {searchTerm === "" ? (
+      <>
+        Ver más productos — {productosMostrados} de {totalBaseDatos} (
+        {totalBaseDatos - productosMostrados} restantes)
+      </>
+    ) : (
+      <>
+        Ver más resultados — {productosMostrados} de{" "}
+        {productos.filter((prod) => esAdmin || (prod.visible ?? true)).length} (
+        {productos.filter((prod) => esAdmin || (prod.visible ?? true)).length - productosMostrados} restantes)
+      </>
+    )}
+  </button>
+)}
 
                         {searchTerm && productos.length === 0 && (
                           <p className="text-center text-zinc-500 py-10">
@@ -24997,15 +25426,23 @@ setGrupoMarcaActivoId(null);
               ))}
 
             {productos.length > productosMostrados && (
-              <button
-                onClick={() =>
-                  setProductosMostrados((prev) => prev + 10)
-                }
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition mt-4"
-              >
-                Ver más productos
-              </button>
-            )}
+  <button
+    onClick={() => setProductosMostrados((prev) => prev + 10)}
+    className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition mt-4"
+  >
+    {searchTerm === "" ? (
+      <>
+        Ver más productos (
+        {totalBaseDatos - productosMostrados} restantes)
+      </>
+    ) : (
+      <>
+        Ver más resultados  (
+        {productos.filter((prod) => esAdmin || (prod.visible ?? true)).length - productosMostrados} restantes)
+      </>
+    )}
+  </button>
+)}
 
             {searchTerm && productos.length === 0 && (
               <p className="text-center text-zinc-500 py-10">
