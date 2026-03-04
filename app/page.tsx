@@ -109,33 +109,50 @@ import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
 
-// Helper function to build search query
 const construirQueryBusqueda = async (searchTerm: string, categoria: any, marca: any) => {
-  let query = supabase
-    .from("productos")
-    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales, existencia, ubicacion")
-
-  if (categoria) {
-    query = query.eq("CATEGORIA_ID", categoria.id_categoria);
-  } else if (marca) {
-    query = query.eq("marca_id", marca.id);
-  }
+  const selectCampos = "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales, existencia, ubicacion";
 
   const palabras = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (palabras.length === 0) {
+    return await supabase.from("productos").select(selectCampos).limit(200);
+  }
+
+  let queryPrincipal = supabase.from("productos").select(selectCampos);
+  if (categoria) queryPrincipal = queryPrincipal.eq("CATEGORIA_ID", categoria.id_categoria);
+  else if (marca) queryPrincipal = queryPrincipal.eq("marca_id", marca.id);
 
   if (palabras.length === 1) {
-    query = query.or(
-      `TITULO.ilike.%${palabras[0]}%,CODIGO.ilike.%${palabras[0]}%,C_PRODUCTO.eq.${palabras[0]}`
+    queryPrincipal = queryPrincipal.or(
+      `TITULO.ilike.%${palabras[0]}%,CODIGO.ilike.%${palabras[0]}%,C_PRODUCTO.ilike.%${palabras[0]}%`
     );
   } else {
     palabras.forEach((palabra) => {
-      query = query.or(
+      queryPrincipal = queryPrincipal.or(
         `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`
       );
     });
   }
 
-  return await query.limit(80);
+  let queryExacto = supabase.from("productos").select(selectCampos)
+    .eq("CODIGO", searchTerm.trim());
+  if (categoria) queryExacto = queryExacto.eq("CATEGORIA_ID", categoria.id_categoria);
+  else if (marca) queryExacto = queryExacto.eq("marca_id", marca.id);
+
+  const [{ data: dataPrincipal }, { data: dataExacto }] = await Promise.all([
+    queryPrincipal.limit(200),
+    queryExacto,
+  ]);
+
+  const vistos = new Set<number>();
+  const merged: any[] = [];
+  for (const p of [...(dataExacto || []), ...(dataPrincipal || [])]) {
+    if (!vistos.has(p.id)) {
+      vistos.add(p.id);
+      merged.push(p);
+    }
+  }
+
+  return { data: merged };
 };
 
 import {
@@ -4137,6 +4154,8 @@ const esEmpleado = cuenta?.numero_cuenta
   const [mostrarOverlayBusqueda, setMostrarOverlayBusqueda] = useState(false);
 const [tabAnterior, setTabAnterior] = useState<string>("categorias");
 const [vieneDesdeOverlay, setVieneDesdeOverlay] = useState(false);
+const overlayScrollRef = useRef<HTMLDivElement>(null);
+const [scrollOverlay, setScrollOverlay] = useState(0);
 const [gruposSubcat, setGruposSubcat] = useState<any[]>([]);
 const [grupoActivoId, setGrupoActivoId] = useState<number | "todos" | null>(null);
 const [gruposMarca, setGruposMarca] = useState<any[]>([]);
@@ -11984,6 +12003,9 @@ const [busqueda, setBusqueda] = useState("");
           const existencia = fila.EXISTENCIA || fila.existencia;
 const categoriaId = fila.CATEGORIA_ID || fila.categoria_id;
 const ubicacion = fila.UBICACION || fila.ubicacion;
+const caja = fila.CAJA || fila.caja;
+const master = fila.MASTER || fila.master;
+const unidadVenta = fila.UNIDAD_VENTA || fila.unidad_venta;
 
           if (!codigo) {
             errores++;
@@ -12010,6 +12032,12 @@ if (categoriaId !== undefined && categoriaId !== null)
   datosActualizar.CATEGORIA_ID = parseInt(categoriaId);
 if (ubicacion !== undefined && ubicacion !== null)
   datosActualizar.ubicacion = ubicacion;
+if (caja !== undefined && caja !== null && caja !== "")
+  datosActualizar.caja = parseFloat(caja);
+if (master !== undefined && master !== null && master !== "")
+  datosActualizar.master = parseFloat(master);
+if (unidadVenta !== undefined && unidadVenta !== null && unidadVenta !== "")
+  datosActualizar.unidad_venta = unidadVenta;
 
           // Si no hay nada que actualizar, saltar
           if (Object.keys(datosActualizar).length === 0) {
@@ -12265,11 +12293,11 @@ const exportarErroresExcel = () => {
               <li>
                 Columnas opcionales: <strong>P_MAYOREO</strong>,{" "}
                 <strong>DESCRIPCION</strong>, <strong>C_PRODUCTO</strong>,{" "}
-                <strong>TITULO</strong>, <strong>EXISTENCIA</strong>, <strong>CATEGORIA_ID</strong>, <strong>UBICACION</strong>
+                <strong>TITULO</strong>, <strong>EXISTENCIA</strong>, <strong>CATEGORIA_ID</strong>, <strong>UBICACION</strong>, <strong>CAJA</strong>, <strong>MASTER</strong>, <strong>UNIDAD_VENTA</strong>
               </li>
               <li>
                 También acepta minúsculas: codigo, p_mayoreo, precio,
-                descripcion, c_producto, titulo, existencia, categoria_id, ubicacion
+                descripcion, c_producto, titulo, existencia, categoria_id, ubicacion, caja, master, unidad_venta
               </li>
               <li>
                 la columna CODIGO debe ser tipo "general" y P_MAYOREO tipo
@@ -21083,16 +21111,21 @@ if (!contenedores.has(codigo)) {
         onBack={() => {
   setProductoSeleccionado(null);
   if (vieneDesdeOverlay) {
-    setVieneDesdeOverlay(false);
-    setMostrarOverlayBusqueda(true);
-  } else {
-    const savedScroll = localStorage.getItem("scrollProducto");
-    if (savedScroll) {
-      setTimeout(() => {
-        window.scrollTo({ top: parseInt(savedScroll), behavior: "instant" });
-      }, 50);
+  setVieneDesdeOverlay(false);
+  setMostrarOverlayBusqueda(true);
+  setTimeout(() => {
+    if (overlayScrollRef.current) {
+      overlayScrollRef.current.scrollTop = scrollOverlay;
     }
+  }, 50);
+} else {
+  const savedScroll = localStorage.getItem("scrollProducto");
+  if (savedScroll) {
+    setTimeout(() => {
+      window.scrollTo({ top: parseInt(savedScroll), behavior: "instant" });
+    }, 50);
   }
+}
 }}
         esAdmin={esAdmin}
         carrito={carrito}
@@ -24780,15 +24813,19 @@ setGrupoMarcaActivoId(null);
 
           <div className="relative flex-1">
             <input
-              autoFocus
-              type="text"
-              placeholder="Buscar en Bodega Ferretera De Monterrey..."
-              value={searchTerm}
-              onChange={async (e) => {
-                const value = e.target.value;
-                setSearchTerm(value);
-
-                const { data } = await construirQueryBusqueda(value, null, null);
+  autoFocus
+  type="text"
+  placeholder="Buscar en Bodega Ferretera De Monterrey..."
+  value={searchTerm}
+  onKeyDown={(e) => {
+    if (e.key === "Enter") {
+      (e.target as HTMLInputElement).blur();
+    }
+  }}
+  onChange={async (e) => {
+  const value = e.target.value;
+  setSearchTerm(value);
+  const { data } = await construirQueryBusqueda(value, null, null);
                 setProductos(ordenarProductos(data || [], value));
                 setProductosMostrados(10);
               }}
@@ -24820,9 +24857,10 @@ setGrupoMarcaActivoId(null);
           </div>
         </div>
       </div>
+      
 
       {/* RESULTADOS */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={overlayScrollRef} className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-4 pb-32 pt-4">
           <div className="space-y-3">
             {productos
@@ -24832,6 +24870,7 @@ setGrupoMarcaActivoId(null);
                 <div
                   key={prod.id}
                   onClick={() => {
+                     setScrollOverlay(overlayScrollRef.current?.scrollTop ?? 0);
                     setVieneDesdeOverlay(true);
                     setMostrarOverlayBusqueda(false);
                     setProductoSeleccionado(prod);
@@ -24852,20 +24891,51 @@ setGrupoMarcaActivoId(null);
                     </div>
 
                     <div>
-                      <p className="text-sm text-zinc-600">
-                        Codigo: {prod.CODIGO}
-                      </p>
-                      <p className="font-semibold">{prod.TITULO}</p>
+  <p className="text-sm text-zinc-600">
+    Codigo: {prod.CODIGO}
+  </p>
+  <p className="font-semibold">{prod.TITULO}</p>
 
-                      {!esMostrador && !esMostrador2 && (
-                        <p className="text-xs text-orange-500 font-semibold">
-                          ${prod.P_MAYOREO?.toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </p>
-                      )}
-                    </div>
+  {(esAdmin || esRutas || esEmpleado) && (
+    <div className="mt-1 flex items-center gap-2">
+      <Package className="w-3 h-3 text-zinc-400" />
+      <p className={`text-xs font-semibold ${
+        (prod.existencia || 0) === 0 ? "text-red-500" : "text-zinc-500"
+      }`}>
+        Stock: {prod.existencia || 0}
+      </p>
+      {prod.ubicacion && (
+        <>
+          <span className="text-zinc-300">·</span>
+          <MapPin className="w-3 h-3 text-zinc-400" />
+          <p className="text-xs font-semibold text-zinc-500">{prod.ubicacion}</p>
+        </>
+      )}
+    </div>
+  )}
+
+  <div className="flex gap-2 mt-1.5">
+    {prod.liquidacion && (
+      <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+        LIQUIDACIÓN
+      </span>
+    )}
+    {prod.top_ventas && (
+      <span className="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+        MÁS VENDIDOS
+      </span>
+    )}
+  </div>
+
+  {!esMostrador && !esMostrador2 && (
+    <p className="text-xs text-orange-500 font-semibold">
+      ${prod.P_MAYOREO?.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}
+    </p>
+  )}
+</div>
                   </div>
 
                   <span className="text-zinc-400">{">"}</span>
