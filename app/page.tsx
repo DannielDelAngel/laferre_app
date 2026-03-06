@@ -332,6 +332,9 @@ const [mostrarResultadosMarca, setMostrarResultadosMarca] = useState(false);
   );
 
   const [claveAlterna, setClaveAlterna] = useState(producto.C_PRODUCTO || "");
+const [caja, setCaja] = useState(producto.caja ? String(producto.caja) : "");
+const [master, setMaster] = useState(producto.master ? String(producto.master) : "");
+const [unidadVenta, setUnidadVenta] = useState(producto.unidad_venta || "");
   const [permiteDecimales, setPermiteDecimales] = useState(producto.permite_decimales || false);
 
   const [edicionAvanzada, setEdicionAvanzada] = useState(() => {
@@ -704,6 +707,10 @@ const handleSubtract = (): void =>
           P_MAYOREO: parseFloat(precio),
           C_PRODUCTO: claveAlterna,
           permite_decimales: permiteDecimales,
+          caja: caja ? parseInt(caja) : null,
+          master: master ? parseInt(master) : null,
+          unidad_venta: unidadVenta.trim() || null,
+   
         })
         .eq("id", producto.id);
 
@@ -1319,6 +1326,42 @@ const handleSubtract = (): void =>
                   className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
                 />
               </div>
+
+              <div className="flex gap-3 mb-4">
+  <div className="flex-1">
+    <label className="block text-sm font-medium text-zinc-700 mb-2">Caja</label>
+    <input
+      type="number"
+      value={caja}
+      onChange={(e) => setCaja(e.target.value)}
+      placeholder="Ej. 12"
+      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+    />
+    <p className="text-xs text-zinc-500 mt-1">Piezas por caja</p>
+  </div>
+  <div className="flex-1">
+    <label className="block text-sm font-medium text-zinc-700 mb-2">Master</label>
+    <input
+      type="number"
+      value={master}
+      onChange={(e) => setMaster(e.target.value)}
+      placeholder="Ej. 6"
+      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+    />
+    <p className="text-xs text-zinc-500 mt-1">Cajas por master</p>
+  </div>
+</div>
+
+<div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">Unidad de Venta</label>
+  <input
+    type="text"
+    value={unidadVenta}
+    onChange={(e) => setUnidadVenta(e.target.value)}
+    placeholder="Ej. PZA, KG, LT, CAJA"
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+  />
+</div>
 
               {/* Mensaje */}
               {mensaje && (
@@ -4228,25 +4271,31 @@ const cargarGruposDeMarca = async (marcaId: number) => {
 const cargarGruposDeSubcat = async (subcatId: number) => {
   setGruposSubcat([]);
   setGrupoActivoId(null);
+
   const { data: gruposData } = await supabase
     .from("grupos")
-    .select("id, nombre, orden, imagen") 
+    .select("id, nombre, orden, imagen, visible")
     .eq("subcategoria_id", subcatId)
     .order("orden", { ascending: true });
 
   if (!gruposData || gruposData.length === 0) return;
 
+  const gruposFiltrados = gruposData.filter((g: any) => esAdmin || g.visible !== false);
+
+  if (gruposFiltrados.length === 0) return;
+
   const gruposConProds = await Promise.all(
-    gruposData.map(async (g: any) => {
+    gruposFiltrados.map(async (g: any) => {
       const { data: relaciones } = await supabase
         .from("grupos_productos")
-        .select("producto_id, orden") 
+        .select("producto_id, orden")
         .eq("grupo_id", g.id)
-        .order("orden", { ascending: true }); 
+        .order("orden", { ascending: true });
 
       return { ...g, productoIds: (relaciones || []).map((r: any) => r.producto_id) };
     })
   );
+
   setGruposSubcat(gruposConProds);
   setGrupoActivoId("todos");
 };
@@ -5192,59 +5241,48 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
     /* categorias extracion */
   }
   useEffect(() => {
-    const fetchCategorias = async () => {
-      const { data, error } = await supabase
-        .from("categorias")
-        .select(
-          "id_categoria, nombre_categoria, img, orden, macro_categoria_id",
-        )
-        .order("orden", { ascending: true });
+  const fetchCategorias = async () => {
+    const { data, error } = await supabase
+      .from("categorias")
+      .select("id_categoria, nombre_categoria, img, orden, macro_categoria_id, visible")
+      .order("orden", { ascending: true });
 
-      if (error) {
-        console.error("Error cargando categorías:", error.message);
-      } else {
-        setCategorias(data || []);
-      }
-    };
-
-    fetchCategorias();
-  }, []);
+    if (!error) {
+      setCategorias((data || []).filter((c: any) => esAdmin || c.visible !== false));
+    }
+  };
+  fetchCategorias();
+}, [cuenta]); 
 
   // macro-categorias extracion
-  useEffect(() => {
-    const fetchMacroCategorias = async () => {
-      const { data, error } = await supabase
-        .from("macro_categorias")
-        .select("id, nombre, img, orden")
-        .order("orden", { ascending: true });
+useEffect(() => {
+  const fetchMacroCategorias = async () => {
+    const { data, error } = await supabase
+      .from("macro_categorias")
+      .select("id, nombre, img, orden, visible")
+      .order("orden", { ascending: true });
 
-      if (error) {
-        console.error("Error cargando macro-categorías:", error.message);
-      } else {
-        setMacroCategorias(data || []);
-      }
-    };
-
-    fetchMacroCategorias();
-  }, []);
+    if (!error) {
+      setMacroCategorias((data || []).filter((m: any) => esAdmin || m.visible !== false));
+    }
+  };
+  fetchMacroCategorias();
+}, [cuenta]); 
 
   // marcas extracion
   useEffect(() => {
-    const fetchMarcas = async () => {
-      const { data, error } = await supabase
-        .from("marcas")
-        .select("id, nombre_marca, img")
-        .order("orden", { ascending: true });
+  const fetchMarcas = async () => {
+    const { data, error } = await supabase
+      .from("marcas")
+      .select("id, nombre_marca, img, orden, visible")
+      .order("orden", { ascending: true });
 
-      if (error) {
-        console.error("Error cargando marcas:", error.message);
-      } else {
-        setMarcas(data || []);
-      }
-    };
-
-    fetchMarcas();
-  }, []);
+    if (!error) {
+      setMarcas((data || []).filter((m: any) => esAdmin || m.visible !== false));
+    }
+  };
+  fetchMarcas();
+}, [cuenta]); 
 
   // Cargar todos los productos al entrar a la pestaña de "buscar"
   const fetchProductos = async () => {
@@ -5718,6 +5756,7 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
                           </div>
                           <span className="font-semibold text-zinc-800">
                             {marca.nombre_marca}
+                            
                           </span>
                         </div>
                         <Edit2 size={20} className="text-blue-500" />
@@ -5862,6 +5901,7 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
                       </div>
                       <span className="font-semibold text-zinc-800">
                         {marca.nombre_marca}
+                        
                       </span>
                     </div>
                     {marcaEliminar?.id === marca.id && (
@@ -6448,35 +6488,55 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
   };
 
   const handleGuardar = async () => {
-    if (!nombre.trim()) { setMensaje('El nombre es requerido'); return; }
-    setGuardando(true);
-    setMensaje('');
-    try {
-      let imgUrl = imagenPreview;
-      if (imagenFile) {
-        const ext = imagenFile.name.split('.').pop();
-        const path = `subcategorias_marca/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('imagenes').upload(path, imagenFile, { upsert: true });
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('imagenes').getPublicUrl(path);
-          imgUrl = urlData.publicUrl;
-        }
+  if (!nombre.trim()) { setMensaje('El nombre es requerido'); return; }
+  setGuardando(true);
+  setMensaje('');
+  try {
+    let imgUrl = itemEditando?.img || null;
+
+    if (imagenFile) {
+      // Borrar imagen anterior si existe
+      if (itemEditando?.img && itemEditando.img.includes('imagenes_categorias')) {
+        const urlParts = itemEditando.img.split('/');
+        const oldPath = `subcategorias_marca/${urlParts[urlParts.length - 1]}`;
+        await supabase.storage.from('imagenes_categorias').remove([oldPath]);
       }
-      if (itemEditando) {
-        await supabase.from('subcategorias_marca').update({ nombre, orden: parseInt(orden), img: imgUrl }).eq('id', itemEditando.id);
-        setMensaje('Subcategoría actualizada');
+
+      const ext = imagenFile.name.split('.').pop();
+      const path = `subcategorias_marca/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('imagenes_categorias')
+        .upload(path, imagenFile, { upsert: true });
+
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from('imagenes_categorias').getPublicUrl(path);
+        imgUrl = urlData.publicUrl;
       } else {
-        await supabase.from('subcategorias_marca').insert({ nombre, orden: parseInt(orden), img: imgUrl, marca_id: marcaSeleccionada.id });
-        setMensaje('Subcategoría creada');
+        setMensaje(`Error al subir imagen: ${uploadError.message}`);
+        setGuardando(false);
+        return;
       }
-      await cargarSubcategorias(marcaSeleccionada.id);
-      setTimeout(() => { setVista('lista'); setMensaje(''); }, 1200);
-    } catch {
-      setMensaje('Error al guardar');
-    } finally {
-      setGuardando(false);
     }
-  };
+
+    if (itemEditando) {
+      await supabase.from('subcategorias_marca')
+        .update({ nombre, orden: parseInt(orden), img: imgUrl })
+        .eq('id', itemEditando.id);
+      setMensaje('Subcategoría actualizada');
+    } else {
+      await supabase.from('subcategorias_marca')
+        .insert({ nombre, orden: parseInt(orden), img: imgUrl, marca_id: marcaSeleccionada.id });
+      setMensaje('Subcategoría creada');
+    }
+
+    await cargarSubcategorias(marcaSeleccionada.id);
+    setTimeout(() => { setVista('lista'); setMensaje(''); }, 1200);
+  } catch {
+    setMensaje('Error al guardar');
+  } finally {
+    setGuardando(false);
+  }
+};
 
   const handleEliminar = async (id: number) => {
     if (!confirm('¿Eliminar esta subcategoría? También se eliminarán sus grupos.')) return;
@@ -6699,35 +6759,55 @@ const GestionarGruposMarca = ({ setVistaPerfil }: any) => {
   };
 
   const handleGuardar = async () => {
-    if (!nombre.trim()) { setMensaje('El nombre es requerido'); return; }
-    setGuardando(true);
-    setMensaje('');
-    try {
-      let imgUrl = imagenPreview;
-      if (imagenFile) {
-        const ext = imagenFile.name.split('.').pop();
-        const path = `grupos_marca/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('imagenes').upload(path, imagenFile, { upsert: true });
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('imagenes').getPublicUrl(path);
-          imgUrl = urlData.publicUrl;
-        }
-      }
-      if (itemEditando) {
-        await supabase.from('grupos_marca').update({ nombre, orden: parseInt(orden), imagen: imgUrl }).eq('id', itemEditando.id);
-        setMensaje('Grupo actualizado');
-      } else {
-        await supabase.from('grupos_marca').insert({ nombre, orden: parseInt(orden), imagen: imgUrl, subcategoria_marca_id: subcatSeleccionada.id });
-        setMensaje('Grupo creado');
-      }
-      await cargarGrupos(subcatSeleccionada.id);
-      setTimeout(() => { setVista('lista'); setMensaje(''); }, 1200);
-    } catch {
-      setMensaje('Error al guardar');
-    } finally {
-      setGuardando(false);
+  if (!nombre.trim()) { setMensaje('El nombre es requerido'); return; }
+  setGuardando(true);
+  setMensaje('');
+  try {
+
+    let imgUrl = itemEditando?.imagen || null;
+
+    if (imagenFile) {
+  if (itemEditando?.imagen && itemEditando.imagen.includes('imagenes_categorias')) {
+    const urlParts = itemEditando.imagen.split('/');
+    const oldPath = `grupos_marca/${urlParts[urlParts.length - 1]}`;
+    await supabase.storage.from('imagenes_categorias').remove([oldPath]);
+  }
+
+  const ext = imagenFile.name.split('.').pop();
+  const path = `grupos_marca/${Date.now()}.${ext}`;
+  const { error: uploadError } = await supabase.storage
+    .from('imagenes_categorias')
+    .upload(path, imagenFile, { upsert: true });
+
+  if (!uploadError) {
+    const { data: urlData } = supabase.storage.from('imagenes_categorias').getPublicUrl(path);
+    imgUrl = urlData.publicUrl;
+  } else {
+    setMensaje(`Error al subir imagen: ${uploadError.message}`);
+    setGuardando(false);
+    return;
+  }
+}
+
+    if (itemEditando) {
+      await supabase.from('grupos_marca')
+        .update({ nombre, orden: parseInt(orden), imagen: imgUrl })
+        .eq('id', itemEditando.id);
+      setMensaje('Grupo actualizado');
+    } else {
+      await supabase.from('grupos_marca')
+        .insert({ nombre, orden: parseInt(orden), imagen: imgUrl, subcategoria_marca_id: subcatSeleccionada.id });
+      setMensaje('Grupo creado');
     }
-  };
+
+    await cargarGrupos(subcatSeleccionada.id);
+    setTimeout(() => { setVista('lista'); setMensaje(''); }, 1200);
+  } catch {
+    setMensaje('Error al guardar');
+  } finally {
+    setGuardando(false);
+  }
+};
 
   const handleEliminar = async (id: number) => {
     if (!confirm('¿Eliminar este grupo?')) return;
@@ -7656,12 +7736,13 @@ const guardarOrdenProductosGrupo = async () => {
 };
 
 const cargarSubcategoriasMarcaOrden = async (marcaId: number) => {
-  const { data } = await supabase
-    .from("subcategorias_marca")
-    .select("*")
-    .eq("marca_id", marcaId)
-    .order("orden", { ascending: true });
-  setSubcategoriasMarcaOrden(data || []);
+  const { data: subcats } = await supabase
+  .from("subcategorias_marca")
+  .select("*, visible")
+  .eq("marca_id", marcaId)
+  .order("orden", { ascending: true });
+
+setSubcategoriasMarcaOrden((subcats || []).filter((s: any) => esAdmin || s.visible !== false));
 };
 
 const guardarOrdenSubcategoriasMarca = async () => {
@@ -13957,6 +14038,7 @@ useEffect(() => {
         valor: "listo_para_recoger",
         label: "Listo para recoger",
         color: "bg-emerald-100 text-emerald-800",
+
       },
     ];
 
@@ -14820,7 +14902,7 @@ if (backOrderExistente) {
   fetchPedidos();
 
   const channel = supabase
-    .channel("pedidos-changes")
+  .channel(`pedidos-changes-${cuenta?.id ?? "admin"}-${Math.random().toString(36).slice(2, 7)}`)
     .on(
       "postgres_changes",
       {
@@ -15720,16 +15802,30 @@ if (backOrderExistente) {
                       </p>
                     )}
                     <p className="text-sm text-zinc-500 mt-1">
-                      {new Date(pedido.created_at).toLocaleDateString("es-MX")}
-                    </p>
+  {new Date(pedido.created_at).toLocaleDateString("es-MX")}{" "}
+  {new Date(pedido.created_at).toLocaleTimeString("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}
+</p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <BadgeEstado estado={pedido.estado} />
                   </div>
                 </div>
-                <div className="flex justify-end">
-                  <span className="text-zinc-400 text-sm">Ver detalles →</span>
-                </div>
+                <div className="flex justify-between items-center mt-1">
+  {pedido.total ? (
+    <p className="text-sm font-bold text-orange-500">
+      ${pedido.total.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}
+    </p>
+  ) : (
+    <span />
+  )}
+  <span className="text-zinc-400 text-sm">Ver detalles →</span>
+</div>
               </div>
             ))}
           </div>
@@ -18020,19 +18116,29 @@ if (empleados.length > 0) {
                   key={pedido.id}
                   className="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="font-bold text-zinc-900">
-                        Pedido #{pedido.id}
-                      </p>
-                      <p className="text-sm text-zinc-600">
-                        {pedido.cuentas?.cliente}
-                      </p>
-                      <p className="text-xs text-zinc-500">
-                        {pedido.cuentas?.ferreteria}
-                      </p>
-                    </div>
-                  </div>
+                 <div className="flex justify-between items-start mb-2">
+  <div>
+    <p className="font-bold text-zinc-900">
+      Pedido #{pedido.id}
+    </p>
+    <p className="text-sm text-zinc-600">
+      {pedido.cuentas?.cliente}
+    </p>
+    <p className="text-xs text-zinc-500">
+      {pedido.cuentas?.ferreteria}
+    </p>
+    <p className="text-xs text-zinc-400 mt-0.5">
+      {new Date(pedido.created_at).toLocaleDateString("es-MX")}{" "}
+      {new Date(pedido.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+    </p>
+    {pedido.total && (
+      <p className="text-sm font-bold text-orange-500 mt-0.5">
+        ${pedido.total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </p>
+    )}
+  </div>
+  <BadgeEstado estado={pedido.estado} />
+</div>
 
                   <button
                     onClick={() => iniciarRevision(pedido)}
@@ -19522,19 +19628,28 @@ await supabase
                 className="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm"
               >
                 <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <p className="font-bold text-zinc-900">
-                      Pedido #{pedido.id}
-                    </p>
-                    <p className="text-sm text-zinc-600">
-                      {pedido.cuentas?.cliente}
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      {pedido.cuentas?.ferreteria}
-                    </p>
-                  </div>
-                  <BadgeEstado estado={pedido.estado} />
-                </div>
+  <div>
+    <p className="font-bold text-zinc-900">
+      Pedido #{pedido.id}
+    </p>
+    <p className="text-sm text-zinc-600">
+      {pedido.cuentas?.cliente}
+    </p>
+    <p className="text-xs text-zinc-500">
+      {pedido.cuentas?.ferreteria}
+    </p>
+    <p className="text-xs text-zinc-400 mt-0.5">
+      {new Date(pedido.created_at).toLocaleDateString("es-MX")}{" "}
+      {new Date(pedido.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+    </p>
+    {pedido.total && (
+      <p className="text-sm font-bold text-orange-500 mt-0.5">
+        ${pedido.total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </p>
+    )}
+  </div>
+  <BadgeEstado estado={pedido.estado} />
+</div>
 
                 <button
                   onClick={() => iniciarSurtido(pedido)}
@@ -21120,11 +21235,13 @@ if (!contenedores.has(codigo)) {
       if (error) throw error;
 
       // Actualizar el estado local para reflejar el cambio
-      setArticulos((prevArticulos: Producto[]) =>
-        prevArticulos.map((art: Producto) =>
-          art.id === productoId ? { ...art, visible: !visibleActual } : art,
-        ),
-      );
+      setArticulos((prev) => prev.map((art) =>
+      art.id === productoId ? { ...art, visible: !visibleActual } : art
+    ));
+    setArticulosSinSubcat((prev) => prev.map((art) =>  
+      art.id === productoId ? { ...art, visible: !visibleActual } : art
+    ));
+     
 
       console.log("Visibilidad actualizada correctamente");
     } catch (error) {
@@ -21148,9 +21265,13 @@ if (!contenedores.has(codigo)) {
         prevArticulos.map((art: Producto) =>
           art.id === productoId
             ? { ...art, liquidacion: !liquidacionActual }
-            : art,
-        ),
-      );
+            : art
+));
+      setArticulosSinSubcat((prev) => prev.map((art) =>
+        art.id === productoId
+          ? { ...art, liquidacion: !liquidacionActual }
+          : art
+      ));
 
       console.log("Liquidación actualizada correctamente");
     } catch (error) {
@@ -21174,9 +21295,13 @@ if (!contenedores.has(codigo)) {
         prevArticulos.map((art: Producto) =>
           art.id === productoId
             ? { ...art, top_ventas: !topVentasActual }
-            : art,
-        ),
-      );
+            : art
+        ));
+      setArticulosSinSubcat((prev) => prev.map((art) =>
+        art.id === productoId
+          ? { ...art, top_ventas: !topVentasActual }
+          : art
+      ));
 
       console.log("Top ventas actualizado correctamente");
     } catch (error) {
@@ -21226,17 +21351,21 @@ if (!contenedores.has(codigo)) {
           prevArticulos.map((art: ProductoConVisibilidad) =>
             art.id === productoId
               ? { ...art, visibleMostrador: !visibleActual }
-              : art,
-          ),
-        );
+              : art
+          ));
+        setArticulosSinSubcat((prev) => prev.map((art) =>  
+        art.id === productoId ? { ...art, visibleMostrador: !visibleActual } : art
+      ));
       } else if (cuentaId === ID_CUENTA_MOSTRADOR2) {
         setArticulos((prevArticulos: ProductoConVisibilidad[]) =>
           prevArticulos.map((art: ProductoConVisibilidad) =>
             art.id === productoId
               ? { ...art, visibleMostrador2: !visibleActual }
-              : art,
-          ),
-        );
+              : art
+          ));
+         setArticulosSinSubcat((prev) => prev.map((art) =>  
+        art.id === productoId ? { ...art, visibleMostrador2: !visibleActual } : art
+      ));
       }
 
       console.log("Visibilidad actualizada correctamente");
@@ -22242,63 +22371,58 @@ setGrupoMarcaActivoId(null);
                           </button>
                         </div>
 
-                        {/* Grid de Macro-Categorías */}
-                        {subTab === "categorias" && (
-                          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-                            {macroCategorias.map((macro) => (
-                              <div
-                                //quitar si hay problemas de key, pero no deberia haber
-                                key={`macro-${macro.id}-${macro.nombre}`}
-                                onClick={async () => {
-                                  localStorage.setItem(
-                                    "scrollPos",
-                                    window.scrollY.toString(),
-                                  );
-                                  if (window.scrollY > 100) {
-                                    window.scrollTo({
-                                      top: 0,
-                                      behavior: "instant",
-                                    });
-                                  }
-                                  setCategorias([]);
-                                  setMacroCategoriaSeleccionada(macro);
-
-                                  // Cargar categorías de esta macro-categoría
-                                  const { data, error } = await supabase
-                                    .from("categorias")
-                                    .select(
-                                      "id_categoria, nombre_categoria, img, orden",
-                                    )
-                                    .eq("macro_categoria_id", macro.id)
-                                    .order("orden", { ascending: true });
-
-                                  setCategorias(data || []);
-                                  requestAnimationFrame(() => {
-                                    window.scrollTo({
-                                      top: 0,
-                                      behavior: "instant",
-                                    });
-                                  });
-                                }}
-                                className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-                              >
-                                <div className="relative w-full h-40">
-                                  <SkeletonImage
-                                    src={
-                                      macro.img ||
-                                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
-                                    }
-                                    alt={macro.nombre}
-                                    className="object-contain"
-                                  />
-                                </div>
-                                <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
-                                  {macro.nombre}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+{/* Grid de Macro-Categorías */}
+{subTab === "categorias" && (
+  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+    {macroCategorias.map((macro) => (
+      <div key={`macro-${macro.id}-${macro.nombre}`} className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition flex flex-col">
+        <div
+          onClick={async () => {
+            localStorage.setItem("scrollPos", window.scrollY.toString());
+            if (window.scrollY > 100) window.scrollTo({ top: 0, behavior: "instant" });
+            setCategorias([]);
+            setMacroCategoriaSeleccionada(macro);
+            const { data } = await supabase
+              .from("categorias")
+              .select("id_categoria, nombre_categoria, img, orden, visible")
+              .eq("macro_categoria_id", macro.id)
+              .order("orden", { ascending: true });
+            setCategorias((data || []).filter((c: any) => esAdmin || c.visible !== false));
+            requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "instant" }));
+          }}
+          className="cursor-pointer flex-1"
+        >
+          <div className="relative w-full h-40">
+            <SkeletonImage
+              src={macro.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+              alt={macro.nombre}
+              className="object-contain"
+            />
+          </div>
+          <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+            {macro.nombre}
+          </div>
+        </div>
+        {esAdmin && (
+          <div className="flex justify-center pb-2 mt-auto">
+            <button
+              onClick={async () => {
+                const nuevo = macro.visible !== false ? false : true;
+                const { error } = await supabase.from("macro_categorias").update({ visible: nuevo }).eq("id", macro.id);
+                if (!error) setMacroCategorias((prev: any[]) => prev.map((m) => m.id === macro.id ? { ...m, visible: nuevo } : m));
+              }}
+              className={`rounded-full px-3 py-0.5 text-xs font-semibold transition ${
+                macro.visible !== false ? "bg-green-100 text-green-700" : "bg-zinc-200 text-zinc-500"
+              }`}
+            >
+              {macro.visible !== false ? "● Visible" : "○ Oculto"}
+            </button>
+          </div>
+        )}
+      </div>
+    ))}
+  </div>
+)}
 
                         {macroCategorias.length === 0 &&
                           subTab === "categorias" && (
@@ -22316,86 +22440,80 @@ setGrupoMarcaActivoId(null);
                           )}
                         {/* Grid de Marcas */}
                         {subTab === "marcas" && (
-                          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-                            {marcas.map((marca) => (
-                              <div
-                                key={marca.id}
-                               
-                             onClick={async () => {
-  localStorage.setItem("scrollPos", window.scrollY.toString());
-  if (window.scrollY > 100) {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }
-  setArticulos([]);
-  setMarcaSeleccionada(marca);
-  setSubcategoriasMarca([]);
-  setSubcategoriaMarcaSeleccionada(null);
-  setGruposMarca([]);
-  setGrupoMarcaActivoId(null);
-
-
-  const { data: subcats } = await supabase
-    .from("subcategorias_marca")
-    .select("*")
-    .eq("marca_id", marca.id)
-    .order("orden", { ascending: true });
-
-  if (subcats && subcats.length > 0) {
-
-    setSubcategoriasMarca(subcats);
-
-const { data: sinSubcat } = await supabase
-  .from("productos")
-  .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id")
-  .eq("marca_id", marca.id)
-  .is("subcategoria_marca_id", null)
-  .order("orden_marca", { ascending: true });
-setArticulosSinSubcat((sinSubcat || []).map((p: any) => ({ ...p, visible: p.visible ?? true })));
-  } else {
-
-    setSubcategoriasMarca([]);
-    setSubcategoriaMarcaSeleccionada("DIRECTO"); 
-    
-    cargarGruposDeMarca(marca.id);
-
-
-    const { data: productos, error } = await supabase
-      .from("productos")
-      .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion")
-      .eq("marca_id", marca.id) 
-      .order("orden_marca", { ascending: true });
-
-    const productosNormalizados = (productos || []).map((p) => ({
-      ...p, 
-      visible: p.visible ?? true
-    }));
-
-    setArticulos(error ? [] : productosNormalizados);
-  }
-
-  requestAnimationFrame(() => {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  });
-}}
-                                className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-                              >
-                                <div className="relative w-full h-28 sm:h-36 md:h-40 overflow-hidden">
-                                  <SkeletonImage
-                                    src={
-                                      marca.img ||
-                                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
-                                    }
-                                    alt={marca.nombre_marca}
-                                    className="object-contain object-center w-full h-full"
-                                  />
-                                </div>
-                                <div className="p-2 text-center font-semibold text-zinc-800 text-sm truncate">
-                                  {marca.nombre_marca}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+    {marcas.map((marca) => (
+      <div key={marca.id} className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition flex flex-col">
+        <div
+          onClick={async () => {
+            localStorage.setItem("scrollPos", window.scrollY.toString());
+            if (window.scrollY > 100) window.scrollTo({ top: 0, behavior: "instant" });
+            setArticulos([]);
+            setMarcaSeleccionada(marca);
+            setSubcategoriasMarca([]);
+            setSubcategoriaMarcaSeleccionada(null);
+            setGruposMarca([]);
+            setGrupoMarcaActivoId(null);
+            const { data: subcats } = await supabase
+              .from("subcategorias_marca")
+              .select("*, visible")
+              .eq("marca_id", marca.id)
+              .order("orden", { ascending: true });
+            const subcatsFiltradas = (subcats || []).filter((s: any) => esAdmin || s.visible !== false);
+            if (subcatsFiltradas.length > 0) {
+              setSubcategoriasMarca(subcatsFiltradas);
+              const { data: sinSubcat } = await supabase
+                .from("productos")
+                .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id")
+                .eq("marca_id", marca.id)
+                .is("subcategoria_marca_id", null)
+                .order("orden_marca", { ascending: true });
+              setArticulosSinSubcat((sinSubcat || []).map((p: any) => ({ ...p, visible: p.visible ?? true })));
+            } else {
+              setSubcategoriasMarca([]);
+              setSubcategoriaMarcaSeleccionada("DIRECTO");
+              cargarGruposDeMarca(marca.id);
+              const { data: productos, error } = await supabase
+                .from("productos")
+                .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion")
+                .eq("marca_id", marca.id)
+                .order("orden_marca", { ascending: true });
+              setArticulos(error ? [] : (productos || []).map((p) => ({ ...p, visible: p.visible ?? true })));
+            }
+            requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "instant" }));
+          }}
+          className="cursor-pointer flex-1"
+        >
+          <div className="relative w-full h-28 sm:h-36 md:h-40 overflow-hidden">
+            <SkeletonImage
+              src={marca.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+              alt={marca.nombre_marca}
+              className="object-contain object-center w-full h-full"
+            />
+          </div>
+          <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+            {marca.nombre_marca}
+          </div>
+        </div>
+        {esAdmin && (
+          <div className="flex justify-center pb-2 mt-auto">
+            <button
+              onClick={async () => {
+                const nuevo = marca.visible !== false ? false : true;
+                const { error } = await supabase.from("marcas").update({ visible: nuevo }).eq("id", marca.id);
+                if (!error) setMarcas((prev: any[]) => prev.map((m) => m.id === marca.id ? { ...m, visible: nuevo } : m));
+              }}
+              className={`rounded-full px-3 py-0.5 text-xs font-semibold transition ${
+                marca.visible !== false ? "bg-green-100 text-green-700" : "bg-zinc-200 text-zinc-500"
+              }`}
+            >
+              {marca.visible !== false ? "● Visible" : "○ Oculto"}
+            </button>
+          </div>
+        )}
+      </div>
+    ))}
+  </div>
+)}
                       </motion.div>
                     ) : macroCategoriaSeleccionada &&
                       !categoriaSeleccionada &&
@@ -22420,76 +22538,64 @@ setArticulosSinSubcat((sinSubcat || []).map((p: any) => ({ ...p, visible: p.visi
                           {macroCategoriaSeleccionada.nombre}
                         </h2>
 
-                        {/* Grid de Categorías dentro de la macro */}
-                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-                          {categorias.map((cat) => (
-                            <div
-                              key={cat.id_categoria}
-                              onClick={async () => {
-                                localStorage.setItem(
-                                  "scrollPos",
-                                  window.scrollY.toString(),
-                                );
-                                if (window.scrollY > 100) {
-                                  window.scrollTo({
-                                    top: 0,
-                                    behavior: "instant",
-                                  });
-                                }
-                                setArticulos([]);
-                                setCategoriaSeleccionada(cat);
-                                cargarGruposDeSubcat(cat.id_categoria);
+                       {/* Grid de Categorías dentro de la macro */}
+<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+  {categorias.map((cat) => (
+    <div key={cat.id_categoria} className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition flex flex-col">
+      <div
+        onClick={async () => {
+          localStorage.setItem("scrollPos", window.scrollY.toString());
+          if (window.scrollY > 100) window.scrollTo({ top: 0, behavior: "instant" });
+          setArticulos([]);
+          setCategoriaSeleccionada(cat);
+          cargarGruposDeSubcat(cat.id_categoria);
+          const { data, error } = await supabase
+            .from("productos")
+            .select("*")
+            .eq("CATEGORIA_ID", cat.id_categoria)
+            .order("orden_categoria", { ascending: true });
+          setArticulos(error ? [] : (data || []).map((p) => ({ ...p, visible: p.visible ?? true })));
+          requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "instant" }));
+        }}
+        className="cursor-pointer flex-1"
+      >
+        <div className="relative w-full h-40">
+          <SkeletonImage
+            src={cat.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+            alt={cat.nombre_categoria}
+            className="object-contain"
+          />
+        </div>
+        <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+          {cat.nombre_categoria}
+        </div>
+      </div>
+      {esAdmin && (
+        <div className="flex justify-center pb-2 mt-auto">
+          <button
+            onClick={async () => {
+              const nuevo = cat.visible !== false ? false : true;
+              const { error } = await supabase.from("categorias").update({ visible: nuevo }).eq("id_categoria", cat.id_categoria);
+              if (!error) setCategorias((prev: any[]) => prev.map((c) => c.id_categoria === cat.id_categoria ? { ...c, visible: nuevo } : c));
+            }}
+            className={`rounded-full px-3 py-0.5 text-xs font-semibold transition ${
+              cat.visible !== false ? "bg-green-100 text-green-700" : "bg-zinc-200 text-zinc-500"
+            }`}
+          >
+            {cat.visible !== false ? "● Visible" : "○ Oculto"}
+          </button>
+        </div>
+      )}
+    </div>
+  ))}
+</div>
 
-                                const { data, error } = await supabase
-                                  .from("productos")
-                                  .select("*")
-                                  .eq("CATEGORIA_ID", cat.id_categoria)
-                                  .order("orden_categoria", {
-                                    ascending: true,
-                                  });
-
-                                const productosNormalizados = (data || []).map(
-                                  (producto) => ({
-                                    ...producto,
-                                    visible: producto.visible ?? true,
-                                  }),
-                                );
-
-                                setArticulos(
-                                  error ? [] : productosNormalizados,
-                                );
-                                requestAnimationFrame(() => {
-                                  window.scrollTo({
-                                    top: 0,
-                                    behavior: "instant",
-                                  });
-                                });
-                              }}
-                              className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-                            >
-                              <div className="relative w-full h-40">
-                                <SkeletonImage
-                                  src={
-                                    cat.img ||
-                                    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"
-                                  }
-                                  alt={cat.nombre_categoria}
-                                  className="object-contain"
-                                />
-                              </div>
-                              <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
-                                {cat.nombre_categoria}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {categorias.length === 0 && (
-                          <p className="text-center text-zinc-500 py-10">
-                            No hay subcategorías en esta categoría.
-                          </p>
-                        )}
-                      </motion.div>
+{categorias.length === 0 && (
+  <p className="text-center text-zinc-500 py-10">
+    No hay subcategorías en esta categoría.
+  </p>
+)}
+</motion.div>
 
                       ) : (marcaSeleccionada && !subcategoriaMarcaSeleccionada && subcategoriaMarcaSeleccionada !== "DIRECTO") ? (
   /* Mostrar subcategorías dentro de la marca seleccionada */
@@ -22506,60 +22612,74 @@ setArticulosSinSubcat((sinSubcat || []).map((p: any) => ({ ...p, visible: p.visi
     </h2>
 
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-      {subcategoriasMarca.map((subcat) => (
-        <div
-          key={subcat.id}
-          onClick={async () => {
-            localStorage.setItem("scrollPos", window.scrollY.toString());
-            setArticulos([]);
-            setSubcategoriaMarcaSeleccionada(subcat);
-            setGruposMarca([]);
-            setGrupoMarcaActivoId(null);
-            
-            const { data: grupos } = await supabase
-              .from('grupos_marca')
-              .select('id, nombre, imagen, orden, subcategoria_marca_id')
-              .eq('subcategoria_marca_id', subcat.id)
-              .order('orden', { ascending: true });
-
-            if (grupos && grupos.length > 0) {
-              const gruposConProductos = await Promise.all(
-                grupos.map(async (g: any) => {
-                  const { data: rel } = await supabase
-                    .from('grupos_marca_productos')
-                    .select('producto_id')
-                    .eq('grupo_id', g.id);
-                  return { ...g, productoIds: rel?.map((r: any) => r.producto_id) || [] };
-                })
-              );
-              setGruposMarca(gruposConProductos);
-            }
-
-            const { data: productos, error } = await supabase
-              .from("productos")
-              .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id")
-              .eq("marca_id", marcaSeleccionada.id)
-              .eq("subcategoria_marca_id", subcat.id)
-              .order("orden_marca", { ascending: true });
-
-            setArticulos(error ? [] : (productos || []).map((p) => ({ ...p, visible: p.visible ?? true })));
-            window.scrollTo({ top: 0, behavior: "instant" });
-          }}
-          className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-        >
-          <div className="relative w-full h-40">
-            <SkeletonImage
-              src={subcat.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
-              alt={subcat.nombre}
-              className="object-contain"
-            />
-          </div>
-          <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
-            {subcat.nombre}
-          </div>
+  {subcategoriasMarca.map((subcat) => (
+    <div key={subcat.id} className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition flex flex-col">
+      <div
+        onClick={async () => {
+          localStorage.setItem("scrollPos", window.scrollY.toString());
+          setArticulos([]);
+          setSubcategoriaMarcaSeleccionada(subcat);
+          setGruposMarca([]);
+          setGrupoMarcaActivoId(null);
+          const { data: grupos } = await supabase
+            .from('grupos_marca')
+            .select('id, nombre, imagen, orden, subcategoria_marca_id, visible')
+            .eq('subcategoria_marca_id', subcat.id)
+            .order('orden', { ascending: true });
+          const gruposFiltrados = (grupos || []).filter((g: any) => esAdmin || g.visible !== false);
+          if (gruposFiltrados.length > 0) {
+            const gruposConProductos = await Promise.all(
+              gruposFiltrados.map(async (g: any) => {
+                const { data: rel } = await supabase
+                  .from('grupos_marca_productos')
+                  .select('producto_id')
+                  .eq('grupo_id', g.id);
+                return { ...g, productoIds: rel?.map((r: any) => r.producto_id) || [] };
+              })
+            );
+            setGruposMarca(gruposConProductos);
+          }
+          const { data: productos, error } = await supabase
+            .from("productos")
+            .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id")
+            .eq("marca_id", marcaSeleccionada.id)
+            .eq("subcategoria_marca_id", subcat.id)
+            .order("orden_marca", { ascending: true });
+          setArticulos(error ? [] : (productos || []).map((p) => ({ ...p, visible: p.visible ?? true })));
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }}
+        className="cursor-pointer flex-1"
+      >
+        <div className="relative w-full h-40">
+          <SkeletonImage
+            src={subcat.img || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+            alt={subcat.nombre}
+            className="object-contain"
+          />
         </div>
-      ))}
+        <div className="p-2 text-center font-semibold text-zinc-800 text-sm">
+          {subcat.nombre}
+        </div>
+      </div>
+      {esAdmin && (
+        <div className="flex justify-center pb-2 mt-auto">
+          <button
+            onClick={async () => {
+              const nuevo = subcat.visible !== false ? false : true;
+              const { error } = await supabase.from("subcategorias_marca").update({ visible: nuevo }).eq("id", subcat.id);
+              if (!error) setSubcategoriasMarca((prev: any[]) => prev.map((s) => s.id === subcat.id ? { ...s, visible: nuevo } : s));
+            }}
+            className={`rounded-full px-3 py-0.5 text-xs font-semibold transition ${
+              subcat.visible !== false ? "bg-green-100 text-green-700" : "bg-zinc-200 text-zinc-500"
+            }`}
+          >
+            {subcat.visible !== false ? "● Visible" : "○ Oculto"}
+          </button>
+        </div>
+      )}
     </div>
+  ))}
+</div>
 
     {/* Productos sin subcategoría */}
 {articulosSinSubcat.length > 0 && (
@@ -22590,7 +22710,7 @@ setArticulosSinSubcat((sinSubcat || []).map((p: any) => ({ ...p, visible: p.visi
               className="object-contain"
             />
 
-            {/* Badges de Liquidación y Top Ventas */}
+            {/* Badges */}
             <div className="absolute top-2 right-2 flex flex-col gap-1">
               {prod.liquidacion && (
                 <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
@@ -22604,7 +22724,7 @@ setArticulosSinSubcat((sinSubcat || []).map((p: any) => ({ ...p, visible: p.visi
               )}
             </div>
 
-            {/* Botón agregar al carrito */}
+            {/* Botón carrito */}
             <motion.button
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -22651,7 +22771,7 @@ setArticulosSinSubcat((sinSubcat || []).map((p: any) => ({ ...p, visible: p.visi
               </p>
             )}
 
-            {/* Existencia y ubicación para admin/rutas/empleado */}
+            {/* Stock y ubicación */}
             {(esAdmin || esRutas || esEmpleado) && (
               <div className="mt-2 flex items-center gap-2">
                 <Package className="w-3 h-3 text-zinc-400" />
@@ -22671,6 +22791,94 @@ setArticulosSinSubcat((sinSubcat || []).map((p: any) => ({ ...p, visible: p.visi
                     <p className="text-xs font-semibold text-zinc-500">{prod.ubicacion}</p>
                   </>
                 )}
+              </div>
+            )}
+
+            {/* Toggles admin */}
+            {(esAdmin || esAdminMostrador || esAdminMostrador2) && (
+              <div
+                className="flex flex-col gap-2 mt-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {esAdmin ? (
+                  <>
+                    {/* Toggle Visible */}
+                    <div className="flex items-center gap-2">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={prod.visible}
+                          onChange={() => toggleVisibilidad(prod.id, prod.visible)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                      </label>
+                      <span className="text-xs text-zinc-500">
+                        {prod.visible ? "Visible" : "Oculto"}
+                      </span>
+                    </div>
+
+                    {/* Toggle Liquidación */}
+                    <div className="flex items-center gap-2">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={prod.liquidacion ?? false}
+                          onChange={() => toggleLiquidacion(prod.id, prod.liquidacion ?? false)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                      </label>
+                      <span className="text-xs text-zinc-500">
+                        {prod.liquidacion ? "En Liquidación" : "Liquidación"}
+                      </span>
+                    </div>
+
+                    {/* Toggle Top Ventas */}
+                    <div className="flex items-center gap-2">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={prod.top_ventas ?? false}
+                          onChange={() => toggleTopVentas(prod.id, prod.top_ventas ?? false)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                      </label>
+                      <span className="text-xs text-zinc-500">Top Ventas</span>
+                    </div>
+                  </>
+                ) : esAdminMostrador ? (
+                  <div className="flex items-center gap-2">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={prod.visibleMostrador ?? true}
+                        onChange={() => toggleVisibilidadMostrador(prod.id, prod.visibleMostrador ?? true, ID_CUENTA_MOSTRADOR)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-purple-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                    <span className="text-xs text-zinc-500">
+                      {prod.visibleMostrador ? "Visible M1" : "Oculto M1"}
+                    </span>
+                  </div>
+                ) : esAdminMostrador2 ? (
+                  <div className="flex items-center gap-2">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={prod.visibleMostrador2 ?? true}
+                        onChange={() => toggleVisibilidadMostrador(prod.id, prod.visibleMostrador2 ?? true, ID_CUENTA_MOSTRADOR2)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-teal-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:w-5 after:h-5 after:rounded-full after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                    <span className="text-xs text-zinc-500">
+                      {prod.visibleMostrador2 ? "Visible M2" : "Oculto M2"}
+                    </span>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -22790,33 +22998,47 @@ setGrupoMarcaActivoId(null);
       </div>
     )}
 
-    {/* Vista: grid de tarjetas de grupos */}
-    {(grupoActivoId === null || grupoActivoId === "todos") && (
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 mb-6">
-        {gruposSubcat.map((g) => (
-          <div
-            key={g.id}
-            onClick={() => setGrupoActivoId(g.id)}
-            className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-          >
-           <div className="relative w-full h-40 ">
-  {g.imagen ? (
-    <Image src={g.imagen} alt={g.nombre} fill className="object-contain" />
-  ) : (
-    <div className="w-full h-full flex items-center justify-center">
-      <Layers size={36} className="text-zinc-300" />
-    </div>
-  )}
-</div>
-            <div className="p-2 text-center">
-              <p className="text-sm font-semibold text-zinc-800">{g.nombre}</p>
-              <p className="text-xs text-zinc-400 mt-0.5">{g.productoIds?.length ?? 0} productos</p>
+    {/* Vista grid de tarjetas de grupos */}
+{(grupoActivoId === null || grupoActivoId === "todos") && (
+ <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 mb-6">
+  {gruposSubcat.map((g) => (
+    <div key={g.id} className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition flex flex-col">
+      <div onClick={() => setGrupoActivoId(g.id)} className="cursor-pointer flex-1">
+        <div className="relative w-full h-40">
+          {g.imagen ? (
+            <Image src={g.imagen} alt={g.nombre} fill className="object-contain" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Layers size={36} className="text-zinc-300" />
             </div>
-          </div>
-        ))}
+          )}
+        </div>
+        <div className="p-2 text-center">
+          <p className="text-sm font-semibold text-zinc-800">{g.nombre}</p>
+          <p className="text-xs text-zinc-400 mt-0.5">{g.productoIds?.length ?? 0} productos</p>
+        </div>
       </div>
-    )}
-  </>
+      {esAdmin && (
+        <div className="flex justify-center pb-2 mt-auto">
+          <button
+            onClick={async () => {
+              const nuevo = g.visible !== false ? false : true;
+              const { error } = await supabase.from("grupos").update({ visible: nuevo }).eq("id", g.id);
+              if (!error) setGruposSubcat((prev: any[]) => prev.map((gs) => gs.id === g.id ? { ...gs, visible: nuevo } : gs));
+            }}
+            className={`rounded-full px-3 py-0.5 text-xs font-semibold transition ${
+              g.visible !== false ? "bg-green-100 text-green-700" : "bg-zinc-200 text-zinc-500"
+            }`}
+          >
+            {g.visible !== false ? "● Visible" : "○ Oculto"}
+          </button>
+        </div>
+      )}
+    </div>
+  ))}
+</div>
+)}
+</>
 )}
 
 {/* Tarjetas de grupos de MARCA */}
@@ -22839,28 +23061,42 @@ setGrupoMarcaActivoId(null);
 
     {(grupoMarcaActivoId === null || grupoMarcaActivoId === 'todos') && (
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 mb-6">
-        {gruposMarca.map((g) => (
-          <div
-            key={g.id}
-            onClick={() => setGrupoMarcaActivoId(g.id)}
-            className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition cursor-pointer"
-          >
-            <div className="relative w-full h-40">
-              {g.imagen ? (
-                <Image src={g.imagen} alt={g.nombre} fill className="object-contain" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Layers size={36} className="text-zinc-300" />
-                </div>
-              )}
+  {gruposMarca.map((g) => (
+    <div key={g.id} className="rounded-xl overflow-hidden bg-white shadow hover:shadow-md transition flex flex-col">
+      <div onClick={() => setGrupoMarcaActivoId(g.id)} className="cursor-pointer flex-1">
+        <div className="relative w-full h-40">
+          {g.imagen ? (
+            <Image src={g.imagen} alt={g.nombre} fill className="object-contain" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Layers size={36} className="text-zinc-300" />
             </div>
-            <div className="p-2 text-center">
-              <p className="text-sm font-semibold text-zinc-800">{g.nombre}</p>
-              <p className="text-xs text-zinc-400 mt-0.5">{g.productoIds?.length ?? 0} productos</p>
-            </div>
-          </div>
-        ))}
+          )}
+        </div>
+        <div className="p-2 text-center">
+          <p className="text-sm font-semibold text-zinc-800">{g.nombre}</p>
+          <p className="text-xs text-zinc-400 mt-0.5">{g.productoIds?.length ?? 0} productos</p>
+        </div>
       </div>
+      {esAdmin && (
+        <div className="flex justify-center pb-2 mt-auto">
+          <button
+            onClick={async () => {
+              const nuevo = g.visible !== false ? false : true;
+              const { error } = await supabase.from("grupos_marca").update({ visible: nuevo }).eq("id", g.id);
+              if (!error) setGruposMarca((prev: any[]) => prev.map((gm) => gm.id === g.id ? { ...gm, visible: nuevo } : gm));
+            }}
+            className={`rounded-full px-3 py-0.5 text-xs font-semibold transition ${
+              g.visible !== false ? "bg-green-100 text-green-700" : "bg-zinc-200 text-zinc-500"
+            }`}
+          >
+            {g.visible !== false ? "● Visible" : "○ Oculto"}
+          </button>
+        </div>
+      )}
+    </div>
+  ))}
+</div>
     )}
   </>
 )}
@@ -24120,14 +24356,17 @@ if (!esAdmin && !a.visible) return false;
       label="Ubicación de tienda"
       onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("ubicacion"); }}
     />
-
+{/* 
     <MenuItem
       label="Apoyo"
       icon={<FileQuestionMark size={20} />}
       onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("apoyo"); }}
     />
+    */}
     </>
   )}
+    
+
 
   {(esAdmin || esEmpleado || esRutas) && (
     <div className="space-y-2 pt-2">
