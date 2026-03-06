@@ -4127,6 +4127,8 @@ export default function HomePage() {
     null,
   );
   const [carrito, setCarrito] = useState<any[]>([]);
+  const [carritosLista, setCarritosLista] = useState<{id: number, nombre: string}[]>([]);
+const [carritoActivoId, setCarritoActivoId] = useState<number>(1);
   const [mostrarModalPedido, setMostrarModalPedido] = useState(false);
   const [enviarDomicilio, setEnviarDomicilio] = useState(true);
   const [recogerLocal, setRecogerLocal] = useState(false);
@@ -5186,30 +5188,78 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
     init();
   }, []);
 
-  // sincronizar carrito con localstorage
-  useEffect(() => {
-    if (cuenta?.numero_cuenta) {
-      const saved = localStorage.getItem(`carrito_${cuenta.numero_cuenta}`);
-      if (saved) {
-        setCarrito(JSON.parse(saved));
-      }
-    }
-  }, [cuenta]);
-  // guardar carrito en localstorage al actualizar
-  useEffect(() => {
-    if (cuenta?.numero_cuenta) {
-      localStorage.setItem(
-        `carrito_${cuenta.numero_cuenta}`,
-        JSON.stringify(carrito),
-      );
-    }
-  }, [carrito, cuenta]);
-  // limpiar carrito si no hay cuenta
-  useEffect(() => {
-    if (!cuenta) {
-      setCarrito([]);
-    }
-  }, [cuenta]);
+ // Cargar carritos al iniciar sesión
+useEffect(() => {
+  if (!cuenta?.numero_cuenta) return;
+  const lista = localStorage.getItem(`carritos_lista_${cuenta.numero_cuenta}`);
+  const activoId = localStorage.getItem(`carrito_activo_${cuenta.numero_cuenta}`);
+  if (lista) {
+    const listaParseada = JSON.parse(lista);
+    setCarritosLista(listaParseada);
+    const id = activoId ? parseInt(activoId) : listaParseada[0]?.id ?? 1;
+    setCarritoActivoId(id);
+    const productos = localStorage.getItem(`carrito_${cuenta.numero_cuenta}_${id}`);
+    setCarrito(productos ? JSON.parse(productos) : []);
+  } else {
+    const inicial = [{ id: 1, nombre: "Carrito 1" }];
+    setCarritosLista(inicial);
+    setCarritoActivoId(1);
+    localStorage.setItem(`carritos_lista_${cuenta.numero_cuenta}`, JSON.stringify(inicial));
+    setCarrito([]);
+  }
+}, [cuenta]);
+
+// Guardar carrito activo en localStorage
+useEffect(() => {
+  if (!cuenta?.numero_cuenta || carritosLista.length === 0) return;
+  localStorage.setItem(`carrito_${cuenta.numero_cuenta}_${carritoActivoId}`, JSON.stringify(carrito));
+}, [carrito, cuenta, carritoActivoId]);
+
+// Limpiar si no hay cuenta
+useEffect(() => {
+  if (!cuenta) {
+    setCarrito([]);
+    setCarritosLista([]);
+    setCarritoActivoId(1);
+  }
+}, [cuenta]);
+
+
+const cambiarCarrito = (id: number) => {
+  if (!cuenta?.numero_cuenta) return;
+  // Guardar el carrito actual antes de cambiar
+  localStorage.setItem(`carrito_${cuenta.numero_cuenta}_${carritoActivoId}`, JSON.stringify(carrito));
+  const productos = localStorage.getItem(`carrito_${cuenta.numero_cuenta}_${id}`);
+  setCarritoActivoId(id);
+  setCarrito(productos ? JSON.parse(productos) : []);
+  localStorage.setItem(`carrito_activo_${cuenta.numero_cuenta}`, id.toString());
+};
+
+const nuevoCarrito = () => {
+  if (!cuenta?.numero_cuenta) return;
+  const nuevoId = Date.now();
+  const nombre = `Carrito ${carritosLista.length + 1}`;
+  const nueva = [...carritosLista, { id: nuevoId, nombre }];
+  setCarritosLista(nueva);
+  localStorage.setItem(`carritos_lista_${cuenta.numero_cuenta}`, JSON.stringify(nueva));
+  cambiarCarrito(nuevoId);
+};
+
+const eliminarCarrito = (id: number) => {
+  if (!cuenta?.numero_cuenta || carritosLista.length <= 1 || id === 1) return;
+  const nueva = carritosLista.filter(c => c.id !== id);
+  setCarritosLista(nueva);
+  localStorage.setItem(`carritos_lista_${cuenta.numero_cuenta}`, JSON.stringify(nueva));
+  localStorage.removeItem(`carrito_${cuenta.numero_cuenta}_${id}`);
+  if (carritoActivoId === id) cambiarCarrito(nueva[0].id);
+};
+
+const renombrarCarrito = (id: number, nuevoNombre: string) => {
+  if (!cuenta?.numero_cuenta) return;
+  const nueva = carritosLista.map(c => c.id === id ? { ...c, nombre: nuevoNombre } : c);
+  setCarritosLista(nueva);
+  localStorage.setItem(`carritos_lista_${cuenta.numero_cuenta}`, JSON.stringify(nueva));
+};
 
   // funcion para validar la cuenta ingresada
   const validarCuenta = async () => {
@@ -17288,6 +17338,7 @@ const [nombresEmpleados, setNombresEmpleados] = useState<Record<string, string>>
     const [ultimoEscaneo, setUltimoEscaneo] = useState("");
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const [mostrarModalCompletado, setMostrarModalCompletado] = useState(false);
+    const [busquedaProducto, setBusquedaProducto] = useState("");
     const [guardando, setGuardando] = useState(false);
     const [hojas, setHojas] = useState<any[]>([]);
     const [hojasProcesadas, setHojasProcesadas] = useState<Set<number>>(
@@ -18853,6 +18904,7 @@ await supabase
     prev.map((h) => h.id === hojaActual.id ? { ...h, revisando_por: null } : h)
   );
   setHojaActual(null);
+  setBusquedaProducto("");
 }} />
 
         <h2 className="text-xl font-bold text-zinc-900 mb-2">
@@ -18958,9 +19010,32 @@ await supabase
           </div>
         )}
 
-        {/* Lista de productos */}
+        {/* Buscador de productos */}
+<div className="relative mb-3">
+  <input
+    type="text"
+    value={busquedaProducto}
+    onChange={(e) => setBusquedaProducto(e.target.value)}
+    placeholder="Buscar por código o nombre..."
+    className="w-full border border-zinc-300 rounded-xl px-4 py-2.5 pl-9 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+  />
+  <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-3 w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+  </svg>
+  {busquedaProducto && (
+    <button onClick={() => setBusquedaProducto("")} className="absolute right-3 top-2.5 text-zinc-400 hover:text-zinc-600 text-lg leading-none">×</button>
+  )}
+</div>
+
+{/* Lista de productos */}
         <div className="space-y-2">
-          {hojaActual.productos.map((prod: any) => {
+          {hojaActual.productos
+  .filter((prod: any) =>
+    busquedaProducto === "" ||
+    prod.CODIGO?.toLowerCase().includes(busquedaProducto.toLowerCase()) ||
+    prod.TITULO?.toLowerCase().includes(busquedaProducto.toLowerCase())
+  )
+  .map((prod: any) => {
             const cantidadVerificada =
               productosVerificados.get(prod.producto_id) || 0;
             const esUltimoEscaneado =
@@ -23830,6 +23905,40 @@ if (!esAdmin && !a.visible) return false;
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                   >
                     <div className="mt-4 px-3 pb-13">
+  {/* Selector de carritos */}
+  <div className="mb-4">
+    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+      {carritosLista.map((c) => (
+        <button
+          key={c.id}
+          onClick={() => cambiarCarrito(c.id)}
+          onDoubleClick={() => {
+            const nuevo = prompt("Nombre del carrito:", c.nombre);
+            if (nuevo?.trim()) renombrarCarrito(c.id, nuevo.trim());
+          }}
+          className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition border ${
+            carritoActivoId === c.id
+              ? "bg-orange-500 text-white border-orange-500"
+              : "bg-white text-zinc-600 border-zinc-300 hover:border-orange-300"
+          }`}
+        >
+          🛒 {c.nombre}
+          {carritosLista.length > 1 && carritoActivoId === c.id && (
+            <span
+              onClick={(e) => { e.stopPropagation(); eliminarCarrito(c.id); }}
+              className="ml-1 text-white/70 hover:text-white text-xs leading-none"
+            >✕</span>
+          )}
+        </button>
+      ))}
+      <button
+        onClick={nuevoCarrito}
+        className="flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-semibold border border-dashed border-zinc-300 text-zinc-400 hover:border-orange-400 hover:text-orange-500 transition"
+      >
+        + Nuevo
+      </button>
+    </div>
+  </div>
                       {carrito.length === 0 ? (
                         <p className="text-center text-zinc-500 mt-16">
                           {esMostrador || esMostrador2
