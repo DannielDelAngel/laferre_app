@@ -110,42 +110,42 @@ import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
 
 const construirQueryBusqueda = async (searchTerm: string, categoria: any, marca: any) => {
-  const selectCampos = "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales, existencia, ubicacion";
+  const selectCampos = "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales, existencia, ubicacion, caja, master, unidad_venta";
 
   const palabras = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (palabras.length === 0) {
     return await supabase.from("productos").select(selectCampos).limit(200);
   }
 
-  let queryPrincipal = supabase.from("productos").select(selectCampos);
-  if (categoria) queryPrincipal = queryPrincipal.eq("CATEGORIA_ID", categoria.id_categoria);
-  else if (marca) queryPrincipal = queryPrincipal.eq("marca_id", marca.id);
+  let queryFrase = supabase.from("productos").select(selectCampos);
+  if (categoria) queryFrase = queryFrase.eq("CATEGORIA_ID", categoria.id_categoria);
+  else if (marca) queryFrase = queryFrase.eq("marca_id", marca.id);
+  queryFrase = queryFrase.ilike("TITULO", `%${searchTerm.trim()}%`);
 
-  if (palabras.length === 1) {
-    queryPrincipal = queryPrincipal.or(
-      `TITULO.ilike.%${palabras[0]}%,CODIGO.ilike.%${palabras[0]}%,C_PRODUCTO.ilike.%${palabras[0]}%`
-    );
-  } else {
-    palabras.forEach((palabra) => {
-      queryPrincipal = queryPrincipal.or(
-        `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`
-      );
-    });
-  }
+  let queryPalabras = supabase.from("productos").select(selectCampos);
+  if (categoria) queryPalabras = queryPalabras.eq("CATEGORIA_ID", categoria.id_categoria);
+  else if (marca) queryPalabras = queryPalabras.eq("marca_id", marca.id);
+  palabras.forEach((palabra) => {
+  const p = palabra.replace(/[%_]/g, "\\$&");
+  queryPalabras = queryPalabras.or(
+    `TITULO.ilike.%${p}%,CODIGO.ilike.%${p}%,C_PRODUCTO.ilike.%${p}%`
+  );
+});
 
   let queryExacto = supabase.from("productos").select(selectCampos)
     .eq("CODIGO", searchTerm.trim());
   if (categoria) queryExacto = queryExacto.eq("CATEGORIA_ID", categoria.id_categoria);
   else if (marca) queryExacto = queryExacto.eq("marca_id", marca.id);
 
-  const [{ data: dataPrincipal }, { data: dataExacto }] = await Promise.all([
-    queryPrincipal.limit(200),
+  const [{ data: dataFrase }, { data: dataPalabras }, { data: dataExacto }] = await Promise.all([
+    queryFrase.limit(200),
+    queryPalabras.limit(200),
     queryExacto,
   ]);
 
   const vistos = new Set<number>();
   const merged: any[] = [];
-  for (const p of [...(dataExacto || []), ...(dataPrincipal || [])]) {
+  for (const p of [...(dataExacto || []), ...(dataFrase || []), ...(dataPalabras || [])]) {
     if (!vistos.has(p.id)) {
       vistos.add(p.id);
       merged.push(p);
@@ -1546,12 +1546,12 @@ const handleSubtract = (): void =>
   <div className="flex justify-center gap-3 mt-2">
     {producto.caja && (
       <span className="text-xs bg-zinc-100 border border-zinc-200 rounded-full px-3 py-1 text-zinc-600 font-medium">
-        Caja: {producto.caja} pzas
+        Caja: {producto.caja}
       </span>
     )}
     {producto.master && (
       <span className="text-xs bg-zinc-100 border border-zinc-200 rounded-full px-3 py-1 text-zinc-600 font-medium">
-        Master: {producto.master} pzas
+        Master: {producto.master}
       </span>
     )}
   </div>
@@ -4587,15 +4587,18 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
   }, []);
 
   const articulosFiltrados = articulos.filter((a) => {
-    if (!esAdmin && !a.visible) return false;
+  if (!esAdmin && !a.visible) return false;
+  if (!searchTerm.trim()) return true;
 
-    const term = searchTerm.toLowerCase();
+  const palabras = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const titulo = (a.TITULO || "").toLowerCase();
+  const codigo = (a.CODIGO || "").toLowerCase();
+  const cproducto = (a.C_PRODUCTO || "").toLowerCase();
 
-    return (
-      (a.TITULO && a.TITULO.toLowerCase().includes(term)) ||
-      (a.CODIGO && a.CODIGO.toLowerCase().includes(term))
-    );
-  });
+  return palabras.every((p) =>
+    titulo.includes(p) || codigo.includes(p) || cproducto.includes(p)
+  );
+});
 
   const getPathFromUrl = (url: string) => {
     try {
@@ -4648,57 +4651,6 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
         cargarTodas();
       }
     }, [tipo]);
-
-    const construirQueryBusqueda = (
-  value: string,
-  categoriaSeleccionada: any,
-  marcaSeleccionada: any
-) => {
-  const palabras = value.trim().split(/\s+/);
-
-  let query = supabase
-    .from("productos")
-    .select(`
-      *,
-      grupos_productos(
-        grupos(
-          id,
-          nombre
-        )
-      )
-    `);
-
-  if (categoriaSeleccionada) {
-    query = query.eq("CATEGORIA_ID", categoriaSeleccionada.id_categoria);
-  } else if (marcaSeleccionada) {
-    query = query.eq("marca_id", marcaSeleccionada.id);
-  }
-
-  palabras.forEach((palabra) => {
-    const soloNumeros = palabra.replace(/[^0-9]/g, '');
-    const esCodigo = /^\d{4,6}T?$/i.test(palabra);
-    const esCodigoAlterno = /^\d{7,}/.test(soloNumeros);
-
-    if (esCodigo) {
-      // Buscar por CODIGO (exacto o que empiece)
-      query = query.or(
-        `CODIGO.eq.${palabra},CODIGO.ilike.${palabra}%,CODIGO.ilike.%${palabra}%,TITULO.ilike.%${palabra}%`
-      );
-    } else if (esCodigoAlterno) {
-      // Buscar por código alterno
-      query = query.or(
-        `C_PRODUCTO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%`
-      );
-    } else {
-      // Búsqueda general
-      query = query.or(
-        `TITULO.ilike.%${palabra}%,CODIGO.ilike.%${palabra}%,C_PRODUCTO.ilike.%${palabra}%`
-      );
-    }
-  });
-
-  return query.limit(500);
-};
 
     const handleSeleccionar = (item: any) => {
       setItemSeleccionado(item);
@@ -6788,7 +6740,7 @@ const GestionarGruposMarca = ({ setVistaPerfil }: any) => {
     setBuscando(true);
     const { data } = await supabase
       .from('productos')
-      .select('id, TITULO, CODIGO, IMAGEN, P_MAYOREO')
+      .select('id, TITULO, CODIGO, IMAGEN, P_MAYOREO, caja, master, unidad_venta, existencia, ubicacion, C_PRODUCTO, permite_decimales')
       .or(`TITULO.ilike.%${term}%,CODIGO.ilike.%${term}%`)
       .eq('marca_id', marcaSeleccionada.id)
       .limit(20);
@@ -13712,6 +13664,21 @@ useEffect(() => {
         })}`,
       ]);
 
+      const productosTablaCliente = carrito.map((p) => [
+  p.CODIGO || "",
+  p.cantidad,
+  p.unidad_venta || "N/A",
+  p.TITULO,
+  `$ ${p.P_MAYOREO.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`,
+  `$ ${p.subtotal.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`,
+]);
+
       autoTableModule.default(docEnvio, {
         head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
         body: productosTabla,
@@ -13837,8 +13804,8 @@ useEffect(() => {
 
       // Tabla
       autoTableModule.default(docCliente, {
-        head: [["CÓDIGO", "CANT", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
-        body: productosTabla,
+          head: [["CÓDIGO", "CANT", "UNIDAD", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+  body: productosTablaCliente,
         startY: 69,
         styles: {
           fontSize: 7,
@@ -13856,10 +13823,11 @@ useEffect(() => {
         },
         columnStyles: {
           0: { cellWidth: 28, halign: "center" },
-          1: { cellWidth: 15, halign: "center" },
-          2: { cellWidth: 95, halign: "left" },
-          3: { cellWidth: 22, halign: "right" },
-          4: { cellWidth: 22, halign: "right" },
+    1: { cellWidth: 13, halign: "center" },
+    2: { cellWidth: 18, halign: "center" },
+    3: { cellWidth: 77, halign: "left" },
+    4: { cellWidth: 22, halign: "right" },
+    5: { cellWidth: 22, halign: "right" },
         },
         theme: "grid",
         margin: { left: 14, right: 14, top: 69 },
@@ -16499,10 +16467,11 @@ if (backOrderExistente) {
                   />
                 </div>
                 <div className="flex-1">
+                  <p className="text-sm text-zinc-500">{prod.CODIGO}</p>
                   <p className="text-sm font-semibold text-zinc-800">
                     {prod.TITULO}
                   </p>
-                  <p className="text-xs text-zinc-500">{prod.CODIGO}</p>
+                  
                   <p className="text-xs text-red-600 font-semibold mt-1">
                     Cantidad: {prod.cantidad_faltante}
                   </p>
@@ -19245,12 +19214,17 @@ await supabase
                       {modalCantidad.TITULO}
                     </p>
 
-                    <p className="text-zinc-500 text-sm mb-6 font-semibold">
+                    <p className="text-zinc-500 text-sm mb-1 font-semibold">
                       Cantidad pedida:{" "}
                       {obtenerEstadoActual(modalCantidad).estado === "PA" ||
                       obtenerEstadoActual(modalCantidad).estado === "parcial"
                         ? modalCantidad.cantidad_pedida
                         : obtenerEstadoActual(modalCantidad).cantidad_surtida}
+                    </p>
+
+                    <p className="text-zinc-500 text-sm mb-1 font-semibold">
+                      Unidad:{" "}
+                      {modalCantidad.unidad_venta || "N/A"}
                     </p>
 
                     {/* Botón PA */}
@@ -19433,8 +19407,14 @@ await supabase
                       {modalProductoActivo.producto?.TITULO}
                     </h3>
 
-                    <p className="text-sm text-zinc-500 text-center mb-6 font-mono">
+                    <p className="text-sm text-zinc-500 text-center mb-1 font-mono">
                       {modalProductoActivo.producto?.CODIGO}
+                    </p>
+
+                    <p className="text-sm text-zinc-500 text-center mb-6 font-mono">
+                      {modalProductoActivo.producto?.unidad_venta
+                        ? `Unidad de venta: ${modalProductoActivo.producto.unidad_venta}`
+                        : "Unidad de venta: No especificada"}
                     </p>
 
                     {/* Contador grande */}
@@ -20612,27 +20592,26 @@ if (!contenedores.has(codigo)) {
                   </div>
 
                   <div className="flex-1">
-                    <p className="text-xs text-zinc-500">
-                      {item.ubicacion || "Sin ubicación"}
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      {item.unidad_venta || "Sin unidad de venta"}
-                    </p>
-
-                    {/* Indicador de existencia */}
-                    <div className="flex items-center gap-1 text-xs">
+                    <div className="mt-2 flex items-center gap-1">
                       <Package className="w-3 h-3 text-zinc-400" />
-                      <span
-                        className={`font-semibold ${
+                      <p
+                        className={`text-xs font-semibold ${
                           (item.existencia || 0) === 0
                             ? "text-red-500"
-                            : (item.existencia || 0) < item.cantidad
-                              ? "text-zinc-600" //'text-yellow-500'
-                              : "text-zinc-600"
+                            : (item.existencia || 0) < 10
+                              ? "text-zinc-500"
+                              : "text-zinc-500"
                         }`}
                       >
-                        Disponible: {item.existencia || 0}
-                      </span>
+                        Stock: {item.existencia || 0}
+                      </p>
+
+                      {item.unidad_venta && (
+                        <span className="text-xs bg-zinc-100 border border-zinc-200 rounded-full px-3 py-1 text-zinc-600 font-medium">
+                          {item.unidad_venta}
+                        </span>
+                      )}
+                      
                     </div>
 
                     {esPA && (
@@ -20840,9 +20819,13 @@ if (!contenedores.has(codigo)) {
                     <p className="text-zinc-600 text-sm mb-2 font-semibold">
                       {modalProductoProblema.producto?.TITULO}
                     </p>
-                    <p className="text-zinc-500 text-sm mb-6 font-semibold">
+                    <p className="text-zinc-500 text-sm mb-1 font-semibold">
                       Cantidad pedida:{" "}
                       {modalProductoProblema.producto?.cantidad}
+                    </p>
+                    <p className="text-zinc-500 text-sm mb-1 font-semibold">
+                      Unidad:{" "}
+                      {modalProductoProblema.producto?.unidad_venta || "N/A"}
                     </p>
 
                     {/* Opción PA */}
@@ -21150,8 +21133,14 @@ if (!contenedores.has(codigo)) {
                       {modalProductoActivo.producto?.TITULO}
                     </h3>
 
-                    <p className="text-sm text-zinc-500 text-center mb-6 font-mono">
+                    <p className="text-sm text-zinc-500 text-center mb-1 font-mono">
                       {modalProductoActivo.producto?.CODIGO}
+                    </p>
+
+                    <p className="text-sm text-zinc-500 text-center mb-6 font-mono">
+                      {modalProductoActivo.producto?.unidad_venta
+                        ? `Unidad de venta: ${modalProductoActivo.producto.unidad_venta}`
+                        : "Unidad de venta: No especificada"}
                     </p>
 
                     {/* Contador grande */}
@@ -22019,12 +22008,21 @@ if (!contenedores.has(codigo)) {
         }
         // value controlado: vacío si no hay contexto, searchTerm si hay
         value={categoriaSeleccionada || marcaSeleccionada ? searchTerm : ""}
-        onChange={(e) => {
-          // Solo funciona cuando hay categoría o marca seleccionada
-          if (categoriaSeleccionada || marcaSeleccionada) {
-            setSearchTerm(e.target.value);
-          }
-        }}
+        onChange={async (e) => {
+  const value = e.target.value;
+  if (categoriaSeleccionada || marcaSeleccionada) {
+    setSearchTerm(value);
+    if (value.trim()) {
+      const { data } = await construirQueryBusqueda(value, null, null);
+      setArticulos(ordenarProductos(
+        (data || []).map((p: any) => ({ ...p, visible: p.visible ?? true })),
+        value
+      ));
+    } else {
+      setArticulos([]);
+    }
+  }
+}}
         onFocus={async () => {
           // Si NO hay categoría/marca → abrir overlay global
           if (!categoriaSeleccionada && !marcaSeleccionada) {
@@ -23236,10 +23234,12 @@ if (!esAdmin && !a.visible) return false;
                                     }
                                   }
 
- return (
-                                    (a.TITULO && a.TITULO.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                                    (a.CODIGO && a.CODIGO.toLowerCase().includes(searchTerm.toLowerCase()))
-                                  );
+const palabras = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
+const titulo = (a.TITULO || "").toLowerCase();
+const codigo = (a.CODIGO || "").toLowerCase();
+const cproducto = (a.C_PRODUCTO || "").toLowerCase();
+return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproducto.includes(p));
+
                                 })
                                 .sort((a, b) => {
                                   // Si hay un grupo de subcategoría normal activo
