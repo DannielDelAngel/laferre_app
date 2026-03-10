@@ -4490,6 +4490,7 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
     }
   }, [favoritos, cuenta]);
 
+  
   const toggleFavorito = (producto: any) => {
     const esFavorito = favoritos.some((fav) => fav.id === producto.id);
     let nuevosFavoritos;
@@ -5145,13 +5146,46 @@ useEffect(() => {
   if (!cuenta?.numero_cuenta) return;
   const lista = localStorage.getItem(`carritos_lista_${cuenta.numero_cuenta}`);
   const activoId = localStorage.getItem(`carrito_activo_${cuenta.numero_cuenta}`);
+
   if (lista) {
     const listaParseada = JSON.parse(lista);
     setCarritosLista(listaParseada);
     const id = activoId ? parseInt(activoId) : listaParseada[0]?.id ?? 1;
     setCarritoActivoId(id);
     const productos = localStorage.getItem(`carrito_${cuenta.numero_cuenta}_${id}`);
-    setCarrito(productos ? JSON.parse(productos) : []);
+
+    if (productos) {
+      const productosGuardados = JSON.parse(productos);
+
+      const ids = productosGuardados.map((p: any) => p.id);
+      supabase
+        .from("productos")
+        .select("id, P_MAYOREO")
+        .in("id", ids)
+        .then(({ data }) => {
+          if (data) {
+            const preciosActuales = Object.fromEntries(
+              data.map((p: any) => [p.id, p.P_MAYOREO])
+            );
+            const productosActualizados = productosGuardados.map((p: any) => {
+              const precioNuevo = preciosActuales[p.id];
+              if (precioNuevo !== undefined) {
+                return {
+                  ...p,
+                  P_MAYOREO: precioNuevo,
+                  subtotal: p.cantidad * precioNuevo,
+                };
+              }
+              return p;
+            });
+            setCarrito(productosActualizados);
+          } else {
+            setCarrito(productosGuardados);
+          }
+        });
+    } else {
+      setCarrito([]);
+    }
   } else {
     const inicial = [{ id: 1, nombre: "Carrito 1" }];
     setCarritosLista(inicial);
@@ -5166,6 +5200,47 @@ useEffect(() => {
   if (!cuenta?.numero_cuenta || carritosLista.length === 0) return;
   localStorage.setItem(`carrito_${cuenta.numero_cuenta}_${carritoActivoId}`, JSON.stringify(carrito));
 }, [carrito, cuenta, carritoActivoId]);
+
+// Escuchar cambios de precio en tiempo real
+useEffect(() => {
+  if (!carrito || carrito.length === 0) return;
+
+  const ids = carrito.map((p: any) => p.id);
+
+  const channel = supabase
+    .channel("precios-productos")
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "productos",
+      },
+      (payload) => {
+        const productoActualizado = payload.new;
+
+        // Solo actualizar si el producto está en el carrito
+        if (ids.includes(productoActualizado.id)) {
+          setCarrito((prev: any[]) =>
+            prev.map((p: any) =>
+              p.id === productoActualizado.id
+                ? {
+                    ...p,
+                    P_MAYOREO: productoActualizado.P_MAYOREO,
+                    subtotal: p.cantidad * productoActualizado.P_MAYOREO,
+                  }
+                : p
+            )
+          );
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [carrito.map((p: any) => p.id).join(",")]); 
 
 // Limpiar si no hay cuenta
 useEffect(() => {
