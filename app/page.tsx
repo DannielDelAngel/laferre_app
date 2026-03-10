@@ -14214,6 +14214,9 @@ useEffect(() => {
     const [backOrders, setBackOrders] = useState<any[]>([]);
     const [cargandoBackOrders, setCargandoBackOrders] = useState(false);
     const [vistaBackOrders, setVistaBackOrders] = useState(false);
+    const [filtroEstado, setFiltroEstado] = useState<string>("todos");
+    const [filtroCliente, setFiltroCliente] = useState("");
+const [filtroFecha, setFiltroFecha] = useState("");
 
     // Estados para escaneo de código RS
     const [bufferEscaneo, setBufferEscaneo] = useState("");
@@ -15773,83 +15776,199 @@ if (backOrderExistente) {
     }
 
     return (
-      <motion.div
-        key={vistaPerfil}
-        className="min-h-screen"
-        initial={{ opacity: 0, x: 40 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -40 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
-        drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
-        onDragEnd={(event, info) => {
-          if (info.offset.x > 100) {
-            setVistaPerfil("menu");
-          }
-        }}
-      >
-        {!ocultarBackBtn && <BackBtn onBack={() => setVistaPerfil("menu")} />}
+  <motion.div
+    key={vistaPerfil}
+    className="min-h-screen"
+    initial={{ opacity: 0, x: 40 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: -40 }}
+    transition={{ duration: 0.3, ease: "easeInOut" }}
+    drag="x"
+    dragConstraints={{ left: 0, right: 0 }}
+    onDragEnd={(event, info) => {
+      if (info.offset.x > 100) setVistaPerfil("menu");
+    }}
+  >
+    {!ocultarBackBtn && <BackBtn onBack={() => setVistaPerfil("menu")} />}
 
-        <h2 className="text-xl font-bold text-zinc-900 mb-4">
-          {esAdmin ? "Todos los Pedidos" : "Tus Pedidos"}
-        </h2>
+    <h2 className="text-xl font-bold text-zinc-900 mb-4">
+      {esAdmin ? "Todos los Pedidos" : "Tus Pedidos"}
+    </h2>
 
-        {cargando ? (
-          <p className="text-center text-zinc-500">Cargando...</p>
-        ) : pedidos.length === 0 ? (
-          <p className="text-center text-zinc-500 mt-8">
-            No hay pedidos registrados
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {pedidos.map((pedido) => (
-              <div
-                key={pedido.id}
-                onClick={() => verDetallePedido(pedido)}
-                className="border border-zinc-200 rounded-xl p-4 bg-white shadow-sm cursor-pointer hover:bg-zinc-50 transition"
+    {!cargando && pedidos.length > 0 && (() => {
+      const FILTROS = [
+        { key: "todos", label: "Todos" },
+        { key: "nuevo_pedido", label: "Nuevo" },
+        { key: "surtiendo", label: "Surtiendo" },
+        { key: "encajado", label: "Encajado" },
+        { key: "listo_para_recoger", label: "Para recoger" },
+        { key: "en_ruta", label: "En ruta" },
+        { key: "entregado", label: "Entregado" },
+        { key: "completado", label: "Completado" },
+      ];
+
+      const pedidosFiltrados = pedidos.filter((p) => {
+        if (filtroEstado !== "todos" && p.estado !== filtroEstado) return false;
+        if (esAdmin && filtroCliente.trim()) {
+          const term = filtroCliente.trim().toLowerCase();
+          const cliente = (p.cuentas?.cliente || "").toLowerCase();
+          const cuenta = (p.cuentas?.numero_cuenta || "").toLowerCase();
+          const ferreteria = (p.cuentas?.ferreteria || "").toLowerCase();
+          if (!cliente.includes(term) && !cuenta.includes(term) && !ferreteria.includes(term)) return false;
+        }
+        if (filtroFecha) {
+          const fechaPedido = new Date(p.created_at).toLocaleDateString("en-CA");
+          if (fechaPedido !== filtroFecha) return false;
+        }
+        return true;
+      });
+
+      const hayFiltrosActivos = filtroEstado !== "todos" || filtroFecha !== "" || filtroCliente !== "";
+
+      return (
+        <div className="space-y-3 mb-4">
+
+          {/* Filtro por estado */}
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {FILTROS.filter(
+              (f) => f.key === "todos" || pedidos.some((p) => p.estado === f.key)
+            ).map((f) => {
+              const count = f.key === "todos"
+                ? pedidos.length
+                : pedidos.filter((p) => p.estado === f.key).length;
+              const activo = filtroEstado === f.key;
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => setFiltroEstado(f.key)}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
+                    activo
+                      ? "bg-orange-500 text-white border-orange-500"
+                      : "bg-white text-zinc-600 border-zinc-300 hover:border-orange-300"
+                  }`}
+                >
+                  {f.label}
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                    activo ? "bg-white/30 text-white" : "bg-zinc-100 text-zinc-500"
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Filtro por fecha */}
+          <div className="relative">
+            <input
+              type="date"
+              value={filtroFecha}
+              onChange={(e) => setFiltroFecha(e.target.value)}
+              className="w-full rounded-full border border-zinc-300 bg-white pl-9 pr-10 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4 pointer-events-none">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+            </svg>
+            {filtroFecha && (
+              <button
+                onClick={() => setFiltroFecha("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
               >
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex-1">
-                    <p className="font-semibold text-zinc-900">
-                      Pedido #{pedido.id}
-                    </p>
-                    {esAdmin && pedido.cuentas && (
-                      <p className="text-xs text-zinc-600 mt-1">
-                        {pedido.cuentas.cliente || "Sin nombre"} -{" "}
-                        {pedido.cuentas.numero_cuenta}
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Buscador por cliente (solo admin) */}
+          {esAdmin && (
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Buscar cliente, cuenta o ferretería..."
+                value={filtroCliente}
+                onChange={(e) => setFiltroCliente(e.target.value)}
+                className="w-full rounded-full border border-zinc-300 bg-white pl-9 pr-10 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
+              {filtroCliente && (
+                <button
+                  onClick={() => setFiltroCliente("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Resumen y limpiar */}
+          {hayFiltrosActivos && (
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-zinc-500">
+                {pedidosFiltrados.length} resultado{pedidosFiltrados.length !== 1 ? "s" : ""}
+              </p>
+              <button
+                onClick={() => { setFiltroEstado("todos"); setFiltroFecha(""); setFiltroCliente(""); }}
+                className="text-xs text-orange-500 font-semibold hover:text-orange-600"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+          )}
+
+          {/* Lista */}
+          {cargando ? (
+            <p className="text-center text-zinc-500">Cargando...</p>
+          ) : pedidosFiltrados.length === 0 ? (
+            <p className="text-center text-zinc-500 mt-8">No hay pedidos con estos filtros</p>
+          ) : (
+            <div className="space-y-3">
+              {pedidosFiltrados.map((pedido) => (
+                <div
+                  key={pedido.id}
+                  onClick={() => verDetallePedido(pedido)}
+                  className="border border-zinc-200 rounded-xl p-4 bg-white shadow-sm cursor-pointer hover:bg-zinc-50 transition"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <p className="font-semibold text-zinc-900">Pedido #{pedido.id}</p>
+                      {esAdmin && pedido.cuentas && (
+                        <p className="text-xs text-zinc-600 mt-1">
+                          {pedido.cuentas.cliente || "Sin nombre"} — {pedido.cuentas.numero_cuenta}
+                        </p>
+                      )}
+                      <p className="text-sm text-zinc-500 mt-1">
+                        {new Date(pedido.created_at).toLocaleDateString("es-MX")}{" "}
+                        {new Date(pedido.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
                       </p>
-                    )}
-                    <p className="text-sm text-zinc-500 mt-1">
-  {new Date(pedido.created_at).toLocaleDateString("es-MX")}{" "}
-  {new Date(pedido.created_at).toLocaleTimeString("es-MX", {
-    hour: "2-digit",
-    minute: "2-digit",
-  })}
-</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <BadgeEstado estado={pedido.estado} />
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <BadgeEstado estado={pedido.estado} />
+                  <div className="flex justify-between items-center mt-1">
+                    {pedido.total ? (
+                      <p className="text-sm font-bold text-orange-500">
+                        ${pedido.total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    ) : <span />}
+                    <span className="text-zinc-400 text-sm">Ver detalles →</span>
                   </div>
                 </div>
-                <div className="flex justify-between items-center mt-1">
-  {pedido.total ? (
-    <p className="text-sm font-bold text-orange-500">
-      ${pedido.total.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}
-    </p>
-  ) : (
-    <span />
-  )}
-  <span className="text-zinc-400 text-sm">Ver detalles →</span>
-</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </motion.div>
-    );
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    })()}
+
+    {cargando && <p className="text-center text-zinc-500">Cargando...</p>}
+    {!cargando && pedidos.length === 0 && (
+      <p className="text-center text-zinc-500 mt-8">No hay pedidos registrados</p>
+    )}
+  </motion.div>
+);
   };
 
   const VistaBackOrders = ({
