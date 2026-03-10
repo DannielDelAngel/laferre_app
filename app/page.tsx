@@ -15859,22 +15859,32 @@ if (backOrderExistente) {
           </div>
 
           {/* Filtro por fecha */}
-<div className="relative">
+<div className="relative overflow-hidden rounded-full border border-zinc-300 bg-white">
   <input
     type="date"
     value={filtroFecha}
     onChange={(e) => setFiltroFecha(e.target.value)}
-    className="w-full rounded-full border border-zinc-300 bg-white pl-9 pr-10 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
-    style={{ maxWidth: "100%", boxSizing: "border-box" }}
+    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+    style={{ zIndex: 1 }}
   />
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
-    className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4 pointer-events-none">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-  </svg>
+  <div className="flex items-center pl-9 pr-10 py-2 text-sm pointer-events-none">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+      className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    </svg>
+    <span className={filtroFecha ? "text-zinc-700" : "text-zinc-400"}>
+      {filtroFecha
+        ? new Date(filtroFecha + "T12:00:00").toLocaleDateString("es-MX", {
+            day: "2-digit", month: "short", year: "numeric"
+          })
+        : "Filtrar por fecha"}
+    </span>
+  </div>
   {filtroFecha && (
     <button
-      onClick={() => setFiltroFecha("")}
+      onClick={(e) => { e.stopPropagation(); setFiltroFecha(""); }}
       className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+      style={{ zIndex: 2 }}
     >
       <X size={14} />
     </button>
@@ -17457,6 +17467,7 @@ const [contenedores, setContenedores] = useState<Map<string, string>>(new Map())
     useEffect(() => {
       window.scrollTo(0, 0);
     }, [pedidoSeleccionado, hojaActual]);
+    const [filtroProductos, setFiltroProductos] = useState<"todos" | "pendientes" | "pa" | "parcial">("todos");
 
     const [modalProductoActivo, setModalProductoActivo] = useState<{
       visible: boolean;
@@ -19099,6 +19110,44 @@ await supabase
           </div>
         )}
 
+        {/* Filtros de productos */}
+<div
+  className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide"
+  onPointerDownCapture={(e) => e.stopPropagation()}
+>
+  {[
+    { key: "todos", label: "Todos", count: hojaActual.productos.length },
+    { key: "pendientes", label: "Pendientes", count: hojaActual.productos.filter((p: any) => {
+      const estadoActual = obtenerEstadoActual(p);
+      if (estadoActual.estado === "PA" || estadoActual.estado === "parcial") return false;
+      const cantidadVerificada = productosVerificados.get(p.producto_id) || 0;
+      return cantidadVerificada < (estadoActual.cantidad_surtida || 0);
+    }).length },
+    { key: "pa", label: "PA", count: hojaActual.productos.filter((p: any) => obtenerEstadoActual(p).estado === "PA").length },
+    { key: "parcial", label: "Parcial", count: hojaActual.productos.filter((p: any) => obtenerEstadoActual(p).estado === "parcial").length },
+  ].map((f) => (
+    <button
+      key={f.key}
+      onClick={() => setFiltroProductos(f.key as any)}
+      className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
+        filtroProductos === f.key
+          ? f.key === "pa" ? "bg-yellow-500 text-white border-yellow-500"
+          : f.key === "parcial" ? "bg-orange-500 text-white border-orange-500"
+          : f.key === "pendientes" ? "bg-blue-500 text-white border-blue-500"
+          : "bg-orange-500 text-white border-orange-500"
+          : "bg-white text-zinc-600 border-zinc-300"
+      }`}
+    >
+      {f.label}
+      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+        filtroProductos === f.key ? "bg-white/30 text-white" : "bg-zinc-100 text-zinc-500"
+      }`}>
+        {f.count}
+      </span>
+    </button>
+  ))}
+</div>
+
         {/* Buscador de productos */}
 <div className="relative mb-3">
   <input
@@ -19119,11 +19168,24 @@ await supabase
 {/* Lista de productos */}
         <div className="space-y-2">
           {hojaActual.productos
-  .filter((prod: any) =>
-    busquedaProducto === "" ||
-    prod.CODIGO?.toLowerCase().includes(busquedaProducto.toLowerCase()) ||
-    prod.TITULO?.toLowerCase().includes(busquedaProducto.toLowerCase())
-  )
+  .filter((prod: any) => {
+    // Filtro de búsqueda
+    if (busquedaProducto !== "" &&
+      !prod.CODIGO?.toLowerCase().includes(busquedaProducto.toLowerCase()) &&
+      !prod.TITULO?.toLowerCase().includes(busquedaProducto.toLowerCase())
+    ) return false;
+    // Filtro de estado
+    if (filtroProductos === "todos") return true;
+    const estadoActual = obtenerEstadoActual(prod);
+    if (filtroProductos === "pa") return estadoActual.estado === "PA";
+    if (filtroProductos === "parcial") return estadoActual.estado === "parcial";
+    if (filtroProductos === "pendientes") {
+      if (estadoActual.estado === "PA" || estadoActual.estado === "parcial") return false;
+      const cantidadVerificada = productosVerificados.get(prod.producto_id) || 0;
+      return cantidadVerificada < (estadoActual.cantidad_surtida || 0);
+    }
+    return true;
+  })
   .map((prod: any) => {
             const cantidadVerificada =
               productosVerificados.get(prod.producto_id) || 0;
@@ -19882,6 +19944,7 @@ const [esperandoCaja, setEsperandoCaja] = useState(false);
     } | null>(null);
 const [nombresEmpleados, setNombresEmpleados] = useState<Record<string, string>>({});
 const [contenedores, setContenedores] = useState<Map<string, string>>(new Map());
+const [filtroProductos, setFiltroProductos] = useState<"todos" | "pendientes" | "pa" | "parcial">("todos");
 
     useEffect(() => {
       window.scrollTo(0, 0);
@@ -20649,9 +20712,62 @@ if (!contenedores.has(codigo)) {
           </div>
         )}
 
+{/* Filtros de productos */}
+<div
+  className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide"
+  onPointerDownCapture={(e) => e.stopPropagation()}
+>
+  {[
+    { key: "todos", label: "Todos", count: hojaActual.productos.length },
+    { key: "pendientes", label: "Pendientes", count: hojaActual.productos.filter((item: any) => {
+      const cantidadSurtida = productosSurtidosHoja.get(item.producto_id) || 0;
+      const esPA = productosPA.has(item.producto_id);
+      const esParcial = productosParciales.has(item.producto_id);
+      const parcialInfo = productosParciales.get(item.producto_id);
+      if (esPA || esParcial) return false;
+      return cantidadSurtida < item.cantidad;
+    }).length },
+    { key: "pa", label: "PA", count: hojaActual.productos.filter((item: any) => productosPA.has(item.producto_id)).length },
+    { key: "parcial", label: "Parcial", count: hojaActual.productos.filter((item: any) => productosParciales.has(item.producto_id)).length },
+  ].map((f) => (
+    <button
+      key={f.key}
+      onClick={() => setFiltroProductos(f.key as any)}
+      className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
+        filtroProductos === f.key
+          ? f.key === "pa" ? "bg-yellow-500 text-white border-yellow-500"
+          : f.key === "parcial" ? "bg-orange-500 text-white border-orange-500"
+          : f.key === "pendientes" ? "bg-blue-500 text-white border-blue-500"
+          : "bg-orange-600 text-white border-orange-600"
+          : "bg-white text-zinc-600 border-zinc-300"
+      }`}
+    >
+      {f.label}
+      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+        filtroProductos === f.key ? "bg-white/30 text-white" : "bg-zinc-100 text-zinc-500"
+      }`}>
+        {f.count}
+      </span>
+    </button>
+  ))}
+</div>
+
         {/* Lista de productos */}
         <div className="space-y-2 pb-20">
-          {hojaActual.productos.map((item: any) => {
+  {hojaActual.productos.filter((item: any) => {
+    if (filtroProductos === "todos") return true;
+    const esPA = productosPA.has(item.producto_id);
+    const esParcial = productosParciales.has(item.producto_id);
+    const cantidadSurtida = productosSurtidosHoja.get(item.producto_id) || 0;
+    const parcialInfo = productosParciales.get(item.producto_id);
+    if (filtroProductos === "pa") return esPA;
+    if (filtroProductos === "parcial") return esParcial;
+    if (filtroProductos === "pendientes") {
+      if (esPA || esParcial) return false;
+      return cantidadSurtida < item.cantidad;
+    }
+    return true;
+  }).map((item: any) => {
             const cantidadSurtida =
               productosSurtidosHoja.get(item.producto_id) || 0;
             const esPA = productosPA.has(item.producto_id);
