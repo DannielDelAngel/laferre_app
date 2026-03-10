@@ -15829,7 +15829,7 @@ if (backOrderExistente) {
         <div className="space-y-3 mb-4">
 
           {/* Filtro por estado */}
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" onPointerDownCapture={(e) => e.stopPropagation()}>
             {FILTROS.filter(
               (f) => f.key === "todos" || pedidos.some((p) => p.estado === f.key)
             ).map((f) => {
@@ -15859,26 +15859,27 @@ if (backOrderExistente) {
           </div>
 
           {/* Filtro por fecha */}
-          <div className="relative">
-            <input
-              type="date"
-              value={filtroFecha}
-              onChange={(e) => setFiltroFecha(e.target.value)}
-              className="w-full rounded-full border border-zinc-300 bg-white pl-9 pr-10 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4 pointer-events-none">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-            </svg>
-            {filtroFecha && (
-              <button
-                onClick={() => setFiltroFecha("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
+<div className="relative">
+  <input
+    type="date"
+    value={filtroFecha}
+    onChange={(e) => setFiltroFecha(e.target.value)}
+    className="w-full rounded-full border border-zinc-300 bg-white pl-9 pr-10 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+    style={{ maxWidth: "100%", boxSizing: "border-box" }}
+  />
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+    className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4 pointer-events-none">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+  </svg>
+  {filtroFecha && (
+    <button
+      onClick={() => setFiltroFecha("")}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+    >
+      <X size={14} />
+    </button>
+  )}
+</div>
 
           {/* Buscador por cliente (solo admin) */}
           {esAdmin && (
