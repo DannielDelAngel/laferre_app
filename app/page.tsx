@@ -15937,28 +15937,47 @@ if (backOrderExistente) {
             })}
           </div>
 
-          {/* Filtro por fecha */}
+         {/* Filtro por fecha */}
 <div className="relative overflow-hidden rounded-full border border-zinc-300 bg-white">
-  <input
-    type="date"
-    value={filtroFecha}
-    onChange={(e) => setFiltroFecha(e.target.value)}
-    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-    style={{ zIndex: 1 }}
-  />
-  <div className="flex items-center pl-9 pr-10 py-2 text-sm pointer-events-none">
+  
+  {/* movil */}
+  <div className="sm:hidden">
+    <input
+      type="date"
+      value={filtroFecha}
+      onChange={(e) => setFiltroFecha(e.target.value)}
+      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+      style={{ zIndex: 1 }}
+    />
+    <div className="flex items-center pl-9 pr-10 py-2 text-sm pointer-events-none">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+        className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+      </svg>
+      <span className={filtroFecha ? "text-zinc-700" : "text-zinc-400"}>
+        {filtroFecha
+          ? new Date(filtroFecha + "T12:00:00").toLocaleDateString("es-MX", {
+              day: "2-digit", month: "short", year: "numeric"
+            })
+          : "Filtrar por fecha"}
+      </span>
+    </div>
+  </div>
+
+  {/* PC */}
+  <div className="hidden sm:flex items-center pl-9 pr-10 py-1">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
-      className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4">
+      className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4 pointer-events-none">
       <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
     </svg>
-    <span className={filtroFecha ? "text-zinc-700" : "text-zinc-400"}>
-      {filtroFecha
-        ? new Date(filtroFecha + "T12:00:00").toLocaleDateString("es-MX", {
-            day: "2-digit", month: "short", year: "numeric"
-          })
-        : "Filtrar por fecha"}
-    </span>
+    <input
+      type="date"
+      value={filtroFecha}
+      onChange={(e) => setFiltroFecha(e.target.value)}
+      className="w-full text-sm text-zinc-700 focus:outline-none bg-transparent"
+    />
   </div>
+
   {filtroFecha && (
     <button
       onClick={(e) => { e.stopPropagation(); setFiltroFecha(""); }}
@@ -15970,7 +15989,7 @@ if (backOrderExistente) {
   )}
 </div>
 
-          {/* Buscador por cliente (solo admin) */}
+          {/* Buscador por cliente */}
           {esAdmin && (
             <div className="relative">
               <input
@@ -16074,6 +16093,8 @@ if (backOrderExistente) {
     const [procesandoConfirmacion, setProcesandoConfirmacion] = useState(false);
     const [generandoPDF, setGenerandoPDF] = useState<number | null>(null);
     const esAdmin = cuenta?.numero_cuenta === "Admin01";
+    const [filtroFechaBO, setFiltroFechaBO] = useState("");
+  const [filtroClienteBO, setFiltroClienteBO] = useState("");
 
     useEffect(() => {
       cargarBackOrders();
@@ -16757,6 +16778,81 @@ if (backOrderExistente) {
           {esAdmin ? "Todos los Back Orders" : "Back Orders Pendientes"}
         </h2>
 
+
+{/* Filtro por fecha */}
+<div className="relative rounded-full border border-zinc-300 bg-white mb-3">
+  
+  {/* movile */}
+  <div className="sm:hidden">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+      className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4 pointer-events-none z-10">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    </svg>
+    <span className={`block pl-9 pr-10 py-2 text-sm pointer-events-none ${filtroFechaBO ? "text-zinc-700" : "text-zinc-400"}`}>
+      {filtroFechaBO
+        ? new Date(filtroFechaBO + "T12:00:00").toLocaleDateString("es-MX", {
+            day: "2-digit", month: "short", year: "numeric"
+          })
+        : "Filtrar por fecha"}
+    </span>
+    <input
+      type="date"
+      value={filtroFechaBO}
+      onChange={(e) => setFiltroFechaBO(e.target.value)}
+      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+      style={{ zIndex: 2 }}
+    />
+  </div>
+
+  {/* PC */}
+  <div className="hidden sm:flex items-center pl-9 pr-10 py-1">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+      className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4 pointer-events-none">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    </svg>
+    <input
+      type="date"
+      value={filtroFechaBO}
+      onChange={(e) => setFiltroFechaBO(e.target.value)}
+      className="w-full text-sm text-zinc-700 focus:outline-none bg-transparent"
+    />
+  </div>
+
+  {/* Botón limpiar — aplica en ambos */}
+  {filtroFechaBO && (
+    <button
+      onClick={(e) => { e.stopPropagation(); setFiltroFechaBO(""); }}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+      style={{ zIndex: 3 }}
+    >
+      <X size={14} />
+    </button>
+  )}
+</div>
+
+
+{/* Buscador por cliente */}
+{esAdmin && (
+  <div className="relative mb-3">
+    <input
+      type="text"
+      placeholder="Buscar cliente, cuenta o ferretería..."
+      value={filtroClienteBO}
+      onChange={(e) => setFiltroClienteBO(e.target.value)}
+      className="w-full rounded-full border border-zinc-300 bg-white pl-9 pr-10 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
+    />
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
+    {filtroClienteBO && (
+      <button
+        onClick={() => setFiltroClienteBO("")}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+      >
+        <X size={14} />
+      </button>
+    )}
+  </div>
+)}
+
         {cargando ? (
           <div className="flex justify-center py-10">
             <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
@@ -16767,7 +16863,22 @@ if (backOrderExistente) {
           </div>
         ) : (
           <div className="space-y-3">
-            {backOrders.map((bo) => (
+            {backOrders
+  .filter((bo) => {
+    if (filtroFechaBO) {
+      const fechaBO = new Date(bo.created_at).toLocaleDateString("en-CA");
+      if (fechaBO !== filtroFechaBO) return false;
+    }
+    if (esAdmin && filtroClienteBO.trim()) {
+      const term = filtroClienteBO.trim().toLowerCase();
+      const cliente = (bo.cuentas?.cliente || "").toLowerCase();
+      const cuenta = (bo.cuentas?.numero_cuenta || "").toLowerCase();
+      const ferreteria = (bo.cuentas?.ferreteria || "").toLowerCase();
+      if (!cliente.includes(term) && !cuenta.includes(term) && !ferreteria.includes(term)) return false;
+    }
+    return true;
+  })
+  .map((bo) => (
               <div
                 key={bo.id}
                 onClick={() => setBackOrderSeleccionado(bo)}
@@ -22327,7 +22438,6 @@ if (!contenedores.has(codigo)) {
               ? `Buscar en ${marcaSeleccionada.nombre_marca}`
               : "Buscar en Bodega Ferretera De Monterrey..."
         }
-        // value controlado: vacío si no hay contexto, searchTerm si hay
         value={categoriaSeleccionada || marcaSeleccionada ? searchTerm : ""}
         onChange={async (e) => {
   const value = e.target.value;
@@ -22340,7 +22450,7 @@ if (!contenedores.has(codigo)) {
         value,
         categoriaSeleccionada,
         marcaSeleccionada,
-        subcategoriaMarcaSeleccionada  // 👈 nuevo parámetro
+        subcategoriaMarcaSeleccionada 
       );
       let resultados = (data || []).map((p: any) => ({ ...p, visible: p.visible ?? true }));
 
@@ -22356,7 +22466,6 @@ if (!contenedores.has(codigo)) {
 
       setArticulos(ordenarProductos(resultados, value));
     } else {
-      // Al borrar → recargar productos del contexto actual sin filtro de texto
       const { data } = await construirQueryBusqueda(
         "",
         categoriaSeleccionada,
@@ -25807,159 +25916,146 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
 
             {/* Barra de navegación*/}
             <nav className="fixed bottom-0 left-0 z-50 grid w-full grid-cols-5 items-center border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md">
-              {/* 1. BOTÓN CATEGORÍAS */}
-              <button
-                onClick={() => {
-                  if (activeTab === "categorias") {
-                    if (categoriaSeleccionada || marcaSeleccionada) {
-                      setCategoriaSeleccionada(null);
-                      setMarcaSeleccionada(null);
-                      setGruposMarca([]);
-setGrupoMarcaActivoId(null);
-                    } else if (macroCategoriaSeleccionada) {
-                      setMacroCategoriaSeleccionada(null);
-                    } else {
-                      window.scrollTo({ top: 0, behavior: "instant" });
-                    }
-                  } else {
-                    setActiveTab("categorias");
-                  }
-                }}
-                className={`flex flex-col items-center text-[10px] sm:text-xs ${
-                  activeTab === "categorias"
-                    ? "text-orange-500"
-                    : "hover:text-orange-500"
-                }`}
-              >
-                <Hammer size={20} />
-                <span className="mt-1">CATÁLOGO</span>
-              </button>
+  {/* 1. BOTÓN CATEGORÍAS */}
+  <button
+    onClick={() => {
+      if (activeTab === "categorias") {
+        if (categoriaSeleccionada || marcaSeleccionada) {
+          setCategoriaSeleccionada(null);
+          setMarcaSeleccionada(null);
+          setGruposMarca([]);
+          setGrupoMarcaActivoId(null);
+        } else if (macroCategoriaSeleccionada) {
+          setMacroCategoriaSeleccionada(null);
+        } else {
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }
+      } else {
+        setActiveTab("categorias");
+     
+        const savedScroll = localStorage.getItem("scrollPos");
+        if (savedScroll) {
+          setTimeout(() => {
+            window.scrollTo({ top: parseInt(savedScroll), behavior: "instant" });
+          }, 50);
+        }
+      }
+    }}
+    className={`flex flex-col items-center text-[10px] sm:text-xs ${
+      activeTab === "categorias" ? "text-orange-500" : "hover:text-orange-500"
+    }`}
+  >
+    <Hammer size={20} />
+    <span className="mt-1">CATÁLOGO</span>
+  </button>
 
-              {/* 2. BOTÓN BUSCAR */}
-              <button
-                onClick={() => {
-                  window.scrollTo({ top: 0, behavior: "instant" });
-                  setCategoriaSeleccionada(null);
-                  setMarcaSeleccionada(null);
-                  setGruposMarca([]);
-setGrupoMarcaActivoId(null);
-                  setMacroCategoriaSeleccionada(null);
-                  buscarStateRef.current = {
-                    categoria: null,
-                    marca: null,
-                    searchTerm: "",
-                    productos: [],
-                  };
+  {/* 2. BOTÓN PEDIDOS */}
+  <button
+    onClick={() => {
+      if (activeTab === "categorias") {
+        localStorage.setItem("scrollPos", window.scrollY.toString());
+      }
+      window.scrollTo({ top: 0, behavior: "instant" });
+      setCategoriaSeleccionada(null);
+      setMarcaSeleccionada(null);
+      setGruposMarca([]);
+      setGrupoMarcaActivoId(null);
+      setMacroCategoriaSeleccionada(null);
+      buscarStateRef.current = {
+        categoria: null,
+        marca: null,
+        searchTerm: "",
+        productos: [],
+      };
+      setActiveTab("buscar");
+    }}
+    className={`flex flex-col items-center text-[10px] sm:text-xs ${
+      activeTab === "buscar" ? "text-orange-500" : "hover:text-orange-500"
+    }`}
+  >
+    <History size={20} />
+    <span className="mt-1">PEDIDOS</span>
+  </button>
 
-                  setActiveTab("buscar");
-                }}
-                className={`flex flex-col items-center text-[10px] sm:text-xs ${
-                  activeTab === "buscar"
-                    ? "text-orange-500"
-                    : "hover:text-orange-500"
-                }`}
-              >
-                <History size={20} />
-<span className="mt-1">PEDIDOS</span>
-              </button>
-
-              {/* 3. BOTÓN CARRITO */}
-              <div className="relative flex justify-center">
-                <button
-                  onClick={() => {
-                    localStorage.setItem(
-                      "scrollPos",
-                      window.scrollY.toString(),
-                    );
-                    setActiveTab("carrito");
-                  }}
-                  className={`
-        absolute
-        flex flex-col items-center text-[10px] sm:text-xs
-        z-50
-        transition-all duration-300
-        ${activeTab === "carrito" ? "-top-5" : "-top-17"} 
+  {/* 3. BOTÓN CARRITO */}
+  <div className="relative flex justify-center">
+    <button
+      onClick={() => {
+               localStorage.setItem("scrollPos", window.scrollY.toString());
+        setActiveTab("carrito");
+      }}
+      className={`
+        absolute flex flex-col items-center text-[10px] sm:text-xs z-50 transition-all duration-300
+        ${activeTab === "carrito" ? "-top-5" : "-top-17"}
       `}
-                >
-                  <div
-                    className={`
-          relative flex items-center justify-center
-          transition-all duration-300
-          ${
-            activeTab === "carrito"
-              ? "w-5 h-5 bg-transparent border-none shadow-none"
-              : "w-16 h-16 rounded-full border-1 border-zinc-200 bg-white text-zinc-700 shadow-xl"
-          }
-        `}
-                  >
-                    <ShoppingCart
-                      size={activeTab === "carrito" ? 20 : 26}
-                      className={`transition-all duration-300 ${
-                        activeTab === "carrito"
-                          ? "text-orange-500"
-                          : "text-zinc-700"
-                      }`}
-                    />
+    >
+      <div className={`
+        relative flex items-center justify-center transition-all duration-300
+        ${activeTab === "carrito"
+          ? "w-5 h-5 bg-transparent border-none shadow-none"
+          : "w-16 h-16 rounded-full border-1 border-zinc-200 bg-white text-zinc-700 shadow-xl"
+        }
+      `}>
+        <ShoppingCart
+          size={activeTab === "carrito" ? 20 : 26}
+          className={`transition-all duration-300 ${
+            activeTab === "carrito" ? "text-orange-500" : "text-zinc-700"
+          }`}
+        />
+        {activeTab !== "carrito" &&
+          carrito.reduce((sum, item) => sum + Math.floor(item.cantidad), 0) > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center text-xs font-bold bg-orange-500 text-white shadow-md">
+              {carrito.reduce((sum, item) => sum + Math.floor(item.cantidad), 0)}
+            </span>
+          )}
+      </div>
+      <span className={`mt-1 transition-all duration-300 ${
+        activeTab === "carrito" ? "text-orange-500 font-semibold" : "text-zinc-700"
+      }`}>
+        CARRITO
+      </span>
+    </button>
+  </div>
 
-                   {activeTab !== "carrito" &&
-  carrito.reduce((sum, item) => sum + Math.floor(item.cantidad), 0) > 0 && (
-    <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center text-xs font-bold bg-orange-500 text-white shadow-md">
-      {carrito.reduce((sum, item) => sum + Math.floor(item.cantidad), 0)}
-    </span>
-  )}
-                  </div>
-                  <span
-                    className={`mt-1 transition-all duration-300 ${
-                      activeTab === "carrito"
-                        ? "text-orange-500 font-semibold"
-                        : "text-zinc-700"
-                    }`}
-                  >
-                    CARRITO
-                  </span>
-                </button>
-              </div>
+  {/* 4. BOTÓN FAVORITOS */}
+  <button
+    onClick={() => {
+      localStorage.setItem("scrollPos", window.scrollY.toString());
+      setActiveTab("ubicacion");
+    }}
+    className={`flex flex-col items-center text-[10px] sm:text-xs ${
+      activeTab === "ubicacion" ? "text-orange-500" : "hover:text-orange-500"
+    }`}
+  >
+    <Star size={20} />
+    <span className="mt-1">FAVORITOS</span>
+  </button>
 
-              {/* 4. BOTÓN UBICACIÓN */}
-              <button
-                onClick={() => {
-                  localStorage.setItem("scrollPos", window.scrollY.toString());
-                  setActiveTab("ubicacion");
-                }}
-                className={`flex flex-col items-center text-[10px] sm:text-xs ${
-                  activeTab === "ubicacion"
-                    ? "text-orange-500"
-                    : "hover:text-orange-500"
-                }`}
-              >
-                <Star size={20} />
-                <span className="mt-1">FAVORITOS</span>
-              </button>
-
-              {/* 5. BOTÓN MAS */}
-              <button
-                onClick={() => {
-                  if (activeTab === "perfil") {
-                    if (vistaPerfil !== "menu") {
-                      setVistaPerfil("menu");
-                    } else {
-                      window.scrollTo({ top: 0, behavior: "instant" });
-                    }
-                  } else {
-                    window.scrollTo({ top: 0, behavior: "instant" });
-                    setActiveTab("perfil");
-                  }
-                }}
-                className={`flex flex-col items-center text-[10px] sm:text-xs ${
-                  activeTab === "perfil"
-                    ? "text-orange-500"
-                    : "hover:text-orange-500"
-                }`}
-              >
-                <Menu size={20} />
-                <span className="mt-1">MAS</span>
-              </button>
-            </nav>
+  {/* 5. BOTÓN MAS */}
+  <button
+    onClick={() => {
+      if (activeTab === "perfil") {
+        if (vistaPerfil !== "menu") {
+          setVistaPerfil("menu");
+        } else {
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }
+      } else {
+        if (activeTab === "categorias") {
+          localStorage.setItem("scrollPos", window.scrollY.toString());
+        }
+        window.scrollTo({ top: 0, behavior: "instant" });
+        setActiveTab("perfil");
+      }
+    }}
+    className={`flex flex-col items-center text-[10px] sm:text-xs ${
+      activeTab === "perfil" ? "text-orange-500" : "hover:text-orange-500"
+    }`}
+  >
+    <Menu size={20} />
+    <span className="mt-1">MAS</span>
+  </button>
+</nav>
           </motion.div>
         )}
       </AnimatePresence>
