@@ -109,33 +109,37 @@ import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
 
-const construirQueryBusqueda = async (searchTerm: string, categoria: any, marca: any) => {
-  const selectCampos = "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales, existencia, ubicacion, caja, master, unidad_venta";
+const construirQueryBusqueda = async (searchTerm: string, categoria: any, marca: any, subcategoriaMarca: any = null) => {
+  const selectCampos = "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales, existencia, ubicacion, caja, master, unidad_venta, subcategoria_marca_id";
 
   const palabras = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+  const aplicarFiltros = (q: any) => {
+    if (categoria) q = q.eq("CATEGORIA_ID", categoria.id_categoria);
+    else if (marca) {
+      q = q.eq("marca_id", marca.id);
+      if (subcategoriaMarca && subcategoriaMarca !== "DIRECTO") {
+        q = q.eq("subcategoria_marca_id", subcategoriaMarca.id);
+      }
+    }
+    return q;
+  };
+
   if (palabras.length === 0) {
-    return await supabase.from("productos").select(selectCampos).limit(200);
+    return await aplicarFiltros(supabase.from("productos").select(selectCampos)).limit(200);
   }
 
-  let queryFrase = supabase.from("productos").select(selectCampos);
-  if (categoria) queryFrase = queryFrase.eq("CATEGORIA_ID", categoria.id_categoria);
-  else if (marca) queryFrase = queryFrase.eq("marca_id", marca.id);
-  queryFrase = queryFrase.ilike("TITULO", `%${searchTerm.trim()}%`);
+  let queryFrase = aplicarFiltros(supabase.from("productos").select(selectCampos))
+    .ilike("TITULO", `%${searchTerm.trim()}%`);
 
-  let queryPalabras = supabase.from("productos").select(selectCampos);
-  if (categoria) queryPalabras = queryPalabras.eq("CATEGORIA_ID", categoria.id_categoria);
-  else if (marca) queryPalabras = queryPalabras.eq("marca_id", marca.id);
+  let queryPalabras = aplicarFiltros(supabase.from("productos").select(selectCampos));
   palabras.forEach((palabra) => {
-  const p = palabra.replace(/[%_]/g, "\\$&");
-  queryPalabras = queryPalabras.or(
-    `TITULO.ilike.%${p}%,CODIGO.ilike.%${p}%,C_PRODUCTO.ilike.%${p}%`
-  );
-});
+    const p = palabra.replace(/[%_]/g, "\\$&");
+    queryPalabras = queryPalabras.or(`TITULO.ilike.%${p}%,CODIGO.ilike.%${p}%,C_PRODUCTO.ilike.%${p}%`);
+  });
 
-  let queryExacto = supabase.from("productos").select(selectCampos)
+  let queryExacto = aplicarFiltros(supabase.from("productos").select(selectCampos))
     .eq("CODIGO", searchTerm.trim());
-  if (categoria) queryExacto = queryExacto.eq("CATEGORIA_ID", categoria.id_categoria);
-  else if (marca) queryExacto = queryExacto.eq("marca_id", marca.id);
 
   const [{ data: dataFrase }, { data: dataPalabras }, { data: dataExacto }] = await Promise.all([
     queryFrase.limit(200),
@@ -146,10 +150,7 @@ const construirQueryBusqueda = async (searchTerm: string, categoria: any, marca:
   const vistos = new Set<number>();
   const merged: any[] = [];
   for (const p of [...(dataExacto || []), ...(dataFrase || []), ...(dataPalabras || [])]) {
-    if (!vistos.has(p.id)) {
-      vistos.add(p.id);
-      merged.push(p);
-    }
+    if (!vistos.has(p.id)) { vistos.add(p.id); merged.push(p); }
   }
 
   return { data: merged };
@@ -12481,6 +12482,7 @@ const ubicacion = fila.UBICACION || fila.ubicacion;
 const caja = fila.CAJA || fila.caja;
 const master = fila.MASTER || fila.master;
 const unidadVenta = fila.UNIDAD_VENTA || fila.unidad_venta;
+const marcaId = fila.MARCA_ID || fila.marca_id;
 
           if (!codigo) {
             errores++;
@@ -12513,6 +12515,8 @@ if (master !== undefined && master !== null && master !== "")
   datosActualizar.master = parseFloat(master);
 if (unidadVenta !== undefined && unidadVenta !== null && unidadVenta !== "")
   datosActualizar.unidad_venta = unidadVenta;
+if (marcaId !== undefined && marcaId !== null && marcaId !== "")
+  datosActualizar.marca_id = parseInt(marcaId);
 
           // Si no hay nada que actualizar, saltar
           if (Object.keys(datosActualizar).length === 0) {
@@ -20921,10 +20925,16 @@ if (!contenedores.has(codigo)) {
                         <span className="text-xs bg-zinc-100 border border-zinc-200 rounded-full px-3 py-1 text-zinc-600 font-medium">
                           {item.unidad_venta}
                         </span>
-                      )}
-                      
-                    </div>
+                      )}                   
 
+                    </div>
+{item.ubicacion && (
+                    <div className="mt-2 flex font-semibold text-xs items-center text-zinc-500 gap-1">
+                      <p>
+                        ubicacion: {item.ubicacion || "N/A"}
+                      </p>
+                      </div> 
+  )} 
                     {esPA && (
                       <div className="mt-2 bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
                         PA - AGOTADO
@@ -22323,14 +22333,40 @@ if (!contenedores.has(codigo)) {
   const value = e.target.value;
   if (categoriaSeleccionada || marcaSeleccionada) {
     setSearchTerm(value);
+
     if (value.trim()) {
-      const { data } = await construirQueryBusqueda(value, null, null);
+      // Buscar respetando el contexto actual
+      const { data } = await construirQueryBusqueda(
+        value,
+        categoriaSeleccionada,
+        marcaSeleccionada,
+        subcategoriaMarcaSeleccionada  // 👈 nuevo parámetro
+      );
+      let resultados = (data || []).map((p: any) => ({ ...p, visible: p.visible ?? true }));
+
+      // Filtrar por grupo activo si hay uno
+      if (grupoActivoId && grupoActivoId !== "todos" && gruposSubcat.length > 0) {
+        const grupo = gruposSubcat.find((g) => g.id === grupoActivoId);
+        if (grupo) resultados = resultados.filter((p: any) => grupo.productoIds.includes(p.id));
+      }
+      if (grupoMarcaActivoId && grupoMarcaActivoId !== "todos" && gruposMarca.length > 0) {
+        const grupo = gruposMarca.find((g) => g.id === grupoMarcaActivoId);
+        if (grupo) resultados = resultados.filter((p: any) => grupo.productoIds.includes(p.id));
+      }
+
+      setArticulos(ordenarProductos(resultados, value));
+    } else {
+      // Al borrar → recargar productos del contexto actual sin filtro de texto
+      const { data } = await construirQueryBusqueda(
+        "",
+        categoriaSeleccionada,
+        marcaSeleccionada,
+        subcategoriaMarcaSeleccionada
+      );
       setArticulos(ordenarProductos(
         (data || []).map((p: any) => ({ ...p, visible: p.visible ?? true })),
-        value
+        ""
       ));
-    } else {
-      setArticulos([]);
     }
   }
 }}
@@ -22847,7 +22883,7 @@ setGrupoMarcaActivoId(null);
               setSubcategoriasMarca(subcatsFiltradas);
               const { data: sinSubcat } = await supabase
                 .from("productos")
-                .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id")
+                .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id, C_PRODUCTO, permite_decimales, caja, master, unidad_venta, orden_categoria, orden_marca")
                 .eq("marca_id", marca.id)
                 .is("subcategoria_marca_id", null)
                 .order("orden_marca", { ascending: true });
@@ -23025,7 +23061,7 @@ setGrupoMarcaActivoId(null);
           }
           const { data: productos, error } = await supabase
             .from("productos")
-            .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id")
+            .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id, C_PRODUCTO, permite_decimales, caja, master, unidad_venta, orden_categoria, orden_marca")
             .eq("marca_id", marcaSeleccionada.id)
             .eq("subcategoria_marca_id", subcat.id)
             .order("orden_marca", { ascending: true });
