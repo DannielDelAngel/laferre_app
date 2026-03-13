@@ -15183,7 +15183,7 @@ if (backOrderExistente) {
           )}
 
           {/* Toggle requiere recolección */}
-{esAdmin && pedidoSeleccionado.estado === "surtiendo" && (
+{esAdmin && ["surtiendo", "nuevo_pedido"].includes(pedidoSeleccionado.estado) && (
   <button
     onClick={async () => {
   const nuevoValor = !pedidoSeleccionado.requiere_recoleccion;
@@ -15207,6 +15207,32 @@ if (backOrderExistente) {
     <PackagePlus size={16} />
     {pedidoSeleccionado.requiere_recoleccion ? "Recolección activada" : "Activar recolección"}
   </button>
+)}
+
+ {/* Campo para número de orden de recolección */}
+{esAdmin && pedidoSeleccionado.requiere_recoleccion && (
+  <div className="relative mt-2">
+    <input
+      type="text"
+      placeholder="Número de orden de recolección..."
+      defaultValue={pedidoSeleccionado.numero_orden || ""}
+      onBlur={async (e) => {
+        const valor = e.target.value.trim();
+        await supabase
+          .from("pedidos")
+          .update({ numero_orden: valor || null })
+          .eq("id", pedidoSeleccionado.id);
+        setPedidoSeleccionado((prev: any) => ({ ...prev, numero_orden: valor }));
+        setPedidos((prev: any[]) =>
+          prev.map((p) =>
+            p.id === pedidoSeleccionado.id ? { ...p, numero_orden: valor } : p
+          )
+        );
+      }}
+      className="w-full rounded-lg border border-zinc-300 text-zinc-700 pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+    />
+    <PackagePlus size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+  </div>
 )}
 
           {!esAdmin && (
