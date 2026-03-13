@@ -17009,7 +17009,7 @@ const RecoleccionPanel = ({ supabase, onBack, esAdmin }: any) => {
     const cargar = async () => {
       const { data } = await supabase
         .from("pedidos")
-        .select("id, created_at, total, cuenta_id, cuentas(cliente, ferreteria, numero_cuenta)")
+        .select("id, created_at, total, cuenta_id, numero_orden, cuentas(cliente, ferreteria, numero_cuenta)")
         .eq("estado", "pendiente_recoleccion")
         .order("created_at", { ascending: false });
       setPedidos(data || []);
@@ -17276,7 +17276,17 @@ const RecoleccionPanel = ({ supabase, onBack, esAdmin }: any) => {
     return (
       <motion.div className="min-h-screen pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <BackBtn onBack={() => { setPedidoSeleccionado(null); setHojas([]); }} />
-        <h2 className="text-xl font-bold text-zinc-900 mb-2">Pedido #{pedidoSeleccionado.id} - Selecciona Hoja</h2>
+<h2 className="text-xl font-bold text-zinc-900 mb-2">
+  Pedido #{pedidoSeleccionado.id} - Selecciona Hoja
+</h2>
+
+{pedidoSeleccionado.numero_orden && (
+  <div className="flex items-center gap-2 mb-3 bg-yellow-50 border border-yellow-300 rounded-lg px-3 py-2">
+    <PackagePlus size={15} className="text-yellow-600 flex-shrink-0" />
+    <span className="text-xs text-yellow-700 font-medium">Orden de recolección:</span>
+    <span className="text-sm font-bold text-yellow-800">{pedidoSeleccionado.numero_orden}</span>
+  </div>
+)}
         <div className="space-y-3">
           {hojas.map((hoja) => {
             const faltantes = hoja.productos.filter((p: any) => p.esFaltante);
@@ -24980,14 +24990,42 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
       )}
 
       {/* Productos */}
-      {esAdmin && (
+      {(esAdmin || esEmpleado) && (
         <Acordeon titulo="Productos" icono={<Package size={18} />}>
-          <MenuItem label="Agregar producto" icon={<PackagePlus size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("agregar-producto"); }} />
-          <MenuItem label="Actualizar base de datos" icon={<DatabaseBackup size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("actualizar-bd"); }} />
-          <MenuItem label="Eliminación masiva" icon={<X size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("eliminacion-masiva"); }} />
-          <MenuItem label="Inventario" icon={<Package size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("inventario"); }} />
-          <MenuItem label="gestionar grupos" icon={<Package size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("gestionar-grupos"); }} />
-        </Acordeon>
+          {esAdmin && (
+      <>
+        <MenuItem 
+          label="Agregar producto" 
+          icon={<PackagePlus size={20} />} 
+          onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("agregar-producto"); }} 
+        />
+        <MenuItem 
+          label="Actualizar base de datos" 
+          icon={<DatabaseBackup size={20} />} 
+          onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("actualizar-bd"); }} 
+        />
+        <MenuItem 
+          label="Eliminación masiva" 
+          icon={<X size={20} />} 
+          onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("eliminacion-masiva"); }} 
+        />
+        <MenuItem 
+          label="Gestionar grupos" 
+          icon={<Package size={20} />} 
+          onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("gestionar-grupos"); }} 
+        />
+      </>
+    )}
+
+    {(esAdmin || esEmpleado) && (
+      <MenuItem 
+        label="Inventario" 
+        icon={<Package size={20} />} 
+        onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("inventario"); }} 
+      />
+    )}
+    
+    </Acordeon>
       )}
 
       {/* Categorías y Marcas */}
@@ -25282,7 +25320,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
   <GestionarGruposMarca setVistaPerfil={setVistaPerfil} />
 )}
 
-                    {vistaPerfil === "inventario" && esAdmin && (
+                    {vistaPerfil === "inventario" && (esAdmin || esEmpleado) && (
                       <motion.div
                         key="inventario"
                         initial={{ opacity: 0, x: 40 }}
@@ -25298,7 +25336,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
                         }}
                       >
                         <BackBtn onBack={() => setVistaPerfil("menu")} />
-                        <InventarioPanel />
+                        <InventarioPanel supabase={supabase} cuenta={cuenta} esAdmin={esAdmin} />
                       </motion.div>
                     )}
 
