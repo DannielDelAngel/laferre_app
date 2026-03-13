@@ -62,6 +62,31 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
     }
   }, [cuenta]);
 
+  // Función específica para cuando escanea físicamente
+const escanearProducto = async (codigo: string) => {
+  if (!codigo.trim()) return;
+  setError("");
+
+  const { data } = await client
+    .from("productos")
+    .select("id, TITULO, CODIGO, IMAGEN")
+    .or(`CODIGO.eq.${codigo.trim()},C_PRODUCTO.eq.${codigo.trim()}`)
+    .single();
+
+  if (!data) {
+    setError(`No se encontró: ${codigo.trim()}`);
+    return;
+  }
+// Si ya existe el producto en la lista, suma 1 a la cantidad
+  setItems((prev) => {
+    const existente = prev.find((i) => i.id === data.id);
+    if (existente) {
+      return prev.map((i) => i.id === data.id ? { ...i, cantidad: i.cantidad + 1 } : i);
+    }
+    return [...prev, { ...data, cantidad: 1 }];
+  });
+};
+
   // Guardar progreso en localStorage cada vez que cambia items
   useEffect(() => {
     if (!cuenta?.numero_cuenta) return;
@@ -74,37 +99,37 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
 
   // Scanner físico 
   useEffect(() => {
-    if (esperandoCantidad) return; 
+  if (esperandoCantidad) return;
 
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (
-        document.activeElement === codigoRef.current ||
-        document.activeElement === cantidadRef.current
-      ) return;
+  const handleKeyPress = (e: KeyboardEvent) => {
+    if (
+      document.activeElement === codigoRef.current ||
+      document.activeElement === cantidadRef.current
+    ) return;
 
-      if (e.key === "Enter") {
-        if (bufferEscaneo.trim()) {
-          buscarProducto(bufferEscaneo.trim());
-          setBufferEscaneo("");
-        }
-        return;
+    if (e.key === "Enter") {
+      if (bufferEscaneo.trim()) {
+        escanearProducto(bufferEscaneo.trim()); 
+        setBufferEscaneo("");
       }
-      setBufferEscaneo((prev) => prev + e.key);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => {
-        if (bufferEscaneo.trim()) {
-          buscarProducto(bufferEscaneo.trim());
-          setBufferEscaneo("");
-        }
-      }, 100);
-    };
+      return;
+    }
+    setBufferEscaneo((prev) => prev + e.key);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      if (bufferEscaneo.trim()) {
+        escanearProducto(bufferEscaneo.trim()); 
+        setBufferEscaneo("");
+      }
+    }, 100);
+  };
 
-    window.addEventListener("keypress", handleKeyPress);
-    return () => {
-      window.removeEventListener("keypress", handleKeyPress);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [bufferEscaneo, esperandoCantidad]);
+  window.addEventListener("keypress", handleKeyPress);
+  return () => {
+    window.removeEventListener("keypress", handleKeyPress);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  };
+}, [bufferEscaneo, esperandoCantidad]);
 
   useEffect(() => {
     if (esperandoCantidad) {
@@ -113,25 +138,25 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
   }, [esperandoCantidad]);
 
   const buscarProducto = async (codigo: string) => {
-    if (!codigo.trim()) return;
-    setBuscando(true);
-    setError("");
-    const { data, error } = await client
-      .from("productos")
-      .select("id, TITULO, CODIGO, IMAGEN")
-      .eq("CODIGO", codigo.trim())
-      .single();
+  if (!codigo.trim()) return;
+  setBuscando(true);
+  setError("");
+  const { data, error } = await client
+    .from("productos")
+    .select("id, TITULO, CODIGO, IMAGEN")
+    .or(`CODIGO.eq.${codigo.trim()},C_PRODUCTO.eq.${codigo.trim()}`)
+    .single();
 
-    setBuscando(false);
-    if (error || !data) {
-      setError(`No se encontró el código: ${codigo.trim()}`);
-      setProductoEncontrado(null);
-      return;
-    }
-    setProductoEncontrado(data);
-    setEsperandoCantidad(true);
-    setCodigoInput(codigo.trim());
-  };
+  setBuscando(false);
+  if (error || !data) {
+    setError(`No se encontró el código: ${codigo.trim()}`);
+    setProductoEncontrado(null);
+    return;
+  }
+  setProductoEncontrado(data);
+  setEsperandoCantidad(true);
+  setCodigoInput(codigo.trim());
+};
 
   const agregarItem = () => {
     if (!productoEncontrado) return;
