@@ -18191,7 +18191,7 @@ if (empleados.length > 0) {
       };
 
       guardarEstadoLocalHoja(hojaActual.id, estadoActual);
-    }, [productosVerificados, cambiosEstado, hojaActual]);
+}, [productosVerificados, cambiosEstado]);
 
     const completarHoja = async () => {
       if (!hojaActual) return;
