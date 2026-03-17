@@ -1,13 +1,18 @@
+// @ts-ignore
+const withPWA = require("next-pwa")({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+  clientsClaim: true,
+  disable: process.env.NODE_ENV === "development",
+});
+
 import type { NextConfig } from "next";
 
-
-const isDev = process.env.NODE_ENV === "development";
-
 const nextConfig: NextConfig = {
-
+  turbopack: {}, 
   reactStrictMode: true,
   images: {
-
     unoptimized: true,
     remotePatterns: [
       {
@@ -19,7 +24,7 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "via.placeholder.com",
       },
-       {
+      {
         protocol: "https",
         hostname: "bodegaferreterademty.com.mx",
         pathname: "/**",
@@ -27,12 +32,5 @@ const nextConfig: NextConfig = {
     ],
   },
 };
-export default nextConfig;
-// Configurar PWA (solo en producción)
-//export default withPWA({
-  //dest: "public",
-  //register: true,
-  //skipWaiting: true,
-  //disable: isDev,
-//})(nextConfig);
 
+export default withPWA(nextConfig);

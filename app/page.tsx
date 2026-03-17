@@ -4375,6 +4375,14 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
   });
 
   useEffect(() => {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      window.location.reload();
+    });
+  }
+}, []);
+
+  useEffect(() => {
     const obtenerTotalProductos = async () => {
       const { count, error } = await supabase
         .from("productos")
