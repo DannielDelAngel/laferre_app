@@ -22,7 +22,7 @@ import {
   PackageSearch,
   Plus,
   Menu,
-  FileQuestionMark,
+  ChevronDown,
   LogOut,
   DollarSign,
   UserCog,
@@ -42,6 +42,7 @@ import {
   MapPinned,
   Layers,
   RotateCw,
+  ClipboardList,
 } from "lucide-react";
 
 const ordenarProductos = (productos: any[], searchTerm: string) => {
@@ -4705,6 +4706,7 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
     const macrosFiltradas = macroCategorias.filter((macro: any) =>
       macro.nombre.toLowerCase().includes(macroQuery.toLowerCase()),
     );
+    const [busquedaItem, setBusquedaItem] = useState("");
 
     useEffect(() => {
       if (tipo === "subcategoria") {
@@ -4873,14 +4875,13 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
       }
     };
 
-    const items =
-      tipo === "macro"
-        ? [...macroCategorias].sort((a, b) =>
-            (a.nombre || "").localeCompare(b.nombre || ""),
-          )
-        : [...categoriasEdicion].sort((a, b) =>
-            (a.nombre_categoria || "").localeCompare(b.nombre_categoria || ""),
-          );
+    const items = (tipo === "macro"
+  ? [...macroCategorias].sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""))
+  : [...categoriasEdicion].sort((a, b) => (a.nombre_categoria || "").localeCompare(b.nombre_categoria || ""))
+).filter((item) => {
+  const nombre = (item.nombre || item.nombre_categoria || "").toLowerCase();
+  return nombre.includes(busquedaItem.toLowerCase());
+});
 
     return (
       <div className="min-h-screen px-6 py-6">
@@ -4896,6 +4897,7 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
               setTipo("macro");
               setItemSeleccionado(null);
               setMensaje("");
+              setBusquedaItem("");
             }}
             className={`flex-1 py-3 rounded-lg font-semibold transition ${
               tipo === "macro"
@@ -4910,6 +4912,7 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
               setTipo("subcategoria");
               setItemSeleccionado(null);
               setMensaje("");
+              setBusquedaItem("");
             }}
             className={`flex-1 py-3 rounded-lg font-semibold transition ${
               tipo === "subcategoria"
@@ -4920,6 +4923,27 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
             Subcategorías
           </button>
         </div>
+
+        {!itemSeleccionado && (
+  <div className="relative mb-4">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
+    <input
+      type="text"
+      value={busquedaItem}
+      onChange={(e) => setBusquedaItem(e.target.value)}
+      placeholder={`Buscar ${tipo === "macro" ? "categoría" : "subcategoría"}...`}
+      className="w-full rounded-xl border text-zinc-700 border-zinc-300 pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+    />
+    {busquedaItem && (
+      <button
+        onClick={() => setBusquedaItem("")}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+      >
+        <X size={14} />
+      </button>
+    )}
+  </div>
+)}
 
         {!itemSeleccionado ? (
           /* LISTA DE ITEMS */
@@ -10930,6 +10954,7 @@ const [busqueda, setBusqueda] = useState("");
         ))}
       </select>
     </div>
+    
 
     {/* Tipo de Comprobante */}
     <div className="mb-4">
@@ -14319,6 +14344,11 @@ useEffect(() => {
         labelAdmin: "Listo para recoger",
         color: "bg-emerald-100 text-emerald-800 border-emerald-200",
       },
+      pendiente_recoleccion: {
+  label: "En recolección",
+  labelAdmin: "Pendiente recolección",
+  color: "bg-yellow-100 text-yellow-800 border-yellow-200",
+},
     };
 
     const estadoInfo = estados[estado] ?? estados["recibido"];
@@ -15409,6 +15439,10 @@ if (backOrderExistente) {
                   </div>
                 ) : (
                   <>
+
+                  {/* Hojas de surtido y revisión */}
+{esAdmin && <HojasResumenPedido pedidoId={pedidoSeleccionado.id} supabase={supabase} />}
+
                     {/* Información del cliente y tipo de comprobante */}
                     {esAdmin && (
                       <div className="bg-zinc-50 rounded-lg p-3 mb-3 border border-zinc-200">
@@ -15971,14 +16005,17 @@ if (backOrderExistente) {
 
     {!cargando && pedidos.length > 0 && (() => {
       const FILTROS = [
-        { key: "todos", label: "Todos" },
-        { key: "nuevo_pedido", label: "Nuevo" },
-        { key: "surtiendo", label: "Surtiendo" },
-        { key: "encajado", label: "Encajado" },
-        { key: "listo_para_recoger", label: "Para recoger" },
-        { key: "en_ruta", label: "En ruta" },
-        { key: "entregado", label: "Entregado" },
-        { key: "completado", label: "Completado" },
+  { key: "todos",                label: "Todos" },
+  { key: "nuevo_pedido",         label: "Nuevo" },
+  { key: "surtiendo",            label: "Surtiendo" },
+  { key: "por_revisar",          label: "Por revisar" },
+  { key: "revisando",            label: "Revisando" },
+  { key: "pendiente_recoleccion",label: "Recolección" },
+  { key: "encajado",             label: "Encajado" },
+  { key: "listo_para_recoger",   label: "Para recoger" },
+  { key: "en_ruta",              label: "En ruta" },
+  { key: "entregado",            label: "Entregado" },
+  { key: "completado",           label: "Completado" },
       ];
 
       const pedidosFiltrados = pedidos.filter((p) => {
@@ -16174,6 +16211,139 @@ if (backOrderExistente) {
   </motion.div>
 );
   };
+
+  const HojasResumenPedido = ({ pedidoId, supabase }: any) => {
+  const [hojas, setHojas] = useState<any[]>([]);
+  const [nombres, setNombres] = useState<Record<string, string>>({});
+  const [revisionesMap, setRevisionesMap] = useState<Record<number, string>>({});
+  const [cargando, setCargando] = useState(true);
+  const [abierto, setAbierto] = useState(false); 
+
+  useEffect(() => {
+    const cargar = async () => {
+      const [{ data: hojasData }, { data: revisionesData }] = await Promise.all([
+        supabase
+          .from("hojas_surtido")
+          .select("id, numero_hoja, empleado_surtiendo, revisando_por, estado")
+          .eq("pedido_id", pedidoId)
+          .order("numero_hoja", { ascending: true }),
+        supabase
+          .from("hojas_revision")
+          .select("hoja_id, revisado_por")
+          .eq("pedido_id", pedidoId),
+      ]);
+
+      if (!hojasData?.length) { setCargando(false); return; }
+      setHojas(hojasData);
+
+      const mRevision: Record<number, string> = {};
+      revisionesData?.forEach((r: any) => { mRevision[r.hoja_id] = r.revisado_por; });
+      setRevisionesMap(mRevision);
+
+      const cuentas = [...new Set([
+        ...hojasData.filter((h: any) => h.empleado_surtiendo).map((h: any) => h.empleado_surtiendo),
+        ...hojasData.filter((h: any) => h.revisando_por).map((h: any) => h.revisando_por),
+        ...Object.values(mRevision),
+      ])].filter(Boolean);
+
+      if (cuentas.length > 0) {
+        const { data: cuentasInfo } = await supabase
+          .from("cuentas")
+          .select("numero_cuenta, cliente")
+          .in("numero_cuenta", cuentas);
+
+        const mapa: Record<string, string> = {};
+        cuentasInfo?.forEach((c: any) => { mapa[c.numero_cuenta] = c.cliente || c.numero_cuenta; });
+        setNombres(mapa);
+      }
+
+      setCargando(false);
+    };
+    cargar();
+  }, [pedidoId]);
+
+ if (cargando || !hojas.length) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-zinc-200 mb-4 shadow-sm mt-4 overflow-hidden">
+      
+      {/* Header clickeable */}
+      <button
+        onClick={() => setAbierto(!abierto)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-zinc-50 transition"
+      >
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-blue-100 rounded-full text-blue-600">
+            <ClipboardList size={15} />
+          </div>
+          <span className="text-sm font-semibold text-zinc-900">
+            Control de surtido y revisión
+          </span>
+          <span className="text-xs bg-zinc-100 text-zinc-500 font-semibold px-2 py-0.5 rounded-full">
+            {hojas.length}
+          </span>
+        </div>
+        <motion.div
+          animate={{ rotate: abierto ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <ChevronDown size={16} className="text-zinc-400" />
+        </motion.div>
+      </button>
+
+      {/* Contenido colapsable */}
+      <AnimatePresence>
+        {abierto && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 space-y-2 border-t border-zinc-100 pt-3">
+              {hojas.map((hoja: any) => {
+                const revisadoPor = revisionesMap[hoja.id] || hoja.revisando_por;
+                return (
+                  <div key={hoja.id} className="flex items-start justify-between bg-zinc-50 rounded-lg px-3 py-2.5 border border-zinc-100">
+                    <div>
+                      <p className="text-sm font-bold text-zinc-800">Hoja #{hoja.numero_hoja}</p>
+                      <div className="mt-1 space-y-0.5">
+                        {hoja.empleado_surtiendo && (
+                          <p className="text-xs text-zinc-500">
+                            <span className="font-semibold text-zinc-600">Surtió:</span>{" "}
+                            {nombres[hoja.empleado_surtiendo] || hoja.empleado_surtiendo}
+                          </p>
+                        )}
+                        {revisadoPor && (
+                          <p className="text-xs text-zinc-500">
+                            <span className="font-semibold text-zinc-600">Revisó:</span>{" "}
+                            {nombres[revisadoPor] || revisadoPor}
+                          </p>
+                        )}
+                        {!hoja.empleado_surtiendo && !revisadoPor && (
+                          <p className="text-xs text-zinc-400">Sin asignar</p>
+                        )}
+                      </div>
+                    </div>
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                      hoja.estado === "completado" ? "bg-green-100 text-green-700"
+                      : hoja.estado === "surtiendo" ? "bg-purple-100 text-purple-700"
+                      : hoja.estado === "revisado" ? "bg-blue-100 text-blue-700"
+                      : "bg-zinc-100 text-zinc-600"
+                    }`}>
+                      {hoja.estado || "pendiente"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
   const VistaBackOrders = ({
     cuenta,
@@ -22375,25 +22545,28 @@ if (!contenedores.has(codigo)) {
           >
             <header className="p-6 pt-6 bg-orange-500 sticky top-0 z-50 border-zinc-200">
 
-              <AnimatePresence>
-  {nuevoPedidoAlerta && (esAdmin || esEmpleado) && (
-    <motion.div
-      initial={{ y: -40, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={{ y: -40, opacity: 0 }}
-      transition={{ type: "spring", stiffness: 300, damping: 25 }}
-    className="absolute -bottom-7 left-4 z-40 flex items-center gap-2 px-4 py-1.5 rounded-b-xl bg-green-500 text-white text-xs font-bold shadow-md whitespace-nowrap"
-     >
-      <motion.span
-        animate={{ scale: [1, 1.3, 1] }}
-        transition={{ repeat: Infinity, duration: 0.8 }}
+              <div className="absolute bottom-0 left-4 translate-y-full overflow-hidden pointer-events-none">
+  <AnimatePresence>
+    {nuevoPedidoAlerta && (esAdmin || esEmpleado) && (
+      <motion.div
+        initial={{ y: "-100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "-100%" }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        className="pointer-events-auto flex items-center gap-2 px-4 py-1.5 rounded-b-xl bg-green-500 text-white text-xs font-bold shadow-md whitespace-nowrap"
       >
-        🛎️
-      </motion.span>
-      Nuevo pedido entrante
-    </motion.div>
-  )}
-</AnimatePresence>
+        <motion.span
+          animate={{ scale: [1, 1.3, 1] }}
+          transition={{ repeat: Infinity, duration: 0.8 }}
+        >
+          🛎️
+        </motion.span>
+        Nuevo pedido entrante
+      </motion.div>
+    )}
+  </AnimatePresence>
+</div>
+
 
               {/* reload */}
               {(esAdmin || esEmpleado) && (
