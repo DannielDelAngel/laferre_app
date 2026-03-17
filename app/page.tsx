@@ -41,6 +41,7 @@ import {
   ScanBarcode,
   MapPinned,
   Layers,
+  RotateCw,
 } from "lucide-react";
 
 const ordenarProductos = (productos: any[], searchTerm: string) => {
@@ -4228,7 +4229,7 @@ const [gruposSubcat, setGruposSubcat] = useState<any[]>([]);
 const [grupoActivoId, setGrupoActivoId] = useState<number | "todos" | null>(null);
 const [gruposMarca, setGruposMarca] = useState<any[]>([]);
 const [grupoMarcaActivoId, setGrupoMarcaActivoId] = useState<number | 'todos' | null>(null);
-
+const [recargando, setRecargando] = useState(false);
 
 const cargarGruposDeMarca = async (marcaId: number) => {
   const { data: subcats } = await supabase
@@ -22305,6 +22306,25 @@ if (!contenedores.has(codigo)) {
             className="flex min-h-screen flex-col  bg-white font-sans"
           >
             <header className="p-6 pt-6 bg-orange-500 sticky top-0 z-50 border-zinc-200">
+              {/* reload */}
+              {(esAdmin || esEmpleado) && (
+  <button
+    onClick={() => {
+      setRecargando(true);
+      setTimeout(() => window.location.reload(), 600);
+    }}
+    title="Recargar página"
+    className="absolute -bottom-7 right-4 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-b-xl bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white text-xs font-semibold shadow-md transition"
+  >
+    <motion.div
+      animate={recargando ? { rotate: 360 } : { rotate: 0 }}
+      transition={recargando ? { duration: 0.4, repeat: Infinity, ease: "linear" } : {}}
+    >
+      <RotateCw  size={13} />
+    </motion.div>
+    Recargar
+  </button>
+)}
               {/* <AnimatePresence>
                 <motion.div
                   initial={{ opacity: 0, y: -20 }}

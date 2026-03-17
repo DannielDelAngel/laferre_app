@@ -50,6 +50,12 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
   const cantidadRef = useRef<HTMLInputElement>(null);
   const codigoRef = useRef<HTMLInputElement>(null);
 
+  const [sugerencias, setSugerencias] = useState<any[]>([]);
+const [totalSugerencias, setTotalSugerencias] = useState(0);
+const [buscandoSugerencias, setBuscandoSugerencias] = useState(false);
+const [mostrarMas, setMostrarMas] = useState(false);
+const LIMITE = 10;
+
   // Cargar progreso desde localStorage al montar
   useEffect(() => {
     if (!cuenta?.numero_cuenta) return;
@@ -61,6 +67,38 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
       } catch {}
     }
   }, [cuenta]);
+
+  const buscarSugerencias = async (valor: string, limite = LIMITE) => {
+  if (!valor.trim() || valor.length < 2) { setSugerencias([]); setTotalSugerencias(0); return; }
+  setBuscandoSugerencias(true);
+
+  const palabras = valor.trim().split(/\s+/).filter(Boolean);
+
+  let query = client
+    .from("productos")
+    .select("id, TITULO, CODIGO, IMAGEN", { count: "exact" });
+
+  palabras.forEach((palabra) => {
+    query = query.ilike("TITULO", `%${palabra}%`);
+  });
+
+  const { data, count } = await query.limit(limite);
+
+  if (!data?.length) {
+    const { data: dataCodigo, count: countCodigo } = await client
+      .from("productos")
+      .select("id, TITULO, CODIGO, IMAGEN", { count: "exact" })
+      .or(`CODIGO.ilike.%${valor.trim()}%,C_PRODUCTO.ilike.%${valor.trim()}%`)
+      .limit(limite);
+    setSugerencias(dataCodigo || []);
+    setTotalSugerencias(countCodigo || 0);
+  } else {
+    setSugerencias(data || []);
+    setTotalSugerencias(count || 0);
+  }
+
+  setBuscandoSugerencias(false);
+};
 
   // Función específica para cuando escanea físicamente
 const escanearProducto = async (codigo: string) => {
@@ -305,79 +343,166 @@ const escanearProducto = async (codigo: string) => {
             </div>
           )}
 
-          {/* Input código manual */}
+          {/* Input manual */}
           {!esperandoCantidad && (
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-zinc-500 mb-1 uppercase tracking-wide">
-                Código de producto
-              </label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
-                <input
-                  ref={codigoRef}
-                  type="text"
-                  value={codigoInput}
-                  onChange={(e) => { setCodigoInput(e.target.value); setError(""); }}
-                  onKeyDown={handleCodigoKeyDown}
-                  placeholder="Escanea o ingresa código"
-                  className="w-full rounded-xl border text-zinc-700 border-zinc-300 pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                />
-              </div>
-              {buscando && <p className="text-xs text-zinc-400 mt-1">Buscando...</p>}
-              <p className="text-xs text-zinc-400 mt-1">
-                El escáner físico también funciona automáticamente
-              </p>
-            </div>
-          )}
+  <div className="mb-4">
+    <label className="block text-xs font-semibold text-zinc-500 mb-1 uppercase tracking-wide">
+      Código o nombre de producto
+    </label>
+    <div className="relative">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4 z-10" />
+      <input
+        ref={codigoRef}
+        type="text"
+        value={codigoInput}
+        onChange={(e) => {
+          const val = e.target.value;
+          setCodigoInput(val);
+          setError("");
+          setMostrarMas(false);
+          buscarSugerencias(val);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && sugerencias.length === 0) {
+            e.preventDefault();
+            buscarProducto(codigoInput);
+          }
+          if (e.key === "Escape") {
+            setSugerencias([]);
+            setCodigoInput("");
+          }
+        }}
+        placeholder="Escanea, ingresa código o nombre del producto"
+        className="w-full rounded-xl border  text-zinc-700 border-zinc-300 pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+      />
+      {codigoInput && (
+        <button
+          onClick={() => { setCodigoInput(""); setSugerencias([]); setTotalSugerencias(0); }}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+        >
+          <X size={14} />
+        </button>
+      )}
+    </div>
 
-          {/* Input cantidad */}
-          {esperandoCantidad && productoEncontrado && (
-            <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-white border border-zinc-200 flex-shrink-0">
-                  {productoEncontrado.IMAGEN ? (
-                    <Image src={productoEncontrado.IMAGEN} alt={productoEncontrado.TITULO} fill className="object-contain" />
+    {/* Sugerencias */}
+    {codigoInput.trim().length >= 2 && (sugerencias.length > 0 || buscandoSugerencias) && (
+      <div className="mt-1 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden">
+        {buscandoSugerencias ? (
+          <div className="px-4 py-3 text-xs text-zinc-400 text-center">Buscando...</div>
+        ) : (
+          <>
+            {sugerencias.map((prod) => (
+              <button
+                key={prod.id}
+                onClick={() => {
+                  setSugerencias([]);
+                  setCodigoInput(prod.CODIGO);
+                  setProductoEncontrado(prod);
+                  setEsperandoCantidad(true);
+                  setError("");
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-orange-50 transition border-b border-zinc-100 last:border-0 text-left"
+              >
+                <div className="relative w-9 h-9 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                  {prod.IMAGEN ? (
+                    <Image src={prod.IMAGEN} alt={prod.TITULO} fill className="object-contain" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <Package size={20} className="text-zinc-300" />
+                      <Package size={14} className="text-zinc-300" />
                     </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-zinc-900 text-sm truncate">{productoEncontrado.TITULO}</p>
-                  <p className="text-xs text-zinc-500">{productoEncontrado.CODIGO}</p>
+                  <p className="text-sm font-semibold text-zinc-800 truncate">{prod.TITULO}</p>
+                  <p className="text-xs text-zinc-400 font-mono">{prod.CODIGO}</p>
                 </div>
-              </div>
-              <label className="block text-xs font-semibold text-zinc-500 mb-1 uppercase tracking-wide">
-                Cantidad encontrada
-              </label>
-              <div className="flex gap-2">
-                <input
-                  ref={cantidadRef}
-                  type="number"
-                  value={cantidadInput}
-                  onChange={(e) => { setCantidadInput(e.target.value); setError(""); }}
-                  onKeyDown={handleCantidadKeyDown}
-                  placeholder="Cantidad"
-                  className="flex-1 rounded-xl border text-zinc-700 border-orange-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                />
-                <button onClick={agregarItem} className="px-4 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-semibold">✓</button>
+              </button>
+            ))}
+
+            {/* Footer con conteo y mostrar más */}
+            <div className="px-3 py-2 bg-zinc-50 border-t border-zinc-100 flex items-center justify-between">
+              <span className="text-xs text-zinc-400">
+                {sugerencias.length} de {totalSugerencias} resultados
+              </span>
+              {totalSugerencias > sugerencias.length && (
                 <button
-                  onClick={() => {
-                    setEsperandoCantidad(false);
-                    setProductoEncontrado(null);
-                    setCantidadInput("");
-                    setCodigoInput("");
-                    setError("");
-                  }}
-                  className="px-3 py-2.5 rounded-xl bg-zinc-200 text-zinc-600"
+                  onClick={async () => {
+  setMostrarMas(true);
+  await buscarSugerencias(codigoInput, 50);
+}}
+                  className="text-xs text-orange-500 font-semibold hover:text-orange-600"
                 >
-                  <X size={16} />
+                  Ver más ({totalSugerencias - sugerencias.length} restantes)
                 </button>
-              </div>
-              <p className="text-xs text-zinc-400 mt-1">Esc para cancelar</p>
+              )}
             </div>
-          )}
+          </>
+        )}
+      </div>
+    )}
+
+    {buscando && <p className="text-xs text-zinc-400 mt-1">Buscando...</p>}
+    <p className="text-xs text-zinc-400 mt-1">El escáner físico también funciona automáticamente</p>
+  </div>
+)}
+
+          {/* Input cantidad */}
+{esperandoCantidad && productoEncontrado && (
+  <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl p-4">
+    <div className="flex items-center gap-3 mb-3">
+      <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-white border border-zinc-200 flex-shrink-0">
+        {productoEncontrado.IMAGEN ? (
+          <Image src={productoEncontrado.IMAGEN} alt={productoEncontrado.TITULO} fill className="object-contain" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Package size={20} className="text-zinc-300" />
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-zinc-500">{productoEncontrado.CODIGO}</p>
+        <p className="font-semibold text-zinc-900 text-sm truncate">{productoEncontrado.TITULO}</p>
+      </div>
+    </div>
+
+    <label className="block text-xs font-semibold text-zinc-500 mb-1 uppercase tracking-wide">
+      Cantidad encontrada
+    </label>
+
+    <input
+      ref={cantidadRef}
+      type="number"
+      value={cantidadInput}
+      onChange={(e) => { setCantidadInput(e.target.value); setError(""); }}
+      onKeyDown={handleCantidadKeyDown}
+      placeholder="Cantidad"
+      className="w-full rounded-xl border text-zinc-700 border-orange-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 mb-3"
+    />
+
+    <div className="flex gap-2">
+      <button
+        onClick={agregarItem}
+        className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-semibold"
+      >
+        Agregar
+      </button>
+      <button
+        onClick={() => {
+          setEsperandoCantidad(false);
+          setProductoEncontrado(null);
+          setCantidadInput("");
+          setCodigoInput("");
+          setError("");
+        }}
+        className="flex-1 py-2.5 rounded-xl bg-zinc-200 text-zinc-600 text-sm font-semibold"
+      >
+        Cancelar
+      </button>
+    </div>
+    <p className="text-xs text-zinc-400 mt-2 text-center">Esc para cancelar</p>
+  </div>
+)}
 
           {error && (
             <div className="mb-3 bg-red-50 border border-red-200 rounded-xl px-4 py-2">
@@ -421,7 +546,7 @@ const escanearProducto = async (codigo: string) => {
                             if (e.key === "Escape") { setEditandoId(null); setCantidadEditar(""); }
                           }}
                           autoFocus
-                          className="w-20 border border-orange-400 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400"
+                          className="w-20 border border-orange-400 text-zinc-700 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400"
                         />
                         <button onClick={() => guardarEdicion(item.id)} className="text-green-500">
                           <CheckCircle size={18} />
