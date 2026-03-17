@@ -4129,6 +4129,7 @@ export default function HomePage() {
     null,
   );
   const [carrito, setCarrito] = useState<any[]>([]);
+  const [nuevoPedidoAlerta, setNuevoPedidoAlerta] = useState(false);
   const [carritosLista, setCarritosLista] = useState<{id: number, nombre: string}[]>([]);
 const [carritoActivoId, setCarritoActivoId] = useState<number>(1);
   const [mostrarModalPedido, setMostrarModalPedido] = useState(false);
@@ -4230,6 +4231,65 @@ const [grupoActivoId, setGrupoActivoId] = useState<number | "todos" | null>(null
 const [gruposMarca, setGruposMarca] = useState<any[]>([]);
 const [grupoMarcaActivoId, setGrupoMarcaActivoId] = useState<number | 'todos' | null>(null);
 const [recargando, setRecargando] = useState(false);
+
+const audioDesbloqueado = useRef(false);
+
+useEffect(() => {
+  const desbloquear = () => {
+    if (audioDesbloqueado.current) return;
+    const audio = new Audio("/sounds/nuevo-pedido.mp3");
+    audio.volume = 0; 
+    audio.play().then(() => {
+      audio.pause();
+      audioDesbloqueado.current = true;
+    }).catch(() => {});
+  };
+
+  window.addEventListener("touchstart", desbloquear, { once: true });
+  window.addEventListener("click", desbloquear, { once: true });
+
+  return () => {
+    window.removeEventListener("touchstart", desbloquear);
+    window.removeEventListener("click", desbloquear);
+  };
+}, []);
+
+// Función de alerta
+const alertarNuevoPedido = () => {
+  const reproducir = (delay: number) => {
+    setTimeout(() => {
+      const audio = new Audio("/sounds/nuevo-pedido.mp3");
+      audio.volume = 1.0;
+      audio.play().catch(() => {});
+    }, delay);
+  };
+  reproducir(0);
+  reproducir(800);
+  if ("vibrate" in navigator) navigator.vibrate([300, 100, 300, 100, 300]);
+
+  // Mostrar banner
+  setNuevoPedidoAlerta(true);
+  setTimeout(() => setNuevoPedidoAlerta(false), 5000);
+};
+
+// Realtime
+useEffect(() => {
+  if (!esAdmin && !esEmpleado) return;
+
+  const channel = supabase
+    .channel("nuevos-pedidos")
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "pedidos",
+    }, () => {
+      alertarNuevoPedido();
+    })
+    .subscribe();
+
+  return () => { supabase.removeChannel(channel); };
+}, [esAdmin, esEmpleado]);
+
 
 const cargarGruposDeMarca = async (marcaId: number) => {
   const { data: subcats } = await supabase
@@ -22314,6 +22374,27 @@ if (!contenedores.has(codigo)) {
             className="flex min-h-screen flex-col  bg-white font-sans"
           >
             <header className="p-6 pt-6 bg-orange-500 sticky top-0 z-50 border-zinc-200">
+
+              <AnimatePresence>
+  {nuevoPedidoAlerta && (esAdmin || esEmpleado) && (
+    <motion.div
+      initial={{ y: -40, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: -40, opacity: 0 }}
+      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+    className="absolute -bottom-7 left-4 z-40 flex items-center gap-2 px-4 py-1.5 rounded-b-xl bg-green-500 text-white text-xs font-bold shadow-md whitespace-nowrap"
+     >
+      <motion.span
+        animate={{ scale: [1, 1.3, 1] }}
+        transition={{ repeat: Infinity, duration: 0.8 }}
+      >
+        🛎️
+      </motion.span>
+      Nuevo pedido entrante
+    </motion.div>
+  )}
+</AnimatePresence>
+
               {/* reload */}
               {(esAdmin || esEmpleado) && (
   <button
