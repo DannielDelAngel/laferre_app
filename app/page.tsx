@@ -6184,6 +6184,7 @@ useEffect(() => {
   const [cuentasSugeridas, setCuentasSugeridas] = useState<any[]>([]);
   const [cuentaSeleccionada, setCuentaSeleccionada] = useState<any>(null);
   const [busquedaProducto, setBusquedaProducto] = useState("");
+  const [sugerenciaActiva, setSugerenciaActiva] = useState(-1);
   const [sugerenciasProducto, setSugerenciasProducto] = useState<any[]>([]);
   const [productoSeleccionado, setProductoSeleccionado] = useState<any>(null);
   const [cantidad, setCantidad] = useState("");
@@ -6215,24 +6216,41 @@ const [recogerLocal, setRecogerLocal] = useState(false);
   };
 
   const buscarProducto = async (valor: string) => {
-    if (valor.length < 2) { setSugerenciasProducto([]); return; }
-    setBuscandoProducto(true);
-    const palabras = valor.trim().split(/\s+/).filter(Boolean);
-    let q = supabase.from("productos").select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia");
-    palabras.forEach((p: string) => { q = q.ilike("TITULO", `%${p}%`); });
-    const { data } = await q.limit(8);
-    if (!data?.length) {
-      const { data: d2 } = await supabase
-        .from("productos")
-        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia")
-        .or(`CODIGO.ilike.%${valor}%,C_PRODUCTO.ilike.%${valor}%`)
-        .limit(8);
-      setSugerenciasProducto(d2 || []);
-    } else {
-      setSugerenciasProducto(data);
-    }
+  if (valor.length < 1) { setSugerenciasProducto([]); return; }
+  setBuscandoProducto(true);
+  setSugerenciaActiva(-1);
+  const { data: porCodigo } = await supabase
+    .from("productos")
+    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia")
+    .or(`CODIGO.eq.${valor.trim()},C_PRODUCTO.eq.${valor.trim()}`)
+    .limit(5);
+
+  if (porCodigo?.length) {
+    setSugerenciasProducto(porCodigo);
     setBuscandoProducto(false);
-  };
+    return;
+  }
+
+  const palabras = valor.trim().split(/\s+/).filter(Boolean);
+  let q = supabase.from("productos")
+    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia");
+  palabras.forEach((p: string) => { q = q.ilike("TITULO", `%${p}%`); });
+  const { data } = await q.limit(8);
+
+  if (!data?.length) {
+    const { data: d2 } = await supabase
+      .from("productos")
+      .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia")
+      .or(`CODIGO.ilike.%${valor}%,C_PRODUCTO.ilike.%${valor}%`)
+      .limit(8);
+    setSugerenciasProducto(d2 || []);
+  } else {
+    setSugerenciasProducto(data);
+  }
+  setBuscandoProducto(false);
+};
+
+
 
   const agregarItem = () => {
     if (!productoSeleccionado) return;
@@ -6307,20 +6325,6 @@ const [recogerLocal, setRecogerLocal] = useState(false);
     };
     const logoBase64 = await getImageBase64("/logo-pdf.png");
 
-    const entregaMismoDia = cuentaSeleccionada.entrega_mismo_dia;
-    let promesaEntrega = "";
-    if (enviarDomicilio) {
-      if (entregaMismoDia) {
-        promesaEntrega = horaActual < 10 ? "Entrega: Hoy mismo" : "Entrega: Siguiente día hábil";
-      } else {
-        promesaEntrega = "Entrega: 1 a 3 días hábiles";
-      }
-    } else {
-      promesaEntrega = horaActual < 15 ? "Listo para recoger: en 3 horas" : "Listo para recoger: Mañana 11:00 AM";
-    }
-
-    const tipoDoc = cuentaSeleccionada.tipo_comprobante === "Factura" ? "FACTURA" : "NOTA";
-
     const dibujarEncabezado = (doc: any) => {
       const pageWidth = doc.internal.pageSize.width;
       doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
@@ -6341,9 +6345,7 @@ const [recogerLocal, setRecogerLocal] = useState(false);
       doc.setFontSize(8); doc.setFont("helvetica", "bold");
       doc.text("RECEPTOR", 14, 48);
       doc.setFontSize(11); doc.setTextColor(100, 100, 100);
-      doc.text(tipoDoc, pageWidth / 2, 48, { align: "center" });
       doc.setFontSize(8); doc.setTextColor(100, 100, 100);
-      doc.text(promesaEntrega, 196, 48, { align: "right" });
       doc.setTextColor(0, 0, 0); doc.setFontSize(7); doc.setFont("helvetica", "normal");
       doc.text(`Nombre: ${cuentaSeleccionada.cliente || "N/A"}`, 14, 54);
       doc.text(`Domicilio: ${cuentaSeleccionada.direccion || ""}`, 14, 59);
@@ -6538,31 +6540,60 @@ const [recogerLocal, setRecogerLocal] = useState(false);
                   type="text"
                   value={busquedaProducto}
                   onChange={(e) => { setBusquedaProducto(e.target.value); buscarProducto(e.target.value); }}
-                  onKeyDown={(e) => { if (e.key === "Enter" && sugerenciasProducto.length === 1) { setProductoSeleccionado(sugerenciasProducto[0]); setSugerenciasProducto([]); } }}
+                 onKeyDown={(e) => {
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    setSugerenciaActiva((prev) => Math.min(prev + 1, sugerenciasProducto.length - 1));
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    setSugerenciaActiva((prev) => Math.max(prev - 1, 0));
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    if (sugerenciaActiva >= 0 && sugerenciasProducto[sugerenciaActiva]) {
+      setProductoSeleccionado(sugerenciasProducto[sugerenciaActiva]);
+      setBusquedaProducto("");
+      setSugerenciasProducto([]);
+      setSugerenciaActiva(-1);
+    } else if (sugerenciasProducto.length === 1) {
+      setProductoSeleccionado(sugerenciasProducto[0]);
+      setBusquedaProducto("");
+      setSugerenciasProducto([]);
+    }
+  } else if (e.key === "Escape") {
+    setSugerenciasProducto([]);
+    setSugerenciaActiva(-1);
+  }
+}}
                   placeholder="Código o nombre del producto..."
                   className="w-full rounded-xl border text-zinc-700 border-zinc-300 pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                   autoComplete="off"
                 />
               </div>
               {(sugerenciasProducto.length > 0 || buscandoProducto) && (
-                <div className="mt-1 border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
-                  {buscandoProducto ? (
-                    <p className="text-xs text-zinc-400 text-center py-3">Buscando...</p>
-                  ) : sugerenciasProducto.map((prod) => (
-                    <button key={prod.id} onClick={() => { setProductoSeleccionado(prod); setBusquedaProducto(""); setSugerenciasProducto([]); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-orange-50 border-b border-zinc-100 last:border-0 text-left">
-                      <div className="relative w-9 h-9 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
-                        {prod.IMAGEN ? <Image src={prod.IMAGEN} alt={prod.TITULO} fill className="object-contain" /> : <Package size={14} className="text-zinc-300 m-auto" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-zinc-800 truncate">{prod.TITULO}</p>
-                        <p className="text-xs text-zinc-400 font-mono">{prod.CODIGO} · Stock: {prod.existencia || 0}</p>
-                      </div>
-                      <p className="text-sm font-bold text-orange-500">${prod.P_MAYOREO?.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
+  <div className="mt-1 border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
+    {buscandoProducto ? (
+      <p className="text-xs text-zinc-400 text-center py-3">Buscando...</p>
+    ) : sugerenciasProducto.map((prod, idx) => (  
+      <button
+        key={prod.id}
+        onClick={() => { setProductoSeleccionado(prod); setBusquedaProducto(""); setSugerenciasProducto([]); setSugerenciaActiva(-1); }}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 border-b border-zinc-100 last:border-0 text-left transition ${
+          idx === sugerenciaActiva ? "bg-orange-100" : "hover:bg-orange-50"
+        }`}
+      >
+        <div className="relative w-9 h-9 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+          {prod.IMAGEN ? <Image src={prod.IMAGEN} alt={prod.TITULO} fill className="object-contain" /> : <Package size={14} className="text-zinc-300 m-auto" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-zinc-600 font-mono">{prod.CODIGO}</p>
+          <p className="text-sm font-semibold text-zinc-800">{prod.TITULO}</p>
+          <p className="text-xs text-zinc-400 font-mono">Stock: {prod.existencia || 0}</p>
+        </div>
+        <p className="text-sm font-bold text-orange-500">${prod.P_MAYOREO?.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
+      </button>
+    ))}
+  </div>
+)}
             </div>
           ) : (
             <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl p-4">
@@ -6571,8 +6602,8 @@ const [recogerLocal, setRecogerLocal] = useState(false);
                   {productoSeleccionado.IMAGEN ? <Image src={productoSeleccionado.IMAGEN} alt={productoSeleccionado.TITULO} fill className="object-contain" /> : <Package size={18} className="text-zinc-300 m-auto" />}
                 </div>
                 <div className="flex-1 min-w-0">
+                  <p className="text-sm text-zinc-600">{productoSeleccionado.CODIGO}</p>
                   <p className="font-semibold text-zinc-900 text-sm">{productoSeleccionado.TITULO}</p>
-                  <p className="text-xs text-zinc-500 font-mono">{productoSeleccionado.CODIGO}</p>
                   <p className="text-xs text-zinc-500">Stock: {productoSeleccionado.existencia || 0} · {productoSeleccionado.unidad_venta || ""}</p>
                   <p className="text-sm font-bold text-orange-500">${productoSeleccionado.P_MAYOREO?.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
                 </div>
@@ -6586,7 +6617,7 @@ const [recogerLocal, setRecogerLocal] = useState(false);
                 value={cantidad}
                 onChange={(e) => setCantidad(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); agregarItem(); } if (e.key === "Escape") { setProductoSeleccionado(null); setCantidad(""); } }}
-                placeholder="Cantidad → Enter para agregar"
+                placeholder="Ingrese cantidad"
                 className="w-full rounded-xl border border-orange-300 px-4 py-2.5 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
             </div>
@@ -15584,8 +15615,9 @@ if (backOrderExistente) {
         cuenta_id,
         pdf_url,
         estado,
-        es_domicilio,
-        requiere_recoleccion,  
+    es_domicilio,
+    requiere_recoleccion,
+    numero_orden,
         cuentas (
   numero_cuenta,
   numero_cuenta_sicar,
@@ -15828,14 +15860,16 @@ if (backOrderExistente) {
     <input
       type="text"
       placeholder="Número de orden de recolección..."
-      defaultValue={pedidoSeleccionado.numero_orden || ""}
-      onBlur={async (e) => {
+      value={pedidoSeleccionado.numero_orden || ""}
+      onChange={(e) => {
+        setPedidoSeleccionado((prev: any) => ({ ...prev, numero_orden: e.target.value }));
+      }}
+      onBlur={async (e) => {                                                         
         const valor = e.target.value.trim();
         await supabase
           .from("pedidos")
           .update({ numero_orden: valor || null })
           .eq("id", pedidoSeleccionado.id);
-        setPedidoSeleccionado((prev: any) => ({ ...prev, numero_orden: valor }));
         setPedidos((prev: any[]) =>
           prev.map((p) =>
             p.id === pedidoSeleccionado.id ? { ...p, numero_orden: valor } : p
