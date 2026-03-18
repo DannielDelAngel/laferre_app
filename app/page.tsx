@@ -2158,6 +2158,39 @@ const BadgeEstado = ({ estado }: any) => {
   );
 };
 
+const BannerNuevoPedido = ({ triggerRef }: { triggerRef: React.MutableRefObject<(() => void) | null> }) => {
+  const [visible, setVisible] = useState(false);
+
+  triggerRef.current = () => {
+  setVisible(true);
+  setTimeout(() => setVisible(false), 5000);
+};
+
+  return (
+    <div className="absolute bottom-0 left-4 translate-y-full overflow-hidden pointer-events-none">
+      <AnimatePresence>
+        {visible && (
+          <motion.div
+            initial={{ y: "-100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "-100%" }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            className="pointer-events-auto flex items-center gap-2 px-4 py-1.5 rounded-b-xl bg-green-500 text-white text-xs font-bold shadow-md whitespace-nowrap"
+          >
+            <motion.span
+              animate={{ scale: [1, 1.3, 1] }}
+              transition={{ repeat: Infinity, duration: 0.8 }}
+            >
+              🛎️
+            </motion.span>
+            Nuevo pedido entrante
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 const BackBtn = ({ onBack }: any) => {
   if (typeof document === "undefined") return null;
 
@@ -4130,7 +4163,7 @@ export default function HomePage() {
     null,
   );
   const [carrito, setCarrito] = useState<any[]>([]);
-  const [nuevoPedidoAlerta, setNuevoPedidoAlerta] = useState(false);
+  const triggerNuevoPedido = useRef<(() => void) | null>(null);
   const [carritosLista, setCarritosLista] = useState<{id: number, nombre: string}[]>([]);
 const [carritoActivoId, setCarritoActivoId] = useState<number>(1);
   const [mostrarModalPedido, setMostrarModalPedido] = useState(false);
@@ -4267,10 +4300,7 @@ const alertarNuevoPedido = () => {
   reproducir(0);
   reproducir(800);
   if ("vibrate" in navigator) navigator.vibrate([300, 100, 300, 100, 300]);
-
-  // Mostrar banner
-  setNuevoPedidoAlerta(true);
-  setTimeout(() => setNuevoPedidoAlerta(false), 5000);
+  triggerNuevoPedido.current?.();
 };
 
 // Realtime
@@ -4438,7 +4468,7 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
   useEffect(() => {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("controllerchange", () => {
-      window.location.reload();
+     // Si el nuevo service worker se ha activado
     });
   }
 }, []);
@@ -22545,27 +22575,7 @@ if (!contenedores.has(codigo)) {
           >
             <header className="p-6 pt-6 bg-orange-500 sticky top-0 z-50 border-zinc-200">
 
-              <div className="absolute bottom-0 left-4 translate-y-full overflow-hidden pointer-events-none">
-  <AnimatePresence>
-    {nuevoPedidoAlerta && (esAdmin || esEmpleado) && (
-      <motion.div
-        initial={{ y: "-100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "-100%" }}
-        transition={{ type: "spring", stiffness: 300, damping: 25 }}
-        className="pointer-events-auto flex items-center gap-2 px-4 py-1.5 rounded-b-xl bg-green-500 text-white text-xs font-bold shadow-md whitespace-nowrap"
-      >
-        <motion.span
-          animate={{ scale: [1, 1.3, 1] }}
-          transition={{ repeat: Infinity, duration: 0.8 }}
-        >
-          🛎️
-        </motion.span>
-        Nuevo pedido entrante
-      </motion.div>
-    )}
-  </AnimatePresence>
-</div>
+ <BannerNuevoPedido triggerRef={triggerNuevoPedido} />
 
 
               {/* reload */}
