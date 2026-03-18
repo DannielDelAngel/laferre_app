@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   Codesandbox,
   MapPin,
+  Zap,
   Truck,
   CheckCircle,
   Hammer,
@@ -6177,6 +6178,489 @@ useEffect(() => {
       </motion.div>
     );
   };
+
+  const CapturaRapidaAdmin = ({ supabase, onVolver }: any) => {
+  const [busquedaCliente, setBusquedaCliente] = useState("");
+  const [cuentasSugeridas, setCuentasSugeridas] = useState<any[]>([]);
+  const [cuentaSeleccionada, setCuentaSeleccionada] = useState<any>(null);
+  const [busquedaProducto, setBusquedaProducto] = useState("");
+  const [sugerenciasProducto, setSugerenciasProducto] = useState<any[]>([]);
+  const [productoSeleccionado, setProductoSeleccionado] = useState<any>(null);
+  const [cantidad, setCantidad] = useState("");
+  const [items, setItems] = useState<any[]>([]);
+  const [buscandoProducto, setBuscandoProducto] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [exito, setExito] = useState(false);
+  const [enviarDomicilio, setEnviarDomicilio] = useState(false);
+const [recogerLocal, setRecogerLocal] = useState(false);
+
+  const busquedaRef = useRef<HTMLInputElement>(null);
+  const cantidadRef = useRef<HTMLInputElement>(null);
+  const productoBusquedaRef = useRef<HTMLInputElement>(null);
+
+  const total = items.reduce((sum, i) => sum + i.subtotal, 0);
+
+  useEffect(() => {
+    if (productoSeleccionado) setTimeout(() => cantidadRef.current?.focus(), 100);
+  }, [productoSeleccionado]);
+
+  const buscarCliente = async (valor: string) => {
+    if (valor.length < 2) { setCuentasSugeridas([]); return; }
+    const { data } = await supabase
+      .from("cuentas")
+      .select("id, numero_cuenta, cliente, ferreteria, numero_cuenta_sicar, entrega_mismo_dia, recoger_en_tienda, tipo_comprobante, numero_tel, direccion, tiene_saldo_pendiente, bloquear_por_saldo")
+      .or(`cliente.ilike.%${valor}%,numero_cuenta.ilike.%${valor}%,ferreteria.ilike.%${valor}%`)
+      .limit(8);
+    setCuentasSugeridas(data || []);
+  };
+
+  const buscarProducto = async (valor: string) => {
+    if (valor.length < 2) { setSugerenciasProducto([]); return; }
+    setBuscandoProducto(true);
+    const palabras = valor.trim().split(/\s+/).filter(Boolean);
+    let q = supabase.from("productos").select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia");
+    palabras.forEach((p: string) => { q = q.ilike("TITULO", `%${p}%`); });
+    const { data } = await q.limit(8);
+    if (!data?.length) {
+      const { data: d2 } = await supabase
+        .from("productos")
+        .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia")
+        .or(`CODIGO.ilike.%${valor}%,C_PRODUCTO.ilike.%${valor}%`)
+        .limit(8);
+      setSugerenciasProducto(d2 || []);
+    } else {
+      setSugerenciasProducto(data);
+    }
+    setBuscandoProducto(false);
+  };
+
+  const agregarItem = () => {
+    if (!productoSeleccionado) return;
+    const cant = parseFloat(cantidad);
+    if (isNaN(cant) || cant <= 0) return;
+
+    setItems((prev) => {
+      const existe = prev.find((i) => i.id === productoSeleccionado.id);
+      if (existe) return prev.map((i) => i.id === productoSeleccionado.id
+        ? { ...i, cantidad: i.cantidad + cant, subtotal: (i.cantidad + cant) * i.P_MAYOREO }
+        : i
+      );
+      return [...prev, { ...productoSeleccionado, cantidad: cant, subtotal: cant * productoSeleccionado.P_MAYOREO }];
+    });
+
+    setProductoSeleccionado(null);
+    setBusquedaProducto("");
+    setCantidad("");
+    setSugerenciasProducto([]);
+    setTimeout(() => productoBusquedaRef.current?.focus(), 100);
+  };
+
+  const eliminarItem = (id: number) => setItems((prev) => prev.filter((i) => i.id !== id));
+
+  const realizarPedido = async () => {
+  if (!cuentaSeleccionada || items.length === 0) return;
+  setEnviando(true);
+
+  try {
+    const listaProductosString = items.map((p) => `${p.CODIGO}*${p.cantidad}`).join("-");
+    const totalPedido = items.reduce((sum, p) => sum + p.subtotal, 0);
+    const subtotalSinIVA = totalPedido / 1.08;
+    const iva = totalPedido - subtotalSinIVA;
+
+    const { data: pedidoInsertado, error } = await supabase
+      .from("pedidos")
+      .insert([{
+        cuenta_id: cuentaSeleccionada.id,
+        total: totalPedido,
+        estado: "nuevo_pedido",
+        es_domicilio: enviarDomicilio,
+        lista_productos: listaProductosString,
+      }])
+      .select(`*, cuentas(numero_cuenta, numero_cuenta_sicar, cliente, ferreteria, numero_tel, direccion, entrega_mismo_dia, tipo_comprobante, recoger_en_tienda)`)
+      .single();
+
+    if (error) throw error;
+
+    const jsPDFModule = await import("jspdf");
+    const autoTableModule = await import("jspdf-autotable");
+    const QRCodeModule = await import("qrcode");
+    const { jsPDF } = jsPDFModule;
+
+    const pedidoId = pedidoInsertado.id;
+    const numeroCotizacion = pedidoId;
+    const ahora = new Date();
+    const fecha = ahora.toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const hora = ahora.toLocaleTimeString("es-MX");
+    const horaActual = ahora.getHours();
+
+    const qrBase64 = await QRCodeModule.default.toDataURL(listaProductosString, { width: 200, margin: 1 });
+
+    const getImageBase64 = async (url: string): Promise<string> => {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    };
+    const logoBase64 = await getImageBase64("/logo-pdf.png");
+
+    const entregaMismoDia = cuentaSeleccionada.entrega_mismo_dia;
+    let promesaEntrega = "";
+    if (enviarDomicilio) {
+      if (entregaMismoDia) {
+        promesaEntrega = horaActual < 10 ? "Entrega: Hoy mismo" : "Entrega: Siguiente día hábil";
+      } else {
+        promesaEntrega = "Entrega: 1 a 3 días hábiles";
+      }
+    } else {
+      promesaEntrega = horaActual < 15 ? "Listo para recoger: en 3 horas" : "Listo para recoger: Mañana 11:00 AM";
+    }
+
+    const tipoDoc = cuentaSeleccionada.tipo_comprobante === "Factura" ? "FACTURA" : "NOTA";
+
+    const dibujarEncabezado = (doc: any) => {
+      const pageWidth = doc.internal.pageSize.width;
+      doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
+      doc.setFontSize(7); doc.setFont("helvetica", "bold");
+      doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+      doc.setFont("helvetica", "normal");
+      doc.text("GUGS701012E14", 70, 14);
+      doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
+      doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
+      doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
+      doc.setFontSize(9); doc.setFont("helvetica", "bold");
+      doc.text("Pedido", 165, 10);
+      doc.setFontSize(10); doc.text(numeroCotizacion.toString(), 170, 16);
+      doc.setFontSize(9); doc.text("Fecha", 172, 24);
+      doc.setFontSize(8); doc.setFont("helvetica", "normal");
+      doc.text(fecha, 167, 30);
+      doc.setLineWidth(0.3); doc.line(14, 42, 196, 42);
+      doc.setFontSize(8); doc.setFont("helvetica", "bold");
+      doc.text("RECEPTOR", 14, 48);
+      doc.setFontSize(11); doc.setTextColor(100, 100, 100);
+      doc.text(tipoDoc, pageWidth / 2, 48, { align: "center" });
+      doc.setFontSize(8); doc.setTextColor(100, 100, 100);
+      doc.text(promesaEntrega, 196, 48, { align: "right" });
+      doc.setTextColor(0, 0, 0); doc.setFontSize(7); doc.setFont("helvetica", "normal");
+      doc.text(`Nombre: ${cuentaSeleccionada.cliente || "N/A"}`, 14, 54);
+      doc.text(`Domicilio: ${cuentaSeleccionada.direccion || ""}`, 14, 59);
+      doc.text(`Nombre del negocio: ${cuentaSeleccionada.ferreteria || ""}`, 140, 59);
+      doc.text(`Tel: ${cuentaSeleccionada.numero_tel || ""}`, 140, 54);
+      doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
+    };
+
+    const docCliente = new jsPDF();
+
+    const productosTablaCliente = items.map((p) => [
+      p.CODIGO || "",
+      p.cantidad,
+      p.unidad_venta || "N/A",
+      p.TITULO,
+      `$ ${p.P_MAYOREO?.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      `$ ${p.subtotal?.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+    ]);
+
+    autoTableModule.default(docCliente, {
+      head: [["CÓDIGO", "CANT", "UNIDAD", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+      body: productosTablaCliente,
+      startY: 69,
+      styles: { fontSize: 7, cellPadding: 1.5, lineColor: [180, 180, 180], lineWidth: 0.1, textColor: [0, 0, 0] },
+      headStyles: { fillColor: [230, 230, 230], textColor: [0, 0, 0], fontStyle: "bold", halign: "center", fontSize: 7 },
+      columnStyles: {
+        0: { cellWidth: 28, halign: "center" },
+        1: { cellWidth: 13, halign: "center" },
+        2: { cellWidth: 18, halign: "center" },
+        3: { cellWidth: 77, halign: "left" },
+        4: { cellWidth: 22, halign: "right" },
+        5: { cellWidth: 22, halign: "right" },
+      },
+      theme: "grid",
+      margin: { left: 14, right: 14, top: 69 },
+      didDrawPage: () => dibujarEncabezado(docCliente),
+    });
+
+    const finalY = (docCliente as any).lastAutoTable?.finalY || 100;
+
+    // Tipo de entrega
+    docCliente.setFontSize(7); docCliente.setFont("helvetica", "normal");
+    if (enviarDomicilio) {
+      docCliente.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalY + 8);
+    } else {
+      docCliente.text("TIPO DE ENTREGA: RECOGER EN LOCAL", 14, finalY + 8);
+    }
+
+    const pageHeight = docCliente.internal.pageSize.height;
+    const espacioDisponible = pageHeight - finalY - 20;
+    let yBase: number;
+    if (espacioDisponible < 60) { docCliente.addPage(); dibujarEncabezado(docCliente); yBase = 70; }
+    else { yBase = finalY + 18; }
+
+    const qrSize = 40;
+    docCliente.addImage(qrBase64, "PNG", 14, yBase, qrSize, qrSize);
+
+    // Totales
+    docCliente.setLineWidth(0.5); docCliente.line(145, yBase, 196, yBase);
+    docCliente.setFontSize(9); docCliente.setFont("helvetica", "bold");
+    docCliente.text("TOTAL NETO:", 145, yBase + 8);
+    docCliente.text(`$ ${totalPedido.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, 195, yBase + 8, { align: "right" });
+
+    // Pie de página con fecha y hora
+    const pageCount = (docCliente as any).getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      docCliente.setPage(i);
+      const ph = docCliente.internal.pageSize.height;
+      docCliente.setFontSize(7);
+      docCliente.text(`Página ${i} de ${pageCount}`, 14, ph - 8);
+      docCliente.text(`${fecha} ${hora}`, 160, ph - 8);
+    }
+
+    // Subir PDF
+    const pdfBlob = docCliente.output("blob");
+    const nombrePDF = `pedido_${pedidoId}_${Date.now()}.pdf`;
+    const { error: uploadError } = await supabase.storage
+      .from("pedidos-pdf")
+      .upload(nombrePDF, pdfBlob, { contentType: "application/pdf", cacheControl: "public, max-age=31536000", upsert: true });
+
+    if (!uploadError) {
+      const { data: { publicUrl } } = supabase.storage.from("pedidos-pdf").getPublicUrl(nombrePDF);
+      await supabase.from("pedidos").update({ pdf_url: publicUrl }).eq("id", pedidoId);
+    }
+
+    setExito(true);
+    setItems([]);
+    setCuentaSeleccionada(null);
+    setBusquedaCliente("");
+    setEnviarDomicilio(false);
+    setRecogerLocal(false);
+    setTimeout(() => { setExito(false); onVolver(); }, 3000);
+
+  } catch (err) {
+    console.error("Error creando pedido:", err);
+    alert("Error al crear el pedido");
+  } finally {
+    setEnviando(false);
+  }
+};
+
+  return (
+    <div className="pb-40">
+      <h2 className="text-xl font-bold text-zinc-900 mb-4">Captura Rápida</h2>
+
+      {exito && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-2">
+          <CheckCircle size={18} className="text-green-500" />
+          <p className="text-sm text-green-700 font-semibold">¡Pedido creado exitosamente!</p>
+        </div>
+      )}
+
+      {/* Selector de cliente */}
+      {!cuentaSeleccionada ? (
+        <div className="mb-5">
+          <label className="block text-xs font-semibold text-zinc-500 mb-1 uppercase tracking-wide">Cliente</label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
+            <input
+              ref={busquedaRef}
+              type="text"
+              value={busquedaCliente}
+              onChange={(e) => { setBusquedaCliente(e.target.value); buscarCliente(e.target.value); }}
+              placeholder="Nombre, cuenta o negocio..."
+              className="w-full rounded-xl border text-zinc-700 border-zinc-300 pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+          {cuentasSugeridas.length > 0 && (
+            <div className="mt-1 border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
+              {cuentasSugeridas.map((c) => (
+                <button key={c.id} onClick={() => { setCuentaSeleccionada(c); setBusquedaCliente(""); setCuentasSugeridas([]); setTimeout(() => productoBusquedaRef.current?.focus(), 100); }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-orange-50 border-b border-zinc-100 last:border-0 transition">
+                  <p className="text-sm font-semibold text-zinc-800">{c.cliente || "Sin nombre"}</p>
+                  <p className="text-xs text-zinc-400">{c.numero_cuenta} · {c.ferreteria || ""}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mb-5 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-bold text-zinc-900">{cuentaSeleccionada.cliente}</p>
+            <p className="text-xs text-zinc-500">{cuentaSeleccionada.numero_cuenta} · {cuentaSeleccionada.ferreteria || ""}</p>
+          </div>
+          <button onClick={() => { setCuentaSeleccionada(null); setItems([]); }} className="text-zinc-400 hover:text-zinc-600">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Tipo de entrega */}
+{cuentaSeleccionada && (
+  <div className="mb-4">
+    <label className="block text-xs font-semibold text-zinc-500 mb-2 uppercase tracking-wide">Tipo de entrega</label>
+    <div className="flex gap-2">
+      {/* Domicilio */}
+      <button
+        onClick={() => { setEnviarDomicilio(true); setRecogerLocal(false); }}
+        className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition ${
+          enviarDomicilio ? "bg-orange-500 text-white border-orange-500" : "bg-white text-zinc-600 border-zinc-300"
+        }`}
+      >
+        Enviar a domicilio
+      </button>
+
+      {/* Recoger en tienda */}
+      {cuentaSeleccionada.recoger_en_tienda && (
+        <button
+          onClick={() => { setRecogerLocal(true); setEnviarDomicilio(false); }}
+          className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition ${
+            recogerLocal ? "bg-orange-500 text-white border-orange-500" : "bg-white text-zinc-600 border-zinc-300"
+          }`}
+        >
+          Recoger en tienda
+        </button>
+      )}
+    </div>
+  </div>
+)}
+
+      {/* Buscador de producto */}
+      {cuentaSeleccionada && (
+        <>
+          {!productoSeleccionado ? (
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-zinc-500 mb-1 uppercase tracking-wide">Producto</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
+                <input
+                  ref={productoBusquedaRef}
+                  type="text"
+                  value={busquedaProducto}
+                  onChange={(e) => { setBusquedaProducto(e.target.value); buscarProducto(e.target.value); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && sugerenciasProducto.length === 1) { setProductoSeleccionado(sugerenciasProducto[0]); setSugerenciasProducto([]); } }}
+                  placeholder="Código o nombre del producto..."
+                  className="w-full rounded-xl border text-zinc-700 border-zinc-300 pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  autoComplete="off"
+                />
+              </div>
+              {(sugerenciasProducto.length > 0 || buscandoProducto) && (
+                <div className="mt-1 border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
+                  {buscandoProducto ? (
+                    <p className="text-xs text-zinc-400 text-center py-3">Buscando...</p>
+                  ) : sugerenciasProducto.map((prod) => (
+                    <button key={prod.id} onClick={() => { setProductoSeleccionado(prod); setBusquedaProducto(""); setSugerenciasProducto([]); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-orange-50 border-b border-zinc-100 last:border-0 text-left">
+                      <div className="relative w-9 h-9 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                        {prod.IMAGEN ? <Image src={prod.IMAGEN} alt={prod.TITULO} fill className="object-contain" /> : <Package size={14} className="text-zinc-300 m-auto" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-zinc-800 truncate">{prod.TITULO}</p>
+                        <p className="text-xs text-zinc-400 font-mono">{prod.CODIGO} · Stock: {prod.existencia || 0}</p>
+                      </div>
+                      <p className="text-sm font-bold text-orange-500">${prod.P_MAYOREO?.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-white border border-zinc-200 flex-shrink-0">
+                  {productoSeleccionado.IMAGEN ? <Image src={productoSeleccionado.IMAGEN} alt={productoSeleccionado.TITULO} fill className="object-contain" /> : <Package size={18} className="text-zinc-300 m-auto" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-zinc-900 text-sm">{productoSeleccionado.TITULO}</p>
+                  <p className="text-xs text-zinc-500 font-mono">{productoSeleccionado.CODIGO}</p>
+                  <p className="text-xs text-zinc-500">Stock: {productoSeleccionado.existencia || 0} · {productoSeleccionado.unidad_venta || ""}</p>
+                  <p className="text-sm font-bold text-orange-500">${productoSeleccionado.P_MAYOREO?.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
+                </div>
+                <button onClick={() => { setProductoSeleccionado(null); setCantidad(""); setTimeout(() => productoBusquedaRef.current?.focus(), 100); }} className="text-zinc-400 hover:text-zinc-600">
+                  <X size={16} />
+                </button>
+              </div>
+              <input
+                ref={cantidadRef}
+                type="number"
+                value={cantidad}
+                onChange={(e) => setCantidad(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); agregarItem(); } if (e.key === "Escape") { setProductoSeleccionado(null); setCantidad(""); } }}
+                placeholder="Cantidad → Enter para agregar"
+                className="w-full rounded-xl border border-orange-300 px-4 py-2.5 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+            </div>
+          )}
+
+          {/* Lista de items */}
+          {items.length > 0 && (
+            <div className="mb-4">
+              <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
+                {/* Header tabla */}
+                <div className="grid grid-cols-12 gap-1 px-3 py-2 bg-zinc-50 border-b border-zinc-200 text-xs font-semibold text-zinc-500 uppercase tracking-wide">
+                  <div className="col-span-1 text-center">Cant</div>
+                  <div className="col-span-4">Producto</div>
+                  <div className="col-span-2 text-center">Unidad</div>
+                  <div className="col-span-1 text-center">Stock</div>
+                  <div className="col-span-2 text-right">Precio</div>
+                  <div className="col-span-2 text-right">Subtotal</div>
+                </div>
+                {items.map((item) => (
+                  <div key={item.id} className="grid grid-cols-12 gap-1 px-3 py-2.5 border-b border-zinc-100 last:border-0 items-center hover:bg-zinc-50 transition">
+                    <div className="col-span-1 text-center">
+                      <button onClick={() => { const c = prompt("Nueva cantidad:", String(item.cantidad)); if (c && !isNaN(parseFloat(c))) setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, cantidad: parseFloat(c), subtotal: parseFloat(c) * i.P_MAYOREO } : i)); }}
+                        className="text-sm font-bold text-orange-500 hover:underline">
+                        {item.cantidad}
+                      </button>
+                    </div>
+                    <div className="col-span-4">
+                      <p className="text-xs font-semibold text-zinc-800 truncate">{item.TITULO}</p>
+                      <p className="text-xs text-zinc-400 font-mono">{item.CODIGO}</p>
+                    </div>
+                    <div className="col-span-2 text-center text-xs text-zinc-500">{item.unidad_venta || "—"}</div>
+                    <div className={`col-span-1 text-center text-xs font-semibold ${(item.existencia || 0) === 0 ? "text-red-500" : "text-zinc-500"}`}>{item.existencia || 0}</div>
+                    <div className="col-span-2 text-right text-xs text-zinc-600">${item.P_MAYOREO?.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+                    <div className="col-span-2 text-right flex items-center justify-end gap-1">
+                      <span className="text-xs font-bold text-zinc-800">${item.subtotal?.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                      <button onClick={() => eliminarItem(item.id)} className="text-zinc-300 hover:text-red-400 transition ml-1"><X size={12} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Total fijo en el fondo */}
+      {items.length > 0 && (
+        <div className="fixed bottom-[98px] left-0 right-0 z-40 bg-white border-t border-zinc-200 px-4 py-3 shadow-lg">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-xs text-zinc-500">{items.length} producto(s)</p>
+                <p className="text-xl font-bold text-zinc-900">
+                  Total: <span className="text-orange-500">${total.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                </p>
+              </div>
+              <button
+                onClick={realizarPedido}
+                disabled={enviando || !cuentaSeleccionada || (!enviarDomicilio && !recogerLocal)}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition ${enviando || !cuentaSeleccionada ? "bg-zinc-300 text-zinc-500 cursor-not-allowed" : "bg-orange-500 text-white hover:bg-orange-600"}`}
+              >
+                {enviando ? (
+                  <><span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />Generando...</>
+                ) : (
+                  <><CheckCircle size={16} />Realizar Pedido</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
   const EliminacionMasivaView = ({ setVistaPerfil }: any) => {
     const [nivel, setNivel] = useState<"macros" | "categorias" | "productos">(
@@ -25278,6 +25762,11 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
       label="Back Orders"
       onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("back-orders"); }}
     />
+  <MenuItem
+    label="Captura rápida"
+    icon={<Zap size={20} />}
+    onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("captura-rapida"); }}
+  />
   </Acordeon>
       )}
 
@@ -25610,6 +26099,19 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
 )}
 {vistaPerfil === 'grupos-marca' && (
   <GestionarGruposMarca setVistaPerfil={setVistaPerfil} />
+)}
+
+{vistaPerfil === "captura-rapida" && esAdmin && (
+  <motion.div
+    key="captura-rapida"
+    initial={{ opacity: 0, x: 40 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: -40 }}
+    transition={{ duration: 0.3, ease: "easeInOut" }}
+  >
+    <BackBtn onBack={() => setVistaPerfil("menu")} />
+    <CapturaRapidaAdmin supabase={supabase} onVolver={() => setVistaPerfil("menu")} />
+  </motion.div>
 )}
 
                     {vistaPerfil === "inventario" && (esAdmin || esEmpleado) && (
