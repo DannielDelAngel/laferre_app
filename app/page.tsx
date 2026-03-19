@@ -6585,7 +6585,7 @@ const [recogerLocal, setRecogerLocal] = useState(false);
           {prod.IMAGEN ? <Image src={prod.IMAGEN} alt={prod.TITULO} fill className="object-contain" /> : <Package size={14} className="text-zinc-300 m-auto" />}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-zinc-600 font-mono">{prod.CODIGO}</p>
+          <p className="text-sm font-semibold text-orange-700 font-mono">{prod.CODIGO}</p>
           <p className="text-sm font-semibold text-zinc-800">{prod.TITULO}</p>
           <p className="text-xs text-zinc-400 font-mono">Stock: {prod.existencia || 0}</p>
         </div>
@@ -6602,7 +6602,7 @@ const [recogerLocal, setRecogerLocal] = useState(false);
                   {productoSeleccionado.IMAGEN ? <Image src={productoSeleccionado.IMAGEN} alt={productoSeleccionado.TITULO} fill className="object-contain" /> : <Package size={18} className="text-zinc-300 m-auto" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-zinc-600">{productoSeleccionado.CODIGO}</p>
+                  <p className="text-sm font-semibold text-orange-700 font-mono">{productoSeleccionado.CODIGO}</p>
                   <p className="font-semibold text-zinc-900 text-sm">{productoSeleccionado.TITULO}</p>
                   <p className="text-xs text-zinc-500">Stock: {productoSeleccionado.existencia || 0} · {productoSeleccionado.unidad_venta || ""}</p>
                   <p className="text-sm font-bold text-orange-500">${productoSeleccionado.P_MAYOREO?.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
@@ -6630,7 +6630,8 @@ const [recogerLocal, setRecogerLocal] = useState(false);
                 {/* Header tabla */}
                 <div className="grid grid-cols-12 gap-1 px-3 py-2 bg-zinc-50 border-b border-zinc-200 text-xs font-semibold text-zinc-500 uppercase tracking-wide">
                   <div className="col-span-1 text-center">Cant</div>
-                  <div className="col-span-4">Producto</div>
+                  <div className="col-span-1 text-center">Codigo</div>
+                  <div className="col-span-3">Producto</div>
                   <div className="col-span-2 text-center">Unidad</div>
                   <div className="col-span-1 text-center">Stock</div>
                   <div className="col-span-2 text-right">Precio</div>
@@ -6644,9 +6645,11 @@ const [recogerLocal, setRecogerLocal] = useState(false);
                         {item.cantidad}
                       </button>
                     </div>
-                    <div className="col-span-4">
-                      <p className="text-xs font-semibold text-zinc-800 truncate">{item.TITULO}</p>
-                      <p className="text-xs text-zinc-400 font-mono">{item.CODIGO}</p>
+                    <div className="col-span-1">
+                      <p className="text-xs text-orange-700 text-center font-semibold font-mono">{item.CODIGO}</p>
+                    </div>
+                    <div className="col-span-3">
+                      <p className="text-xs font-semibold text-zinc-800 ">{item.TITULO}</p>
                     </div>
                     <div className="col-span-2 text-center text-xs text-zinc-500">{item.unidad_venta || "—"}</div>
                     <div className={`col-span-1 text-center text-xs font-semibold ${(item.existencia || 0) === 0 ? "text-red-500" : "text-zinc-500"}`}>{item.existencia || 0}</div>

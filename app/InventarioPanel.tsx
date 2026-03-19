@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Image from "next/image";
 import { Search, X, Edit2, CheckCircle, Package, ChevronDown, ChevronUp } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { createPortal } from "react-dom";
 
 interface ItemInventario {
   id: number;
@@ -25,7 +27,10 @@ const STORAGE_KEY = (numeroCuenta: string) => `inventario_progreso_${numeroCuent
 
 const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
   const client = sb || supabase;
-
+const [ultimoEscaneado, setUltimoEscaneado] = useState<any>(null);
+const ultimoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+const [modalEscaneo, setModalEscaneo] = useState<any>(null);
+const modalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [codigoInput, setCodigoInput] = useState("");
   const [cantidadInput, setCantidadInput] = useState("");
   const [productoEncontrado, setProductoEncontrado] = useState<any>(null);
@@ -112,16 +117,24 @@ const escanearProducto = async (codigo: string) => {
     .single();
 
   if (!data) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
     setError(`No se encontró: ${codigo.trim()}`);
     return;
   }
-// Si ya existe el producto en la lista, suma 1 a la cantidad
+
+  if ("vibrate" in navigator) navigator.vibrate(50);
+
   setItems((prev) => {
     const existente = prev.find((i) => i.id === data.id);
-    if (existente) {
-      return prev.map((i) => i.id === data.id ? { ...i, cantidad: i.cantidad + 1 } : i);
-    }
-    return [...prev, { ...data, cantidad: 1 }];
+    const nuevaCantidad = existente ? existente.cantidad + 1 : 1;
+
+
+    if (modalTimeoutRef.current) clearTimeout(modalTimeoutRef.current);
+    setModalEscaneo({ ...data, cantidad: nuevaCantidad });
+    modalTimeoutRef.current = setTimeout(() => setModalEscaneo(null), 2500);
+
+    if (existente) return prev.map((i) => i.id === data.id ? { ...i, cantidad: nuevaCantidad } : i);
+    return [{ ...data, cantidad: 1 }, ...prev];
   });
 };
 
@@ -209,7 +222,7 @@ const escanearProducto = async (codigo: string) => {
         prev.map((i) => i.id === productoEncontrado.id ? { ...i, cantidad: cant } : i)
       );
     } else {
-      setItems((prev) => [...prev, { ...productoEncontrado, cantidad: cant }]);
+      setItems((prev) => [{ ...productoEncontrado, cantidad: cant }, ...prev]);
     }
     setCodigoInput("");
     setCantidadInput("");
@@ -343,6 +356,7 @@ const escanearProducto = async (codigo: string) => {
             </div>
           )}
 
+
           {/* Input manual */}
           {!esperandoCantidad && (
   <div className="mb-4">
@@ -414,8 +428,8 @@ const escanearProducto = async (codigo: string) => {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
+                  <p className="text-sm text-orange-600 font-semibold font-mono">{prod.CODIGO}</p>
                   <p className="text-sm font-semibold text-zinc-800 truncate">{prod.TITULO}</p>
-                  <p className="text-xs text-zinc-400 font-mono">{prod.CODIGO}</p>
                 </div>
               </button>
             ))}
@@ -461,7 +475,7 @@ const escanearProducto = async (codigo: string) => {
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-zinc-500">{productoEncontrado.CODIGO}</p>
+        <p className="text-sm font-semibold text-orange-600">{productoEncontrado.CODIGO}</p>
         <p className="font-semibold text-zinc-900 text-sm truncate">{productoEncontrado.TITULO}</p>
       </div>
     </div>
@@ -532,8 +546,8 @@ const escanearProducto = async (codigo: string) => {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-zinc-800 truncate">{item.TITULO}</p>
-                      <p className="text-xs text-zinc-400">{item.CODIGO}</p>
+                      <p className="text-sm font-semibold text-orange-600">{item.CODIGO}</p>
+                      <p className="text-sm font-semibold text-zinc-800 line-clamp-2 ">{item.TITULO}</p>
                     </div>
                     {editandoId === item.id ? (
                       <div className="flex items-center gap-1">
@@ -556,7 +570,7 @@ const escanearProducto = async (codigo: string) => {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => { setEditandoId(item.id); setCantidadEditar(String(item.cantidad)); }}
-                          className="flex items-center gap-1 bg-zinc-100 hover:bg-zinc-200 rounded-lg px-2.5 py-1 text-sm font-bold text-zinc-700 transition"
+                          className="flex items-center gap-1 bg-zinc-100 hover:bg-zinc-200 rounded-lg px-2.5 py-1 text-base font-bold text-green-600 transition"
                         >
                           {item.cantidad}
                           <Edit2 size={12} className="text-zinc-400" />
@@ -679,6 +693,51 @@ const escanearProducto = async (codigo: string) => {
           )}
         </>
       )}
+      {typeof document !== "undefined" && createPortal(
+  <>
+    {modalEscaneo && (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+        onClick={() => setModalEscaneo(null)}
+      >
+        <motion.div
+          initial={{ scale: 0.5, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="relative w-28 h-28 mx-auto mb-4 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200">
+            {modalEscaneo.IMAGEN ? (
+              <Image src={modalEscaneo.IMAGEN} alt={modalEscaneo.TITULO} fill className="object-contain" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Package size={36} className="text-zinc-300" />
+              </div>
+            )}
+          </div>
+
+          <p className="text-sm font-bold text-orange-500 font-mono mb-1">{modalEscaneo.CODIGO}</p>
+          <p className="text-base font-semibold text-zinc-800 mb-4 line-clamp-2">{modalEscaneo.TITULO}</p>
+
+          <motion.div
+            key={modalEscaneo.cantidad} // 👈 key en el número solo, no en todo el modal
+            initial={{ scale: 1.4 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 400, damping: 15 }}
+            className="text-5xl font-black text-green-500 mb-1"
+          >
+            {modalEscaneo.cantidad}
+          </motion.div>
+          <p className="text-xs text-zinc-400 font-medium">unidades escaneadas</p>
+        </motion.div>
+      </motion.div>
+    )}
+  </>,
+  document.body
+)}
     </div>
   );
 };
