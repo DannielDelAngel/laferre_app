@@ -357,6 +357,8 @@ const [unidadVenta, setUnidadVenta] = useState(producto.unidad_venta || "");
   const [ordenCategoria, setOrdenCategoria] = useState(
     producto.orden_categoria || 0,
   );
+  const [gruposDisponibles, setGruposDisponibles] = useState<any[]>([]);
+const [grupoIdSeleccionado, setGrupoIdSeleccionado] = useState<number | null>(null);
 
   const handleToggleMostrador = async (mostrador: "M1" | "M2") => {
     setActualizandoToggle(true);
@@ -408,6 +410,25 @@ const [unidadVenta, setUnidadVenta] = useState(producto.unidad_venta || "");
       setCategoriaSeleccionada(categoria);
     }
   }, [categoriaId, categoriasAdmin]);
+
+  useEffect(() => {
+  const cargarGruposDeCategoria = async () => {
+    if (!categoriaId) { setGruposDisponibles([]); return; }
+    const { data: grupos } = await supabase
+      .from("grupos")
+      .select("id, nombre")
+      .eq("subcategoria_id", parseInt(categoriaId))
+      .order("orden", { ascending: true });
+    setGruposDisponibles(grupos || []);
+    const { data: rel } = await supabase
+      .from("grupos_productos")
+      .select("grupo_id")
+      .eq("producto_id", producto.id)
+      .maybeSingle();
+    setGrupoIdSeleccionado(rel?.grupo_id || null);
+  };
+  if (modoEdicion) cargarGruposDeCategoria();
+}, [categoriaId, modoEdicion]);
 
   const handleToggleVisible = async () => {
     setActualizandoToggle(true);
@@ -717,6 +738,15 @@ const handleSubtract = (): void =>
    
         })
         .eq("id", producto.id);
+
+        await supabase.from("grupos_productos").delete().eq("producto_id", producto.id);
+if (grupoIdSeleccionado) {
+  await supabase.from("grupos_productos").insert({
+    grupo_id: grupoIdSeleccionado,
+    producto_id: producto.id,
+    orden: 0,
+  });
+}
 
       if (updateError) {
         console.error("Error actualizando producto:", updateError);
@@ -1250,6 +1280,24 @@ const handleSubtract = (): void =>
                   </div>
                 )}
               </div>
+
+              {gruposDisponibles.length > 0 && (
+  <div className="mb-4">
+    <label className="block text-sm font-medium text-zinc-700 mb-2">
+      Grupo
+    </label>
+    <select
+      value={grupoIdSeleccionado || ""}
+      onChange={(e) => setGrupoIdSeleccionado(e.target.value ? parseInt(e.target.value) : null)}
+      className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+    >
+      <option value="">Sin grupo</option>
+      {gruposDisponibles.map((g) => (
+        <option key={g.id} value={g.id}>{g.nombre}</option>
+      ))}
+    </select>
+  </div>
+)}
 
               {/* Marca */}
 <div className="mb-4 relative">
@@ -15329,7 +15377,21 @@ if (backOrderExistente) {
           },
           theme: "grid",
           margin: { left: 14, right: 14, top: 69 },
-          didDrawPage: () => dibujarEncabezado(doc),
+          didDrawPage: (data: any) => {
+  dibujarEncabezado(doc);
+  const totalPaginas = doc.getNumberOfPages();
+  const paginaActual = doc.getCurrentPageInfo().pageNumber;
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(150, 150, 150);
+  doc.text(
+    `Página ${paginaActual} de ${totalPaginas}`,
+    doc.internal.pageSize.width / 2,
+    doc.internal.pageSize.height - 8,
+    { align: "center" }
+  );
+  doc.setTextColor(0, 0, 0);
+},
         });
 
         const finalY = (doc as any).lastAutoTable?.finalY || 100;
@@ -17114,7 +17176,9 @@ if (backOrderExistente) {
           },
           theme: "grid",
           margin: { left: 14, right: 14, top: 69 },
-          didDrawPage: () => dibujarEncabezado(doc),
+          didDrawPage: () => {
+  dibujarEncabezado(doc);
+},
         });
 
         const finalY = (doc as any).lastAutoTable?.finalY || 100;
@@ -17145,6 +17209,21 @@ if (backOrderExistente) {
           yBase + 10,
           { align: "right" },
         );
+
+const totalPaginas = doc.getNumberOfPages();
+for (let i = 1; i <= totalPaginas; i++) {
+  doc.setPage(i);
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(150, 150, 150);
+  doc.text(
+    `Página ${i} de ${totalPaginas}`,
+    doc.internal.pageSize.width / 2,
+    doc.internal.pageSize.height - 8,
+    { align: "center" }
+  );
+}
+doc.setTextColor(0, 0, 0);
 
         // Descargar directamente
         doc.save(`BackOrder_${backOrder.id}_${Date.now()}.pdf`);
@@ -17321,7 +17400,20 @@ if (backOrderExistente) {
           },
           theme: "grid",
           margin: { left: 14, right: 14, top: 69 },
-          didDrawPage: () => dibujarEncabezado(doc),
+          didDrawPage: () => {
+  dibujarEncabezado(doc);
+  const paginaActual = doc.getCurrentPageInfo().pageNumber;
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(150, 150, 150);
+  doc.text(
+    `Página ${paginaActual}`,
+    doc.internal.pageSize.width / 2,
+    doc.internal.pageSize.height - 8,
+    { align: "center" }
+  );
+  doc.setTextColor(0, 0, 0);
+},
         });
 
         const finalY = (doc as any).lastAutoTable?.finalY || 100;

@@ -315,7 +315,7 @@ const escanearProducto = async (codigo: string) => {
   });
 
   return (
-    <div className="px-4 pb-32">
+    <div className="-mx-10 px-4 pb-32">
       <h2 className="text-xl font-bold text-zinc-900 mb-4">Inventario</h2>
 
       {esAdmin && (
