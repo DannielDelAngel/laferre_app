@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   Codesandbox,
   MapPin,
+  ChevronUp,
   Zap,
   Truck,
   CheckCircle,
@@ -14961,6 +14962,178 @@ useEffect(() => {
     );
   };
 
+  
+
+  const ResumenVerificacionesPanel = ({ setVistaPerfil }: any) => {
+  const [verificaciones, setVerificaciones] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [expandidoId, setExpandidoId] = useState<number | null>(null);
+  const [filtroCliente, setFiltroCliente] = useState("");
+  const [filtroFecha, setFiltroFecha] = useState("");
+
+  useEffect(() => {
+    const cargar = async () => {
+      const { data } = await supabase
+        .from("verificaciones_recepcion")
+        .select("*, cuentas(cliente, ferreteria, numero_cuenta)")
+        .order("created_at", { ascending: false });
+      setVerificaciones(data || []);
+      setCargando(false);
+    };
+    cargar();
+  }, []);
+
+  const verificacionesFiltradas = verificaciones.filter((ver) => {
+    if (filtroFecha) {
+      const fecha = new Date(ver.created_at).toLocaleDateString("en-CA");
+      if (fecha !== filtroFecha) return false;
+    }
+    if (filtroCliente.trim()) {
+      const term = filtroCliente.trim().toLowerCase();
+      const cliente = (ver.cuentas?.cliente || "").toLowerCase();
+      const cuenta = (ver.cuentas?.numero_cuenta || "").toLowerCase();
+      const ferreteria = (ver.cuentas?.ferreteria || "").toLowerCase();
+      if (!cliente.includes(term) && !cuenta.includes(term) && !ferreteria.includes(term)) return false;
+    }
+    return true;
+  });
+
+  return (
+    <motion.div className="min-h-screen pb-32" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
+      <BackBtn onBack={() => setVistaPerfil("menu")} />
+      <h2 className="text-xl font-bold text-zinc-900 mb-4">Verificaciones de Recepción</h2>
+
+      {/* Filtro fecha */}
+      <div className="relative rounded-full border border-zinc-300 bg-white mb-3">
+        <div className="sm:hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4 pointer-events-none z-10">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+          </svg>
+          <span className={`block pl-9 pr-10 py-2 text-sm pointer-events-none ${filtroFecha ? "text-zinc-700" : "text-zinc-400"}`}>
+            {filtroFecha ? new Date(filtroFecha + "T12:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : "Filtrar por fecha"}
+          </span>
+          <input type="date" value={filtroFecha} onChange={(e) => setFiltroFecha(e.target.value)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" style={{ zIndex: 2 }} />
+        </div>
+        <div className="hidden sm:flex items-center pl-9 pr-10 py-1">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4 pointer-events-none">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+          </svg>
+          <input type="date" value={filtroFecha} onChange={(e) => setFiltroFecha(e.target.value)}
+            className="w-full text-sm text-zinc-700 focus:outline-none bg-transparent" />
+        </div>
+        {filtroFecha && (
+          <button onClick={() => setFiltroFecha("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600" style={{ zIndex: 3 }}>
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* Filtro cliente */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
+        <input type="text" placeholder="Buscar cliente, cuenta o ferretería..."
+          value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)}
+          className="w-full rounded-full border border-zinc-300 bg-white pl-9 pr-10 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+        {filtroCliente && (
+          <button onClick={() => setFiltroCliente("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* Resumen filtros */}
+      {(filtroFecha || filtroCliente) && (
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs text-zinc-500">{verificacionesFiltradas.length} resultado(s)</p>
+          <button onClick={() => { setFiltroFecha(""); setFiltroCliente(""); }}
+            className="text-xs text-orange-500 font-semibold hover:text-orange-600">
+            Limpiar filtros
+          </button>
+        </div>
+      )}
+
+      {cargando ? (
+        <div className="flex justify-center py-10">
+          <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+        </div>
+      ) : verificacionesFiltradas.length === 0 ? (
+        <div className="text-center py-12 bg-zinc-50 rounded-xl border border-zinc-200">
+          <Package size={40} className="mx-auto text-zinc-300 mb-2" />
+          <p className="text-zinc-400 text-sm">{verificaciones.length === 0 ? "No hay verificaciones registradas" : "No hay resultados con estos filtros"}</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {verificacionesFiltradas.map((ver) => {
+            const expandido = expandidoId === ver.id;
+            const productos = ver.productos_verificados || [];
+            const faltantes = productos.filter((p: any) => p.estado !== "completo");
+            return (
+              <div key={ver.id} className="bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden">
+                <button onClick={() => setExpandidoId(expandido ? null : ver.id)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-zinc-50 transition">
+                  <div className="text-left">
+                    <p className="font-semibold text-zinc-800 text-sm">
+                      Pedido #{ver.pedido_id} — {ver.cuentas?.cliente || ver.cuentas?.ferreteria || ver.cuentas?.numero_cuenta}
+                    </p>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      {new Date(ver.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}{" "}
+                      {new Date(ver.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+                      {" · "}{productos.length} productos
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {ver.tiene_faltantes ? (
+                      <span className="text-xs bg-red-100 text-red-700 font-semibold px-2 py-1 rounded-full">{faltantes.length} faltante(s)</span>
+                    ) : (
+                      <span className="text-xs bg-green-100 text-green-700 font-semibold px-2 py-1 rounded-full">✓ Completo</span>
+                    )}
+                    {expandido ? <ChevronUp size={16} className="text-zinc-400" /> : <ChevronDown size={16} className="text-zinc-400" />}
+                  </div>
+                </button>
+                {expandido && (
+                  <div className="px-4 pb-4 border-t border-zinc-100">
+                    <div className="mt-3 space-y-1.5">
+                      {productos.map((p: any, i: number) => (
+                        <div key={i} className={`flex items-center justify-between py-2 px-3 rounded-lg border ${
+                          p.estado === "completo" ? "bg-green-50 border-green-100"
+                          : p.estado === "PA" ? "bg-yellow-50 border-yellow-100"
+                          : "bg-red-50 border-red-100"
+                        }`}>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-mono text-zinc-500">{p.CODIGO}</p>
+                            <p className="text-sm font-semibold text-zinc-800 truncate">{p.TITULO}</p>
+                          </div>
+                          <div className="text-right ml-3 flex-shrink-0">
+                            {p.estado === "completo" ? (
+                              <span className="text-xs text-green-600 font-bold">✓ {p.cantidad_recibida}/{p.cantidad_pedida}</span>
+                            ) : p.estado === "PA" ? (
+                              <span className="text-xs font-bold bg-yellow-500 text-white px-2 py-0.5 rounded">PA</span>
+                            ) : (
+                              <span className="text-xs font-bold text-red-600">
+                                {p.cantidad_recibida}/{p.cantidad_pedida}
+                                <span className="ml-1 text-red-400">(falta {p.cantidad_pedida - p.cantidad_recibida})</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
   const HistorialPedidos = ({
   cuenta,
   setVistaPerfil,
@@ -16955,6 +17128,388 @@ if (backOrderExistente) {
         )}
       </AnimatePresence>
     </div>
+  );
+};
+
+const VerificacionRecepcionPanel = ({ setVistaPerfil, cuenta }: any) => {
+  const [pedidos, setPedidos] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [pedidoSeleccionado, setPedidoSeleccionado] = useState<any>(null);
+  const [productos, setProductos] = useState<any[]>([]);
+  const [productosVerificados, setProductosVerificados] = useState<Map<number, number>>(new Map());
+  const [cambiosEstado, setCambiosEstado] = useState<Map<number, any>>(new Map());
+  const [cantidadParcialInput, setCantidadParcialInput] = useState("");
+  const [modalProducto, setModalProducto] = useState<any>(null);
+  const [ultimoEscaneo, setUltimoEscaneo] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [mostrarModalCompletado, setMostrarModalCompletado] = useState(false);
+  const [bufferEscaneo, setBufferEscaneo] = useState("");
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [pedidosVerificados, setPedidosVerificados] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+  const cargar = async () => {
+    const esAdminLocal = cuenta?.numero_cuenta === "Admin01";
+    let query = supabase
+      .from("pedidos")
+      .select("id, created_at, total, estado, lista_productos, cuentas(cliente, ferreteria, numero_cuenta)")
+      .in("estado", ["entregado", "completado", "listo_para_recoger"])
+      .order("created_at", { ascending: false });
+    if (!esAdminLocal) query = query.eq("cuenta_id", cuenta.id);
+    const { data } = await query;
+    setPedidos(data || []);
+
+
+    const ids = (data || []).map((p: any) => p.id);
+    if (ids.length > 0) {
+      const { data: vers } = await supabase
+        .from("verificaciones_recepcion")
+        .select("pedido_id")
+        .in("pedido_id", ids);
+      const idsVerificados = new Set((vers || []).map((v: any) => v.pedido_id));
+      setPedidosVerificados(idsVerificados as Set<number>);
+    }
+    setCargando(false);
+  };
+  cargar();
+}, []);
+
+  // Scanner físico
+  useEffect(() => {
+    if (!pedidoSeleccionado || modalProducto) return;
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        if (bufferEscaneo.trim()) { procesarEscaneo(bufferEscaneo.trim()); setBufferEscaneo(""); }
+        return;
+      }
+      setBufferEscaneo((prev) => prev + e.key);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        if (bufferEscaneo.trim()) { procesarEscaneo(bufferEscaneo.trim()); setBufferEscaneo(""); }
+      }, 100);
+    };
+    window.addEventListener("keypress", handleKeyPress);
+    return () => { window.removeEventListener("keypress", handleKeyPress); if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, [bufferEscaneo, pedidoSeleccionado, modalProducto, productosVerificados]);
+
+  const abrirPedido = async (pedido: any) => {
+  if (!pedido.lista_productos) return;
+
+  const items = pedido.lista_productos.split("-").map((item: string) => {
+    const [codigo, cantidad] = item.split("*");
+    return { codigo, cantidad: parseInt(cantidad) };
+  });
+  const codigos = items.map((i: any) => i.codigo);
+  const { data: prods } = await supabase.from("productos").select("id, TITULO, CODIGO, IMAGEN, C_PRODUCTO").in("CODIGO", codigos);
+  const productosConCantidad = items.map((item: any) => {
+    const prod = prods?.find((p: any) => p.CODIGO === item.codigo);
+    if (!prod) return null;
+    return { ...prod, cantidad_pedida: item.cantidad, producto_id: prod.id };
+  }).filter(Boolean);
+
+  if (pedidosVerificados.has(pedido.id)) {
+    const { data: ver } = await supabase
+      .from("verificaciones_recepcion")
+      .select("*")
+      .eq("pedido_id", pedido.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (ver) {
+      const nuevosVerificados = new Map<number, number>();
+      const nuevosCambios = new Map<number, any>();
+      ver.productos_verificados.forEach((p: any) => {
+        nuevosVerificados.set(p.producto_id, p.cantidad_recibida);
+        nuevosCambios.set(p.producto_id, { estado: p.estado, cantidad: p.cantidad_recibida });
+      });
+      setProductos(productosConCantidad);
+      setProductosVerificados(nuevosVerificados);
+      setCambiosEstado(nuevosCambios);
+      setPedidoSeleccionado({ ...pedido, yaVerificado: true });
+      return;
+    }
+  }
+
+  setProductos(productosConCantidad);
+  setProductosVerificados(new Map());
+  setCambiosEstado(new Map());
+  setPedidoSeleccionado(pedido);
+};
+
+  const procesarEscaneo = (codigoEscaneado: string) => {
+    const item = productos.find((p: any) => p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado);
+    if (!item) {
+      if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+      return;
+    }
+    if ("vibrate" in navigator) navigator.vibrate(50);
+    setUltimoEscaneo(codigoEscaneado);
+    const actual = productosVerificados.get(item.producto_id) || 0;
+    const cambio = cambiosEstado.get(item.producto_id);
+    if (cambio?.estado === "PA") return;
+    if (actual < item.cantidad_pedida) {
+      const nuevo = new Map(productosVerificados);
+      nuevo.set(item.producto_id, actual + 1);
+      setProductosVerificados(nuevo);
+      if (actual + 1 >= item.cantidad_pedida) {
+        const nc = new Map(cambiosEstado);
+        nc.set(item.producto_id, { estado: "completo", cantidad: item.cantidad_pedida });
+        setCambiosEstado(nc);
+      }
+    }
+    // Verificar si todo completado
+    const todoCompleto = productos.every((p: any) => {
+      const v = productosVerificados.get(p.producto_id) || 0;
+      const c = cambiosEstado.get(p.producto_id);
+      return c?.estado === "PA" || c?.estado === "parcial" || v >= p.cantidad_pedida;
+    });
+    if (todoCompleto) setMostrarModalCompletado(true);
+  };
+
+  const confirmarVerificacion = async () => {
+  setGuardando(true);
+  const productosJson = productos.map((p: any) => {
+    const verificado = productosVerificados.get(p.producto_id) || 0;
+    const cambio = cambiosEstado.get(p.producto_id);
+    return {
+      producto_id: p.producto_id,
+      CODIGO: p.CODIGO,
+      TITULO: p.TITULO,
+      cantidad_pedida: p.cantidad_pedida,
+      cantidad_recibida: cambio?.estado === "PA" ? 0 : (cambio?.cantidad || verificado),
+      estado: cambio?.estado || (verificado >= p.cantidad_pedida ? "completo" : "faltante"),
+    };
+  });
+  const tieneFaltantes = productosJson.some((p: any) => p.estado !== "completo");
+  const { error } = await supabase.from("verificaciones_recepcion").insert({
+    pedido_id: pedidoSeleccionado.id,
+    cuenta_id: cuenta.id,
+    productos_verificados: productosJson,
+    tiene_faltantes: tieneFaltantes,
+  });
+  console.log("Error insert:", error);
+  setGuardando(false);
+  setMostrarModalCompletado(false);
+  setPedidoSeleccionado(null);
+
+  if (!error) {
+    
+    setPedidosVerificados((prev: Set<number>) => new Set([...prev, pedidoSeleccionado.id]));
+  }
+};
+
+  // Vista lista de pedidos
+  if (!pedidoSeleccionado) {
+    return (
+      <motion.div className="min-h-screen" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
+        <BackBtn onBack={() => setVistaPerfil("menu")} />
+        <h2 className="text-xl font-bold text-zinc-900 mb-4">Verificar Recepción</h2>
+        <p className="text-sm text-zinc-500 mb-4">Selecciona un pedido entregado para verificar que llegó completo.</p>
+        {cargando ? (
+          <div className="flex justify-center py-10"><div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full" /></div>
+        ) : pedidos.length === 0 ? (
+          <div className="text-center py-12 bg-zinc-50 rounded-xl border border-zinc-200">
+            <Package size={40} className="mx-auto text-zinc-300 mb-2" />
+            <p className="text-zinc-400 text-sm">No hay pedidos entregados para verificar</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pedidos.map((pedido) => (
+              <button key={pedido.id} onClick={() => abrirPedido(pedido)}
+  className={`w-full rounded-xl border p-4 text-left shadow-sm transition ${
+    pedidosVerificados.has(pedido.id)
+      ? "bg-green-50 border-green-300 hover:bg-green-100"
+      : "bg-white border-zinc-200 hover:bg-zinc-50"
+  }`}>
+  <div className="flex justify-between items-start">
+    <div>
+      <p className="font-bold text-zinc-900">Pedido #{pedido.id}</p>
+      {pedido.cuentas && (
+        <p className="text-xs text-blue-600 font-semibold mt-0.5">
+          {pedido.cuentas.cliente || pedido.cuentas.ferreteria} — {pedido.cuentas.numero_cuenta}
+        </p>
+      )}
+      <p className="text-xs text-zinc-500 mt-0.5">
+        {new Date(pedido.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+      </p>
+    </div>
+    <div className="text-right">
+      <p className="text-sm font-bold text-orange-500">${pedido.total?.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
+      {pedidosVerificados.has(pedido.id) ? (
+        <span className="text-xs bg-green-500 text-white font-semibold px-2 py-0.5 rounded-full">✓ Verificado</span>
+      ) : (
+        <span className="text-xs bg-zinc-100 text-zinc-500 font-semibold px-2 py-0.5 rounded-full">Pendiente</span>
+      )}
+    </div>
+  </div>
+</button>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+
+  // Vista verificación
+  const totalVerificado = productos.reduce((sum, p: any) => {
+    const v = productosVerificados.get(p.producto_id) || 0;
+    const c = cambiosEstado.get(p.producto_id);
+    return sum + (c?.estado === "PA" || c?.estado === "parcial" || c?.estado === "completo" ? 1 : v >= p.cantidad_pedida ? 1 : 0);
+  }, 0);
+
+  return (
+    <motion.div className="min-h-screen pb-32" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }}>
+      <BackBtn onBack={() => { setPedidoSeleccionado(null); setProductos([]); }} />
+      <h2 className="text-lg font-bold text-zinc-900 mb-1">Pedido #{pedidoSeleccionado.id}</h2>
+      <p className="text-xs text-zinc-500 mb-4">Escanea o toca cada producto para verificar</p>
+
+      {/* Progreso */}
+      <div className="bg-white rounded-xl border border-zinc-200 p-3 mb-4 flex items-center gap-3">
+        <div className="flex-1 bg-zinc-200 h-2 rounded-full overflow-hidden">
+          <div className="h-full bg-orange-500 transition-all" style={{ width: `${(totalVerificado / productos.length) * 100}%` }} />
+        </div>
+        <span className="text-sm font-bold text-zinc-700">{totalVerificado}/{productos.length}</span>
+      </div>
+
+      {/* Lista de productos */}
+      <div className="space-y-2">
+        {productos.map((item: any) => {
+          const verificado = productosVerificados.get(item.producto_id) || 0;
+          const cambio = cambiosEstado.get(item.producto_id);
+          const esPA = cambio?.estado === "PA";
+          const esParcial = cambio?.estado === "parcial";
+          const esCompleto = cambio?.estado === "completo" || verificado >= item.cantidad_pedida;
+          const esUltimo = ultimoEscaneo === item.CODIGO || ultimoEscaneo === item.C_PRODUCTO;
+
+          return (
+            <motion.div key={item.producto_id}
+              animate={{
+                scale: esUltimo ? [1, 1.02, 1] : 1,
+                backgroundColor: esPA ? "#fef3c7" : esParcial ? "#fed7aa" : esCompleto ? "#dcfce7" : "#ffffff",
+                borderColor: esPA ? "#fbbf24" : esParcial ? "#fb923c" : esCompleto ? "#22c55e" : "#e4e4e7",
+              }}
+              className="border-2 rounded-xl p-3 shadow-sm"
+              onClick={() => setModalProducto(item)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="relative w-12 h-12 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
+                  {item.IMAGEN ? <Image src={item.IMAGEN} alt={item.TITULO} fill className="object-contain" /> : <Package size={16} className="text-zinc-300 m-auto" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-mono text-zinc-500">{item.CODIGO}</p>
+                  <p className="text-sm font-semibold text-zinc-800 line-clamp-2">{item.TITULO}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  {esPA ? (
+                    <span className="text-xs font-bold bg-yellow-500 text-white px-2 py-1 rounded">PA</span>
+                  ) : esParcial ? (
+                    <span className="text-xs font-bold bg-orange-500 text-white px-2 py-1 rounded">{cambio.cantidad}/{item.cantidad_pedida}</span>
+                  ) : esCompleto ? (
+                    <CheckCircle size={22} className="text-green-500" />
+                  ) : (
+                    <span className="text-sm font-bold text-zinc-400">{verificado}/{item.cantidad_pedida}</span>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+     {/* Botón confirmar */}
+<div className="fixed bottom-24 left-4 right-4 z-40">
+  {pedidoSeleccionado?.yaVerificado ? (
+    <div className="w-full py-3 rounded-xl bg-green-100 text-green-700 font-bold text-center border border-green-300">
+      ✓ Este pedido ya fue verificado
+    </div>
+  ) : (
+    <button onClick={() => setMostrarModalCompletado(true)}
+      className="w-full py-3 rounded-xl bg-orange-500 text-white font-bold shadow-lg">
+      Confirmar Verificación
+    </button>
+  )}
+</div>
+
+      {/* Modal producto */}
+      {typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {modalProducto && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+              onClick={() => setModalProducto(null)}>
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
+                onClick={(e) => e.stopPropagation()}>
+                <p className="font-bold text-zinc-900 mb-1 text-sm">{modalProducto.TITULO}</p>
+                <p className="text-xs text-zinc-500 mb-4">Cantidad pedida: {modalProducto.cantidad_pedida}</p>
+
+                <button onClick={() => {
+                  const nc = new Map(cambiosEstado);
+                  const yaPA = nc.get(modalProducto.producto_id)?.estado === "PA";
+                  if (yaPA) { nc.delete(modalProducto.producto_id); } else { nc.set(modalProducto.producto_id, { estado: "PA", cantidad: 0 }); }
+                  setCambiosEstado(nc); setModalProducto(null);
+                }}
+                  className={`w-full py-3 rounded-xl text-white font-bold mb-3 ${cambiosEstado.get(modalProducto.producto_id)?.estado === "PA" ? "bg-red-500" : "bg-yellow-500"}`}>
+                  {cambiosEstado.get(modalProducto.producto_id)?.estado === "PA" ? "Quitar PA" : "PA - No llegó"}
+                </button>
+
+                <input type="number" value={cantidadParcialInput} onChange={(e) => setCantidadParcialInput(e.target.value)}
+                  placeholder="Cantidad recibida (parcial)"
+                  className="w-full border-2 border-orange-300 rounded-xl px-4 py-3 text-center text-zinc-700 mb-3 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+
+                <div className="flex gap-2">
+                  <button onClick={() => { setModalProducto(null); setCantidadParcialInput(""); }}
+                    className="flex-1 py-3 rounded-xl border-2 border-zinc-300 text-zinc-600 font-bold">Cancelar</button>
+                  <button onClick={() => {
+                    const cant = parseInt(cantidadParcialInput);
+                    if (!cant || cant <= 0) return;
+                    const nc = new Map(cambiosEstado);
+                    const nv = new Map(productosVerificados);
+                    if (cant >= modalProducto.cantidad_pedida) {
+                      nc.set(modalProducto.producto_id, { estado: "completo", cantidad: modalProducto.cantidad_pedida });
+                      nv.set(modalProducto.producto_id, modalProducto.cantidad_pedida);
+                    } else {
+                      nc.set(modalProducto.producto_id, { estado: "parcial", cantidad: cant });
+                      nv.set(modalProducto.producto_id, cant);
+                    }
+                    setCambiosEstado(nc); setProductosVerificados(nv);
+                    setModalProducto(null); setCantidadParcialInput("");
+                  }} disabled={!cantidadParcialInput}
+                    className="flex-1 py-3 rounded-xl bg-orange-500 text-white font-bold disabled:opacity-50">Aplicar</button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>, document.body
+      )}
+
+      {/* Modal completado */}
+      {typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {mostrarModalCompletado && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm">
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+                  <CheckCircle size={40} className="text-green-500" />
+                </div>
+                <h3 className="text-xl font-bold text-zinc-900 mb-2">Confirmar Verificación</h3>
+                <p className="text-zinc-500 text-sm mb-6">Se registrará el estado de recepción del pedido #{pedidoSeleccionado?.id}.</p>
+                <button onClick={confirmarVerificacion} disabled={guardando}
+                  className="w-full py-3 rounded-xl bg-green-500 text-white font-bold mb-3 disabled:opacity-50">
+                  {guardando ? "Guardando..." : "Confirmar"}
+                </button>
+                <button onClick={() => setMostrarModalCompletado(false)} className="w-full py-3 rounded-xl border-2 border-zinc-300 text-zinc-600 font-bold">
+                  Revisar de nuevo
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>, document.body
+      )}
+    </motion.div>
   );
 };
 
@@ -25857,6 +26412,12 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
     onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("back-orders"); }}
   />
 
+  <MenuItem
+  icon={<ScanBarcode size={20} />}
+  label="Verificar recepción"
+  onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("verificar-recepcion"); }}
+/>
+
     <MenuItem
       icon={<MapPin size={20} />}
       label="Ubicación de tienda"
@@ -25896,6 +26457,11 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
     icon={<Zap size={20} />}
     onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("captura-rapida"); }}
   />
+  <MenuItem
+  icon={<ScanBarcode size={20} />}
+  label="Verificaciones de recepción"
+  onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("resumen-verificaciones"); }}
+/>
   </Acordeon>
       )}
 
@@ -26230,6 +26796,8 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
   <GestionarGruposMarca setVistaPerfil={setVistaPerfil} />
 )}
 
+
+
 {vistaPerfil === "captura-rapida" && esAdmin && (
   <motion.div
     key="captura-rapida"
@@ -26254,7 +26822,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
                         dragConstraints={{ left: 0, right: 0 }}
                         onDragEnd={(event, info) => {
                           if (info.offset.x > 100) {
-                            setVistaPerfil("menu");
+                            setVistaPerfil("menu"); 
                           }
                         }}
                       >
@@ -26344,6 +26912,29 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
                     {vistaPerfil === "eliminacion-masiva" && (
                       <EliminacionMasivaView setVistaPerfil={setVistaPerfil} />
                     )}
+
+                    {vistaPerfil === "verificar-recepcion" && (
+  <motion.div key="verificar-recepcion" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}
+    transition={{ duration: 0.3 }} drag="x" dragConstraints={{ left: 0, right: 0 }}
+    onDragEnd={(e, info) => { if (info.offset.x > 100) setVistaPerfil("menu"); }}>
+    <VerificacionRecepcionPanel setVistaPerfil={setVistaPerfil} cuenta={cuenta} />
+  </motion.div>
+)}
+
+{vistaPerfil === "resumen-verificaciones" && esAdmin && (
+  <motion.div
+    key="resumen-verificaciones"
+    initial={{ opacity: 0, x: 40 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: -40 }}
+    transition={{ duration: 0.3 }}
+    drag="x"
+    dragConstraints={{ left: 0, right: 0 }}
+    onDragEnd={(e: any, info: any) => { if (info.offset.x > 100) setVistaPerfil("menu"); }}
+  >
+    <ResumenVerificacionesPanel setVistaPerfil={setVistaPerfil} />
+  </motion.div>
+)}
 
                     {/* CONFIGURACIÓN */}
                     {vistaPerfil === "settings" && (
