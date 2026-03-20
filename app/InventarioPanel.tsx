@@ -16,6 +16,7 @@ interface ItemInventario {
 }
 
 interface InventarioGuardado {
+  tipo: string;
   id: number;
   numero_cuenta: string;
   nombre_usuario: string;
@@ -42,6 +43,7 @@ const modalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [error, setError] = useState("");
   const [confirmando, setConfirmando] = useState(false);
   const [exito, setExito] = useState(false);
+  const [tipoInventario, setTipoInventario] = useState<"bodega" | "sucursal">("bodega");
 
   const [vistaAdmin, setVistaAdmin] = useState<"inventario" | "historial">("inventario");
   const [historial, setHistorial] = useState<InventarioGuardado[]>([]);
@@ -261,10 +263,11 @@ const escanearProducto = async (codigo: string) => {
   const generarString = () => items.map((i) => `${i.CODIGO}*${i.cantidad}`).join("-");
 
   const confirmarInventario = async () => {
-    if (items.length === 0) return;
-    setConfirmando(true);
+  if (items.length === 0) return;
+  setConfirmando(true);
 
-    // Actualizar existencias
+  // Solo actualizar existencias si es bodega
+  if (tipoInventario === "bodega") {
     const actualizaciones = items.map((item) =>
       client.from("productos").update({ existencia: item.cantidad }).eq("id", item.id)
     );
@@ -275,24 +278,25 @@ const escanearProducto = async (codigo: string) => {
       setConfirmando(false);
       return;
     }
+  }
 
-    // Guardar registro
-    const { error } = await client.from("inventarios").insert({
-      cuenta_id: cuenta?.id,
-      numero_cuenta: cuenta?.numero_cuenta,
-      nombre_usuario: cuenta?.cliente || cuenta?.ferreteria || cuenta?.numero_cuenta,
-      lista_productos: generarString(),
-    });
+  // Guardar registro siempre
+  const { error } = await client.from("inventarios").insert({
+    cuenta_id: cuenta?.id,
+    numero_cuenta: cuenta?.numero_cuenta,
+    nombre_usuario: cuenta?.cliente || cuenta?.ferreteria || cuenta?.numero_cuenta,
+    lista_productos: generarString(),
+    tipo: tipoInventario, 
+  });
 
-    setConfirmando(false);
-    if (error) { setError("Error al guardar el inventario"); return; }
+  setConfirmando(false);
+  if (error) { setError("Error al guardar el inventario"); return; }
 
-    // Limpiar localStorage
-    localStorage.removeItem(STORAGE_KEY(cuenta.numero_cuenta));
-    setExito(true);
-    setItems([]);
-    setTimeout(() => setExito(false), 3000);
-  };
+  localStorage.removeItem(STORAGE_KEY(cuenta.numero_cuenta));
+  setExito(true);
+  setItems([]);
+  setTimeout(() => setExito(false), 3000);
+};
 
   const cargarHistorial = async () => {
     setCargandoHistorial(true);
@@ -355,6 +359,33 @@ const escanearProducto = async (codigo: string) => {
               </button>
             </div>
           )}
+
+          <div className="flex gap-2 mb-4 bg-zinc-100 rounded-xl p-1">
+  <button
+    onClick={() => setTipoInventario("bodega")}
+    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
+      tipoInventario === "bodega" ? "bg-white text-orange-500 shadow" : "text-zinc-500"
+    }`}
+  >
+    Bodega
+  </button>
+  <button
+    onClick={() => setTipoInventario("sucursal")}
+    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
+      tipoInventario === "sucursal" ? "bg-white text-blue-500 shadow" : "text-zinc-500"
+    }`}
+  >
+    Sucursal
+  </button>
+</div>
+
+{tipoInventario === "sucursal" && (
+  <div className="mb-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2">
+    <p className="text-xs text-blue-700 font-medium">
+      Modo sucursal — se registra el conteo pero no se actualizan las existencias en la base de datos.
+    </p>
+  </div>
+)}
 
 
           {/* Input manual */}
@@ -644,14 +675,18 @@ const escanearProducto = async (codigo: string) => {
                           {inv.nombre_usuario || inv.numero_cuenta}
                         </p>
                         <p className="text-xs text-zinc-400">
-                          {new Date(inv.created_at).toLocaleDateString("es-MX", {
-                            day: "2-digit", month: "short", year: "numeric",
-                          })}{" "}
-                          {new Date(inv.created_at).toLocaleTimeString("es-MX", {
-                            hour: "2-digit", minute: "2-digit",
-                          })}
-                          {" · "}{productos.length} productos
-                        </p>
+  {new Date(inv.created_at).toLocaleDateString("es-MX", {
+    day: "2-digit", month: "short", year: "numeric",
+  })}{" "}
+  {new Date(inv.created_at).toLocaleTimeString("es-MX", {
+    hour: "2-digit", minute: "2-digit",
+  })}
+  {" · "}{productos.length} productos
+  {" · "}
+  <span className={inv.tipo === "sucursal" ? "text-blue-500 font-semibold" : "text-orange-500 font-semibold"}>
+    {inv.tipo === "sucursal" ? "Sucursal" : "Bodega"}
+  </span>
+</p>
                       </div>
                       {expandido ? <ChevronUp size={16} className="text-zinc-400" /> : <ChevronDown size={16} className="text-zinc-400" />}
                     </button>
