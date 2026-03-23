@@ -15035,7 +15035,7 @@ useEffect(() => {
       {/* Filtro cliente */}
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
-        <input type="text" placeholder="Buscar cliente, cuenta o ferretería..."
+        <input type="text" placeholder="Buscar cliente, cuenta o negocio..."
           value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)}
           className="w-full rounded-full border border-zinc-300 bg-white pl-9 pr-10 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-400" />
         {filtroCliente && (
@@ -16912,7 +16912,7 @@ if (backOrderExistente) {
             <div className="relative">
               <input
                 type="text"
-                placeholder="Buscar cliente, cuenta o ferretería..."
+                placeholder="Buscar cliente, cuenta o negocio..."
                 value={filtroCliente}
                 onChange={(e) => setFiltroCliente(e.target.value)}
                 className="w-full rounded-full border border-zinc-300 bg-white pl-9 pr-10 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
@@ -17146,6 +17146,8 @@ const VerificacionRecepcionPanel = ({ setVistaPerfil, cuenta }: any) => {
   const [bufferEscaneo, setBufferEscaneo] = useState("");
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [pedidosVerificados, setPedidosVerificados] = useState<Set<number>>(new Set());
+  const [busqueda, setBusqueda] = useState("");
+const [filtroProductos, setFiltroProductos] = useState<"todos" | "pendientes" | "completo" | "pa" | "parcial">("todos");
 
   useEffect(() => {
   const cargar = async () => {
@@ -17166,8 +17168,8 @@ const VerificacionRecepcionPanel = ({ setVistaPerfil, cuenta }: any) => {
         .from("verificaciones_recepcion")
         .select("pedido_id")
         .in("pedido_id", ids);
-      const idsVerificados = new Set((vers || []).map((v: any) => v.pedido_id));
-      setPedidosVerificados(idsVerificados as Set<number>);
+      const idsVerificados = new Set((vers || []).map((v: any) => Number(v.pedido_id)));
+setPedidosVerificados(idsVerificados as Set<number>);
     }
     setCargando(false);
   };
@@ -17197,37 +17199,51 @@ const VerificacionRecepcionPanel = ({ setVistaPerfil, cuenta }: any) => {
 
   const items = pedido.lista_productos.split("-").map((item: string) => {
     const [codigo, cantidad] = item.split("*");
-    return { codigo, cantidad: parseInt(cantidad) };
+    return { codigo, cantidad: parseInt(cantidad) || 1 };
   });
+  
   const codigos = items.map((i: any) => i.codigo);
   const { data: prods } = await supabase.from("productos").select("id, TITULO, CODIGO, IMAGEN, C_PRODUCTO").in("CODIGO", codigos);
+  
   const productosConCantidad = items.map((item: any) => {
     const prod = prods?.find((p: any) => p.CODIGO === item.codigo);
     if (!prod) return null;
     return { ...prod, cantidad_pedida: item.cantidad, producto_id: prod.id };
   }).filter(Boolean);
 
-  if (pedidosVerificados.has(pedido.id)) {
-    const { data: ver } = await supabase
+  if (pedidosVerificados.has(Number(pedido.id))) {
+    const { data: verData, error } = await supabase
       .from("verificaciones_recepcion")
       .select("*")
       .eq("pedido_id", pedido.id)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
+
+    if (error) {
+      console.error("Error al buscar la verificación en Supabase:", error);
+    }
+
+    const ver = verData?.[0];
 
     if (ver) {
       const nuevosVerificados = new Map<number, number>();
       const nuevosCambios = new Map<number, any>();
-      ver.productos_verificados.forEach((p: any) => {
+      const listaVerificados = typeof ver.productos_verificados === 'string' 
+        ? JSON.parse(ver.productos_verificados) 
+        : (ver.productos_verificados || []);
+
+      listaVerificados.forEach((p: any) => {
         nuevosVerificados.set(p.producto_id, p.cantidad_recibida);
         nuevosCambios.set(p.producto_id, { estado: p.estado, cantidad: p.cantidad_recibida });
       });
+      
       setProductos(productosConCantidad);
       setProductosVerificados(nuevosVerificados);
       setCambiosEstado(nuevosCambios);
       setPedidoSeleccionado({ ...pedido, yaVerificado: true });
-      return;
+      return; 
+    } else {
+      console.warn("Estaba en el Set, pero no se encontró el registro en la BD.");
     }
   }
 
@@ -17258,12 +17274,15 @@ const VerificacionRecepcionPanel = ({ setVistaPerfil, cuenta }: any) => {
         setCambiosEstado(nc);
       }
     }
-    // Verificar si todo completado
-    const todoCompleto = productos.every((p: any) => {
-      const v = productosVerificados.get(p.producto_id) || 0;
-      const c = cambiosEstado.get(p.producto_id);
-      return c?.estado === "PA" || c?.estado === "parcial" || v >= p.cantidad_pedida;
-    });
+
+    const todoCompleto = productos.length > 0 && productos.every((p: any) => {
+  const v = productosVerificados.get(p.producto_id) || 0;
+  const c = cambiosEstado.get(p.producto_id);
+  return c?.estado === "PA" || 
+         c?.estado === "parcial" || 
+         c?.estado === "completo" || 
+         (p.cantidad_pedida > 0 && v >= p.cantidad_pedida); 
+});
     if (todoCompleto) setMostrarModalCompletado(true);
   };
 
@@ -17295,7 +17314,7 @@ const VerificacionRecepcionPanel = ({ setVistaPerfil, cuenta }: any) => {
 
   if (!error) {
     
-    setPedidosVerificados((prev: Set<number>) => new Set([...prev, pedidoSeleccionado.id]));
+    setPedidosVerificados((prev: Set<number>) => new Set([...prev, Number(pedidoSeleccionado.id)]));
   }
 };
 
@@ -17318,7 +17337,7 @@ const VerificacionRecepcionPanel = ({ setVistaPerfil, cuenta }: any) => {
             {pedidos.map((pedido) => (
               <button key={pedido.id} onClick={() => abrirPedido(pedido)}
   className={`w-full rounded-xl border p-4 text-left shadow-sm transition ${
-    pedidosVerificados.has(pedido.id)
+  pedidosVerificados.has(Number(pedido.id))
       ? "bg-green-50 border-green-300 hover:bg-green-100"
       : "bg-white border-zinc-200 hover:bg-zinc-50"
   }`}>
@@ -17336,7 +17355,7 @@ const VerificacionRecepcionPanel = ({ setVistaPerfil, cuenta }: any) => {
     </div>
     <div className="text-right">
       <p className="text-sm font-bold text-orange-500">${pedido.total?.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
-      {pedidosVerificados.has(pedido.id) ? (
+      {pedidosVerificados.has(Number(pedido.id)) ? (
         <span className="text-xs bg-green-500 text-white font-semibold px-2 py-0.5 rounded-full">✓ Verificado</span>
       ) : (
         <span className="text-xs bg-zinc-100 text-zinc-500 font-semibold px-2 py-0.5 rounded-full">Pendiente</span>
@@ -17358,6 +17377,15 @@ const VerificacionRecepcionPanel = ({ setVistaPerfil, cuenta }: any) => {
     return sum + (c?.estado === "PA" || c?.estado === "parcial" || c?.estado === "completo" ? 1 : v >= p.cantidad_pedida ? 1 : 0);
   }, 0);
 
+  const todoCompleto = productos.length > 0 && productos.every((p: any) => {
+  const v = productosVerificados.get(p.producto_id) || 0;
+  const c = cambiosEstado.get(p.producto_id);
+  return c?.estado === "PA" || 
+         c?.estado === "parcial" || 
+         c?.estado === "completo" || 
+         (p.cantidad_pedida > 0 && v >= p.cantidad_pedida);
+});
+
   return (
     <motion.div className="min-h-screen pb-32" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }}>
       <BackBtn onBack={() => { setPedidoSeleccionado(null); setProductos([]); }} />
@@ -17373,62 +17401,127 @@ const VerificacionRecepcionPanel = ({ setVistaPerfil, cuenta }: any) => {
       </div>
 
       {/* Lista de productos */}
-      <div className="space-y-2">
-        {productos.map((item: any) => {
-          const verificado = productosVerificados.get(item.producto_id) || 0;
-          const cambio = cambiosEstado.get(item.producto_id);
-          const esPA = cambio?.estado === "PA";
-          const esParcial = cambio?.estado === "parcial";
-          const esCompleto = cambio?.estado === "completo" || verificado >= item.cantidad_pedida;
-          const esUltimo = ultimoEscaneo === item.CODIGO || ultimoEscaneo === item.C_PRODUCTO;
+      {/* Buscador */}
+<div className="relative mb-3">
+  <input
+    type="text"
+    value={busqueda}
+    onChange={(e) => setBusqueda(e.target.value)}
+    placeholder="Buscar producto..."
+    className="w-full border-2 border-zinc-200 rounded-xl px-4 py-2.5 text-sm text-zinc-700 focus:outline-none focus:border-orange-400 pr-10"
+  />
+  {busqueda ? (
+    <button onClick={() => setBusqueda("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 font-bold">✕</button>
+  ) : (
+    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-300 text-sm"></span>
+  )}
+</div>
 
-          return (
-            <motion.div key={item.producto_id}
-              animate={{
-                scale: esUltimo ? [1, 1.02, 1] : 1,
-                backgroundColor: esPA ? "#fef3c7" : esParcial ? "#fed7aa" : esCompleto ? "#dcfce7" : "#ffffff",
-                borderColor: esPA ? "#fbbf24" : esParcial ? "#fb923c" : esCompleto ? "#22c55e" : "#e4e4e7",
-              }}
-              className="border-2 rounded-xl p-3 shadow-sm"
-              onClick={() => setModalProducto(item)}
-            >
-              <div className="flex items-center gap-3">
-                <div className="relative w-12 h-12 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
-                  {item.IMAGEN ? <Image src={item.IMAGEN} alt={item.TITULO} fill className="object-contain" /> : <Package size={16} className="text-zinc-300 m-auto" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-mono text-zinc-500">{item.CODIGO}</p>
-                  <p className="text-sm font-semibold text-zinc-800 line-clamp-2">{item.TITULO}</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  {esPA ? (
-                    <span className="text-xs font-bold bg-yellow-500 text-white px-2 py-1 rounded">PA</span>
-                  ) : esParcial ? (
-                    <span className="text-xs font-bold bg-orange-500 text-white px-2 py-1 rounded">{cambio.cantidad}/{item.cantidad_pedida}</span>
-                  ) : esCompleto ? (
-                    <CheckCircle size={22} className="text-green-500" />
-                  ) : (
-                    <span className="text-sm font-bold text-zinc-400">{verificado}/{item.cantidad_pedida}</span>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+{/* Filtros */}
+<div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide" onPointerDownCapture={(e) => e.stopPropagation()}>
+  {[
+    { key: "todos", label: "Todos", count: productos.length },
+    { key: "pendientes", label: "Pendientes", count: productos.filter((p: any) => {
+      const v = productosVerificados.get(p.producto_id) || 0;
+      const c = cambiosEstado.get(p.producto_id);
+      return !c && v < p.cantidad_pedida;
+    }).length },
+    { key: "completo", label: "Completos", count: productos.filter((p: any) => {
+      const v = productosVerificados.get(p.producto_id) || 0;
+      const c = cambiosEstado.get(p.producto_id);
+      return c?.estado === "completo" || (!c && v >= p.cantidad_pedida);
+    }).length },
+    { key: "pa", label: "PA", count: productos.filter((p: any) => cambiosEstado.get(p.producto_id)?.estado === "PA").length },
+    { key: "parcial", label: "Parcial", count: productos.filter((p: any) => cambiosEstado.get(p.producto_id)?.estado === "parcial").length },
+  ].map((f) => (
+    <button key={f.key} onClick={() => setFiltroProductos(f.key as any)}
+      className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
+        filtroProductos === f.key
+          ? f.key === "pa" ? "bg-yellow-500 text-white border-yellow-500"
+          : f.key === "parcial" ? "bg-orange-500 text-white border-orange-500"
+          : f.key === "pendientes" ? "bg-blue-500 text-white border-blue-500"
+          : f.key === "completo" ? "bg-green-500 text-white border-green-500"
+          : "bg-orange-600 text-white border-orange-600"
+          : "bg-white text-zinc-600 border-zinc-300"
+      }`}>
+      {f.label}
+      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${filtroProductos === f.key ? "bg-white/30 text-white" : "bg-zinc-100 text-zinc-500"}`}>
+        {f.count}
+      </span>
+    </button>
+  ))}
+</div>
 
-     {/* Botón confirmar */}
-<div className="fixed bottom-24 left-4 right-4 z-40">
+{/* Lista de productos */}
+<div className="space-y-2">
+  {productos.filter((item: any) => {
+    if (busqueda) {
+      const q = busqueda.toLowerCase();
+      if (!item.TITULO?.toLowerCase().includes(q) && !item.CODIGO?.toLowerCase().includes(q)) return false;
+    }
+    if (filtroProductos === "todos") return true;
+    const v = productosVerificados.get(item.producto_id) || 0;
+    const c = cambiosEstado.get(item.producto_id);
+    if (filtroProductos === "pa") return c?.estado === "PA";
+    if (filtroProductos === "parcial") return c?.estado === "parcial";
+    if (filtroProductos === "completo") return c?.estado === "completo" || (!c && v >= item.cantidad_pedida);
+    if (filtroProductos === "pendientes") return !c && v < item.cantidad_pedida;
+    return true;
+  }).map((item: any) => {
+    const verificado = productosVerificados.get(item.producto_id) || 0;
+    const cambio = cambiosEstado.get(item.producto_id);
+    const esPA = cambio?.estado === "PA";
+    const esParcial = cambio?.estado === "parcial";
+    const esCompleto = cambio?.estado === "completo" || verificado >= item.cantidad_pedida;
+    const esUltimo = ultimoEscaneo === item.CODIGO || ultimoEscaneo === item.C_PRODUCTO;
+
+    return (
+      <motion.div key={item.producto_id}
+        animate={{
+          scale: esUltimo ? [1, 1.02, 1] : 1,
+          backgroundColor: esPA ? "#fef3c7" : esParcial ? "#fed7aa" : esCompleto ? "#dcfce7" : "#ffffff",
+          borderColor: esPA ? "#fbbf24" : esParcial ? "#fb923c" : esCompleto ? "#22c55e" : "#e4e4e7",
+        }}
+        className="border-2 rounded-xl p-3 shadow-sm"
+        onClick={() => setModalProducto(item)}
+      >
+        <div className="flex items-center gap-3">
+          <div className="relative w-12 h-12 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
+            {item.IMAGEN ? <Image src={item.IMAGEN} alt={item.TITULO} fill className="object-contain" /> : <Package size={16} className="text-zinc-300 m-auto" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-mono text-zinc-500">{item.CODIGO}</p>
+            <p className="text-sm font-semibold text-zinc-800 line-clamp-2">{item.TITULO}</p>
+          </div>
+          <div className="text-right flex-shrink-0">
+            {esPA ? (
+              <span className="text-xs font-bold bg-yellow-500 text-white px-2 py-1 rounded">PA</span>
+            ) : esParcial ? (
+              <span className="text-xs font-bold bg-orange-500 text-white px-2 py-1 rounded">{cambio.cantidad}/{item.cantidad_pedida}</span>
+            ) : esCompleto ? (
+              <CheckCircle size={22} className="text-green-500" />
+            ) : (
+              <span className="text-sm font-bold text-zinc-400">{verificado}/{item.cantidad_pedida}</span>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    );
+  })}
+</div>
+
+{/* Botón confirmar */}
+<div className="fixed bottom-37 left-4 right-4 z-40">
   {pedidoSeleccionado?.yaVerificado ? (
     <div className="w-full py-3 rounded-xl bg-green-100 text-green-700 font-bold text-center border border-green-300">
       ✓ Este pedido ya fue verificado
     </div>
-  ) : (
+  ) : todoCompleto ? (
     <button onClick={() => setMostrarModalCompletado(true)}
       className="w-full py-3 rounded-xl bg-orange-500 text-white font-bold shadow-lg">
       Confirmar Verificación
     </button>
-  )}
+  ) : null}
 </div>
 
       {/* Modal producto */}
@@ -18299,7 +18392,7 @@ doc.setTextColor(0, 0, 0);
   <div className="relative mb-3">
     <input
       type="text"
-      placeholder="Buscar cliente, cuenta o ferretería..."
+      placeholder="Buscar cliente, cuenta o negocio..."
       value={filtroClienteBO}
       onChange={(e) => setFiltroClienteBO(e.target.value)}
       className="w-full rounded-full border border-zinc-300 bg-white pl-9 pr-10 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
