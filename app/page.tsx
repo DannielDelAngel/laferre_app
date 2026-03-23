@@ -47,6 +47,19 @@ import {
   ClipboardList,
 } from "lucide-react";
 
+// Helper global para hora de Matamoros
+const getHoraMatamoros = () => {
+  const now = new Date();
+  const hora = parseInt(
+    now.toLocaleString("en-US", {
+      timeZone: "America/Matamoros",
+      hour: "numeric",
+      hour12: false,
+    })
+  );
+  return hora;
+};
+
 const ordenarProductos = (productos: any[], searchTerm: string) => {
   if (!searchTerm.trim()) return productos;
 
@@ -13745,7 +13758,6 @@ useEffect(() => {
 
       try {
         let urlImagen = "";
-
         // Si hay imagen, subirla primero
         if (imagenFile) {
           const timestamp = Date.now();
@@ -27376,7 +27388,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                               <p className="text-sm text-blue-800 font-semibold">
                                 {(() => {
-                                  const horaActual = new Date().getHours();
+                                  const horaActual = getHoraMatamoros();
 
                                   if (cuenta?.entrega_mismo_dia) {
                                     return horaActual < 10
@@ -27401,7 +27413,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
     <p className="text-sm text-green-800 font-semibold">
       {(() => {
         const total = carrito.reduce((sum, p) => sum + p.subtotal, 0);
-        const horaActual = new Date().getHours();
+        const horaActual = getHoraMatamoros();
 
         if (total >= 2000) {
           return "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'";
