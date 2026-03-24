@@ -240,6 +240,7 @@ const VistaProducto = ({
   producto,
   onBack,
   esAdmin,
+  esEmpleado,
   carrito,
   esMostrador,
   esMostrador2,
@@ -374,6 +375,11 @@ const [unidadVenta, setUnidadVenta] = useState(producto.unidad_venta || "");
   const [gruposDisponibles, setGruposDisponibles] = useState<any[]>([]);
 const [grupoIdSeleccionado, setGrupoIdSeleccionado] = useState<number | null>(null);
 
+const [modalCantidadEtiqueta, setModalCantidadEtiqueta] = useState(false);
+const [cantidadEtiquetaInput, setCantidadEtiquetaInput] = useState("1");
+const [modalImpresoraProducto, setModalImpresoraProducto] = useState(false);
+const [imprimiendoProducto, setImprimiendoProducto] = useState(false);
+
   const handleToggleMostrador = async (mostrador: "M1" | "M2") => {
     setActualizandoToggle(true);
     try {
@@ -483,6 +489,31 @@ const [grupoIdSeleccionado, setGrupoIdSeleccionado] = useState<number | null>(nu
       setActualizandoToggle(false);
     }
   };
+
+  const imprimirEtiquetaProducto = async (printer: number) => {
+  setImprimiendoProducto(true);
+  const total = parseInt(cantidadEtiquetaInput) || 1;
+  try {
+    for (let i = 0; i < total; i++) {
+      await fetch("https://192.168.5.115:3005/printEtiquetaProducto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: producto.TITULO,
+          codigo: producto.CODIGO,
+          cantidad: 1, 
+          printer,
+        }),
+      });
+    }
+  } catch (err) {
+    console.error("Error imprimiendo etiqueta:", err);
+  } finally {
+    setImprimiendoProducto(false);
+    setModalImpresoraProducto(false);
+    setModalCantidadEtiqueta(false);
+  }
+};
 
   const handleToggleTopVentas = async () => {
     setActualizandoToggle(true);
@@ -1016,6 +1047,133 @@ if (grupoIdSeleccionado) {
               </svg>
             </button>
           )}
+
+          {(esAdmin || esEmpleado) && !modoEdicion && (
+  <div className="mt-3 px-4 flex justify-center">
+    <button
+      onClick={() => {
+        setCantidadEtiquetaInput("1");
+        setModalCantidadEtiqueta(true);
+      }}
+      className="w-auto px-6 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold flex items-center justify-center gap-2 transition"
+    >
+      Imprimir Etiqueta
+    </button>
+  </div>
+)}
+
+{/* Modal cantidad de etiquetas */}
+{modalCantidadEtiqueta && (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[10000]">
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="bg-white rounded-2xl w-[90%] max-w-xs p-6 shadow-2xl"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <h3 className="text-lg font-bold text-zinc-900 text-center mb-1">
+        Imprimir Etiqueta
+      </h3>
+      <p className="text-xs text-zinc-500 text-center mb-4 leading-snug">
+        {producto.TITULO}
+      </p>
+
+      <label className="block text-sm font-medium text-zinc-700 mb-2">
+        ¿Cuántas etiquetas?
+      </label>
+      <input
+        type="number"
+        min="1"
+        autoFocus
+        value={cantidadEtiquetaInput}
+        onChange={(e) => setCantidadEtiquetaInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && parseInt(cantidadEtiquetaInput) >= 1) {
+            setModalCantidadEtiqueta(false);
+            setModalImpresoraProducto(true);
+          }
+        }}
+        className="w-full border-2 border-zinc-300 rounded-xl px-4 py-3 text-center text-2xl font-bold text-zinc-800 mb-5 focus:ring-2 focus:ring-blue-500 outline-none"
+      />
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => setModalCantidadEtiqueta(false)}
+          className="flex-1 py-3 rounded-xl border-2 border-zinc-300 text-zinc-600 font-bold"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => {
+            if (parseInt(cantidadEtiquetaInput) >= 1) {
+              setModalCantidadEtiqueta(false);
+              setModalImpresoraProducto(true);
+            }
+          }}
+          disabled={!cantidadEtiquetaInput || parseInt(cantidadEtiquetaInput) < 1}
+          className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 transition disabled:opacity-50"
+        >
+          Siguiente →
+        </button>
+      </div>
+    </motion.div>
+  </div>
+)}
+
+{/* Modal selección de impresora */}
+{modalImpresoraProducto && (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[10000]">
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="bg-white rounded-2xl w-[90%] max-w-xs p-6 shadow-2xl"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <h3 className="text-xl font-bold text-zinc-900 text-center mb-1">
+        Seleccionar Impresora
+      </h3>
+      <p className="text-sm text-zinc-500 text-center mb-1">{producto.TITULO}</p>
+      <p className="text-xs text-zinc-400 text-center mb-5">
+        Cantidad: {cantidadEtiquetaInput} etiqueta{parseInt(cantidadEtiquetaInput) !== 1 ? "s" : ""}
+      </p>
+
+      <div className="space-y-3 mb-4">
+        {[
+          { id: 1, nombre: "Embarques" },
+          { id: 2, nombre: "2" },
+          { id: 3, nombre: "3" },
+        ].map((printer) => (
+          <button
+            key={printer.id}
+            onClick={() => imprimirEtiquetaProducto(printer.id)}
+            disabled={imprimiendoProducto}
+            className="w-full py-3 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-lg shadow active:scale-95 transition disabled:opacity-50"
+          >
+            {imprimiendoProducto ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+                Imprimiendo...
+              </span>
+            ) : (
+              printer.nombre
+            )}
+          </button>
+        ))}
+      </div>
+
+      <button
+        onClick={() => {
+          setModalImpresoraProducto(false);
+          setModalCantidadEtiqueta(true); 
+        }}
+        disabled={imprimiendoProducto}
+        className="w-full py-3 rounded-xl border-2 border-zinc-300 text-zinc-600 font-bold"
+      >
+        ← Volver
+      </button>
+    </motion.div>
+  </div>
+)}
 
           {/* MODO EDICIÓN (ADMIN) */}
           {modoEdicion && esAdmin ? (
@@ -19253,15 +19411,15 @@ const [imprimiendo, setImprimiendo] = useState(false);
 const imprimirEtiqueta = async (producto: any, cantidad: number, printer: number) => {
   setImprimiendo(true);
   try {
-    await fetch("https://192.168.5.115:3005/printEtiquetaProducto", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nombre: producto.TITULO,
-        codigo: producto.CODIGO,
-        cantidad,
-        printer,
-      }),
+    await fetch("https://192.168.5.115:3005/printEtiquetaProducto", { 
+      method: "POST", 
+      headers: { "Content-Type": "application/json" }, 
+      body: JSON.stringify({ 
+        nombre: producto.TITULO, 
+        codigo: producto.CODIGO, 
+        cantidad, 
+        printer, 
+      }), 
     });
   } catch (err) {
     console.error("Error imprimiendo etiqueta:", err);
@@ -23870,6 +24028,7 @@ if (!contenedores.has(codigo)) {
 }
 }}
         esAdmin={esAdmin}
+        esEmpleado={esEmpleado}
         carrito={carrito}
         setCarrito={setCarrito}
         cuenta={cuenta}
