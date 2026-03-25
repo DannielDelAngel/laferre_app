@@ -6421,6 +6421,50 @@ const [recogerLocal, setRecogerLocal] = useState(false);
 
   const total = items.reduce((sum, i) => sum + i.subtotal, 0);
 
+
+useEffect(() => {
+
+  if (!cuentaSeleccionada) return;
+
+  const key = `captura_rapida_${cuentaSeleccionada.id}`;
+  
+  if (items.length > 0) {
+    localStorage.setItem(key, JSON.stringify(items));
+  } else {
+    localStorage.removeItem(key);
+  }
+}, [items, cuentaSeleccionada]);
+
+// Guardar cuenta 
+useEffect(() => {
+  if (cuentaSeleccionada) {
+    localStorage.setItem("captura_rapida_cuenta", JSON.stringify(cuentaSeleccionada));
+  } else {
+    localStorage.removeItem("captura_rapida_cuenta");
+  }
+}, [cuentaSeleccionada]);
+
+// Restaurar cuenta e items 
+useEffect(() => {
+  const cuentaGuardada = localStorage.getItem("captura_rapida_cuenta");
+  if (!cuentaGuardada) return;
+
+  try {
+    const cuenta = JSON.parse(cuentaGuardada);
+    setCuentaSeleccionada(cuenta);
+
+    const itemsGuardados = localStorage.getItem(`captura_rapida_${cuenta.id}`);
+    if (itemsGuardados) {
+      const parsed = JSON.parse(itemsGuardados);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        setItems(parsed);
+      }
+    }
+  } catch (e) {
+    console.error("Error restaurando progreso:", e);
+  }
+}, []); 
+
   useEffect(() => {
     if (productoSeleccionado) setTimeout(() => cantidadRef.current?.focus(), 100);
   }, [productoSeleccionado]);
@@ -6652,6 +6696,7 @@ const [recogerLocal, setRecogerLocal] = useState(false);
     }
 
     setExito(true);
+    localStorage.removeItem(`captura_rapida_${cuentaSeleccionada.id}`);
     setItems([]);
     setCuentaSeleccionada(null);
     setBusquedaCliente("");
@@ -6696,11 +6741,33 @@ const [recogerLocal, setRecogerLocal] = useState(false);
           {cuentasSugeridas.length > 0 && (
             <div className="mt-1 border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
               {cuentasSugeridas.map((c) => (
-                <button key={c.id} onClick={() => { setCuentaSeleccionada(c); setBusquedaCliente(""); setCuentasSugeridas([]); setTimeout(() => productoBusquedaRef.current?.focus(), 100); }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-orange-50 border-b border-zinc-100 last:border-0 transition">
-                  <p className="text-sm font-semibold text-zinc-800">{c.cliente || "Sin nombre"}</p>
-                  <p className="text-xs text-zinc-400">{c.numero_cuenta} · {c.ferreteria || ""}</p>
-                </button>
+                <button 
+  key={c.id} 
+  onClick={() => { 
+    setCuentaSeleccionada(c); 
+    setBusquedaCliente(""); 
+    setCuentasSugeridas([]); 
+
+    //Cargar los items de este cliente
+    const itemsGuardados = localStorage.getItem(`captura_rapida_${c.id}`);
+    if (itemsGuardados) {
+      try {
+        const parsed = JSON.parse(itemsGuardados);
+        setItems(Array.isArray(parsed) ? parsed : []);
+      } catch (e) {
+        setItems([]);
+      }
+    } else {
+      setItems([]); 
+    }
+
+    setTimeout(() => productoBusquedaRef.current?.focus(), 100); 
+  }}
+  className="w-full text-left px-4 py-2.5 hover:bg-orange-50 border-b border-zinc-100 last:border-0 transition"
+>
+  <p className="text-sm font-semibold text-zinc-800">{c.cliente || "Sin nombre"}</p>
+  <p className="text-xs text-zinc-400">{c.numero_cuenta} · {c.ferreteria || ""}</p>
+</button>
               ))}
             </div>
           )}
@@ -6711,9 +6778,16 @@ const [recogerLocal, setRecogerLocal] = useState(false);
             <p className="text-sm font-bold text-zinc-900">{cuentaSeleccionada.cliente}</p>
             <p className="text-xs text-zinc-500">{cuentaSeleccionada.numero_cuenta} · {cuentaSeleccionada.ferreteria || ""}</p>
           </div>
-          <button onClick={() => { setCuentaSeleccionada(null); setItems([]); }} className="text-zinc-400 hover:text-zinc-600">
-            <X size={16} />
-          </button>
+          <button 
+  onClick={() => { 
+    setCuentaSeleccionada(null); 
+    setBusquedaCliente(""); 
+    setItems([]); 
+  }} 
+  className="text-zinc-400 hover:text-zinc-600"
+>
+  <X size={16} />
+</button>
         </div>
       )}
 
@@ -6759,7 +6833,7 @@ const [recogerLocal, setRecogerLocal] = useState(false);
                   ref={productoBusquedaRef}
                   type="text"
                   value={busquedaProducto}
-                  onChange={(e) => { setBusquedaProducto(e.target.value); buscarProducto(e.target.value); }}
+                  onChange={(e) => { setBusquedaProducto(e.target.value); setSugerenciasProducto([]); }}
                  onKeyDown={(e) => {
   if (e.key === "ArrowDown") {
     e.preventDefault();
@@ -6769,15 +6843,20 @@ const [recogerLocal, setRecogerLocal] = useState(false);
     setSugerenciaActiva((prev) => Math.max(prev - 1, 0));
   } else if (e.key === "Enter") {
     e.preventDefault();
-    if (sugerenciaActiva >= 0 && sugerenciasProducto[sugerenciaActiva]) {
-      setProductoSeleccionado(sugerenciasProducto[sugerenciaActiva]);
-      setBusquedaProducto("");
-      setSugerenciasProducto([]);
-      setSugerenciaActiva(-1);
-    } else if (sugerenciasProducto.length === 1) {
-      setProductoSeleccionado(sugerenciasProducto[0]);
-      setBusquedaProducto("");
-      setSugerenciasProducto([]);
+
+    if (sugerenciasProducto.length > 0) {
+      if (sugerenciaActiva >= 0 && sugerenciasProducto[sugerenciaActiva]) {
+        setProductoSeleccionado(sugerenciasProducto[sugerenciaActiva]);
+        setBusquedaProducto("");
+        setSugerenciasProducto([]);
+        setSugerenciaActiva(-1);
+      } else if (sugerenciasProducto.length === 1) {
+        setProductoSeleccionado(sugerenciasProducto[0]);
+        setBusquedaProducto("");
+        setSugerenciasProducto([]);
+      }
+    } else {
+      buscarProducto(busquedaProducto);
     }
   } else if (e.key === "Escape") {
     setSugerenciasProducto([]);
