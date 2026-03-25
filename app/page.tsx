@@ -17318,6 +17318,21 @@ const VerificacionRecepcionPanel = ({ setVistaPerfil, cuenta }: any) => {
   const [pedidosVerificados, setPedidosVerificados] = useState<Set<number>>(new Set());
   const [busqueda, setBusqueda] = useState("");
 const [filtroProductos, setFiltroProductos] = useState<"todos" | "pendientes" | "completo" | "pa" | "parcial">("todos");
+const [modalProductoActivo, setModalProductoActivo] = useState<{
+  visible: boolean;
+  producto: any;
+  cantidadActual: number;
+  cantidadObjetivo: number;
+} | null>(null);
+
+useEffect(() => {
+  if (!pedidoSeleccionado || pedidoSeleccionado.yaVerificado) return;
+  const estado = {
+    productosVerificados: Array.from(productosVerificados.entries()),
+    cambiosEstado: Array.from(cambiosEstado.entries()),
+  };
+  localStorage.setItem(`verificacion_${pedidoSeleccionado.id}`, JSON.stringify(estado));
+}, [productosVerificados, cambiosEstado, pedidoSeleccionado]);
 
   useEffect(() => {
   const cargar = async () => {
@@ -17365,96 +17380,138 @@ setPedidosVerificados(idsVerificados as Set<number>);
   }, [bufferEscaneo, pedidoSeleccionado, modalProducto, productosVerificados]);
 
   const abrirPedido = async (pedido: any) => {
-  if (!pedido.lista_productos) return;
+  const { data: hojas } = await supabase
+    .from("hojas_surtido")
+    .select("productos_asignados")
+    .eq("pedido_id", pedido.id)
+    .eq("estado", "completado");
 
-  const items = pedido.lista_productos.split("-").map((item: string) => {
-    const [codigo, cantidad] = item.split("*");
-    return { codigo, cantidad: parseInt(cantidad) || 1 };
+  if (!hojas || hojas.length === 0) return;
+
+  const todosLosItems: any[] = [];
+  hojas.forEach((hoja) => {
+    const items = typeof hoja.productos_asignados === "string"
+      ? JSON.parse(hoja.productos_asignados)
+      : hoja.productos_asignados;
+    items.forEach((item: any) => todosLosItems.push(item));
   });
+
   
-  const codigos = items.map((i: any) => i.codigo);
-  const { data: prods } = await supabase.from("productos").select("id, TITULO, CODIGO, IMAGEN, C_PRODUCTO").in("CODIGO", codigos);
-  
-  const productosConCantidad = items.map((item: any) => {
+  const itemsFiltrados = todosLosItems.filter((item: any) => item.estado !== "PA");
+
+  if (itemsFiltrados.length === 0) return;
+
+  const codigos = itemsFiltrados.map((i: any) => i.codigo);
+  const { data: prods } = await supabase
+    .from("productos")
+    .select("id, TITULO, CODIGO, IMAGEN, C_PRODUCTO")
+    .in("CODIGO", codigos);
+
+  const productosConCantidad = itemsFiltrados.map((item: any) => {
     const prod = prods?.find((p: any) => p.CODIGO === item.codigo);
     if (!prod) return null;
-    return { ...prod, cantidad_pedida: item.cantidad, producto_id: prod.id };
+    return {
+      ...prod,
+      cantidad_pedida: item.cantidad_surtida,
+      producto_id: prod.id,
+    };
   }).filter(Boolean);
 
   if (pedidosVerificados.has(Number(pedido.id))) {
-    const { data: verData, error } = await supabase
+    const { data: verData } = await supabase
       .from("verificaciones_recepcion")
       .select("*")
       .eq("pedido_id", pedido.id)
       .order("created_at", { ascending: false })
       .limit(1);
 
-    if (error) {
-      console.error("Error al buscar la verificación en Supabase:", error);
-    }
-
     const ver = verData?.[0];
-
     if (ver) {
       const nuevosVerificados = new Map<number, number>();
       const nuevosCambios = new Map<number, any>();
-      const listaVerificados = typeof ver.productos_verificados === 'string' 
-        ? JSON.parse(ver.productos_verificados) 
-        : (ver.productos_verificados || []);
+      const listaVerificados = typeof ver.productos_verificados === "string"
+        ? JSON.parse(ver.productos_verificados)
+        : ver.productos_verificados || [];
 
       listaVerificados.forEach((p: any) => {
         nuevosVerificados.set(p.producto_id, p.cantidad_recibida);
         nuevosCambios.set(p.producto_id, { estado: p.estado, cantidad: p.cantidad_recibida });
       });
-      
+
       setProductos(productosConCantidad);
       setProductosVerificados(nuevosVerificados);
       setCambiosEstado(nuevosCambios);
       setPedidoSeleccionado({ ...pedido, yaVerificado: true });
-      return; 
-    } else {
-      console.warn("Estaba en el Set, pero no se encontró el registro en la BD.");
+      return;
     }
   }
 
-  setProductos(productosConCantidad);
-  setProductosVerificados(new Map());
-  setCambiosEstado(new Map());
-  setPedidoSeleccionado(pedido);
+  // Intentar cargar progreso guardado
+const guardado = localStorage.getItem(`verificacion_${pedido.id}`);
+if (guardado) {
+  try {
+    const parsed = JSON.parse(guardado);
+    setProductos(productosConCantidad);
+    setProductosVerificados(new Map(parsed.productosVerificados));
+    setCambiosEstado(new Map(parsed.cambiosEstado));
+    setPedidoSeleccionado(pedido);
+    return;
+  } catch (e) {
+    console.error("Error cargando progreso:", e);
+  }
+}
+
+setProductos(productosConCantidad);
+setProductosVerificados(new Map());
+setCambiosEstado(new Map());
+setPedidoSeleccionado(pedido);
+  
 };
 
   const procesarEscaneo = (codigoEscaneado: string) => {
-    const item = productos.find((p: any) => p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado);
-    if (!item) {
-      if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-      return;
-    }
-    if ("vibrate" in navigator) navigator.vibrate(50);
-    setUltimoEscaneo(codigoEscaneado);
-    const actual = productosVerificados.get(item.producto_id) || 0;
-    const cambio = cambiosEstado.get(item.producto_id);
-    if (cambio?.estado === "PA") return;
-    if (actual < item.cantidad_pedida) {
-      const nuevo = new Map(productosVerificados);
-      nuevo.set(item.producto_id, actual + 1);
-      setProductosVerificados(nuevo);
-      if (actual + 1 >= item.cantidad_pedida) {
-        const nc = new Map(cambiosEstado);
-        nc.set(item.producto_id, { estado: "completo", cantidad: item.cantidad_pedida });
-        setCambiosEstado(nc);
-      }
+  const item = productos.find((p: any) => p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado);
+  if (!item) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    return;
+  }
+  if ("vibrate" in navigator) navigator.vibrate(50);
+  setUltimoEscaneo(codigoEscaneado);
+  const actual = productosVerificados.get(item.producto_id) || 0;
+  const cambio = cambiosEstado.get(item.producto_id);
+  if (cambio?.estado === "PA") return;
+  if (actual < item.cantidad_pedida) {
+    const nuevo = new Map(productosVerificados);
+    nuevo.set(item.producto_id, actual + 1);
+    setProductosVerificados(nuevo);
+
+    const nuevaCantidad = actual + 1;
+
+    if (nuevaCantidad >= item.cantidad_pedida) {
+      const nc = new Map(cambiosEstado);
+      nc.set(item.producto_id, { estado: "completo", cantidad: item.cantidad_pedida });
+      setCambiosEstado(nc);
     }
 
-    const todoCompleto = productos.length > 0 && productos.every((p: any) => {
-  const v = productosVerificados.get(p.producto_id) || 0;
-  const c = cambiosEstado.get(p.producto_id);
-  return c?.estado === "PA" || 
-         c?.estado === "parcial" || 
-         c?.estado === "completo" || 
-         (p.cantidad_pedida > 0 && v >= p.cantidad_pedida); 
-});
-    if (todoCompleto) setMostrarModalCompletado(true);
-  };
+    setModalProductoActivo({
+      visible: true,
+      producto: item,
+      cantidadActual: nuevaCantidad,
+      cantidadObjetivo: item.cantidad_pedida,
+    });
+
+    if (nuevaCantidad >= item.cantidad_pedida) {
+      setTimeout(() => setModalProductoActivo(null), 1500);
+    }
+  }
+
+  const todoCompleto = productos.length > 0 && productos.every((p: any) => {
+    const v = productosVerificados.get(p.producto_id) || 0;
+    const c = cambiosEstado.get(p.producto_id);
+    return c?.estado === "PA" || c?.estado === "parcial" || c?.estado === "completo" ||
+           (p.cantidad_pedida > 0 && v >= p.cantidad_pedida);
+  });
+  if (todoCompleto) setMostrarModalCompletado(true);
+};
 
   const confirmarVerificacion = async () => {
   setGuardando(true);
@@ -17480,6 +17537,7 @@ setPedidosVerificados(idsVerificados as Set<number>);
   console.log("Error insert:", error);
   setGuardando(false);
   setMostrarModalCompletado(false);
+  localStorage.removeItem(`verificacion_${pedidoSeleccionado.id}`);
   setPedidoSeleccionado(null);
 
   if (!error) {
@@ -17772,6 +17830,113 @@ setPedidosVerificados(idsVerificados as Set<number>);
           )}
         </AnimatePresence>, document.body
       )}
+
+      {/* Modal de Producto Activo (al escanear) */}
+{typeof document !== "undefined" && createPortal(
+  <AnimatePresence>
+    {modalProductoActivo && modalProductoActivo.visible && (
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        onClick={() => setModalProductoActivo(null)}
+        className="fixed inset-0 bg-black/90 z-[60000] flex items-center justify-center p-4"
+      >
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl relative"
+        >
+          <button
+            onClick={() => setModalProductoActivo(null)}
+            className="absolute top-4 right-4 w-10 h-10 bg-zinc-100 hover:bg-zinc-200 rounded-full flex items-center justify-center transition"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5 text-zinc-600">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Imagen */}
+          <div className="relative w-48 h-48 mx-auto mb-6 bg-zinc-100 rounded-2xl overflow-hidden">
+            <Image
+              src={modalProductoActivo.producto?.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+              alt={modalProductoActivo.producto?.TITULO}
+              fill
+              className="object-contain p-4"
+            />
+          </div>
+
+          {/* Título */}
+          <h3 className="text-xl font-bold text-zinc-900 text-center mb-2 leading-tight">
+            {modalProductoActivo.producto?.TITULO}
+          </h3>
+          <p className="text-sm text-zinc-500 text-center mb-6 font-mono">
+            {modalProductoActivo.producto?.CODIGO}
+          </p>
+
+          {/* Contador */}
+          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-8 mb-6">
+            <p className="text-sm text-green-700 font-semibold text-center mb-2">Cantidad Verificada</p>
+            <div className="flex items-center justify-center gap-4">
+              <motion.span
+                key={modalProductoActivo.cantidadActual}
+                initial={{ scale: 1.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="text-6xl font-black text-green-600"
+              >
+                {modalProductoActivo.cantidadActual}
+              </motion.span>
+              <span className="text-4xl font-bold text-green-400">/</span>
+              <span className="text-4xl font-bold text-green-700">{modalProductoActivo.cantidadObjetivo}</span>
+            </div>
+          </div>
+
+          {/* Barra de progreso */}
+          <div className="w-full bg-zinc-200 rounded-full h-4 overflow-hidden mb-4">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${(modalProductoActivo.cantidadActual / modalProductoActivo.cantidadObjetivo) * 100}%` }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className="h-full bg-gradient-to-r from-green-500 to-green-600"
+            />
+          </div>
+
+          {/* Estado */}
+          {modalProductoActivo.cantidadActual >= modalProductoActivo.cantidadObjetivo ? (
+            <div className="flex items-center justify-center gap-2 text-green-600">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6">
+                <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+              </svg>
+              <span className="font-bold text-lg">¡COMPLETADO!</span>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-center text-zinc-500 font-medium">Continúa escaneando...</p>
+              {modalProductoActivo.cantidadActual > 0 && (
+                <button
+                  onClick={() => {
+                    const producto = modalProductoActivo.producto;
+                    const cantidadEscaneada = modalProductoActivo.cantidadActual;
+                    const nc = new Map(cambiosEstado);
+                    nc.set(producto.producto_id, { estado: "parcial", cantidad: cantidadEscaneada });
+                    const nv = new Map(productosVerificados);
+                    nv.set(producto.producto_id, cantidadEscaneada);
+                    setCambiosEstado(nc);
+                    setProductosVerificados(nv);
+                    setModalProductoActivo(null);
+                    if ("vibrate" in navigator) navigator.vibrate(50);
+                  }}
+                  className="w-full py-3 rounded-xl bg-orange-500 text-white font-bold text-base shadow-lg hover:bg-orange-600 active:scale-95 transition"
+                >
+                  Aplicar como Parcial ({modalProductoActivo.cantidadActual}/{modalProductoActivo.cantidadObjetivo})
+                </button>
+              )}
+            </div>
+          )}
+        </motion.div>
+      </motion.div>
+    )}
+  </AnimatePresence>,
+  document.body
+)}
     </motion.div>
   );
 };
