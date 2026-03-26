@@ -6917,10 +6917,11 @@ useEffect(() => {
                 onChange={(e) => setCantidad(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); agregarItem(); } if (e.key === "Escape") { setProductoSeleccionado(null); setCantidad(""); } }}
                 placeholder="Ingrese cantidad"
-                className="w-full rounded-xl border border-orange-300 px-4 py-2.5 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full rounded-xl border border-orange-300 px-4 py-2.5 -sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
             </div>
           )}
+
 
           {/* Lista de items */}
           {items.length > 0 && (
@@ -6931,7 +6932,6 @@ useEffect(() => {
                   <div className="col-span-1 text-center">Cant</div>
                   <div className="col-span-1 text-center">Codigo</div>
                   <div className="col-span-3">Producto</div>
-                  <div className="col-span-2 text-center">Unidad</div>
                   <div className="col-span-1 text-center">Stock</div>
                   <div className="col-span-2 text-right">Precio</div>
                   <div className="col-span-2 text-right">Subtotal</div>
@@ -16597,12 +16597,13 @@ if (backOrderExistente) {
                                 />
                               </div>
                               <div className="flex-1 min-w-0">
+                                <p className="text-sm text-zinc-500">
+                                  {prod.CODIGO}
+                                </p>
                                 <p className="text-sm font-semibold text-zinc-800 truncate">
                                   {prod.TITULO}
                                 </p>
-                                <p className="text-xs text-zinc-500">
-                                  {prod.CODIGO}
-                                </p>
+                                
                                 <p className="text-xs text-red-600 font-semibold mt-1">
                                   Faltante: {prod.cantidad_faltante} unidades
                                 </p>
