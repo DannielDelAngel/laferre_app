@@ -6475,7 +6475,6 @@ useEffect(() => {
       .from("cuentas")
       .select("id, numero_cuenta, cliente, ferreteria, numero_cuenta_sicar, entrega_mismo_dia, recoger_en_tienda, tipo_comprobante, numero_tel, direccion, tiene_saldo_pendiente, bloquear_por_saldo")
       .or(`cliente.ilike.%${valor}%,numero_cuenta.ilike.%${valor}%,ferreteria.ilike.%${valor}%`)
-      .limit(8);
     setCuentasSugeridas(data || []);
   };
 
@@ -6487,7 +6486,7 @@ useEffect(() => {
     .from("productos")
     .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia")
     .or(`CODIGO.eq.${valor.trim()},C_PRODUCTO.eq.${valor.trim()}`)
-    .limit(5);
+
 
   if (porCodigo?.length) {
     setSugerenciasProducto(porCodigo);
@@ -6499,14 +6498,13 @@ useEffect(() => {
   let q = supabase.from("productos")
     .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia");
   palabras.forEach((p: string) => { q = q.ilike("TITULO", `%${p}%`); });
-  const { data } = await q.limit(8);
+  const { data } = await q;//.limit(8);
 
   if (!data?.length) {
     const { data: d2 } = await supabase
       .from("productos")
       .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia")
       .or(`CODIGO.ilike.%${valor}%,C_PRODUCTO.ilike.%${valor}%`)
-      .limit(8);
     setSugerenciasProducto(d2 || []);
   } else {
     setSugerenciasProducto(data);
