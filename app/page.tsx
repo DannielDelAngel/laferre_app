@@ -17402,6 +17402,11 @@ const [modalProductoActivo, setModalProductoActivo] = useState<{
   cantidadActual: number;
   cantidadObjetivo: number;
 } | null>(null);
+const [modalAlerta, setModalAlerta] = useState<{
+  visible: boolean;
+  titulo: string;
+  mensaje: string;
+} | null>(null);
 
 useEffect(() => {
   if (!pedidoSeleccionado || pedidoSeleccionado.yaVerificado) return;
@@ -17549,9 +17554,14 @@ setPedidoSeleccionado(pedido);
   const procesarEscaneo = (codigoEscaneado: string) => {
   const item = productos.find((p: any) => p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado);
   if (!item) {
-    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-    return;
-  }
+  if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+  setModalAlerta({
+    visible: true,
+    titulo: "Producto Incorrecto",
+    mensaje: `El código "${codigoEscaneado}" no pertenece a este pedido.`,
+  });
+  return;
+}
   if ("vibrate" in navigator) navigator.vibrate(50);
   setUltimoEscaneo(codigoEscaneado);
   const actual = productosVerificados.get(item.producto_id) || 0;
@@ -17796,7 +17806,7 @@ setPedidoSeleccionado(pedido);
             {item.IMAGEN ? <Image src={item.IMAGEN} alt={item.TITULO} fill className="object-contain" /> : <Package size={16} className="text-zinc-300 m-auto" />}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-mono text-zinc-500">{item.CODIGO}</p>
+            <p className="text-sm font-mono text-zinc-500">{item.CODIGO}</p>
             <p className="text-sm font-semibold text-zinc-800 line-clamp-2">{item.TITULO}</p>
           </div>
           <div className="text-right flex-shrink-0">
@@ -17840,8 +17850,9 @@ setPedidoSeleccionado(pedido);
               <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
                 className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
                 onClick={(e) => e.stopPropagation()}>
+                  <p className="font-bold text-zinc-900 mb-1 text-sm">Codigo: {modalProducto.CODIGO}</p>
                 <p className="font-bold text-zinc-900 mb-1 text-sm">{modalProducto.TITULO}</p>
-                <p className="text-xs text-zinc-500 mb-4">Cantidad pedida: {modalProducto.cantidad_pedida}</p>
+                <p className="text-sm text-zinc-500 mb-4">Cantidad pedida: {modalProducto.cantidad_pedida}</p>
 
                 <button onClick={() => {
                   const nc = new Map(cambiosEstado);
@@ -17850,7 +17861,7 @@ setPedidoSeleccionado(pedido);
                   setCambiosEstado(nc); setModalProducto(null);
                 }}
                   className={`w-full py-3 rounded-xl text-white font-bold mb-3 ${cambiosEstado.get(modalProducto.producto_id)?.estado === "PA" ? "bg-red-500" : "bg-yellow-500"}`}>
-                  {cambiosEstado.get(modalProducto.producto_id)?.estado === "PA" ? "Quitar PA" : "PA - No llegó"}
+                  {cambiosEstado.get(modalProducto.producto_id)?.estado === "PA" ? "Quitar PF" : "PF - Producto Faltante."}
                 </button>
 
                 <input type="number" value={cantidadParcialInput} onChange={(e) => setCantidadParcialInput(e.target.value)}
@@ -17909,7 +17920,7 @@ setPedidoSeleccionado(pedido);
         </AnimatePresence>, document.body
       )}
 
-      {/* Modal de Producto Activo (al escanear) */}
+      {/* Modal de Producto scaneado*/}
 {typeof document !== "undefined" && createPortal(
   <AnimatePresence>
     {modalProductoActivo && modalProductoActivo.visible && (
@@ -17943,12 +17954,13 @@ setPedidoSeleccionado(pedido);
           </div>
 
           {/* Título */}
-          <h3 className="text-xl font-bold text-zinc-900 text-center mb-2 leading-tight">
-            {modalProductoActivo.producto?.TITULO}
-          </h3>
           <p className="text-sm text-zinc-500 text-center mb-6 font-mono">
             {modalProductoActivo.producto?.CODIGO}
           </p>
+          <h3 className="text-xl font-bold text-zinc-900 text-center mb-2 leading-tight">
+            {modalProductoActivo.producto?.TITULO}
+          </h3>
+          
 
           {/* Contador */}
           <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-8 mb-6">
@@ -17986,29 +17998,78 @@ setPedidoSeleccionado(pedido);
               <span className="font-bold text-lg">¡COMPLETADO!</span>
             </div>
           ) : (
-            <div className="space-y-3">
-              <p className="text-center text-zinc-500 font-medium">Continúa escaneando...</p>
-              {modalProductoActivo.cantidadActual > 0 && (
-                <button
-                  onClick={() => {
-                    const producto = modalProductoActivo.producto;
-                    const cantidadEscaneada = modalProductoActivo.cantidadActual;
-                    const nc = new Map(cambiosEstado);
-                    nc.set(producto.producto_id, { estado: "parcial", cantidad: cantidadEscaneada });
-                    const nv = new Map(productosVerificados);
-                    nv.set(producto.producto_id, cantidadEscaneada);
-                    setCambiosEstado(nc);
-                    setProductosVerificados(nv);
-                    setModalProductoActivo(null);
-                    if ("vibrate" in navigator) navigator.vibrate(50);
-                  }}
-                  className="w-full py-3 rounded-xl bg-orange-500 text-white font-bold text-base shadow-lg hover:bg-orange-600 active:scale-95 transition"
-                >
-                  Aplicar como Parcial ({modalProductoActivo.cantidadActual}/{modalProductoActivo.cantidadObjetivo})
-                </button>
-              )}
-            </div>
-          )}
+  <div className="space-y-3">
+    <p className="text-center text-zinc-500 font-medium">Continúa escaneando...</p>
+    {modalProductoActivo.cantidadActual > 0 && (
+      <>
+        <button
+          onClick={() => {
+            const producto = modalProductoActivo.producto;
+            const cantidadEscaneada = modalProductoActivo.cantidadActual;
+            const nc = new Map(cambiosEstado);
+            nc.set(producto.producto_id, { estado: "parcial", cantidad: cantidadEscaneada });
+            const nv = new Map(productosVerificados);
+            nv.set(producto.producto_id, cantidadEscaneada);
+            setCambiosEstado(nc);
+            setProductosVerificados(nv);
+            setModalProductoActivo(null);
+            if ("vibrate" in navigator) navigator.vibrate(50);
+          }}
+          className="w-full py-3 rounded-xl bg-orange-500 text-white font-bold text-base shadow-lg hover:bg-orange-600 active:scale-95 transition"
+        >
+          Aplicar como Parcial ({modalProductoActivo.cantidadActual}/{modalProductoActivo.cantidadObjetivo})
+        </button>
+
+       
+        {modalProductoActivo.cantidadObjetivo > 1 && (
+          <button
+            onClick={() => {
+              const producto = modalProductoActivo.producto;
+              setModalProductoActivo(null);
+              setCantidadParcialInput(modalProductoActivo.cantidadActual.toString());
+              setModalProducto(producto);
+            }}
+            className="w-full py-3 rounded-xl bg-blue-500 text-white font-bold text-base shadow-lg hover:bg-blue-600 active:scale-95 transition"
+          >
+            Ingresar Cantidad Manual
+          </button>
+        )}
+      </>
+    )}
+  </div>
+)}
+        </motion.div>
+      </motion.div>
+    )}
+  </AnimatePresence>,
+  document.body
+)}
+
+{typeof document !== "undefined" && createPortal(
+  <AnimatePresence>
+    {modalAlerta && (
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/80 z-[70000] flex items-center justify-center p-4 backdrop-blur-sm"
+      >
+        <motion.div
+          initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+          className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-10 h-10 text-red-600">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <h3 className="text-2xl font-bold mb-2 text-red-600">{modalAlerta.titulo}</h3>
+          <p className="text-zinc-600 text-lg mb-8 leading-relaxed">{modalAlerta.mensaje}</p>
+          <button
+            onClick={() => setModalAlerta(null)}
+            className="w-full py-4 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-lg shadow-lg active:scale-95 transition"
+          >
+            ENTENDIDO
+          </button>
         </motion.div>
       </motion.div>
     )}
