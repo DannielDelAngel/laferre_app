@@ -28,10 +28,10 @@ const STORAGE_KEY = (numeroCuenta: string) => `inventario_progreso_${numeroCuent
 
 const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
   const client = sb || supabase;
-const [ultimoEscaneado, setUltimoEscaneado] = useState<any>(null);
-const ultimoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-const [modalEscaneo, setModalEscaneo] = useState<any>(null);
-const modalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [ultimoEscaneado, setUltimoEscaneado] = useState<any>(null);
+  const ultimoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [modalEscaneo, setModalEscaneo] = useState<any>(null);
+  const modalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [codigoInput, setCodigoInput] = useState("");
   const [cantidadInput, setCantidadInput] = useState("");
   const [productoEncontrado, setProductoEncontrado] = useState<any>(null);
@@ -43,7 +43,6 @@ const modalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [error, setError] = useState("");
   const [confirmando, setConfirmando] = useState(false);
   const [exito, setExito] = useState(false);
-  const [tipoInventario, setTipoInventario] = useState<"bodega" | "sucursal">("bodega");
 
   const [vistaAdmin, setVistaAdmin] = useState<"inventario" | "historial">("inventario");
   const [historial, setHistorial] = useState<InventarioGuardado[]>([]);
@@ -58,10 +57,11 @@ const modalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const codigoRef = useRef<HTMLInputElement>(null);
 
   const [sugerencias, setSugerencias] = useState<any[]>([]);
-const [totalSugerencias, setTotalSugerencias] = useState(0);
-const [buscandoSugerencias, setBuscandoSugerencias] = useState(false);
-const [mostrarMas, setMostrarMas] = useState(false);
-const LIMITE = 10;
+  const [totalSugerencias, setTotalSugerencias] = useState(0);
+  const [buscandoSugerencias, setBuscandoSugerencias] = useState(false);
+  const [mostrarMas, setMostrarMas] = useState(false);
+  const LIMITE = 10;
+  const [cantidadManualModal, setCantidadManualModal] = useState("");
 
   // Cargar progreso desde localStorage al montar
   useEffect(() => {
@@ -76,69 +76,67 @@ const LIMITE = 10;
   }, [cuenta]);
 
   const buscarSugerencias = async (valor: string, limite = LIMITE) => {
-  if (!valor.trim() || valor.length < 2) { setSugerencias([]); setTotalSugerencias(0); return; }
-  setBuscandoSugerencias(true);
+    if (!valor.trim() || valor.length < 2) { setSugerencias([]); setTotalSugerencias(0); return; }
+    setBuscandoSugerencias(true);
 
-  const palabras = valor.trim().split(/\s+/).filter(Boolean);
+    const palabras = valor.trim().split(/\s+/).filter(Boolean);
 
-  let query = client
-    .from("productos")
-    .select("id, TITULO, CODIGO, IMAGEN", { count: "exact" });
-
-  palabras.forEach((palabra) => {
-    query = query.ilike("TITULO", `%${palabra}%`);
-  });
-
-  const { data, count } = await query.limit(limite);
-
-  if (!data?.length) {
-    const { data: dataCodigo, count: countCodigo } = await client
+    let query = client
       .from("productos")
-      .select("id, TITULO, CODIGO, IMAGEN", { count: "exact" })
-      .or(`CODIGO.ilike.%${valor.trim()}%,C_PRODUCTO.ilike.%${valor.trim()}%`)
-      .limit(limite);
-    setSugerencias(dataCodigo || []);
-    setTotalSugerencias(countCodigo || 0);
-  } else {
-    setSugerencias(data || []);
-    setTotalSugerencias(count || 0);
-  }
+      .select("id, TITULO, CODIGO, IMAGEN", { count: "exact" });
 
-  setBuscandoSugerencias(false);
-};
+    palabras.forEach((palabra) => {
+      query = query.ilike("TITULO", `%${palabra}%`);
+    });
+
+    const { data, count } = await query.limit(limite);
+
+    if (!data?.length) {
+      const { data: dataCodigo, count: countCodigo } = await client
+        .from("productos")
+        .select("id, TITULO, CODIGO, IMAGEN", { count: "exact" })
+        .or(`CODIGO.ilike.%${valor.trim()}%,C_PRODUCTO.ilike.%${valor.trim()}%`)
+        .limit(limite);
+      setSugerencias(dataCodigo || []);
+      setTotalSugerencias(countCodigo || 0);
+    } else {
+      setSugerencias(data || []);
+      setTotalSugerencias(count || 0);
+    }
+
+    setBuscandoSugerencias(false);
+  };
 
   // Función específica para cuando escanea físicamente
-const escanearProducto = async (codigo: string) => {
-  if (!codigo.trim()) return;
-  setError("");
+  const escanearProducto = async (codigo: string) => {
+    if (!codigo.trim()) return;
+    setError("");
 
-  const { data } = await client
-    .from("productos")
-    .select("id, TITULO, CODIGO, IMAGEN")
-    .or(`CODIGO.eq.${codigo.trim()},C_PRODUCTO.eq.${codigo.trim()}`)
-    .single();
+    const { data } = await client
+      .from("productos")
+      .select("id, TITULO, CODIGO, IMAGEN")
+      .or(`CODIGO.eq.${codigo.trim()},C_PRODUCTO.eq.${codigo.trim()}`)
+      .single();
 
-  if (!data) {
-    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-    setError(`No se encontró: ${codigo.trim()}`);
-    return;
-  }
+    if (!data) {
+      if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+      setError(`No se encontró: ${codigo.trim()}`);
+      return;
+    }
 
-  if ("vibrate" in navigator) navigator.vibrate(50);
+    if ("vibrate" in navigator) navigator.vibrate(50);
 
-  setItems((prev) => {
-    const existente = prev.find((i) => i.id === data.id);
-    const nuevaCantidad = existente ? existente.cantidad + 1 : 1;
+    setItems((prev) => {
+      const existente = prev.find((i) => i.id === data.id);
+      const nuevaCantidad = existente ? existente.cantidad + 1 : 1;
 
+      if (modalTimeoutRef.current) clearTimeout(modalTimeoutRef.current);
+      setModalEscaneo({ ...data, cantidad: nuevaCantidad });
 
-    if (modalTimeoutRef.current) clearTimeout(modalTimeoutRef.current);
-    setModalEscaneo({ ...data, cantidad: nuevaCantidad });
-    modalTimeoutRef.current = setTimeout(() => setModalEscaneo(null), 2500);
-
-    if (existente) return prev.map((i) => i.id === data.id ? { ...i, cantidad: nuevaCantidad } : i);
-    return [{ ...data, cantidad: 1 }, ...prev];
-  });
-};
+      if (existente) return prev.map((i) => i.id === data.id ? { ...i, cantidad: nuevaCantidad } : i);
+      return [{ ...data, cantidad: 1 }, ...prev];
+    });
+  };
 
   // Guardar progreso en localStorage cada vez que cambia items
   useEffect(() => {
@@ -150,39 +148,40 @@ const escanearProducto = async (codigo: string) => {
     }
   }, [items, cuenta]);
 
-  // Scanner físico 
+  // Scanner físico
   useEffect(() => {
-  if (esperandoCantidad) return;
+    if (esperandoCantidad) return;
 
-  const handleKeyPress = (e: KeyboardEvent) => {
-    if (
-      document.activeElement === codigoRef.current ||
-      document.activeElement === cantidadRef.current
-    ) return;
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (
+        document.activeElement === codigoRef.current ||
+        document.activeElement === cantidadRef.current ||
+        modalEscaneo !== null
+      ) return;
 
-    if (e.key === "Enter") {
-      if (bufferEscaneo.trim()) {
-        escanearProducto(bufferEscaneo.trim()); 
-        setBufferEscaneo("");
+      if (e.key === "Enter") {
+        if (bufferEscaneo.trim()) {
+          escanearProducto(bufferEscaneo.trim());
+          setBufferEscaneo("");
+        }
+        return;
       }
-      return;
-    }
-    setBufferEscaneo((prev) => prev + e.key);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      if (bufferEscaneo.trim()) {
-        escanearProducto(bufferEscaneo.trim()); 
-        setBufferEscaneo("");
-      }
-    }, 100);
-  };
+      setBufferEscaneo((prev) => prev + e.key);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        if (bufferEscaneo.trim()) {
+          escanearProducto(bufferEscaneo.trim());
+          setBufferEscaneo("");
+        }
+      }, 100);
+    };
 
-  window.addEventListener("keypress", handleKeyPress);
-  return () => {
-    window.removeEventListener("keypress", handleKeyPress);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-  };
-}, [bufferEscaneo, esperandoCantidad]);
+    window.addEventListener("keypress", handleKeyPress);
+    return () => {
+      window.removeEventListener("keypress", handleKeyPress);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [bufferEscaneo, esperandoCantidad]);
 
   useEffect(() => {
     if (esperandoCantidad) {
@@ -191,25 +190,25 @@ const escanearProducto = async (codigo: string) => {
   }, [esperandoCantidad]);
 
   const buscarProducto = async (codigo: string) => {
-  if (!codigo.trim()) return;
-  setBuscando(true);
-  setError("");
-  const { data, error } = await client
-    .from("productos")
-    .select("id, TITULO, CODIGO, IMAGEN")
-    .or(`CODIGO.eq.${codigo.trim()},C_PRODUCTO.eq.${codigo.trim()}`)
-    .single();
+    if (!codigo.trim()) return;
+    setBuscando(true);
+    setError("");
+    const { data, error } = await client
+      .from("productos")
+      .select("id, TITULO, CODIGO, IMAGEN")
+      .or(`CODIGO.eq.${codigo.trim()},C_PRODUCTO.eq.${codigo.trim()}`)
+      .single();
 
-  setBuscando(false);
-  if (error || !data) {
-    setError(`No se encontró el código: ${codigo.trim()}`);
-    setProductoEncontrado(null);
-    return;
-  }
-  setProductoEncontrado(data);
-  setEsperandoCantidad(true);
-  setCodigoInput(codigo.trim());
-};
+    setBuscando(false);
+    if (error || !data) {
+      setError(`No se encontró el código: ${codigo.trim()}`);
+      setProductoEncontrado(null);
+      return;
+    }
+    setProductoEncontrado(data);
+    setEsperandoCantidad(true);
+    setCodigoInput(codigo.trim());
+  };
 
   const agregarItem = () => {
     if (!productoEncontrado) return;
@@ -263,11 +262,10 @@ const escanearProducto = async (codigo: string) => {
   const generarString = () => items.map((i) => `${i.CODIGO}*${i.cantidad}`).join("-");
 
   const confirmarInventario = async () => {
-  if (items.length === 0) return;
-  setConfirmando(true);
+    if (items.length === 0) return;
+    setConfirmando(true);
 
-  // Solo actualizar existencias si es bodega
-  if (tipoInventario === "bodega") {
+    // Actualizar existencias en bodega
     const actualizaciones = items.map((item) =>
       client.from("productos").update({ existencia: item.cantidad }).eq("id", item.id)
     );
@@ -278,25 +276,24 @@ const escanearProducto = async (codigo: string) => {
       setConfirmando(false);
       return;
     }
-  }
 
-  // Guardar registro siempre
-  const { error } = await client.from("inventarios").insert({
-    cuenta_id: cuenta?.id,
-    numero_cuenta: cuenta?.numero_cuenta,
-    nombre_usuario: cuenta?.cliente || cuenta?.ferreteria || cuenta?.numero_cuenta,
-    lista_productos: generarString(),
-    tipo: tipoInventario, 
-  });
+    // Guardar registro
+    const { error } = await client.from("inventarios").insert({
+      cuenta_id: cuenta?.id,
+      numero_cuenta: cuenta?.numero_cuenta,
+      nombre_usuario: cuenta?.cliente || cuenta?.ferreteria || cuenta?.numero_cuenta,
+      lista_productos: generarString(),
+      tipo: "bodega",
+    });
 
-  setConfirmando(false);
-  if (error) { setError("Error al guardar el inventario"); return; }
+    setConfirmando(false);
+    if (error) { setError("Error al guardar el inventario"); return; }
 
-  localStorage.removeItem(STORAGE_KEY(cuenta.numero_cuenta));
-  setExito(true);
-  setItems([]);
-  setTimeout(() => setExito(false), 3000);
-};
+    localStorage.removeItem(STORAGE_KEY(cuenta.numero_cuenta));
+    setExito(true);
+    setItems([]);
+    setTimeout(() => setExito(false), 3000);
+  };
 
   const cargarHistorial = async () => {
     setCargandoHistorial(true);
@@ -313,10 +310,10 @@ const escanearProducto = async (codigo: string) => {
   }, [vistaAdmin]);
 
   const parsearLista = (lista: string) =>
-  lista.split("-").map((item) => {
-    const [codigo, cantidad] = item.split("*");
-    return { codigo, cantidad };
-  });
+    lista.split("-").map((item) => {
+      const [codigo, cantidad] = item.split("*");
+      return { codigo, cantidad };
+    });
 
   return (
     <div className="-mx-10 px-4 pb-32">
@@ -360,194 +357,166 @@ const escanearProducto = async (codigo: string) => {
             </div>
           )}
 
-          <div className="flex gap-2 mb-4 bg-zinc-100 rounded-xl p-1">
-  <button
-    onClick={() => setTipoInventario("bodega")}
-    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
-      tipoInventario === "bodega" ? "bg-white text-orange-500 shadow" : "text-zinc-500"
-    }`}
-  >
-    Bodega
-  </button>
-  <button
-    onClick={() => setTipoInventario("sucursal")}
-    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
-      tipoInventario === "sucursal" ? "bg-white text-blue-500 shadow" : "text-zinc-500"
-    }`}
-  >
-    Sucursal
-  </button>
-</div>
-
-{tipoInventario === "sucursal" && (
-  <div className="mb-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2">
-    <p className="text-xs text-blue-700 font-medium">
-      Modo sucursal — se registra el conteo pero no se actualizan las existencias en la base de datos.
-    </p>
-  </div>
-)}
-
-
           {/* Input manual */}
           {!esperandoCantidad && (
-  <div className="mb-4">
-    <label className="block text-xs font-semibold text-zinc-500 mb-1 uppercase tracking-wide">
-      Código o nombre de producto
-    </label>
-    <div className="relative">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4 z-10" />
-      <input
-        ref={codigoRef}
-        type="text"
-        value={codigoInput}
-        onChange={(e) => {
-          const val = e.target.value;
-          setCodigoInput(val);
-          setError("");
-          setMostrarMas(false);
-          buscarSugerencias(val);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && sugerencias.length === 0) {
-            e.preventDefault();
-            buscarProducto(codigoInput);
-          }
-          if (e.key === "Escape") {
-            setSugerencias([]);
-            setCodigoInput("");
-          }
-        }}
-        placeholder="Escanea, ingresa código o nombre del producto"
-        className="w-full rounded-xl border  text-zinc-700 border-zinc-300 pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-      />
-      {codigoInput && (
-        <button
-          onClick={() => { setCodigoInput(""); setSugerencias([]); setTotalSugerencias(0); }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
-        >
-          <X size={14} />
-        </button>
-      )}
-    </div>
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-zinc-500 mb-1 uppercase tracking-wide">
+                Código o nombre de producto
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4 z-10" />
+                <input
+                  ref={codigoRef}
+                  type="text"
+                  value={codigoInput}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCodigoInput(val);
+                    setError("");
+                    setMostrarMas(false);
+                    buscarSugerencias(val);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && sugerencias.length === 0) {
+                      e.preventDefault();
+                      buscarProducto(codigoInput);
+                    }
+                    if (e.key === "Escape") {
+                      setSugerencias([]);
+                      setCodigoInput("");
+                    }
+                  }}
+                  placeholder="Escanea, ingresa código o nombre del producto"
+                  className="w-full rounded-xl border text-zinc-700 border-zinc-300 pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                {codigoInput && (
+                  <button
+                    onClick={() => { setCodigoInput(""); setSugerencias([]); setTotalSugerencias(0); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
 
-    {/* Sugerencias */}
-    {codigoInput.trim().length >= 2 && (sugerencias.length > 0 || buscandoSugerencias) && (
-      <div className="mt-1 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden">
-        {buscandoSugerencias ? (
-          <div className="px-4 py-3 text-xs text-zinc-400 text-center">Buscando...</div>
-        ) : (
-          <>
-            {sugerencias.map((prod) => (
-              <button
-                key={prod.id}
-                onClick={() => {
-                  setSugerencias([]);
-                  setCodigoInput(prod.CODIGO);
-                  setProductoEncontrado(prod);
-                  setEsperandoCantidad(true);
-                  setError("");
-                }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-orange-50 transition border-b border-zinc-100 last:border-0 text-left"
-              >
-                <div className="relative w-9 h-9 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
-                  {prod.IMAGEN ? (
-                    <Image src={prod.IMAGEN} alt={prod.TITULO} fill className="object-contain" />
+              {/* Sugerencias */}
+              {codigoInput.trim().length >= 2 && (sugerencias.length > 0 || buscandoSugerencias) && (
+                <div className="mt-1 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden">
+                  {buscandoSugerencias ? (
+                    <div className="px-4 py-3 text-xs text-zinc-400 text-center">Buscando...</div>
+                  ) : (
+                    <>
+                      {sugerencias.map((prod) => (
+                        <button
+                          key={prod.id}
+                          onClick={() => {
+                            setSugerencias([]);
+                            setCodigoInput(prod.CODIGO);
+                            setProductoEncontrado(prod);
+                            setEsperandoCantidad(true);
+                            setError("");
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-orange-50 transition border-b border-zinc-100 last:border-0 text-left"
+                        >
+                          <div className="relative w-9 h-9 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
+                            {prod.IMAGEN ? (
+                              <Image src={prod.IMAGEN} alt={prod.TITULO} fill className="object-contain" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Package size={14} className="text-zinc-300" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-orange-600 font-semibold font-mono">{prod.CODIGO}</p>
+                            <p className="text-sm font-semibold text-zinc-800 truncate">{prod.TITULO}</p>
+                          </div>
+                        </button>
+                      ))}
+
+                      {/* Footer con conteo y mostrar más */}
+                      <div className="px-3 py-2 bg-zinc-50 border-t border-zinc-100 flex items-center justify-between">
+                        <span className="text-xs text-zinc-400">
+                          {sugerencias.length} de {totalSugerencias} resultados
+                        </span>
+                        {totalSugerencias > sugerencias.length && (
+                          <button
+                            onClick={async () => {
+                              setMostrarMas(true);
+                              await buscarSugerencias(codigoInput, 50);
+                            }}
+                            className="text-xs text-orange-500 font-semibold hover:text-orange-600"
+                          >
+                            Ver más ({totalSugerencias - sugerencias.length} restantes)
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {buscando && <p className="text-xs text-zinc-400 mt-1">Buscando...</p>}
+              <p className="text-xs text-zinc-400 mt-1">El escáner físico también funciona automáticamente</p>
+            </div>
+          )}
+
+          {/* Input cantidad */}
+          {esperandoCantidad && productoEncontrado && (
+            <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-white border border-zinc-200 flex-shrink-0">
+                  {productoEncontrado.IMAGEN ? (
+                    <Image src={productoEncontrado.IMAGEN} alt={productoEncontrado.TITULO} fill className="object-contain" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <Package size={14} className="text-zinc-300" />
+                      <Package size={20} className="text-zinc-300" />
                     </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-orange-600 font-semibold font-mono">{prod.CODIGO}</p>
-                  <p className="text-sm font-semibold text-zinc-800 truncate">{prod.TITULO}</p>
+                  <p className="text-sm font-semibold text-orange-600">{productoEncontrado.CODIGO}</p>
+                  <p className="font-semibold text-zinc-900 text-sm truncate">{productoEncontrado.TITULO}</p>
                 </div>
-              </button>
-            ))}
+              </div>
 
-            {/* Footer con conteo y mostrar más */}
-            <div className="px-3 py-2 bg-zinc-50 border-t border-zinc-100 flex items-center justify-between">
-              <span className="text-xs text-zinc-400">
-                {sugerencias.length} de {totalSugerencias} resultados
-              </span>
-              {totalSugerencias > sugerencias.length && (
+              <label className="block text-xs font-semibold text-zinc-500 mb-1 uppercase tracking-wide">
+                Cantidad encontrada
+              </label>
+
+              <input
+                ref={cantidadRef}
+                type="number"
+                value={cantidadInput}
+                onChange={(e) => { setCantidadInput(e.target.value); setError(""); }}
+                onKeyDown={handleCantidadKeyDown}
+                placeholder="Cantidad"
+                className="w-full rounded-xl border text-zinc-700 border-orange-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 mb-3"
+              />
+
+              <div className="flex gap-2">
                 <button
-                  onClick={async () => {
-  setMostrarMas(true);
-  await buscarSugerencias(codigoInput, 50);
-}}
-                  className="text-xs text-orange-500 font-semibold hover:text-orange-600"
+                  onClick={agregarItem}
+                  className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-semibold"
                 >
-                  Ver más ({totalSugerencias - sugerencias.length} restantes)
+                  Agregar
                 </button>
-              )}
+                <button
+                  onClick={() => {
+                    setEsperandoCantidad(false);
+                    setProductoEncontrado(null);
+                    setCantidadInput("");
+                    setCodigoInput("");
+                    setError("");
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-200 text-zinc-600 text-sm font-semibold"
+                >
+                  Cancelar
+                </button>
+              </div>
+              <p className="text-xs text-zinc-400 mt-2 text-center">Esc para cancelar</p>
             </div>
-          </>
-        )}
-      </div>
-    )}
-
-    {buscando && <p className="text-xs text-zinc-400 mt-1">Buscando...</p>}
-    <p className="text-xs text-zinc-400 mt-1">El escáner físico también funciona automáticamente</p>
-  </div>
-)}
-
-          {/* Input cantidad */}
-{esperandoCantidad && productoEncontrado && (
-  <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl p-4">
-    <div className="flex items-center gap-3 mb-3">
-      <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-white border border-zinc-200 flex-shrink-0">
-        {productoEncontrado.IMAGEN ? (
-          <Image src={productoEncontrado.IMAGEN} alt={productoEncontrado.TITULO} fill className="object-contain" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Package size={20} className="text-zinc-300" />
-          </div>
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-orange-600">{productoEncontrado.CODIGO}</p>
-        <p className="font-semibold text-zinc-900 text-sm truncate">{productoEncontrado.TITULO}</p>
-      </div>
-    </div>
-
-    <label className="block text-xs font-semibold text-zinc-500 mb-1 uppercase tracking-wide">
-      Cantidad encontrada
-    </label>
-
-    <input
-      ref={cantidadRef}
-      type="number"
-      value={cantidadInput}
-      onChange={(e) => { setCantidadInput(e.target.value); setError(""); }}
-      onKeyDown={handleCantidadKeyDown}
-      placeholder="Cantidad"
-      className="w-full rounded-xl border text-zinc-700 border-orange-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 mb-3"
-    />
-
-    <div className="flex gap-2">
-      <button
-        onClick={agregarItem}
-        className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-semibold"
-      >
-        Agregar
-      </button>
-      <button
-        onClick={() => {
-          setEsperandoCantidad(false);
-          setProductoEncontrado(null);
-          setCantidadInput("");
-          setCodigoInput("");
-          setError("");
-        }}
-        className="flex-1 py-2.5 rounded-xl bg-zinc-200 text-zinc-600 text-sm font-semibold"
-      >
-        Cancelar
-      </button>
-    </div>
-    <p className="text-xs text-zinc-400 mt-2 text-center">Esc para cancelar</p>
-  </div>
-)}
+          )}
 
           {error && (
             <div className="mb-3 bg-red-50 border border-red-200 rounded-xl px-4 py-2">
@@ -566,7 +535,16 @@ const escanearProducto = async (codigo: string) => {
             <>
               <div className="space-y-2 mb-4">
                 {items.map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 bg-white border border-zinc-200 rounded-xl p-3 shadow-sm">
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 bg-white border border-zinc-200 rounded-xl p-3 shadow-sm cursor-pointer hover:bg-orange-50 transition"
+                    onClick={() => {
+                      if (editandoId !== item.id) {
+                        setCantidadManualModal("");
+                        setModalEscaneo({ ...item, cantidad: item.cantidad });
+                      }
+                    }}
+                  >
                     <div className="relative w-11 h-11 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
                       {item.IMAGEN ? (
                         <Image src={item.IMAGEN} alt={item.TITULO} fill className="object-contain" />
@@ -578,7 +556,7 @@ const escanearProducto = async (codigo: string) => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-orange-600">{item.CODIGO}</p>
-                      <p className="text-sm font-semibold text-zinc-800 line-clamp-2 ">{item.TITULO}</p>
+                      <p className="text-sm font-semibold text-zinc-800 line-clamp-2">{item.TITULO}</p>
                     </div>
                     {editandoId === item.id ? (
                       <div className="flex items-center gap-1">
@@ -599,14 +577,13 @@ const escanearProducto = async (codigo: string) => {
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => { setEditandoId(item.id); setCantidadEditar(String(item.cantidad)); }}
-                          className="flex items-center gap-1 bg-zinc-100 hover:bg-zinc-200 rounded-lg px-2.5 py-1 text-base font-bold text-green-600 transition"
-                        >
+                        <p className="flex items-center gap-1 bg-zinc-100 hover:bg-zinc-200 rounded-lg px-2.5 py-1 text-base font-bold text-green-600 transition">
                           {item.cantidad}
-                          <Edit2 size={12} className="text-zinc-400" />
-                        </button>
-                        <button onClick={() => eliminarItem(item.id)} className="text-zinc-300 hover:text-red-400 transition">
+                        </p>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); eliminarItem(item.id); }}
+                          className="text-zinc-300 hover:text-red-400 transition"
+                        >
                           <X size={16} />
                         </button>
                       </div>
@@ -675,52 +652,48 @@ const escanearProducto = async (codigo: string) => {
                           {inv.nombre_usuario || inv.numero_cuenta}
                         </p>
                         <p className="text-xs text-zinc-400">
-  {new Date(inv.created_at).toLocaleDateString("es-MX", {
-    day: "2-digit", month: "short", year: "numeric",
-  })}{" "}
-  {new Date(inv.created_at).toLocaleTimeString("es-MX", {
-    hour: "2-digit", minute: "2-digit",
-  })}
-  {" · "}{productos.length} productos
-  {" · "}
-  <span className={inv.tipo === "sucursal" ? "text-blue-500 font-semibold" : "text-orange-500 font-semibold"}>
-    {inv.tipo === "sucursal" ? "Sucursal" : "Bodega"}
-  </span>
-</p>
+                          {new Date(inv.created_at).toLocaleDateString("es-MX", {
+                            day: "2-digit", month: "short", year: "numeric",
+                          })}{" "}
+                          {new Date(inv.created_at).toLocaleTimeString("es-MX", {
+                            hour: "2-digit", minute: "2-digit",
+                          })}
+                          {" · "}{productos.length} productos
+                        </p>
                       </div>
                       {expandido ? <ChevronUp size={16} className="text-zinc-400" /> : <ChevronDown size={16} className="text-zinc-400" />}
                     </button>
                     {expandido && (
-  <div className="px-4 pb-4 border-t border-zinc-100">
-    <div className="mt-3 space-y-1">
-      {productos.map((p, i) => (
-        <div key={i} className="flex justify-between items-center py-1.5 border-b border-zinc-100 last:border-0">
-          <span className="text-sm font-mono text-zinc-600">{p.codigo}</span>
-          <span className="text-sm font-bold text-zinc-800">× {p.cantidad}</span>
-        </div>
-      ))}
-    </div>
-    <div className="mt-3 bg-zinc-50 border border-zinc-200 rounded-lg p-3">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">String de inventario</span>
-        <button
-          onClick={() => {
-            navigator.clipboard.writeText(inv.lista_productos);
-            const btn = document.getElementById(`copy-btn-${inv.id}`);
-            if (btn) { btn.textContent = "¡Copiado!"; setTimeout(() => { btn.textContent = "Copiar"; }, 2000); }
-          }}
-          id={`copy-btn-${inv.id}`}
-          className="text-xs text-orange-500 hover:text-orange-600 font-semibold transition"
-        >
-          Copiar
-        </button>
-      </div>
-      <p className="text-xs font-mono text-zinc-600 break-all leading-relaxed">
-        {inv.lista_productos}
-      </p>
-    </div>
-  </div>
-)}
+                      <div className="px-4 pb-4 border-t border-zinc-100">
+                        <div className="mt-3 space-y-1">
+                          {productos.map((p, i) => (
+                            <div key={i} className="flex justify-between items-center py-1.5 border-b border-zinc-100 last:border-0">
+                              <span className="text-sm font-mono text-zinc-600">{p.codigo}</span>
+                              <span className="text-sm font-bold text-zinc-800">× {p.cantidad}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3 bg-zinc-50 border border-zinc-200 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">String de inventario</span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(inv.lista_productos);
+                                const btn = document.getElementById(`copy-btn-${inv.id}`);
+                                if (btn) { btn.textContent = "¡Copiado!"; setTimeout(() => { btn.textContent = "Copiar"; }, 2000); }
+                              }}
+                              id={`copy-btn-${inv.id}`}
+                              className="text-xs text-orange-500 hover:text-orange-600 font-semibold transition"
+                            >
+                              Copiar
+                            </button>
+                          </div>
+                          <p className="text-xs font-mono text-zinc-600 break-all leading-relaxed">
+                            {inv.lista_productos}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -728,51 +701,97 @@ const escanearProducto = async (codigo: string) => {
           )}
         </>
       )}
+
       {typeof document !== "undefined" && createPortal(
-  <>
-    {modalEscaneo && (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
-        onClick={() => setModalEscaneo(null)}
-      >
-        <motion.div
-          initial={{ scale: 0.5, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="relative w-28 h-28 mx-auto mb-4 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200">
-            {modalEscaneo.IMAGEN ? (
-              <Image src={modalEscaneo.IMAGEN} alt={modalEscaneo.TITULO} fill className="object-contain" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Package size={36} className="text-zinc-300" />
-              </div>
-            )}
-          </div>
+        <>
+          {modalEscaneo && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
+              onClick={() => { setModalEscaneo(null); setCantidadManualModal(""); }}
+            >
+              <motion.div
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={() => { setModalEscaneo(null); setCantidadManualModal(""); }}
+                  className="absolute top-4 right-4 w-8 h-8 bg-zinc-100 hover:bg-zinc-200 rounded-full flex items-center justify-center transition"
+                >
+                  <X size={14} className="text-zinc-600" />
+                </button>
 
-          <p className="text-sm font-bold text-orange-500 font-mono mb-1">{modalEscaneo.CODIGO}</p>
-          <p className="text-base font-semibold text-zinc-800 mb-4 line-clamp-2">{modalEscaneo.TITULO}</p>
+                <div className="relative w-28 h-28 mx-auto mb-4 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200">
+                  {modalEscaneo.IMAGEN ? (
+                    <Image src={modalEscaneo.IMAGEN} alt={modalEscaneo.TITULO} fill className="object-contain" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Package size={36} className="text-zinc-300" />
+                    </div>
+                  )}
+                </div>
 
-          <motion.div
-            key={modalEscaneo.cantidad} // 👈 key en el número solo, no en todo el modal
-            initial={{ scale: 1.4 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 15 }}
-            className="text-5xl font-black text-green-500 mb-1"
-          >
-            {modalEscaneo.cantidad}
-          </motion.div>
-          <p className="text-xs text-zinc-400 font-medium">unidades escaneadas</p>
-        </motion.div>
-      </motion.div>
-    )}
-  </>,
-  document.body
-)}
+                <p className="text-sm font-bold text-orange-500 font-mono mb-1">{modalEscaneo.CODIGO}</p>
+                <p className="text-base font-semibold text-zinc-800 mb-4 line-clamp-2">{modalEscaneo.TITULO}</p>
+
+                <motion.div
+                  key={modalEscaneo.cantidad}
+                  initial={{ scale: 1.4 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                  className="text-5xl font-black text-green-500 mb-1"
+                >
+                  {modalEscaneo.cantidad}
+                </motion.div>
+                <p className="text-xs text-zinc-400 font-medium mb-5">unidades escaneadas</p>
+
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={cantidadManualModal}
+                    onChange={(e) => setCantidadManualModal(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const cant = parseFloat(cantidadManualModal);
+                        if (!isNaN(cant) && cant > 0) {
+                          setItems((prev) => prev.map((i) =>
+                            i.id === modalEscaneo.id ? { ...i, cantidad: cant } : i
+                          ));
+                          setModalEscaneo((prev: any) => ({ ...prev, cantidad: cant }));
+                          setCantidadManualModal("");
+                        }
+                      }
+                    }}
+                    placeholder="Cantidad manual"
+                    className="flex-1 border-2 border-zinc-200 rounded-xl px-3 py-2.5 text-sm text-zinc-700 text-center focus:outline-none focus:border-orange-400"
+                  />
+                  <button
+                    onClick={() => {
+                      const cant = parseFloat(cantidadManualModal);
+                      if (!isNaN(cant) && cant > 0) {
+                        setItems((prev) => prev.map((i) =>
+                          i.id === modalEscaneo.id ? { ...i, cantidad: cant } : i
+                        ));
+                        setModalEscaneo((prev: any) => ({ ...prev, cantidad: cant }));
+                        setCantidadManualModal("");
+                      }
+                    }}
+                    disabled={!cantidadManualModal || isNaN(parseFloat(cantidadManualModal))}
+                    className="px-4 py-2.5 rounded-xl bg-orange-500 text-white font-bold text-sm disabled:opacity-40 hover:bg-orange-600 transition"
+                  >
+                    Aplicar
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </>,
+        document.body
+      )}
     </div>
   );
 };

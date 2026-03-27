@@ -15466,8 +15466,10 @@ const [filtroFecha, setFiltroFecha] = useState("");
       try {
         const { data: hojas } = await supabase
           .from("hojas_surtido")
-          .select("*")
-          .eq("pedido_id", pedidoId);
+.select("*")
+.eq("pedido_id", pedidoId)
+.order("numero_hoja", { ascending: true })
+
 
         if (!hojas || hojas.length === 0) return;
 
@@ -17806,7 +17808,7 @@ setPedidoSeleccionado(pedido);
             {item.IMAGEN ? <Image src={item.IMAGEN} alt={item.TITULO} fill className="object-contain" /> : <Package size={16} className="text-zinc-300 m-auto" />}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-mono text-zinc-500">{item.CODIGO}</p>
+            <p className="text-sm font-mono text-zinc-500">Codigo: {item.CODIGO}</p>
             <p className="text-sm font-semibold text-zinc-800 line-clamp-2">{item.TITULO}</p>
           </div>
           <div className="text-right flex-shrink-0">
