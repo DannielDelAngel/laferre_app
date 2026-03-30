@@ -19796,7 +19796,7 @@ const imprimirEtiqueta = async (producto: any, cantidad: number, printer: number
         .from("pedidos")
         .select(
           `
-        id, created_at, total, cuenta_id,
+        id, created_at, total, cuenta_id, es_domicilio,
         cuentas (cliente, ferreteria, numero_cuenta)
       `,
         )
@@ -19894,9 +19894,15 @@ if (empleados.length > 0) {
         .eq("id", pedido.id);
     };
     const seleccionarHoja = async (hoja: any) => {
+  // Si la hoja ya fue procesada, permitir re-abrirla
+  // (para cuando el pedido regresa al estado "revisando")
   if (hojasProcesadas.has(hoja.id)) {
-    alert("Esta hoja ya fue revisada");
-    return;
+    // Remover del set local para que se pueda volver a confirmar
+    setHojasProcesadas((prev) => {
+      const nuevo = new Set(prev);
+      nuevo.delete(hoja.id);
+      return nuevo;
+    });
   }
 
   setHojaActual(hoja);
@@ -19931,9 +19937,35 @@ if (empleados.length > 0) {
     );
     setCambiosEstado(mapaCambios);
   } else {
-    setProductosVerificados(new Map());
-    setCambiosEstado(new Map());
-  }
+  const mapaCambios = new Map<number, any>();
+  const mapaVerificados = new Map<number, number>();
+
+  // Consultar si esta hoja ya fue revisada antes
+  const { data: revisionExistente } = await supabase
+    .from("hojas_revision")
+    .select("hoja_id")
+    .eq("hoja_id", hoja.id)
+    .maybeSingle();
+
+  hoja.productos.forEach((p: any) => {
+    if (!p.producto_id) return;
+
+    if (p.estado === "PA" || p.estado === "parcial") {
+      // Siempre cargar PA/parcial (son del surtidor)
+      mapaCambios.set(p.producto_id, {
+        estado: p.estado,
+        cantidad: p.cantidad_surtida ?? 0,
+        cantidad_surtida: p.cantidad_surtida ?? 0,
+      });
+    } else if (p.estado === "completo" && revisionExistente) {
+      // Solo pre-poblar verificados si ya existía una revisión previa
+      mapaVerificados.set(p.producto_id, p.cantidad_surtida ?? p.cantidad_pedida);
+    }
+  });
+
+  setProductosVerificados(mapaVerificados);
+  setCambiosEstado(mapaCambios);
+}
 };
 
     // Lógica de escaneo
@@ -20266,6 +20298,21 @@ if (empleados.length > 0) {
           revisado_por: cuenta?.numero_cuenta || "desconocido",
         });
 
+        // Actualizar hojas en estado local con los productos ya guardados
+setHojas((prev) =>
+  prev.map((h) => {
+    if (h.id !== hojaActual.id) return h;
+    const productosActualizadosLocal = h.productos.map((p: any) => {
+      const cambio = cambiosEstado.get(p.producto_id);
+      if (cambio) {
+        return { ...p, estado: cambio.estado, cantidad_surtida: cambio.cantidad_surtida };
+      }
+      return p;
+    });
+    return { ...h, productos: productosActualizadosLocal };
+  })
+);
+
         setMostrarModalCompletado(false);
         limpiarEstadoLocalHoja(hojaActual.id);
         setHojaActual(null);
@@ -20457,12 +20504,20 @@ if (empleados.length > 0) {
         }
 
         // Cambiar estado del pedido a encajado
-        await supabase
-          .from("pedidos")
-          .update({ estado: "encajado" })
-          .eq("id", pedidoSeleccionado.id);
+const nuevoEstado = pedidoSeleccionado.es_domicilio === false
+  ? "listo_para_recoger"
+  : "encajado";
 
-        alert("¡Pedido completado y marcado como encajado!");
+await supabase
+  .from("pedidos")
+  .update({ estado: nuevoEstado })
+  .eq("id", pedidoSeleccionado.id);
+
+alert(
+  nuevoEstado === "listo_para_recoger"
+    ? "¡Pedido completado y marcado como listo para recoger!"
+    : "¡Pedido completado y marcado como encajado!"
+);
 
         // Limpiar todo
         limpiarEstadoLocal();
@@ -20591,14 +20646,14 @@ if (empleados.length > 0) {
               return (
                 <div
   key={hoja.id}
-  onClick={() => !procesada && seleccionarHoja(hoja)}
-  className={`border-2 rounded-xl p-4 transition ${
-    procesada
-      ? "bg-green-50 border-green-500 cursor-not-allowed"
-      : hoja.revisando_por && hoja.revisando_por !== cuenta?.numero_cuenta
-        ? "bg-yellow-50 border-yellow-300 cursor-pointer"
-        : "bg-white border-zinc-200 cursor-pointer hover:border-blue-400"
-  }`}
+  onClick={() => seleccionarHoja(hoja)}
+className={`border-2 rounded-xl p-4 transition ${
+  procesada
+    ? "bg-green-50 border-green-500 cursor-pointer hover:border-green-400"
+    : hoja.revisando_por && hoja.revisando_por !== cuenta?.numero_cuenta
+      ? "bg-yellow-50 border-yellow-300 cursor-pointer"
+      : "bg-white border-zinc-200 cursor-pointer hover:border-blue-400"
+}`}
 >
   <div className="flex justify-between items-start">
     <div>
