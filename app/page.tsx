@@ -19894,10 +19894,8 @@ if (empleados.length > 0) {
         .eq("id", pedido.id);
     };
     const seleccionarHoja = async (hoja: any) => {
-  // Si la hoja ya fue procesada, permitir re-abrirla
-  // (para cuando el pedido regresa al estado "revisando")
   if (hojasProcesadas.has(hoja.id)) {
-    // Remover del set local para que se pueda volver a confirmar
+  
     setHojasProcesadas((prev) => {
       const nuevo = new Set(prev);
       nuevo.delete(hoja.id);
@@ -19951,14 +19949,12 @@ if (empleados.length > 0) {
     if (!p.producto_id) return;
 
     if (p.estado === "PA" || p.estado === "parcial") {
-      // Siempre cargar PA/parcial (son del surtidor)
       mapaCambios.set(p.producto_id, {
         estado: p.estado,
         cantidad: p.cantidad_surtida ?? 0,
         cantidad_surtida: p.cantidad_surtida ?? 0,
       });
     } else if (p.estado === "completo" && revisionExistente) {
-      // Solo pre-poblar verificados si ya existía una revisión previa
       mapaVerificados.set(p.producto_id, p.cantidad_surtida ?? p.cantidad_pedida);
     }
   });
@@ -28308,7 +28304,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
             </AnimatePresence>
 
             {/* Barra de navegación*/}
-            <nav className="fixed bottom-0 left-0 z-50 grid w-full grid-cols-5 items-center border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md">
+            <nav className="z-[300] fixed bottom-0 left-0 z-50 grid w-full grid-cols-5 items-center border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md">
   {/* 1. BOTÓN CATEGORÍAS */}
   <button
     onClick={() => {
@@ -28354,6 +28350,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
       setGruposMarca([]);
       setGrupoMarcaActivoId(null);
       setMacroCategoriaSeleccionada(null);
+      setMostrarOverlayBusqueda(false);
       buscarStateRef.current = {
         categoria: null,
         marca: null,
@@ -28374,6 +28371,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
   <div className="relative flex justify-center">
     <button
       onClick={() => {
+        setMostrarOverlayBusqueda(false);
                localStorage.setItem("scrollPos", window.scrollY.toString());
         setActiveTab("carrito");
       }}
@@ -28413,6 +28411,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
   {/* 4. BOTÓN FAVORITOS */}
   <button
     onClick={() => {
+      setMostrarOverlayBusqueda(false);
       localStorage.setItem("scrollPos", window.scrollY.toString());
       setActiveTab("ubicacion");
     }}
@@ -28427,6 +28426,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
   {/* 5. BOTÓN MAS */}
   <button
     onClick={() => {
+      setMostrarOverlayBusqueda(false);
       if (activeTab === "perfil") {
         if (vistaPerfil !== "menu") {
           setVistaPerfil("menu");
