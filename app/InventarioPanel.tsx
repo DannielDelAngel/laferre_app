@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Image from "next/image";
-import { Search, X, Edit2, CheckCircle, Package, ChevronDown, ChevronUp } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { Search, X, CheckCircle, Package, ChevronDown, ChevronUp } from "lucide-react";
+import { motion } from "framer-motion";
 import { createPortal } from "react-dom";
 
 interface ItemInventario {
@@ -25,11 +25,8 @@ interface InventarioGuardado {
 }
 
 const STORAGE_KEY = (numeroCuenta: string) => `inventario_progreso_${numeroCuenta}`;
-
-const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
+const InventarioPanel = ({ supabase: sb, cuenta, esAdmin, esEmpleado }: any) => {
   const client = sb || supabase;
-  const [ultimoEscaneado, setUltimoEscaneado] = useState<any>(null);
-  const ultimoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [modalEscaneo, setModalEscaneo] = useState<any>(null);
   const modalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [codigoInput, setCodigoInput] = useState("");
@@ -62,6 +59,8 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
   const [mostrarMas, setMostrarMas] = useState(false);
   const LIMITE = 10;
   const [cantidadManualModal, setCantidadManualModal] = useState("");
+
+  const tienePermisosInventario = esAdmin || esEmpleado; 
 
   // Cargar progreso desde localStorage al montar
   useEffect(() => {
@@ -107,7 +106,6 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
     setBuscandoSugerencias(false);
   };
 
-  // Función específica para cuando escanea físicamente
   const escanearProducto = async (codigo: string) => {
     if (!codigo.trim()) return;
     setError("");
@@ -129,8 +127,6 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
     setItems((prev) => {
       const existente = prev.find((i) => i.id === data.id);
       const nuevaCantidad = existente ? existente.cantidad + 1 : 1;
-
-      if (modalTimeoutRef.current) clearTimeout(modalTimeoutRef.current);
       setModalEscaneo({ ...data, cantidad: nuevaCantidad });
 
       if (existente) return prev.map((i) => i.id === data.id ? { ...i, cantidad: nuevaCantidad } : i);
@@ -138,7 +134,6 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
     });
   };
 
-  // Guardar progreso en localStorage cada vez que cambia items
   useEffect(() => {
     if (!cuenta?.numero_cuenta) return;
     if (items.length > 0) {
@@ -148,15 +143,13 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
     }
   }, [items, cuenta]);
 
-  // Scanner físico
   useEffect(() => {
     if (esperandoCantidad) return;
 
     const handleKeyPress = (e: KeyboardEvent) => {
       if (
         document.activeElement === codigoRef.current ||
-        document.activeElement === cantidadRef.current ||
-        modalEscaneo !== null
+        document.activeElement === cantidadRef.current
       ) return;
 
       if (e.key === "Enter") {
@@ -232,21 +225,6 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
     setError("");
   };
 
-  const handleCodigoKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") { e.preventDefault(); buscarProducto(codigoInput); }
-  };
-
-  const handleCantidadKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") { e.preventDefault(); agregarItem(); }
-    if (e.key === "Escape") {
-      setEsperandoCantidad(false);
-      setProductoEncontrado(null);
-      setCantidadInput("");
-      setCodigoInput("");
-      setError("");
-    }
-  };
-
   const guardarEdicion = (id: number) => {
     const cant = parseFloat(cantidadEditar);
     if (isNaN(cant) || cant <= 0) return;
@@ -265,25 +243,25 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
     if (items.length === 0) return;
     setConfirmando(true);
 
-    // Actualizar existencias en bodega
-    const actualizaciones = items.map((item) =>
-      client.from("productos").update({ existencia: item.cantidad }).eq("id", item.id)
-    );
-    const resultados = await Promise.all(actualizaciones);
-    const hayError = resultados.some((r: any) => r.error);
-    if (hayError) {
-      setError("Error al actualizar algunas existencias");
-      setConfirmando(false);
-      return;
+    if (tienePermisosInventario) {
+      const actualizaciones = items.map((item) =>
+        client.from("productos").update({ existencia: item.cantidad }).eq("id", item.id)
+      );
+      const resultados = await Promise.all(actualizaciones);
+      const hayError = resultados.some((r: any) => r.error);
+      if (hayError) {
+        setError("Error al actualizar algunas existencias");
+        setConfirmando(false);
+        return;
+      }
     }
 
-    // Guardar registro
     const { error } = await client.from("inventarios").insert({
       cuenta_id: cuenta?.id,
       numero_cuenta: cuenta?.numero_cuenta,
       nombre_usuario: cuenta?.cliente || cuenta?.ferreteria || cuenta?.numero_cuenta,
       lista_productos: generarString(),
-      tipo: "bodega",
+      tipo: tienePermisosInventario ? "bodega" : "cliente", 
     });
 
     setConfirmando(false);
@@ -297,16 +275,30 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
 
   const cargarHistorial = async () => {
     setCargandoHistorial(true);
-    const { data } = await client
+    
+    let query = client
       .from("inventarios")
       .select("*")
       .order("created_at", { ascending: false });
-    setHistorial(data || []);
+
+    if (tienePermisosInventario) {
+      query = query.eq("tipo", "bodega");
+    } else {
+      query = query.eq("cuenta_id", cuenta?.id);
+    }
+
+    const { data, error: err } = await query;
+    
+    if (err) {
+      console.error("Error al cargar historial:", err);
+    } else {
+      setHistorial(data || []);
+    }
     setCargandoHistorial(false);
   };
 
   useEffect(() => {
-    if (vistaAdmin === "historial" && esAdmin) cargarHistorial();
+    if (vistaAdmin === "historial") cargarHistorial();
   }, [vistaAdmin]);
 
   const parsearLista = (lista: string) =>
@@ -319,26 +311,28 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
     <div className="-mx-10 px-4 pb-32">
       <h2 className="text-xl font-bold text-zinc-900 mb-4">Inventario</h2>
 
-      {esAdmin && (
-        <div className="flex gap-2 mb-5 bg-zinc-100 rounded-xl p-1">
-          <button
-            onClick={() => setVistaAdmin("inventario")}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
-              vistaAdmin === "inventario" ? "bg-white text-orange-500 shadow" : "text-zinc-500"
-            }`}
-          >
-            Hacer Inventario
-          </button>
-          <button
-            onClick={() => setVistaAdmin("historial")}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
-              vistaAdmin === "historial" ? "bg-white text-orange-500 shadow" : "text-zinc-500"
-            }`}
-          >
-            Historial
-          </button>
-        </div>
-      )}
+     {/* Pestañas de navegación */}
+<div className="flex gap-2 mb-5 bg-zinc-100 rounded-xl p-1">
+  <button
+    onClick={() => setVistaAdmin("inventario")}
+    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
+      vistaAdmin === "inventario" ? "bg-white text-orange-500 shadow" : "text-zinc-500"
+    }`}
+  >
+    Hacer Inventario
+  </button>
+
+  {!esEmpleado && (
+    <button
+      onClick={() => setVistaAdmin("historial")}
+      className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
+        vistaAdmin === "historial" ? "bg-white text-orange-500 shadow" : "text-zinc-500"
+      }`}
+    >
+      Historial {esAdmin ? "General" : "Personal"}
+    </button>
+  )}
+</div>
 
       {vistaAdmin === "inventario" && (
         <>
@@ -489,7 +483,16 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
                 type="number"
                 value={cantidadInput}
                 onChange={(e) => { setCantidadInput(e.target.value); setError(""); }}
-                onKeyDown={handleCantidadKeyDown}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); agregarItem(); }
+                  if (e.key === "Escape") {
+                    setEsperandoCantidad(false);
+                    setProductoEncontrado(null);
+                    setCantidadInput("");
+                    setCodigoInput("");
+                    setError("");
+                  }
+                }}
                 placeholder="Cantidad"
                 className="w-full rounded-xl border text-zinc-700 border-orange-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 mb-3"
               />
@@ -527,7 +530,9 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
           {exito && (
             <div className="mb-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-2">
               <CheckCircle size={18} className="text-green-500" />
-              <p className="text-sm text-green-700 font-semibold">Inventario guardado y existencias actualizadas</p>
+              <p className="text-sm text-green-700 font-semibold">
+                {tienePermisosInventario ? "Inventario guardado y existencias actualizadas" : "Inventario guardado correctamente"}
+              </p>
             </div>
           )}
 
@@ -625,7 +630,7 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
         </>
       )}
 
-      {vistaAdmin === "historial" && esAdmin && (
+      {vistaAdmin === "historial" && (
         <>
           {cargandoHistorial ? (
             <div className="flex justify-center py-10">
@@ -675,7 +680,7 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
                         </div>
                         <div className="mt-3 bg-zinc-50 border border-zinc-200 rounded-lg p-3">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">String de inventario</span>
+                            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Resumen de inventario</span>
                             <button
                               onClick={() => {
                                 navigator.clipboard.writeText(inv.lista_productos);

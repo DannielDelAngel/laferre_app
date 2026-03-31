@@ -27234,6 +27234,11 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
       label="Ubicación de tienda"
       onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("ubicacion"); }}
     />
+    <MenuItem 
+        label="Inventario" 
+        icon={<Package size={20} />} 
+        onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("inventario"); }} 
+      />
 {/* 
     <MenuItem
       label="Apoyo"
@@ -27304,14 +27309,12 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
       </>
     )}
 
-    {(esAdmin || esEmpleado) && (
       <MenuItem 
         label="Inventario" 
         icon={<Package size={20} />} 
         onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("inventario"); }} 
       />
-    )}
-    
+  
     </Acordeon>
       )}
 
@@ -27622,7 +27625,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
   </motion.div>
 )}
 
-                    {vistaPerfil === "inventario" && (esAdmin || esEmpleado) && (
+                    {vistaPerfil === "inventario" && (
                       <motion.div
                         key="inventario"
                         initial={{ opacity: 0, x: 40 }}
@@ -27638,7 +27641,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
                         }}
                       >
                         <BackBtn onBack={() => setVistaPerfil("menu")} />
-                        <InventarioPanel supabase={supabase} cuenta={cuenta} esAdmin={esAdmin} />
+                        <InventarioPanel supabase={supabase} cuenta={cuenta} esAdmin={esAdmin} esEmpleado={esEmpleado} />
                       </motion.div>
                     )}
 
