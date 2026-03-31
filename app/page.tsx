@@ -19796,7 +19796,7 @@ const imprimirEtiqueta = async (producto: any, cantidad: number, printer: number
         .from("pedidos")
         .select(
           `
-        id, created_at, total, cuenta_id,
+        id, created_at, total, cuenta_id, es_domicilio,
         cuentas (cliente, ferreteria, numero_cuenta)
       `,
         )
@@ -19895,8 +19895,12 @@ if (empleados.length > 0) {
     };
     const seleccionarHoja = async (hoja: any) => {
   if (hojasProcesadas.has(hoja.id)) {
-    alert("Esta hoja ya fue revisada");
-    return;
+  
+    setHojasProcesadas((prev) => {
+      const nuevo = new Set(prev);
+      nuevo.delete(hoja.id);
+      return nuevo;
+    });
   }
 
   setHojaActual(hoja);
@@ -19931,9 +19935,33 @@ if (empleados.length > 0) {
     );
     setCambiosEstado(mapaCambios);
   } else {
-    setProductosVerificados(new Map());
-    setCambiosEstado(new Map());
-  }
+  const mapaCambios = new Map<number, any>();
+  const mapaVerificados = new Map<number, number>();
+
+  // Consultar si esta hoja ya fue revisada antes
+  const { data: revisionExistente } = await supabase
+    .from("hojas_revision")
+    .select("hoja_id")
+    .eq("hoja_id", hoja.id)
+    .maybeSingle();
+
+  hoja.productos.forEach((p: any) => {
+    if (!p.producto_id) return;
+
+    if (p.estado === "PA" || p.estado === "parcial") {
+      mapaCambios.set(p.producto_id, {
+        estado: p.estado,
+        cantidad: p.cantidad_surtida ?? 0,
+        cantidad_surtida: p.cantidad_surtida ?? 0,
+      });
+    } else if (p.estado === "completo" && revisionExistente) {
+      mapaVerificados.set(p.producto_id, p.cantidad_surtida ?? p.cantidad_pedida);
+    }
+  });
+
+  setProductosVerificados(mapaVerificados);
+  setCambiosEstado(mapaCambios);
+}
 };
 
     // Lógica de escaneo
@@ -20266,6 +20294,21 @@ if (empleados.length > 0) {
           revisado_por: cuenta?.numero_cuenta || "desconocido",
         });
 
+        // Actualizar hojas en estado local con los productos ya guardados
+setHojas((prev) =>
+  prev.map((h) => {
+    if (h.id !== hojaActual.id) return h;
+    const productosActualizadosLocal = h.productos.map((p: any) => {
+      const cambio = cambiosEstado.get(p.producto_id);
+      if (cambio) {
+        return { ...p, estado: cambio.estado, cantidad_surtida: cambio.cantidad_surtida };
+      }
+      return p;
+    });
+    return { ...h, productos: productosActualizadosLocal };
+  })
+);
+
         setMostrarModalCompletado(false);
         limpiarEstadoLocalHoja(hojaActual.id);
         setHojaActual(null);
@@ -20457,12 +20500,20 @@ if (empleados.length > 0) {
         }
 
         // Cambiar estado del pedido a encajado
-        await supabase
-          .from("pedidos")
-          .update({ estado: "encajado" })
-          .eq("id", pedidoSeleccionado.id);
+const nuevoEstado = pedidoSeleccionado.es_domicilio === false
+  ? "listo_para_recoger"
+  : "encajado";
 
-        alert("¡Pedido completado y marcado como encajado!");
+await supabase
+  .from("pedidos")
+  .update({ estado: nuevoEstado })
+  .eq("id", pedidoSeleccionado.id);
+
+alert(
+  nuevoEstado === "listo_para_recoger"
+    ? "¡Pedido completado y marcado como listo para recoger!"
+    : "¡Pedido completado y marcado como encajado!"
+);
 
         // Limpiar todo
         limpiarEstadoLocal();
@@ -20591,14 +20642,14 @@ if (empleados.length > 0) {
               return (
                 <div
   key={hoja.id}
-  onClick={() => !procesada && seleccionarHoja(hoja)}
-  className={`border-2 rounded-xl p-4 transition ${
-    procesada
-      ? "bg-green-50 border-green-500 cursor-not-allowed"
-      : hoja.revisando_por && hoja.revisando_por !== cuenta?.numero_cuenta
-        ? "bg-yellow-50 border-yellow-300 cursor-pointer"
-        : "bg-white border-zinc-200 cursor-pointer hover:border-blue-400"
-  }`}
+  onClick={() => seleccionarHoja(hoja)}
+className={`border-2 rounded-xl p-4 transition ${
+  procesada
+    ? "bg-green-50 border-green-500 cursor-pointer hover:border-green-400"
+    : hoja.revisando_por && hoja.revisando_por !== cuenta?.numero_cuenta
+      ? "bg-yellow-50 border-yellow-300 cursor-pointer"
+      : "bg-white border-zinc-200 cursor-pointer hover:border-blue-400"
+}`}
 >
   <div className="flex justify-between items-start">
     <div>
@@ -28253,7 +28304,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
             </AnimatePresence>
 
             {/* Barra de navegación*/}
-            <nav className="fixed bottom-0 left-0 z-50 grid w-full grid-cols-5 items-center border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md">
+            <nav className="z-[300] fixed bottom-0 left-0 z-50 grid w-full grid-cols-5 items-center border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md">
   {/* 1. BOTÓN CATEGORÍAS */}
   <button
     onClick={() => {
@@ -28299,6 +28350,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
       setGruposMarca([]);
       setGrupoMarcaActivoId(null);
       setMacroCategoriaSeleccionada(null);
+      setMostrarOverlayBusqueda(false);
       buscarStateRef.current = {
         categoria: null,
         marca: null,
@@ -28319,6 +28371,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
   <div className="relative flex justify-center">
     <button
       onClick={() => {
+        setMostrarOverlayBusqueda(false);
                localStorage.setItem("scrollPos", window.scrollY.toString());
         setActiveTab("carrito");
       }}
@@ -28358,6 +28411,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
   {/* 4. BOTÓN FAVORITOS */}
   <button
     onClick={() => {
+      setMostrarOverlayBusqueda(false);
       localStorage.setItem("scrollPos", window.scrollY.toString());
       setActiveTab("ubicacion");
     }}
@@ -28372,6 +28426,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
   {/* 5. BOTÓN MAS */}
   <button
     onClick={() => {
+      setMostrarOverlayBusqueda(false);
       if (activeTab === "perfil") {
         if (vistaPerfil !== "menu") {
           setVistaPerfil("menu");
