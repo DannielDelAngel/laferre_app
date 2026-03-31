@@ -19449,7 +19449,7 @@ const RecoleccionPanel = ({ supabase, onBack, esAdmin }: any) => {
                   {!item.esFaltante ? (
                     <div className="mt-1 bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded inline-block">✓ Ya surtido: {item.cantidad_surtida}/{item.cantidad_pedida}</div>
                   ) : esPA ? (
-                    <div className="mt-2 bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">PA - AGOTADO</div>
+                    <div className="mt-2 bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">PF - PRODUCTO FALTANTE</div>
                   ) : parcialInfo ? (
                     <div className="mt-2 bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">PARCIAL: {parcialInfo.encontrada}/{parcialInfo.pedida}</div>
                   ) : esManual ? (
@@ -19592,7 +19592,7 @@ const RecoleccionPanel = ({ supabase, onBack, esAdmin }: any) => {
                     productosPA.has(modalProductoProblema.producto?.producto_id) ? "bg-red-500 hover:bg-red-600" : "bg-yellow-500 hover:bg-yellow-600"
                   }`}
                 >
-                  {productosPA.has(modalProductoProblema.producto?.producto_id) ? "QUITAR PA" : "PA - Producto Agotado"}
+                  {productosPA.has(modalProductoProblema.producto?.producto_id) ? "QUITAR PF" : "PF - Producto Faltante"}
                 </button>
 
                 {/* Input ingreso manual */}
@@ -21677,7 +21677,7 @@ await supabase
                       }}
                       className="w-full py-3 rounded-xl text-white font-bold shadow-lg bg-yellow-500 hover:bg-yellow-600 active:scale-95 transition-transform mb-3"
                     >
-                      PA - Producto Agotado
+                      PF - Producto Faltante
                     </button>
 
                     {/* Opción Parcial */}
@@ -23212,7 +23212,7 @@ if (!contenedores.has(codigo)) {
   )} 
                     {esPA && (
                       <div className="mt-2 bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded inline-block">
-                        PA - AGOTADO
+                        PF - PRODUCTO FALTANTE
                       </div>
                     )}
 
@@ -23486,8 +23486,8 @@ if (!contenedores.has(codigo)) {
                       {productosPA.has(
                         modalProductoProblema.producto?.producto_id,
                       )
-                        ? "QUITAR PA"
-                        : "PA - Producto Agotado"}
+                        ? "QUITAR PF"
+                        : "PF - Producto Faltante"}
                     </button>
 
                     {/* Opción Parcial */}
