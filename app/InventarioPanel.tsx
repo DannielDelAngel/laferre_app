@@ -106,6 +106,40 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin, esEmpleado }: any) => 
     setBuscandoSugerencias(false);
   };
 
+  const descargarExcelInventario = async (inv: InventarioGuardado) => {
+  const productos = parsearLista(inv.lista_productos);
+  const codigos = productos.map((p) => p.codigo);
+
+  const { data } = await client
+    .from("productos")
+    .select("CODIGO, TITULO")
+    .in("CODIGO", codigos);
+
+  const filas = productos.map((p) => {
+    const info = data?.find((d: any) => d.CODIGO === p.codigo);
+    return {
+      Código: p.codigo,
+      Cantidad: p.cantidad,
+      Título: info?.TITULO || "—",
+    };
+  });
+
+  const bom = "\uFEFF";
+  const encabezado = "Código,Cantidad,Título";
+  const filasCsv = filas.map((f) =>
+    `${f.Código},${f.Cantidad},"${f.Título.replace(/"/g, '""')}"`
+  );
+  const csv = bom + [encabezado, ...filasCsv].join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `inventario_${inv.numero_cuenta}_${new Date(inv.created_at).toLocaleDateString("en-CA")}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
   const escanearProducto = async (codigo: string) => {
     if (!codigo.trim()) return;
     setError("");
@@ -681,6 +715,13 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin, esEmpleado }: any) => 
                         <div className="mt-3 bg-zinc-50 border border-zinc-200 rounded-lg p-3">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Resumen de inventario</span>
+                            <div className="flex gap-3">
+                            <button
+      onClick={() => descargarExcelInventario(inv)}
+      className="text-xs text-green-600 hover:text-green-700 font-semibold transition"
+    >
+      Descargar Excel
+    </button>
                             <button
                               onClick={() => {
                                 navigator.clipboard.writeText(inv.lista_productos);
@@ -692,6 +733,7 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin, esEmpleado }: any) => 
                             >
                               Copiar
                             </button>
+                            </div>
                           </div>
                           <p className="text-xs font-mono text-zinc-600 break-all leading-relaxed">
                             {inv.lista_productos}

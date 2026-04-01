@@ -349,6 +349,7 @@ const [mostrarResultadosMarca, setMostrarResultadosMarca] = useState(false);
   const [precio, setPrecio] = useState(
     producto.P_MAYOREO ? String(producto.P_MAYOREO) : "",
   );
+  const [stockInput, setStockInput] = useState(String(producto.existencia ?? 0));
 
   const [claveAlterna, setClaveAlterna] = useState(producto.C_PRODUCTO || "");
 const [caja, setCaja] = useState(producto.caja ? String(producto.caja) : "");
@@ -780,6 +781,7 @@ const handleSubtract = (): void =>
           caja: caja ? parseInt(caja) : null,
           master: master ? parseInt(master) : null,
           unidad_venta: unidadVenta.trim() || null,
+          existencia: stockInput !== "" ? parseFloat(stockInput) : null,
    
         })
         .eq("id", producto.id);
@@ -1551,6 +1553,21 @@ if (grupoIdSeleccionado) {
                 />
               </div>
 
+              {/* Stock / Existencia */}
+<div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Stock (Existencia)
+  </label>
+  <input
+    type="number"
+    min="0"
+    value={stockInput}
+    onChange={(e) => setStockInput(e.target.value)}
+    placeholder="Ej. 100"
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
+  />
+</div>
+
               <div className="flex gap-3 mb-4">
   <div className="flex-1">
     <label className="block text-sm font-medium text-zinc-700 mb-2">Caja</label>
@@ -1576,6 +1593,8 @@ if (grupoIdSeleccionado) {
   </div>
 </div>
 
+
+
 <div className="mb-4">
   <label className="block text-sm font-medium text-zinc-700 mb-2">Unidad de Venta</label>
   <input
@@ -1586,6 +1605,8 @@ if (grupoIdSeleccionado) {
     className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700"
   />
 </div>
+
+
 
               {/* Mensaje */}
               {mensaje && (
@@ -18380,15 +18401,21 @@ doc.setTextColor(0, 0, 0);
         const { jsPDF } = jsPDFModule;
 
         // Crear el pedido real
-        const { data: nuevoPedido, error: errorPedido } = await supabase
-          .from("pedidos")
-          .insert({
-            cuenta_id: idCuentaFinal,
-            total: backOrder.total,
-            estado: "nuevo_pedido",
-            es_domicilio: false,
-            lista_productos: backOrder.lista_productos,
-          })
+        const { data: pedidoOrigen } = await supabase
+  .from("pedidos")
+  .select("es_domicilio")
+  .eq("id", backOrder.pedido_origen_id)
+  .single();
+
+const { data: nuevoPedido, error: errorPedido } = await supabase
+  .from("pedidos")
+  .insert({
+    cuenta_id: idCuentaFinal,
+    total: backOrder.total,
+    estado: "nuevo_pedido",
+    es_domicilio: pedidoOrigen?.es_domicilio ?? true,
+    lista_productos: backOrder.lista_productos,
+  })
           .select(
             `
           *,
@@ -20317,7 +20344,6 @@ setHojas((prev) =>
 
         // Verificar si todas las hojas fueron procesadas
         if (nuevasHojasProcesadas.size === hojas.length) {
-          // MOSTRAR MODAL DE PEDIDO COMPLETO EN VEZ DE CAMBIAR ESTADO
           setMostrarModalPedidoCompleto(true);
         }
       } catch (err) {
@@ -20389,14 +20415,19 @@ setHojas((prev) =>
                 .join("-");
 
               // Insertar Back Order
-              await supabase.from("back_orders").insert({
-                cuenta_id: pedidoSeleccionado.cuenta_id,
-                pedido_origen_id: pedidoSeleccionado.id,
-                total: totalBackOrder,
-                lista_productos: listaProductosString,
-                productos_detalles: JSON.stringify(detallesBackOrder),
-                estado: "pendiente",
-              });
+await supabase.from("back_orders").upsert(
+  {
+    cuenta_id: pedidoSeleccionado.cuenta_id,
+    pedido_origen_id: pedidoSeleccionado.id,
+    total: totalBackOrder,
+    lista_productos: listaProductosString,
+    productos_detalles: JSON.stringify(detallesBackOrder),
+    estado: "pendiente",
+  },
+  {
+    onConflict: "pedido_origen_id", 
+  }
+);
             }
           }
         }
@@ -21815,7 +21846,7 @@ await supabase
           <div className="space-y-3 mb-4">
             {[
               { id: 1, nombre: "Embarques" },
-              { id: 2, nombre: "2" },
+              { id: 2, nombre: "Almacén" },
               { id: 3, nombre: "3" }
             ].map((printer) => (
               <button
