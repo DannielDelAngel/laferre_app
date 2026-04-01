@@ -17555,8 +17555,6 @@ setPedidoSeleccionado(pedido);
 
   const procesarEscaneo = (codigoEscaneado: string) => {
   const item = productos.find((p: any) => p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado);
-
-
   if (!item) {
   if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
   setModalAlerta({
@@ -17566,25 +17564,11 @@ setPedidoSeleccionado(pedido);
   });
   return;
 }
-
-    const actual = productosVerificados.get(item.producto_id) || 0;
-    const cambio = cambiosEstado.get(item.producto_id);
-
-    if (actual >= item.cantidad_pedida || cambio?.estado === "completo") {
-      if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
-      setModalAlerta({
-        visible: true,
-        titulo: "Cantidad Completa",
-        mensaje: `El producto "${item.TITULO}" ya ha sido verificado totalmente (${item.cantidad_pedida}/${item.cantidad_pedida}).`,
-      });
-      return;
-    }
-
-    if ("vibrate" in navigator) navigator.vibrate(50);
-    setUltimoEscaneo(codigoEscaneado);
-    
-    if (cambio?.estado === "PA") return;
-
+  if ("vibrate" in navigator) navigator.vibrate(50);
+  setUltimoEscaneo(codigoEscaneado);
+  const actual = productosVerificados.get(item.producto_id) || 0;
+  const cambio = cambiosEstado.get(item.producto_id);
+  if (cambio?.estado === "PA") return;
   if (actual < item.cantidad_pedida) {
     const nuevo = new Map(productosVerificados);
     nuevo.set(item.producto_id, actual + 1);
@@ -17765,7 +17749,7 @@ setPedidoSeleccionado(pedido);
       const c = cambiosEstado.get(p.producto_id);
       return c?.estado === "completo" || (!c && v >= p.cantidad_pedida);
     }).length },
-    { key: "pa", label: "PF", count: productos.filter((p: any) => cambiosEstado.get(p.producto_id)?.estado === "PA").length },
+    { key: "pa", label: "PA", count: productos.filter((p: any) => cambiosEstado.get(p.producto_id)?.estado === "PA").length },
     { key: "parcial", label: "Parcial", count: productos.filter((p: any) => cambiosEstado.get(p.producto_id)?.estado === "parcial").length },
   ].map((f) => (
     <button key={f.key} onClick={() => setFiltroProductos(f.key as any)}
@@ -17824,18 +17808,18 @@ setPedidoSeleccionado(pedido);
             {item.IMAGEN ? <Image src={item.IMAGEN} alt={item.TITULO} fill className="object-contain" /> : <Package size={16} className="text-zinc-300 m-auto" />}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-orange-600">Codigo: {item.CODIGO}</p>
+            <p className="text-sm font-mono text-zinc-500">Codigo: {item.CODIGO}</p>
             <p className="text-sm font-semibold text-zinc-800 line-clamp-2">{item.TITULO}</p>
           </div>
           <div className="text-right flex-shrink-0">
             {esPA ? (
-              <span className="text-xs font-bold bg-yellow-500 text-white px-2 py-1 rounded">PF</span>
+              <span className="text-xs font-bold bg-yellow-500 text-white px-2 py-1 rounded">PA</span>
             ) : esParcial ? (
               <span className="text-xs font-bold bg-orange-500 text-white px-2 py-1 rounded">{cambio.cantidad}/{item.cantidad_pedida}</span>
             ) : esCompleto ? (
               <CheckCircle size={22} className="text-green-500" />
             ) : (
-              <span className="text-lg font-bold text-orange-500">{verificado}/{item.cantidad_pedida}</span>
+              <span className="text-sm font-bold text-zinc-400">{verificado}/{item.cantidad_pedida}</span>
             )}
           </div>
         </div>
@@ -21449,7 +21433,7 @@ await supabase
       const cantidadVerificada = productosVerificados.get(p.producto_id) || 0;
       return cantidadVerificada < (estadoActual.cantidad_surtida || 0);
     }).length },
-    { key: "pa", label: "PF", count: hojaActual.productos.filter((p: any) => obtenerEstadoActual(p).estado === "PA").length },
+    { key: "pa", label: "PA", count: hojaActual.productos.filter((p: any) => obtenerEstadoActual(p).estado === "PA").length },
     { key: "parcial", label: "Parcial", count: hojaActual.productos.filter((p: any) => obtenerEstadoActual(p).estado === "parcial").length },
   ].map((f) => (
     <button
@@ -21457,7 +21441,7 @@ await supabase
       onClick={() => setFiltroProductos(f.key as any)}
       className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
         filtroProductos === f.key
-          ? f.key === "pa" ? "bg-yellow-500 text-white border-yellow-500" 
+          ? f.key === "pa" ? "bg-yellow-500 text-white border-yellow-500"
           : f.key === "parcial" ? "bg-orange-500 text-white border-orange-500"
           : f.key === "pendientes" ? "bg-blue-500 text-white border-blue-500"
           : "bg-orange-500 text-white border-orange-500"
@@ -26885,7 +26869,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
                                           <p className="text-sm font-bold text-orange-600">
                                             ${item.P_MAYOREO?.toFixed(2)}
                                           </p>
-                                          <span className="text-sm text-zinc-500">
+                                          <span className="text-xs text-zinc-500">
                                             × {item.cantidad}
                                           </span>
                                         </div>

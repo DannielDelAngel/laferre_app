@@ -127,7 +127,6 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin, esEmpleado }: any) => 
     setItems((prev) => {
       const existente = prev.find((i) => i.id === data.id);
       const nuevaCantidad = existente ? existente.cantidad + 1 : 1;
-
       setModalEscaneo({ ...data, cantidad: nuevaCantidad });
 
       if (existente) return prev.map((i) => i.id === data.id ? { ...i, cantidad: nuevaCantidad } : i);
