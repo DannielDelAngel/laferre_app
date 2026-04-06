@@ -15432,6 +15432,10 @@ useEffect(() => {
     const [filtroEstado, setFiltroEstado] = useState<string>("todos");
     const [filtroCliente, setFiltroCliente] = useState("");
 const [filtroFecha, setFiltroFecha] = useState("");
+const [productosEncajadosDetalle, setProductosEncajadosDetalle] = useState<any[]>([]);
+const [pdfEncajadoUrl, setPdfEncajadoUrl] = useState<string | null>(null);
+const [generandoPDFEncajado, setGenerandoPDFEncajado] = useState(false);
+
 
     // Estados para escaneo de código RS
     const [bufferEscaneo, setBufferEscaneo] = useState("");
@@ -15524,29 +15528,28 @@ const [filtroFecha, setFiltroFecha] = useState("");
                 cantidad_faltante: faltante,
               });
 
-              // AGREGAR AL STRING: lo que SÍ se surtió
+              // AGREGAR AL STRING: lo que SI se surtió
               productosCompletos.push({
                 codigo: prod.codigo,
                 cantidad: prod.cantidad_surtida,
               });
 
-              // SUMAR AL TOTAL NETO
               totalNeto +=
                 (prodCompleto?.P_MAYOREO || 0) * prod.cantidad_surtida;
-            } else if (
-              prod.estado === "completo" &&
-              prod.cantidad_surtida > 0
-            ) {
-              // Productos completos
-              productosCompletos.push({
-                codigo: prod.codigo,
-                cantidad: prod.cantidad_surtida,
-              });
+           } else if (
+  prod.estado === "completo" &&
+  prod.cantidad_surtida > 0
+) {
 
-              // SUMAR AL TOTAL NETO
-              totalNeto +=
-                (prodCompleto?.P_MAYOREO || 0) * prod.cantidad_surtida;
-            }
+  productosCompletos.push({
+    codigo: prod.codigo,
+    cantidad: prod.cantidad_surtida,
+    prodCompleto, 
+  });
+
+  totalNeto +=
+    (prodCompleto?.P_MAYOREO || 0) * prod.cantidad_surtida;
+}
           }
         }
 
@@ -15560,12 +15563,27 @@ const [filtroFecha, setFiltroFecha] = useState("");
         // Combinar faltantes (solo PA + lo que falta de parciales)
         const todosFaltantes = [...productosPA, ...productosParciales];
         setProductosFaltantes(todosFaltantes);
+
+const encajadosDetalle = productosCompletos.map((p) => ({
+  CODIGO: p.codigo,
+  TITULO: p.prodCompleto?.TITULO || p.codigo,
+  P_MAYOREO: p.prodCompleto?.P_MAYOREO || 0,
+  unidad_venta: p.prodCompleto?.unidad_venta || "N/A",
+  cantidad: p.cantidad,
+  subtotal: (p.prodCompleto?.P_MAYOREO || 0) * p.cantidad,
+}));
+setProductosEncajadosDetalle(encajadosDetalle);
+setPdfEncajadoUrl(null); 
+await generarPDFEncajadoAuto(encajadosDetalle, totalNeto);
+
       } catch (error) {
         console.error("Error cargando datos de encajado:", error);
       } finally {
         setCargandoEncajado(false);
       }
     };
+
+    
     {
       /*
     const crearBackOrder = async () => {
@@ -15671,6 +15689,7 @@ if (backOrderExistente) {
         setCargandoBackOrders(false);
       }
     };
+    
 
     const confirmarBackOrder = async (backOrder: any) => {
       if (!backOrder) return;
@@ -16131,6 +16150,7 @@ if (backOrderExistente) {
   numero_cuenta_sicar,
   cliente,
   ferreteria,
+  direccion,
   tipo_comprobante,
   numero_tel,
   entrega_mismo_dia,
@@ -16300,6 +16320,169 @@ if (backOrderExistente) {
         setCargandoPDF(false);
       }
     };
+
+    const generarPDFEncajadoAuto = async (productos: any[], totalNeto: number) => {
+  if (!pedidoSeleccionado || productos.length === 0) return;
+  try {
+    const [jsPDFModule, autoTableModule] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
+    const { jsPDF } = jsPDFModule;
+
+    const pedidoId = pedidoSeleccionado.id;
+    const numeroCotizacion = pedidoId;
+    const fecha = new Date().toLocaleDateString("es-MX", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+    });
+    const hora = new Date().toLocaleTimeString("es-MX");
+
+    const getImageBase64 = async (url: string): Promise<string> => {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    };
+
+    const logoBase64 = await getImageBase64("/logo-pdf.png");
+    const cuentaDoc = cuentaPedido;
+    const esDomicilio = pedidoSeleccionado.es_domicilio;
+
+    const ahora = new Date();
+    const horaActual = ahora.getHours();
+    let promesaEntrega = "";
+    if (esDomicilio) {
+      promesaEntrega = cuentaDoc?.entrega_mismo_dia
+        ? (horaActual < 10 ? "Entrega: Hoy mismo" : "Entrega: Siguiente día hábil")
+        : "Entrega: 1 a 3 días hábiles";
+    } else {
+      promesaEntrega = horaActual < 15
+        ? "Listo para recoger: en 3 horas"
+        : "Listo para recoger: Mañana 11:00 AM";
+    }
+    const dibujarEncabezado = (doc: any) => {
+      doc.addImage(logoBase64, "PNG", 14, 14, 50, 15);
+
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
+      doc.text("SARA DEL PILAR GUZMAN GALINDO", 70, 10);
+      doc.setFont("helvetica", "normal");
+      doc.text("GUGS701012E14", 70, 14);
+      doc.text("Av. del maestro # 24 - Col. Praxedis Balboa", 70, 18);
+      doc.text("H. Matamoros, Tamaulipas, MÉXICO. CP 87430", 70, 22);
+      doc.text("Tel 8682724481 | bodegaferreterademty@hotmail.com", 70, 26);
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("Pedido", 165, 10);
+      doc.setFontSize(10);
+      doc.text(numeroCotizacion.toString(), 170, 16);
+      doc.setFontSize(9);
+      doc.text("Fecha", 172, 24);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text(fecha, 167, 30);
+
+      doc.setLineWidth(0.3);
+      doc.line(14, 42, 196, 42);
+
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.text("RECEPTOR", 14, 48);
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Nombre: ${cuentaDoc?.cliente || "N/A"}`, 14, 54);
+      doc.text(`Domicilio: ${cuentaDoc?.direccion || ""}`, 14, 59);
+      doc.text(`Nombre del negocio: ${cuentaDoc?.ferreteria || ""}`, 140, 59);
+      doc.text(`Tel: ${cuentaDoc?.numero_tel || ""}`, 140, 54);
+      doc.text(`Ciudad: Heroica Matamoros, Tamaulipas, México`, 14, 64);
+    };
+
+    const doc = new jsPDF();
+
+    const tablaProductos = productos.map((p) => [
+      p.CODIGO || "",
+      p.cantidad,
+      p.unidad_venta || "N/A",
+      p.TITULO,
+      `$ ${p.P_MAYOREO.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `$ ${p.subtotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    ]);
+
+    autoTableModule.default(doc, {
+      head: [["CÓDIGO", "CANT", "UNIDAD", "DESCRIPCIÓN", "P. UNIT.", "IMPORTE"]],
+      body: tablaProductos,
+      startY: 69,
+      styles: { fontSize: 7, cellPadding: 1.5, lineColor: [180, 180, 180], lineWidth: 0.1, textColor: [0, 0, 0] },
+      headStyles: { fillColor: [230, 230, 230], textColor: [0, 0, 0], fontStyle: "bold", halign: "center", fontSize: 7 },
+      columnStyles: {
+        0: { cellWidth: 28, halign: "center" },
+        1: { cellWidth: 13, halign: "center" },
+        2: { cellWidth: 18, halign: "center" },
+        3: { cellWidth: 77, halign: "left" },
+        4: { cellWidth: 22, halign: "right" },
+        5: { cellWidth: 22, halign: "right" },
+      },
+      theme: "grid",
+      margin: { left: 14, right: 14, top: 69 },
+      didDrawPage: () => { dibujarEncabezado(doc); },
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY || 100;
+
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    if (esDomicilio) {
+      doc.text("TIPO DE ENTREGA: A DOMICILIO", 14, finalY + 8);
+    } else {
+      doc.text("TIPO DE ENTREGA: RECOGER EN LOCAL", 14, finalY + 8);
+    }
+    const pageHeight = doc.internal.pageSize.height;
+    const espacioDisponible = pageHeight - finalY - 20;
+    let yBase: number;
+    if (espacioDisponible < 60) {
+      doc.addPage();
+      dibujarEncabezado(doc);
+      yBase = 70;
+    } else {
+      yBase = finalY + 18;
+    }
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.line(145, yBase, 196, yBase);
+    doc.setFontSize(9);
+    doc.text("TOTAL NETO:", 145, yBase + 8);
+    doc.text(
+      `$ ${totalNeto.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      195, yBase + 8, { align: "right" }
+    );
+
+    // Pie de página
+    const pageCount = (doc as any).getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Página ${i} de ${pageCount}`, 14, doc.internal.pageSize.height - 8);
+      doc.text(`${fecha} ${hora}`, 160, doc.internal.pageSize.height - 8);
+    }
+
+    const blob = doc.output("blob");
+    const url = URL.createObjectURL(blob);
+    setPdfEncajadoUrl(url);
+  } catch (error) {
+    console.error("Error generando PDF de encajado:", error);
+  }
+};
 
     if (pedidoSeleccionado) {
       return (
@@ -16495,6 +16678,48 @@ if (backOrderExistente) {
                   </div>
                 ) : (
                   <>
+
+                 {/* DOCUMENTO DE ENCAJADO */}
+{esAdmin && ["encajado", "en_ruta", "entregado", "completado", "listo_para_recoger"].includes(pedidoSeleccionado.estado) && (
+  <div className="mt-6">
+    <h3 className="text-lg font-semibold text-zinc-900 mb-3">
+      Documento de Encajado
+    </h3>
+
+    {pdfEncajadoUrl ? (
+      <div className="space-y-3">
+        <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm">
+          <iframe
+            src={pdfEncajadoUrl}
+            className="w-full h-[500px]"
+            title="Vista previa del encajado"
+          />
+        </div>
+        <button
+          onClick={() => {
+            const a = document.createElement("a");
+            a.href = pdfEncajadoUrl;
+            a.download = `Encajado_${pedidoSeleccionado.id}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }}
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold shadow-sm transition flex items-center justify-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+          Descargar PDF de Encajado
+        </button>
+      </div>
+    ) : (
+      <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 text-center">
+        <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-3" />
+        <p className="text-zinc-500 text-sm">Generando documento de encajado...</p>
+      </div>
+    )}
+  </div>
+)}
 
                   {/* Hojas de surtido y revisión */}
 {esAdmin && <HojasResumenPedido pedidoId={pedidoSeleccionado.id} supabase={supabase} />}
@@ -16812,7 +17037,7 @@ if (backOrderExistente) {
                   </>
                 )}
               </button>
-              {esAdmin && (
+               {esAdmin && (
                 <button
                   onClick={() => {
                     setPedidoAEliminar(pedidoSeleccionado);
@@ -16838,7 +17063,9 @@ if (backOrderExistente) {
                 </button>
               )}
             </div>
+            
           ) : (
+            <>
             <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 text-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -16857,7 +17084,37 @@ if (backOrderExistente) {
               <p className="text-zinc-500 text-sm">
                 PDF no disponible para este pedido
               </p>
+               
             </div>
+            <div className="space-y-3">
+{esAdmin && (
+                <button
+                  onClick={() => {
+                    setPedidoAEliminar(pedidoSeleccionado);
+                    setMostrarModalEliminar(true);
+                  }}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold shadow-sm transition flex items-center justify-center gap-2 mt-3"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="w-5 h-5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                    />
+                  </svg>
+                  Eliminar Pedido
+                </button>
+              )}
+            </div>
+            </>
+            
             
           )}
 

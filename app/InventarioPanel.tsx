@@ -240,7 +240,7 @@ const InventarioPanel = ({ supabase: sb, cuenta, esAdmin, esEmpleado }: any) => 
   const agregarItem = () => {
     if (!productoEncontrado) return;
     const cant = parseFloat(cantidadInput);
-    if (isNaN(cant) || cant <= 0) {
+    if (isNaN(cant) || cant < 0) {
       setError("Ingresa una cantidad válida");
       return;
     }
