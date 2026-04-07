@@ -381,6 +381,7 @@ const [cantidadEtiquetaInput, setCantidadEtiquetaInput] = useState("1");
 const [modalImpresoraProducto, setModalImpresoraProducto] = useState(false);
 const [imprimiendoProducto, setImprimiendoProducto] = useState(false);
 
+
   const handleToggleMostrador = async (mostrador: "M1" | "M2") => {
     setActualizandoToggle(true);
     try {
@@ -1808,9 +1809,9 @@ if (grupoIdSeleccionado) {
                   <h3 className="text-sm font-semibold text-zinc-900 mb-2">
                     Información Adicional
                   </h3>
-                  <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200">
-                    {producto.DESCRIPCION}
-                  </p>
+                  <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200 break-words whitespace-pre-wrap">
+  {producto.DESCRIPCION}
+</p>
                 </div>
               )}
 
@@ -6594,8 +6595,7 @@ useEffect(() => {
     const hora = ahora.toLocaleTimeString("es-MX");
     const horaActual = ahora.getHours();
 
-    const qrBase64 = await QRCodeModule.default.toDataURL(listaProductosString, { width: 200, margin: 1 });
-
+   
     const getImageBase64 = async (url: string): Promise<string> => {
       const response = await fetch(url);
       const blob = await response.blob();
@@ -6683,8 +6683,6 @@ useEffect(() => {
     if (espacioDisponible < 60) { docCliente.addPage(); dibujarEncabezado(docCliente); yBase = 70; }
     else { yBase = finalY + 18; }
 
-    const qrSize = 40;
-    docCliente.addImage(qrBase64, "PNG", 14, yBase, qrSize, qrSize);
 
     // Totales
     docCliente.setLineWidth(0.5); docCliente.line(145, yBase, 196, yBase);
@@ -14505,16 +14503,7 @@ useEffect(() => {
       });
       const hora = new Date().toLocaleTimeString("es-MX");
 
-      // Generar string para QR con formato: CODIGO1*CANTIDAD1-CODIGO2*CANTIDAD2-...
-      const qrString = carrito
-        .map((p) => `${p.CODIGO}*${p.cantidad}`)
-        .join("-");
-
-      // Generar QR como base64
-      const qrBase64 = await QRCodeModule.default.toDataURL(qrString, {
-        width: 200,
-        margin: 1,
-      });
+     
 
       // Cargar logo como base64
       const getImageBase64 = async (url: string): Promise<string> => {
@@ -14776,23 +14765,8 @@ useEffect(() => {
         yBase = finalYEnvio + 18;
       }
 
-      // QR DEL LADO IZQUIERDO
-      const qrSize = 40;
-      const qrX = 14;
-      const qrY = yBase;
-
-      docEnvio.addImage(qrBase64, "PNG", qrX, qrY, qrSize, qrSize);
-      docEnvio.setFontSize(7);
-      docEnvio.setFont("helvetica", "normal");
-      docEnvio.setTextColor(0, 0, 0);
-      docEnvio.text(
-        "Escanea para ver pedido",
-        qrX + qrSize / 2,
-        qrY + qrSize + 4,
-        { align: "center" },
-      );
-
-      // TOTALES DEL LADO DERECHO (misma altura que el QR)
+     
+      // TOTALES DEL LADO DERECHO 
       docEnvio.setFontSize(8);
       docEnvio.setFont("helvetica", "bold");
       docEnvio.setTextColor(0, 0, 0);
@@ -14905,30 +14879,8 @@ useEffect(() => {
         yBaseCliente = finalYCliente + 18;
       }
 
-      // QR DEL LADO IZQUIERDO
-      const qrSizeCliente = 40;
-      const qrXCliente = 14;
-      const qrYCliente = yBaseCliente;
-
-      docCliente.addImage(
-        qrBase64,
-        "PNG",
-        qrXCliente,
-        qrYCliente,
-        qrSizeCliente,
-        qrSizeCliente,
-      );
-      docCliente.setFontSize(7);
-      docCliente.setFont("helvetica", "normal");
-      docCliente.setTextColor(0, 0, 0);
-      docCliente.text(
-        "",
-        qrXCliente + qrSizeCliente / 2,
-        qrYCliente + qrSizeCliente + 4,
-        { align: "center" },
-      );
-
-      // TOTALES DEL LADO DERECHO (misma altura que el QR)
+     
+      // TOTALES DEL LADO DERECHO 
       docCliente.setFontSize(8);
       docCliente.setFont("helvetica", "bold");
       docCliente.setTextColor(0, 0, 0);
@@ -17767,7 +17719,7 @@ setPedidosVerificados(idsVerificados as Set<number>);
   const codigos = itemsFiltrados.map((i: any) => i.codigo);
   const { data: prods } = await supabase
     .from("productos")
-    .select("id, TITULO, CODIGO, IMAGEN, C_PRODUCTO")
+    .select("id, TITULO, CODIGO, IMAGEN, C_PRODUCTO, codigo_barras_caja, caja")
     .in("CODIGO", codigos);
 
   const productosConCantidad = itemsFiltrados.map((item: any) => {
@@ -17832,31 +17784,78 @@ setPedidoSeleccionado(pedido);
 };
 
   const procesarEscaneo = (codigoEscaneado: string) => {
-  const item = productos.find((p: any) => p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado);
+  const item = productos.find(
+    (p: any) =>
+      p.CODIGO === codigoEscaneado ||
+      p.C_PRODUCTO === codigoEscaneado ||
+      p.codigo_barras_caja === codigoEscaneado 
+  );
+
   if (!item) {
-  if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-  setModalAlerta({
-    visible: true,
-    titulo: "Producto Incorrecto",
-    mensaje: `El código "${codigoEscaneado}" no pertenece a este pedido.`,
-  });
-  return;
-}
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    setModalAlerta({
+      visible: true,
+      titulo: "Producto Incorrecto",
+      mensaje: `El código "${codigoEscaneado}" no pertenece a este pedido.`,
+    });
+    return;
+  }
+
+  const esEscaneoDeCaja =
+    item.codigo_barras_caja === codigoEscaneado;
+
+  const cantidadPorCaja = item.caja || 1;
+  const incremento = esEscaneoDeCaja ? cantidadPorCaja : 1;
+
   if ("vibrate" in navigator) navigator.vibrate(50);
   setUltimoEscaneo(codigoEscaneado);
+
   const actual = productosVerificados.get(item.producto_id) || 0;
   const cambio = cambiosEstado.get(item.producto_id);
+
   if (cambio?.estado === "PA") return;
+
+  if (actual >= item.cantidad_pedida) {
+    if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+    setModalAlerta({
+      visible: true,
+      titulo: "Producto Completo",
+      mensaje: `"${item.TITULO}" ya tiene la cantidad completa.`,
+    });
+    return;
+  }
+
+  if (esEscaneoDeCaja) {
+    const nuevaCantidad = actual + incremento;
+
+    if (nuevaCantidad > item.cantidad_pedida) {
+      if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+      setModalProductoActivo(null);
+      setModalAlerta({
+        visible: true,
+        titulo: "⚠️ Excede cantidad pedida",
+        mensaje: `La caja contiene ${cantidadPorCaja} unidades pero solo ${
+          item.cantidad_pedida - actual
+        } son necesarias, verifique si escaneo la misma caja.`,
+      });
+      return;
+    }
+  }
+
   if (actual < item.cantidad_pedida) {
     const nuevo = new Map(productosVerificados);
-    nuevo.set(item.producto_id, actual + 1);
+    const nuevaCantidad = actual + incremento;
+
+    nuevo.set(item.producto_id, nuevaCantidad);
     setProductosVerificados(nuevo);
 
-    const nuevaCantidad = actual + 1;
 
     if (nuevaCantidad >= item.cantidad_pedida) {
       const nc = new Map(cambiosEstado);
-      nc.set(item.producto_id, { estado: "completo", cantidad: item.cantidad_pedida });
+      nc.set(item.producto_id, {
+        estado: "completo",
+        cantidad: item.cantidad_pedida,
+      });
       setCambiosEstado(nc);
     }
 
@@ -17872,12 +17871,19 @@ setPedidoSeleccionado(pedido);
     }
   }
 
-  const todoCompleto = productos.length > 0 && productos.every((p: any) => {
-    const v = productosVerificados.get(p.producto_id) || 0;
-    const c = cambiosEstado.get(p.producto_id);
-    return c?.estado === "PA" || c?.estado === "parcial" || c?.estado === "completo" ||
-           (p.cantidad_pedida > 0 && v >= p.cantidad_pedida);
-  });
+  const todoCompleto =
+    productos.length > 0 &&
+    productos.every((p: any) => {
+      const v = productosVerificados.get(p.producto_id) || 0;
+      const c = cambiosEstado.get(p.producto_id);
+      return (
+        c?.estado === "PA" ||
+        c?.estado === "parcial" ||
+        c?.estado === "completo" ||
+        (p.cantidad_pedida > 0 && v >= p.cantidad_pedida)
+      );
+    });
+
   if (todoCompleto) setMostrarModalCompletado(true);
 };
 
@@ -19414,40 +19420,118 @@ const RecoleccionPanel = ({ supabase, onBack, esAdmin }: any) => {
   };
 
   const procesarEscaneo = (codigoEscaneado: string) => {
-    if (!hojaActual) return;
-    setUltimoEscaneo(codigoEscaneado);
-    const item = hojaActual.productos.find((p: any) => p.esFaltante && (p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado));
-    if (!item) {
+  if (!hojaActual) return;
+
+  setUltimoEscaneo(codigoEscaneado);
+
+  const item = hojaActual.productos.find(
+    (p: any) =>
+      p.esFaltante &&
+      (
+        p.CODIGO === codigoEscaneado ||
+        p.C_PRODUCTO === codigoEscaneado ||
+        p.codigo_barras_caja === codigoEscaneado 
+      )
+  );
+
+  if (!item) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    setModalAlerta({
+      visible: true,
+      titulo: "Producto Incorrecto",
+      mensaje: `"${codigoEscaneado}" no es un faltante de esta hoja.`,
+      tipo: "error"
+    });
+    return;
+  }
+
+  const esEscaneoDeCaja =
+    item.codigo_barras_caja === codigoEscaneado;
+
+  const cantidadPorCaja = item.caja || 1;
+  const incremento = esEscaneoDeCaja ? cantidadPorCaja : 1;
+
+  if (productosPA.has(item.producto_id)) {
+    setModalAlerta({
+      visible: true,
+      titulo: "Marcado como PA",
+      mensaje: `"${item.TITULO}" está marcado como agotado. Toca la tarjeta para cambiarlo.`,
+      tipo: "warning"
+    });
+    return;
+  }
+
+  if (productosParciales.has(item.producto_id)) {
+    setModalAlerta({
+      visible: true,
+      titulo: "Ya tiene parcial",
+      mensaje: `"${item.TITULO}" ya tiene cantidad parcial. Toca la tarjeta para cambiarlo.`,
+      tipo: "warning"
+    });
+    return;
+  }
+
+  if (productosIngresoManual.has(item.producto_id)) {
+    setModalAlerta({
+      visible: true,
+      titulo: "Ya ingresado manualmente",
+      mensaje: `"${item.TITULO}" ya fue ingresado manual. Toca la tarjeta para cambiarlo.`,
+      tipo: "warning"
+    });
+    return;
+  }
+
+  const actual = productosSurtidos.get(item.producto_id) || 0;
+
+  if (actual >= item.cantidad_faltante) {
+    if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+    setModalAlerta({
+      visible: true,
+      titulo: "Ya completo",
+      mensaje: `"${item.TITULO}" ya tiene la cantidad recolectada.`,
+      tipo: "warning"
+    });
+    return;
+  }
+
+  if (esEscaneoDeCaja) {
+    const nuevaCantidad = actual + incremento;
+
+    if (nuevaCantidad > item.cantidad_faltante) {
       if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-      setModalAlerta({ visible: true, titulo: "Producto Incorrecto", mensaje: `"${codigoEscaneado}" no es un faltante de esta hoja.`, tipo: "error" });
+      setModalProductoActivo(null);
+      setModalAlerta({
+        visible: true,
+        titulo: "⚠️ Excede cantidad",
+        mensaje: `La caja contiene ${cantidadPorCaja} unidades pero solo ${
+          item.cantidad_faltante - actual
+        } son necesarias.`,
+        tipo: "error"
+      });
       return;
     }
-    if (productosPA.has(item.producto_id)) {
-      setModalAlerta({ visible: true, titulo: "Marcado como PA", mensaje: `"${item.TITULO}" está marcado como agotado. Toca la tarjeta para cambiarlo.`, tipo: "warning" });
-      return;
-    }
-    if (productosParciales.has(item.producto_id)) {
-      setModalAlerta({ visible: true, titulo: "Ya tiene parcial", mensaje: `"${item.TITULO}" ya tiene cantidad parcial. Toca la tarjeta para cambiarlo.`, tipo: "warning" });
-      return;
-    }
-    if (productosIngresoManual.has(item.producto_id)) {
-      setModalAlerta({ visible: true, titulo: "Ya ingresado manualmente", mensaje: `"${item.TITULO}" ya fue ingresado manual. Toca la tarjeta para cambiarlo.`, tipo: "warning" });
-      return;
-    }
-    const actual = productosSurtidos.get(item.producto_id) || 0;
-    if (actual >= item.cantidad_faltante) {
-      if ("vibrate" in navigator) navigator.vibrate([100, 100]);
-      setModalAlerta({ visible: true, titulo: "Ya completo", mensaje: `"${item.TITULO}" ya tiene la cantidad recolectada.`, tipo: "warning" });
-      return;
-    }
-    const nueva = actual + 1;
-    const nuevoMapa = new Map(productosSurtidos);
-    nuevoMapa.set(item.producto_id, nueva);
-    setProductosSurtidos(nuevoMapa);
-    setModalProductoActivo({ visible: true, producto: item, cantidadActual: nueva, cantidadObjetivo: item.cantidad_faltante });
-    if (nueva >= item.cantidad_faltante) { setTimeout(() => setModalProductoActivo(null), 1500); }
-    if ("vibrate" in navigator) navigator.vibrate(50);
-  };
+  }
+
+
+  const nueva = actual + incremento;
+  const nuevoMapa = new Map(productosSurtidos);
+  nuevoMapa.set(item.producto_id, nueva);
+  setProductosSurtidos(nuevoMapa);
+
+
+  setModalProductoActivo({
+    visible: true,
+    producto: item,
+    cantidadActual: nueva,
+    cantidadObjetivo: item.cantidad_faltante
+  });
+
+  if (nueva >= item.cantidad_faltante) {
+    setTimeout(() => setModalProductoActivo(null), 1500);
+  }
+
+  if ("vibrate" in navigator) navigator.vibrate(50);
+};
 
   const confirmarHoja = async () => {
   if (!hojaActual || !pedidoSeleccionado) return;
@@ -20295,65 +20379,88 @@ if (empleados.length > 0) {
 }, [bufferEscaneo, hojaActual, productosVerificados, mostrarModalCompletado, esperandoCaja]);
 
     const procesarEscaneo = (codigoEscaneado: string) => {
-      if (!hojaActual) return;
+  if (!hojaActual) return;
 
-      setUltimoEscaneo(codigoEscaneado);
+  setUltimoEscaneo(codigoEscaneado);
 
-      const producto = hojaActual.productos.find(
-        (p: any) =>
-          p.CODIGO === codigoEscaneado || p.C_PRODUCTO === codigoEscaneado,
+  const producto = hojaActual.productos.find(
+    (p: any) =>
+      p.CODIGO === codigoEscaneado ||
+      p.C_PRODUCTO === codigoEscaneado ||
+      p.codigo_barras_caja === codigoEscaneado
+  );
+
+  if (!producto) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    alert(`Código ${codigoEscaneado} no pertenece a esta hoja`);
+    return;
+  }
+
+  const esCaja = producto.codigo_barras_caja === codigoEscaneado;
+  const piezasPorCaja = producto.caja || 1;
+  const incremento = esCaja ? piezasPorCaja : 1;
+
+  const estadoActual = obtenerEstadoActual(producto);
+
+  const cantidadMaxima =
+    estadoActual.estado === "PA"
+      ? 0
+      : estadoActual.cantidad_surtida || 0;
+
+  if (cantidadMaxima === 0) {
+    alert(
+      `Producto ${producto.TITULO} marcado como PF o sin cantidad surtida`
+    );
+    return;
+  }
+
+  const cantidadActual =
+    productosVerificados.get(producto.producto_id) || 0;
+
+  if (cantidadActual >= cantidadMaxima) {
+    if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+    alert(`Ya verificaste toda la cantidad de ${producto.TITULO}`);
+    return;
+  }
+
+  if (esCaja) {
+    const nuevaCantidad = cantidadActual + incremento;
+
+    if (nuevaCantidad > cantidadMaxima) {
+      if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+      alert(
+        `La caja tiene ${piezasPorCaja} piezas pero solo faltan ${
+          cantidadMaxima - cantidadActual
+        }`
       );
+      return;
+    }
+  }
 
-      if (!producto) {
-        if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-        alert(`Código ${codigoEscaneado} no pertenece a esta hoja`);
-        return;
-      }
+  const nuevaCantidad = cantidadActual + incremento;
 
-      const estadoActual = obtenerEstadoActual(producto);
-      const cantidadEsperada =
-        estadoActual.estado === "PA" ? 0 : estadoActual.cantidad_surtida || 0;
+  setProductosVerificados((prev) => {
+    const nuevo = new Map(prev);
+    nuevo.set(producto.producto_id, nuevaCantidad);
+    return nuevo;
+  });
 
-      if (cantidadEsperada === 0) {
-        alert(
-          `Producto ${producto.TITULO} marcado como PA o sin cantidad surtida`,
-        );
-        return;
-      }
+  setModalProductoActivo({
+    visible: true,
+    producto: producto,
+    cantidadActual: nuevaCantidad,
+    cantidadObjetivo: cantidadMaxima,
+  });
 
-      const cantidadVerificada =
-        productosVerificados.get(producto.producto_id) || 0;
+  if ("vibrate" in navigator) navigator.vibrate(50);
 
-      if (cantidadVerificada >= cantidadEsperada) {
-        if ("vibrate" in navigator) navigator.vibrate([100, 100]);
-        alert(`Ya verificaste toda la cantidad de ${producto.TITULO}`);
-        return;
-      }
 
-      // mostrar modal
-      setModalProductoActivo({
-        visible: true,
-        producto: producto,
-        cantidadActual: cantidadVerificada + 1,
-        cantidadObjetivo: cantidadEsperada,
-      });
-
-      // Actualizar verificados
-      setProductosVerificados((prev) => {
-        const nuevaMapa = new Map(prev);
-        nuevaMapa.set(producto.producto_id, cantidadVerificada + 1);
-        return nuevaMapa;
-      });
-
-      if ("vibrate" in navigator) navigator.vibrate(50);
-
-      // Auto-cerrar si completó
-      if (cantidadVerificada + 1 >= cantidadEsperada) {
-        setTimeout(() => {
-          setModalProductoActivo(null);
-        }, 1500);
-      }
-    };
+  if (nuevaCantidad >= cantidadMaxima) {
+    setTimeout(() => {
+      setModalProductoActivo(null);
+    }, 1500);
+  }
+};
 
     const togglePA = (producto: any) => {
       // Detener propagación del evento para evitar que se abra el modal
@@ -23086,81 +23193,87 @@ if (!contenedores.has(codigo)) {
 ]);
 
     const procesarEscaneo = (codigoEscaneado: string) => {
-      if (!hojaActual) return;
+  if (!hojaActual) return;
 
-      setUltimoEscaneo(codigoEscaneado);
+  const itemEncontrado = hojaActual.productos.find(
+    (item: any) =>
+      item.CODIGO === codigoEscaneado ||
+      item.C_PRODUCTO === codigoEscaneado ||
+      item.codigo_barras_caja === codigoEscaneado 
+  );
 
-      const itemEncontrado = hojaActual.productos.find(
-        (item: any) =>
-          item.CODIGO === codigoEscaneado ||
-          item.C_PRODUCTO === codigoEscaneado,
-      );
+  if (!itemEncontrado) {
+    if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+    setModalAlerta({
+      visible: true,
+      titulo: "Producto Incorrecto",
+      mensaje: `El código "${codigoEscaneado}" no pertenece a esta hoja.`,
+      tipo: "error",
+    });
+    return;
+  }
 
-      if (!itemEncontrado) {
-        if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
-        setModalAlerta({
-          visible: true,
-          titulo: "Producto Incorrecto",
-          mensaje: `El código "${codigoEscaneado}" no pertenece a esta hoja.`,
-          tipo: "error",
-        });
-        return;
-      }
+  // Detectar si se escaneó caja
+  const esEscaneoDeCAja =
+    itemEncontrado.codigo_barras_caja === codigoEscaneado;
+  const cantidadPorCaja = itemEncontrado.caja || 1;
+  const incremento = esEscaneoDeCAja ? cantidadPorCaja : 1;
 
-      const cantidadSurtida =
-        productosSurtidosHoja.get(itemEncontrado.producto_id) || 0;
-      const esPA = productosPA.has(itemEncontrado.producto_id);
-      const esParcial = productosParciales.has(itemEncontrado.producto_id);
-      const parcialInfo = productosParciales.get(itemEncontrado.producto_id);
+  const cantidadSurtida = productosSurtidosHoja.get(itemEncontrado.producto_id) || 0;
+  const esPA = productosPA.has(itemEncontrado.producto_id);
+  const esParcial = productosParciales.has(itemEncontrado.producto_id);
+  const parcialInfo = productosParciales.get(itemEncontrado.producto_id);
 
-      // Determinar cantidad máxima
-      const cantidadMaxima = esPA
-        ? 0
-        : esParcial
-          ? parcialInfo!.encontrada
-          : itemEncontrado.cantidad;
+ const cantidadMaxima = esPA
+    ? 0
+    : esParcial
+      ? parcialInfo!.encontrada
+      : itemEncontrado.cantidad;
 
-      if (cantidadSurtida >= cantidadMaxima) {
-        if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+  if (cantidadSurtida >= cantidadMaxima) {
+    if ("vibrate" in navigator) navigator.vibrate([100, 100]);
+    setModalAlerta({
+      visible: true,
+      titulo: "Producto Completo",
+      mensaje: `"${itemEncontrado.TITULO}" ya tiene la cantidad completa.`,
+      tipo: "warning",
+    });
+    return;
+  }
 
-        let mensaje = `El producto "${itemEncontrado.TITULO}" ya tiene la cantidad completa.`;
-        if (esParcial) {
-          mensaje = `El producto "${itemEncontrado.TITULO}" ya alcanzó la cantidad parcial (${parcialInfo!.encontrada}/${parcialInfo!.pedida}).`;
-        } else if (esPA) {
-          mensaje = `El producto "${itemEncontrado.TITULO}" está marcado como PA (agotado).`;
-        }
+  if (esEscaneoDeCAja) {
+    const nuevaCantidad = cantidadSurtida + incremento;
 
-        setModalAlerta({
-          visible: true,
-          titulo: "Producto Completo",
-          mensaje,
-          tipo: "warning",
-        });
-        return;
-      }
-
-      const nuevaCantidad = cantidadSurtida + 1;
-      const nuevoMapa = new Map(productosSurtidosHoja);
-      nuevoMapa.set(itemEncontrado.producto_id, nuevaCantidad);
-      setProductosSurtidosHoja(nuevoMapa);
-
-      // Activamos el modal visualmente
-      setModalProductoActivo({
+    if (nuevaCantidad > cantidadMaxima) {
+      if ("vibrate" in navigator) navigator.vibrate([400, 100, 400]);
+      setModalAlerta({
         visible: true,
-        producto: itemEncontrado,
-        cantidadActual: nuevaCantidad,
-        cantidadObjetivo: cantidadMaxima,
+        titulo: "⚠️ Excede cantidad pedida",
+        mensaje: `La caja contiene ${cantidadPorCaja} unidades pero solo ${cantidadMaxima - cantidadSurtida} son necesarias. No se agregó.`,
+        tipo: "error",
       });
+      return;
+    }
+  }
 
-      // Auto-cerrar el modal si se completa la cantidad
-      if (nuevaCantidad >= cantidadMaxima) {
-        setTimeout(() => {
-          setModalProductoActivo(null);
-        }, 1500);
-      }
+  const nuevaCantidad = cantidadSurtida + incremento;
+  const nuevoMapa = new Map(productosSurtidosHoja);
+  nuevoMapa.set(itemEncontrado.producto_id, nuevaCantidad);
+  setProductosSurtidosHoja(nuevoMapa);
 
-      if ("vibrate" in navigator) navigator.vibrate(50);
-    };
+  setModalProductoActivo({
+    visible: true,
+    producto: itemEncontrado,
+    cantidadActual: nuevaCantidad,
+    cantidadObjetivo: cantidadMaxima,
+  });
+
+  if (nuevaCantidad >= cantidadMaxima) {
+    setTimeout(() => setModalProductoActivo(null), 1500);
+  }
+
+  if ("vibrate" in navigator) navigator.vibrate(50);
+};
 
     // Calcular progreso
     const totalProductosHoja = hojaActual
@@ -23631,8 +23744,8 @@ if (!contenedores.has(codigo)) {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed inset-0 bg-black/80 z-[50000] flex items-center justify-center p-4 backdrop-blur-sm"
-                  style={{ zIndex: 50000 }}
+                  className="fixed inset-0 bg-black/80 z-[70000] flex items-center justify-center p-4 backdrop-blur-sm"
+                  style={{ zIndex: 70000 }}
                 >
                   <motion.div
                     initial={{ scale: 0.5, opacity: 0 }}
