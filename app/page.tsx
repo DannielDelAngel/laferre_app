@@ -127,7 +127,7 @@ import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
 
 const construirQueryBusqueda = async (searchTerm: string, categoria: any, marca: any, subcategoriaMarca: any = null) => {
-  const selectCampos = "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales, existencia, ubicacion, caja, master, unidad_venta, subcategoria_marca_id";
+const selectCampos = "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales, existencia, ubicacion, caja, master, unidad_venta, subcategoria_marca_id, codigo_barras_caja";
 
   const palabras = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
@@ -381,6 +381,7 @@ const [cantidadEtiquetaInput, setCantidadEtiquetaInput] = useState("1");
 const [modalImpresoraProducto, setModalImpresoraProducto] = useState(false);
 const [imprimiendoProducto, setImprimiendoProducto] = useState(false);
 
+const [codigoBarrasCaja, setCodigoBarrasCaja] = useState(producto.codigo_barras_caja || "");
 
   const handleToggleMostrador = async (mostrador: "M1" | "M2") => {
     setActualizandoToggle(true);
@@ -778,6 +779,7 @@ const handleSubtract = (): void =>
           CODIGO: codigo,
           P_MAYOREO: parseFloat(precio),
           C_PRODUCTO: claveAlterna,
+          codigo_barras_caja: codigoBarrasCaja,
           permite_decimales: permiteDecimales,
           caja: caja ? parseInt(caja) : null,
           master: master ? parseInt(master) : null,
@@ -1406,6 +1408,30 @@ if (grupoIdSeleccionado) {
                 </p>
               </div>
 
+              {/* Código de Barras Caja */}
+<div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Código de Barras (Caja) {edicionAvanzada ? "(Editable)" : "(Bloqueado)"}
+  </label>
+  <input
+    type="text"
+    value={codigoBarrasCaja}
+    onChange={(e) =>
+      setCodigoBarrasCaja(e.target.value.toUpperCase())
+    }
+    disabled={!edicionAvanzada}
+    placeholder="Código para escaneo de caja"
+    className={`w-full border rounded-lg px-3 py-2 transition-colors ${
+      edicionAvanzada
+        ? "border-orange-500 bg-white text-zinc-900"
+        : "border-zinc-300 bg-zinc-100 text-zinc-500"
+    }`}
+  />
+  <p className="text-xs text-zinc-500 mt-1">
+    Se usará para escanear cajas completas
+  </p>
+</div>
+
               {/* Categoría (buscador) */}
               <div className="mb-4 relative">
                 <label className="block text-sm font-medium text-zinc-700 mb-2">
@@ -1648,6 +1674,7 @@ if (grupoIdSeleccionado) {
                       setTitulo(producto.TITULO || "");
                       setDescripcion(producto.DESCRIPCION || "");
                       setCodigo(producto.CODIGO || "");
+                      setCodigoBarrasCaja(producto.codigo_barras_caja || "");
                       setPrecio(
                         producto.P_MAYOREO ? String(producto.P_MAYOREO) : "",
                       );
@@ -6506,7 +6533,7 @@ useEffect(() => {
   setSugerenciaActiva(-1);
   const { data: porCodigo } = await supabase
     .from("productos")
-    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia")
+    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia, codigo_barras_caja")
     .or(`CODIGO.eq.${valor.trim()},C_PRODUCTO.eq.${valor.trim()}`)
 
 
@@ -6518,14 +6545,14 @@ useEffect(() => {
 
   const palabras = valor.trim().split(/\s+/).filter(Boolean);
   let q = supabase.from("productos")
-    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia");
+    .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia, codigo_barras_caja");
   palabras.forEach((p: string) => { q = q.ilike("TITULO", `%${p}%`); });
   const { data } = await q;//.limit(8);
 
   if (!data?.length) {
     const { data: d2 } = await supabase
       .from("productos")
-      .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia")
+      .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, permite_decimales, unidad_venta, existencia, codigo_barras_caja")
       .or(`CODIGO.ilike.%${valor}%,C_PRODUCTO.ilike.%${valor}%`)
     setSugerenciasProducto(d2 || []);
   } else {
@@ -25700,7 +25727,7 @@ setGrupoMarcaActivoId(null);
               setSubcategoriasMarca(subcatsFiltradas);
               const { data: sinSubcat } = await supabase
                 .from("productos")
-                .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id, C_PRODUCTO, permite_decimales, caja, master, unidad_venta, orden_categoria, orden_marca")
+                .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id, C_PRODUCTO, permite_decimales, caja, master, unidad_venta, orden_categoria, orden_marca, codigo_barras_caja")
                 .eq("marca_id", marca.id)
                 .is("subcategoria_marca_id", null)
                 .order("orden_marca", { ascending: true });
@@ -25711,7 +25738,7 @@ setGrupoMarcaActivoId(null);
               cargarGruposDeMarca(marca.id);
               const { data: productos, error } = await supabase
                 .from("productos")
-                .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion")
+                .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, codigo_barras_caja")
                 .eq("marca_id", marca.id)
                 .order("orden_marca", { ascending: true });
               setArticulos(error ? [] : (productos || []).map((p) => ({ ...p, visible: p.visible ?? true })));
@@ -25878,7 +25905,7 @@ setGrupoMarcaActivoId(null);
           }
           const { data: productos, error } = await supabase
             .from("productos")
-            .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id, C_PRODUCTO, permite_decimales, caja, master, unidad_venta, orden_categoria, orden_marca")
+            .select("id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, existencia, ubicacion, subcategoria_marca_id, C_PRODUCTO, codigo_barras_caja, permite_decimales, caja, master, unidad_venta, orden_categoria, orden_marca")
             .eq("marca_id", marcaSeleccionada.id)
             .eq("subcategoria_marca_id", subcat.id)
             .order("orden_marca", { ascending: true });
@@ -26851,7 +26878,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
                                       const { data, error } = await supabase
                                         .from("productos")
                                         .select(
-                                          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO",
+                                          "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, codigo_barras_caja",
                                         )
                                         .or(
                                           `TITULO.ilike.%${codigo}%,CODIGO.ilike.%${codigo}%,C_PRODUCTO.ilike.%${codigo}%`,
