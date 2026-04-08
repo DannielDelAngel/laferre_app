@@ -127,7 +127,7 @@ import { supabase } from "@/lib/supabaseClient";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
 
 const construirQueryBusqueda = async (searchTerm: string, categoria: any, marca: any, subcategoriaMarca: any = null) => {
-const selectCampos = "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales, existencia, ubicacion, caja, master, unidad_venta, subcategoria_marca_id, codigo_barras_caja";
+const selectCampos = "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, visible, liquidacion, top_ventas, marca_id, CATEGORIA_ID, C_PRODUCTO, permite_decimales, existencia, ubicacion, caja, master, unidad_venta, subcategoria_marca_id, codigo_barras_caja, DESCRIPCION";
 
   const palabras = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
@@ -251,6 +251,8 @@ const VistaProducto = ({
   esFavorito,
   toggleFavorito,
   categoriasAdmin,
+  vieneDeOverlayGlobal,
+    onVerProducto,
 }: any) => {
   const [esFavoritoLocal, setEsFavoritoLocal] = useState(
     esFavorito ? esFavorito(producto.id) : false,
@@ -382,6 +384,74 @@ const [modalImpresoraProducto, setModalImpresoraProducto] = useState(false);
 const [imprimiendoProducto, setImprimiendoProducto] = useState(false);
 
 const [codigoBarrasCaja, setCodigoBarrasCaja] = useState(producto.codigo_barras_caja || "");
+
+// Productos similares
+const [productosSimilares, setProductosSimilares] = useState<any[]>([]);
+
+useEffect(() => {
+  const cargarSimilares = async () => {
+    if (!producto.id) return;
+
+    const campos = "id, TITULO, CODIGO, IMAGEN, P_MAYOREO, marca_id, CATEGORIA_ID, visible, top_ventas";
+    const resultados: any[] = [];
+    const idsExcluidos = new Set([producto.id]);
+
+    if (producto.CATEGORIA_ID && producto.marca_id) {
+      const { data } = await supabase
+        .from("productos")
+        .select(campos)
+        .neq("id", producto.id)
+        .eq("CATEGORIA_ID", producto.CATEGORIA_ID)
+        .eq("marca_id", producto.marca_id)
+        .limit(10);
+
+      for (const p of data || []) {
+        resultados.push(p);
+        idsExcluidos.add(p.id);
+      }
+    }
+
+    if (resultados.length < 10 && producto.CATEGORIA_ID) {
+      const { data } = await supabase
+        .from("productos")
+        .select(campos)
+        .eq("CATEGORIA_ID", producto.CATEGORIA_ID)
+        .not("id", "in", `(${[...idsExcluidos].join(",")})`)
+        .limit(10 - resultados.length);
+
+      for (const p of data || []) {
+        resultados.push(p);
+        idsExcluidos.add(p.id);
+      }
+    }
+
+    if (resultados.length < 6 && producto.marca_id) {
+      const { data } = await supabase
+        .from("productos")
+        .select(campos)
+        .eq("marca_id", producto.marca_id)
+        .not("id", "in", `(${[...idsExcluidos].join(",")})`)
+        .limit(10 - resultados.length);
+
+      for (const p of data || []) {
+        resultados.push(p);
+        idsExcluidos.add(p.id);
+      }
+    }
+
+   setProductosSimilares(
+  resultados
+    .filter((p: any) => esAdmin || (p.visible ?? true))
+    .sort((a, b) => {
+  if (a.top_ventas === b.top_ventas) return 0;
+  return a.top_ventas ? -1 : 1; 
+})
+);
+  };
+
+  cargarSimilares();
+}, [producto.id, producto.CATEGORIA_ID, producto.marca_id]);
+
 
   const handleToggleMostrador = async (mostrador: "M1" | "M2") => {
     setActualizandoToggle(true);
@@ -1830,17 +1900,7 @@ if (grupoIdSeleccionado) {
   </div>
 )}
 
-              {/* Descripción / Información Adicional */}
-              {producto.DESCRIPCION && (
-                <div className="mt-5 px-4">
-                  <h3 className="text-sm font-semibold text-zinc-900 mb-2">
-                    Información Adicional
-                  </h3>
-                  <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200 break-words whitespace-pre-wrap">
-  {producto.DESCRIPCION}
-</p>
-                </div>
-              )}
+            
 
               {/* Toggles de Admin */}
               {esAdmin && !modoEdicion && (
@@ -2099,7 +2159,69 @@ if (grupoIdSeleccionado) {
                 >
                   {esDesdeCarrito ? "Modificar cantidad" : "Agregar al carrito"}
                 </button>
+
+
               </div>
+
+                {/* Descripción / Información Adicional */}
+              {producto.DESCRIPCION && (
+                <div className="mt-5 mb-5 px-4">
+                  <h3 className="text-sm font-semibold text-zinc-900 mb-2">
+                    Información Adicional
+                  </h3>
+                  <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-lg border border-zinc-200 break-words whitespace-pre-wrap">
+  {producto.DESCRIPCION}
+</p>
+                </div>
+              )}
+
+              {/* Carrusel de productos similares */}
+{productosSimilares.length > 0 && (
+  <div className="mt-6 mb-8">
+    <h3 className="text-sm font-semibold text-zinc-900 mb-3 px-4">
+  {vieneDeOverlayGlobal
+    ? "Productos relacionados"
+    : producto.CATEGORIA_ID
+      ? "Más de esta categoría"
+      : producto.marca_id
+        ? "Más de esta marca"
+        : "Productos relacionados"}
+</h3>
+
+
+    <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide snap-x snap-mandatory">
+      {productosSimilares.map((sim) => (
+        <div
+          key={sim.id}
+          onClick={() => {
+           
+            if (onVerProducto) onVerProducto(sim);
+          }}
+          className="flex-shrink-0 snap-start w-36 bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm active:scale-95 transition-transform cursor-pointer"
+        >
+          <div className="relative w-full h-28">
+            <Image
+              src={sim.IMAGEN || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext fill='%239ca3af' font-family='system-ui' font-size='16' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E"}
+              alt={sim.TITULO}
+              fill
+              className="object-contain p-1"
+            />
+          </div>
+          <div className="p-2">
+            <p className="text-xs font-medium text-zinc-800 line-clamp-2 leading-snug">
+              {sim.TITULO}
+            </p>
+            {!esMostrador && !esMostrador2 && sim.P_MAYOREO && (
+              <p className="text-xs font-bold text-orange-500 mt-1">
+                ${sim.P_MAYOREO.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
             </>
           )}
 
@@ -13461,7 +13583,7 @@ const [busqueda, setBusqueda] = useState("");
           const descripcion = fila.DESCRIPCION || fila.descripcion;
           const cProducto = fila.C_PRODUCTO || fila.c_producto;
           const titulo = fila.TITULO || fila.titulo;
-          const existencia = fila.EXISTENCIA || fila.existencia;
+          const existencia = fila.EXISTENCIA ?? fila.existencia;
 const categoriaId = fila.CATEGORIA_ID || fila.categoria_id;
 const ubicacion = fila.UBICACION || fila.ubicacion;
 const caja = fila.CAJA || fila.caja;
@@ -16573,6 +16695,53 @@ if (backOrderExistente) {
             </div>
           )}
 
+            <div className="bg-white mt-2 rounded-xl border border-zinc-200 p-4 mb-2 shadow-sm">
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Pedido #</span>
+              <span className="font-semibold text-zinc-900">
+                {pedidoSeleccionado.id}
+              </span>
+            </div>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Fecha</span>
+              <span className="font-semibold text-zinc-900">
+                {new Date(pedidoSeleccionado.created_at).toLocaleDateString(
+                  "es-MX",
+                  {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  },
+                )}
+              </span>
+            </div>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Cliente</span>
+              <span className="font-semibold text-zinc-900">
+                {cuentaPedido?.cliente || "N/A"}
+              </span>
+            </div>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Negocio</span>
+              <span className="font-semibold text-zinc-900">
+                {cuentaPedido?.ferreteria || "N/A"}
+              </span>
+            </div>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-zinc-600">Cuenta</span>
+              <span className="font-semibold text-zinc-900">
+                {cuentaPedido?.numero_cuenta}
+              </span>
+            </div>
+            
+              <div className="flex justify-between mb-2">
+                <span className="text-sm text-zinc-600">No. cuenta sicar</span>
+                <span className="font-semibold text-zinc-900">
+                  {cuentaPedido?.numero_cuenta_sicar || "N/A"}
+                </span>
+              </div>
+          </div>
+
           {/* Detalles de empaque */}
           <AnimatePresence>
             {[
@@ -16720,7 +16889,7 @@ if (backOrderExistente) {
                     <div className="bg-green-50 rounded-lg p-3 mb-3 border border-green-200">
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-semibold text-green-800">
-                          Total Neto Encajado:
+                          Total Neto de pedido finalizado:
                         </span>
                         <span className="text-xl font-bold text-green-600">
                           $
@@ -16915,53 +17084,8 @@ if (backOrderExistente) {
             )}
 
           <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-zinc-600">Pedido #</span>
-              <span className="font-semibold text-zinc-900">
-                {pedidoSeleccionado.id}
-              </span>
-            </div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-zinc-600">Fecha</span>
-              <span className="font-semibold text-zinc-900">
-                {new Date(pedidoSeleccionado.created_at).toLocaleDateString(
-                  "es-MX",
-                  {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  },
-                )}
-              </span>
-            </div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-zinc-600">Cliente</span>
-              <span className="font-semibold text-zinc-900">
-                {cuentaPedido?.cliente || "N/A"}
-              </span>
-            </div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-zinc-600">Negocio</span>
-              <span className="font-semibold text-zinc-900">
-                {cuentaPedido?.ferreteria || "N/A"}
-              </span>
-            </div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-zinc-600">Cuenta</span>
-              <span className="font-semibold text-zinc-900">
-                {cuentaPedido?.numero_cuenta}
-              </span>
-            </div>
-            
-              <div className="flex justify-between mb-2">
-                <span className="text-sm text-zinc-600">No. cuenta sicar</span>
-                <span className="font-semibold text-zinc-900">
-                  {cuentaPedido?.numero_cuenta_sicar || "N/A"}
-                </span>
-              </div>
-           
-            <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between">
-              <span className="font-bold text-zinc-900">Total</span>
+            <div className="flex justify-between">
+              <span className="font-bold text-zinc-900">Total Pedido</span>
               <span className="font-bold text-orange-500 text-lg">
                 $
                 {pedidoSeleccionado.total.toLocaleString("en-US", {
@@ -24788,11 +24912,22 @@ if (!contenedores.has(codigo)) {
     return marca ? marca.nombre_marca : "Sin marca";
   };
 
+  useEffect(() => {
+  const handler = (e: any) => {
+    setProductoSeleccionado(e.detail);
+  };
+  window.addEventListener("seleccionarProducto", handler);
+  return () => window.removeEventListener("seleccionarProducto", handler);
+}, []);
+
   // Mostrar vista de producto si hay uno seleccionado
   if (productoSeleccionado) {
     return (
       <VistaProducto
+       key={productoSeleccionado.id} 
+       onVerProducto={(sim: any) => setProductoSeleccionado(sim)}
         producto={productoSeleccionado}
+        vieneDeOverlayGlobal={vieneDesdeOverlay}
         onBack={() => {
   setProductoSeleccionado(null);
   if (vieneDesdeOverlay) {
