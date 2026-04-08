@@ -15536,6 +15536,9 @@ const [filtroFecha, setFiltroFecha] = useState("");
 const [productosEncajadosDetalle, setProductosEncajadosDetalle] = useState<any[]>([]);
 const [pdfEncajadoUrl, setPdfEncajadoUrl] = useState<string | null>(null);
 const [generandoPDFEncajado, setGenerandoPDFEncajado] = useState(false);
+const [codigosEtiquetas, setCodigosEtiquetas] = useState<any[]>([]);
+const [mostrarEtiquetas, setMostrarEtiquetas] = useState(false);
+const [reimprimiendoCodigo, setReimprimiendoCodigo] = useState<string | null>(null);
 
 
     // Estados para escaneo de código RS
@@ -15543,6 +15546,11 @@ const [generandoPDFEncajado, setGenerandoPDFEncajado] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const [mostrarModalCompletar, setMostrarModalCompletar] = useState(false);
     const [codigoRS, setCodigoRS] = useState<any>(null);
+
+    const nombresTipo: any = {
+  C:"Cajas", A:"Atados", B:"Bolsas", T:"Tubos", R:"Rollos",
+  G:"Galones", CUB:"Cubetas", L:"Losalit", P:"Porrón", PZA:"Pieza", CIL:"Cilindro"
+};
 
     const cargarDetallesEmpaque = async (pedidoId: number) => {
       const { data } = await supabase
@@ -15559,6 +15567,15 @@ const [generandoPDFEncajado, setGenerandoPDFEncajado] = useState(false);
         },
       );
     };
+
+    const cargarCodigosEtiquetas = async (pedidoId: number) => {
+  const { data } = await supabase
+    .from("codigos_etiquetas")
+    .select("*")
+    .eq("pedido_id", pedidoId)
+    .order("numero", { ascending: true });
+  setCodigosEtiquetas(data || []);
+};
 
     const guardarDetallesEmpaque = async () => {
       if (!pedidoSeleccionado || !detallesEmpaque) return;
@@ -16139,6 +16156,7 @@ if (backOrderExistente) {
         ].includes(pedidoSeleccionado.estado)
       ) {
         cargarDetallesEmpaque(pedidoSeleccionado.id);
+        cargarCodigosEtiquetas(pedidoSeleccionado.id);
         cargarDatosEncajado(pedidoSeleccionado.id);
       }
     }, [pedidoSeleccionado]);
@@ -16795,7 +16813,75 @@ if (backOrderExistente) {
                       </p>
                     </div>
                   )}
+
+{esAdmin && codigosEtiquetas.length > 0 && (
+  <div className="mt-3">
+    <button
+      onClick={() => setMostrarEtiquetas((prev) => !prev)}
+      className="w-full py-2.5 rounded-xl text-white font-bold bg-blue-500 hover:bg-blue-600 active:scale-95 transition-transform flex items-center justify-center gap-2"
+    >
+      Reimprimir Etiquetas ({codigosEtiquetas.length})
+      {mostrarEtiquetas ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+    </button>
+
+    {mostrarEtiquetas && (
+      <div className="mt-2 border border-zinc-200 rounded-xl overflow-hidden divide-y divide-zinc-100">
+        {codigosEtiquetas.map((et: any) => {
+          const totalDeTipo = codigosEtiquetas.filter((e: any) => e.tipo === et.tipo && et.tipo !== "RS").length;
+          const label = et.tipo === "RS"
+            ? "Resumen"
+            : `${nombresTipo[et.tipo] || et.tipo} ${et.numero}/${totalDeTipo}`;
+
+          return (
+            <div key={et.codigo} className="flex items-center justify-between px-3 py-2.5 bg-white hover:bg-zinc-50">
+              <div>
+                <p className="text-sm font-semibold text-zinc-800">{label}</p>
+                <p className="text-xs font-mono text-zinc-400">{et.codigo}</p>
+              </div>
+              <button
+                disabled={reimprimiendoCodigo === et.codigo}
+                onClick={async () => {
+                  setReimprimiendoCodigo(et.codigo);
+                  try {
+                    const parsear = (texto: string) => {
+                      const r: any = { cajas:0,atados:0,tubos:0,bolsas:0,rollos:0,galones:0,cubetas:0,losalit:0,porron:0,pieza:0,cilindro:0 };
+                      const claves: any = { Cajas:"cajas",Atados:"atados",Tubos:"tubos",Bolsas:"bolsas",Rollos:"rollos",Galones:"galones",Cubetas:"cubetas",Losalit:"losalit",Porron:"porron",Pieza:"pieza",Cilindro:"cilindro" };
+                      texto?.split("\n").forEach(l => { const [n,c] = l.split(": "); if(claves[n]) r[claves[n]] = parseInt(c)||0; });
+                      return r;
+                    };
+
+                    await fetch("https://192.168.5.115:3005/reprintOne", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        cliente: pedidoSeleccionado.cuentas?.cliente,
+                        pedido: pedidoSeleccionado.id,
+                        codigo: et.codigo,
+                        tipo: et.tipo,
+                        numero: et.numero,
+                        total: totalDeTipo,
+                        detalles: parsear(detallesEmpaque?.detalles_empacado || ""),
+                      }),
+                    });
+                  } catch (err: any) {
+                    alert(`Error: ${err.message}`);
+                  } finally {
+                    setReimprimiendoCodigo(null);
+                  }
+                }}
+                className="ml-3 flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-40 transition"
+              >
+                {reimprimiendoCodigo === et.codigo ? "..." : "imprimir"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+)}
                 </div>
+                
               </motion.div>
             )}
           </AnimatePresence>
