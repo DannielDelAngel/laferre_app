@@ -358,6 +358,7 @@ const [caja, setCaja] = useState(producto.caja ? String(producto.caja) : "");
 const [master, setMaster] = useState(producto.master ? String(producto.master) : "");
 const [unidadVenta, setUnidadVenta] = useState(producto.unidad_venta || "");
   const [permiteDecimales, setPermiteDecimales] = useState(producto.permite_decimales || false);
+  const [ultimoInventario, setUltimoInventario] = useState<string | null>(null);
 
   const [edicionAvanzada, setEdicionAvanzada] = useState(() => {
     if (typeof window !== "undefined") {
@@ -384,6 +385,33 @@ const [modalImpresoraProducto, setModalImpresoraProducto] = useState(false);
 const [imprimiendoProducto, setImprimiendoProducto] = useState(false);
 
 const [codigoBarrasCaja, setCodigoBarrasCaja] = useState(producto.codigo_barras_caja || "");
+
+
+useEffect(() => {
+  const buscarUltimoInventario = async () => {
+    if (!producto?.CODIGO) return;
+
+    const { data } = await supabase
+      .from("inventarios")
+      .select("created_at, lista_productos")
+      .eq("tipo", "bodega")
+      .order("created_at", { ascending: false });
+
+    if (!data) return;
+
+    const encontrado = data.find((inv: any) =>
+      inv.lista_productos
+        .split("-")
+        .some((item: string) => item.split("*")[0] === producto.CODIGO)
+    );
+
+    if (encontrado) {
+      setUltimoInventario(encontrado.created_at);
+    }
+  };
+
+  buscarUltimoInventario();
+}, [producto.CODIGO]);
 
 // Productos similares
 const [productosSimilares, setProductosSimilares] = useState<any[]>([]);
@@ -1900,7 +1928,24 @@ if (grupoIdSeleccionado) {
   </div>
 )}
 
-            
+{/* Último inventario realizado */}
+{(esAdmin || esEmpleado) && ultimoInventario && (
+  <div className="flex justify-center mt-2">
+    <span className="text-xs bg-blue-50 border border-blue-200 rounded-full px-3 py-1 text-blue-600 font-medium flex items-center gap-1">
+      <ClipboardList size={11} />
+      Último inventario:{" "}
+      {new Date(ultimoInventario).toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })}{" "}
+      {new Date(ultimoInventario).toLocaleTimeString("es-MX", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}
+    </span>
+  </div>
+)}
 
               {/* Toggles de Admin */}
               {esAdmin && !modoEdicion && (
@@ -15505,6 +15550,7 @@ useEffect(() => {
 
   const HistorialPedidos = ({
   cuenta,
+  esEmpleado,
   setVistaPerfil,
   setPedidoIdParaBackOrder,
   ocultarBackBtn,
@@ -15773,7 +15819,7 @@ if (backOrderExistente) {
 */
     }
     const cargarBackOrders = async () => {
-      if (!cuenta?.id && !esAdmin) return;
+      if (!cuenta?.id && !esAdmin && !esEmpleado) return;
 
       setCargandoBackOrders(true);
       try {
@@ -16279,7 +16325,7 @@ if (backOrderExistente) {
       )
       .order("created_at", { ascending: false });
 
-    if (!esAdmin) {
+    if (!esAdmin && !esEmpleado) {
       query = query.eq("cuenta_id", cuenta.id);
     }
 
@@ -16301,7 +16347,7 @@ if (backOrderExistente) {
         event: "*",
         schema: "public",
         table: "pedidos",
-        ...(esAdmin ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` }),
+        ...((esAdmin || esEmpleado) ? {} : { filter: `cuenta_id=eq.${cuenta?.id}` }),
       },
       async (payload) => {
         console.log("Cambio detectado en pedidos:", payload);
@@ -16814,7 +16860,7 @@ if (backOrderExistente) {
                     </div>
                   )}
 
-{esAdmin && codigosEtiquetas.length > 0 && (
+{(esAdmin || esEmpleado) && codigosEtiquetas.length > 0 && (
   <div className="mt-3">
     <button
       onClick={() => setMostrarEtiquetas((prev) => !prev)}
@@ -17306,7 +17352,7 @@ if (backOrderExistente) {
             
             
           )}
-
+esAdmin 
           {/* Modal de Confirmar Completado */}
           {typeof document !== "undefined" &&
             createPortal(
@@ -17503,7 +17549,7 @@ if (backOrderExistente) {
     {!ocultarBackBtn && <BackBtn onBack={() => setVistaPerfil("menu")} />}
 
     <h2 className="text-xl font-bold text-zinc-900 mb-4">
-      {esAdmin ? "Todos los Pedidos" : "Tus Pedidos"}
+      {(esAdmin || esEmpleado) ? "Todos los Pedidos" : "Tus Pedidos"}
     </h2>
 
     {!cargando && pedidos.length > 0 && (() => {
@@ -17523,7 +17569,7 @@ if (backOrderExistente) {
 
       const pedidosFiltrados = pedidos.filter((p) => {
         if (filtroEstado !== "todos" && p.estado !== filtroEstado) return false;
-        if (esAdmin && filtroCliente.trim()) {
+        if ((esAdmin || esEmpleado) && filtroCliente.trim()) {
           const term = filtroCliente.trim().toLowerCase();
           const cliente = (p.cuentas?.cliente || "").toLowerCase();
           const cuenta = (p.cuentas?.numero_cuenta || "").toLowerCase();
@@ -17625,7 +17671,7 @@ if (backOrderExistente) {
 </div>
 
           {/* Buscador por cliente */}
-          {esAdmin && (
+          {(esAdmin || esEmpleado) && (
             <div className="relative">
               <input
                 type="text"
@@ -17677,7 +17723,7 @@ if (backOrderExistente) {
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
                       <p className="font-semibold text-zinc-900">Pedido #{pedido.id}</p>
-                      {esAdmin && pedido.cuentas && (
+                      {(esAdmin || esEmpleado) && pedido.cuentas && (
                         <p className="text-xs text-zinc-600 mt-1">
                           {pedido.cuentas.cliente || "Sin nombre"} — {pedido.cuentas.numero_cuenta}
                         </p>
@@ -27036,6 +27082,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
                   >
                     <HistorialPedidos
                       cuenta={cuenta}
+                      esEmpleado={esEmpleado} 
                       setVistaPerfil={setVistaPerfil}
                       setPedidoIdParaBackOrder={setPedidoIdParaBackOrder}
                       ocultarBackBtn={activeTab === "buscar"}
