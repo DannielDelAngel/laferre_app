@@ -3,11 +3,13 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
 
+
 import {
   SquareStack,
   Search,
   ShoppingCart,
   Codesandbox,
+  FileText,
   MapPin,
   ChevronUp,
   Zap,
@@ -192,6 +194,7 @@ import { useRastreoGPS } from "@/hooks/useRastreoGPS";
 import VistaRastreoRutas from "./VistaRastreoRutas";
 import InventarioPanel from "./InventarioPanel";
 import GestionarGruposView from "./GestionarGruposView";
+import EstadoCuentaPanel from "./EstadoCuentaPanel";
 
 const MapaUbicacion = dynamic(() => import("./MapaUbicacion"), {
   ssr: false,
@@ -2253,6 +2256,9 @@ if (grupoIdSeleccionado) {
             />
           </div>
           <div className="p-2">
+            <p className="text-xs font-medium text-orange-600 line-clamp-2 leading-snug">
+              {sim.CODIGO}
+            </p>
             <p className="text-xs font-medium text-zinc-800 line-clamp-2 leading-snug">
               {sim.TITULO}
             </p>
@@ -13635,6 +13641,7 @@ const caja = fila.CAJA || fila.caja;
 const master = fila.MASTER || fila.master;
 const unidadVenta = fila.UNIDAD_VENTA || fila.unidad_venta;
 const marcaId = fila.MARCA_ID || fila.marca_id;
+const codigoBarrasCaja = fila.CODIGO_BARRAS_CAJA || fila.codigo_barras_caja;
 
           if (!codigo) {
             errores++;
@@ -13669,6 +13676,8 @@ if (unidadVenta !== undefined && unidadVenta !== null && unidadVenta !== "")
   datosActualizar.unidad_venta = unidadVenta;
 if (marcaId !== undefined && marcaId !== null && marcaId !== "")
   datosActualizar.marca_id = parseInt(marcaId);
+if (codigoBarrasCaja !== undefined && codigoBarrasCaja !== null && codigoBarrasCaja !== "")
+  datosActualizar.codigo_barras_caja = String(codigoBarrasCaja);
 
           // Si no hay nada que actualizar, saltar
           if (Object.keys(datosActualizar).length === 0) {
@@ -13924,11 +13933,11 @@ const exportarErroresExcel = () => {
               <li>
                 Columnas opcionales: <strong>P_MAYOREO</strong>,{" "}
                 <strong>DESCRIPCION</strong>, <strong>C_PRODUCTO</strong>,{" "}
-                <strong>TITULO</strong>, <strong>EXISTENCIA</strong>, <strong>CATEGORIA_ID</strong>, <strong>UBICACION</strong>, <strong>CAJA</strong>, <strong>MASTER</strong>, <strong>UNIDAD_VENTA</strong>
+                <strong>TITULO</strong>, <strong>EXISTENCIA</strong>, <strong>CATEGORIA_ID</strong>, <strong>UBICACION</strong>, <strong>CAJA</strong>, <strong>MASTER</strong>, <strong>UNIDAD_VENTA</strong>, <strong>CODIGO_BARRAS_CAJA</strong>
               </li>
               <li>
                 También acepta minúsculas: codigo, p_mayoreo, precio,
-                descripcion, c_producto, titulo, existencia, categoria_id, ubicacion, caja, master, unidad_venta
+                descripcion, c_producto, titulo, existencia, categoria_id, ubicacion, caja, master, unidad_venta, codigo_barras_caja
               </li>
               <li>
                 la columna CODIGO debe ser tipo "general" y P_MAYOREO tipo
@@ -15683,23 +15692,22 @@ const [reimprimiendoCodigo, setReimprimiendoCodigo] = useState<string | null>(nu
                 cantidad_pedida: prod.cantidad_pedida,
                 cantidad_faltante: prod.cantidad_pedida,
               });
-            } else if (prod.estado === "parcial") {
-              const faltante = prod.cantidad_pedida - prod.cantidad_surtida;
-              productosParciales.push({
-                ...prodCompleto,
-                cantidad_pedida: prod.cantidad_pedida,
-                cantidad_surtida: prod.cantidad_surtida,
-                cantidad_faltante: faltante,
-              });
+           } else if (prod.estado === "parcial") {
+  const faltante = prod.cantidad_pedida - prod.cantidad_surtida;
+  productosParciales.push({
+    ...prodCompleto,
+    cantidad_pedida: prod.cantidad_pedida,
+    cantidad_surtida: prod.cantidad_surtida,
+    cantidad_faltante: faltante,
+  });
 
-              // AGREGAR AL STRING: lo que SI se surtió
-              productosCompletos.push({
-                codigo: prod.codigo,
-                cantidad: prod.cantidad_surtida,
-              });
+  productosCompletos.push({
+    codigo: prod.codigo,
+    cantidad: prod.cantidad_surtida,
+    prodCompleto, 
+  });
 
-              totalNeto +=
-                (prodCompleto?.P_MAYOREO || 0) * prod.cantidad_surtida;
+  totalNeto += (prodCompleto?.P_MAYOREO || 0) * prod.cantidad_surtida;
            } else if (
   prod.estado === "completo" &&
   prod.cantidad_surtida > 0
@@ -16759,6 +16767,51 @@ if (backOrderExistente) {
             </div>
           )}
 
+                    {/* informacion de entrega */}
+          {pedidoSeleccionado &&
+            !["entregado", "completado", "listo_para_recoger"].includes(
+              pedidoSeleccionado.estado,
+            ) && (
+              <div className="mt-2 mb-2">
+                {(() => {
+                  const fechaPedido = new Date(pedidoSeleccionado.created_at);
+                  const horaPedido = fechaPedido.getHours();
+                  const esDomicilio = pedidoSeleccionado.es_domicilio;
+                  const entregaMismoDia = cuentaPedido?.entrega_mismo_dia;
+
+                  if (esDomicilio) {
+                    return (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="text-sm text-blue-800 font-semibold">
+                          {entregaMismoDia
+                            ? horaPedido < 10
+                              ? "Tu pedido será entregado el día de hoy"
+                              : "Tu pedido quedará programado para entregar el siguiente día hábil"
+                            : "Recibirás tu pedido en un plazo de 1 a 3 días hábiles (puedes recibirlo el mismo día)"}
+                        </p>
+                      </div>
+                    );
+                  } else {
+  const totalPedido = pedidoSeleccionado.total || 0;
+  const tieneRecogerHabilitado = cuentaPedido?.recoger_en_tienda;
+
+  return (
+    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+      <p className="text-sm text-green-800 font-semibold">
+        {tieneRecogerHabilitado && totalPedido >= 2000
+          ? "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"
+          : horaPedido < 15
+            ? "Tu pedido estará listo para recoger en aproximadamente 3 horas. Mantente atento al estado de tu pedido."
+            : "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"}
+      </p>
+    </div>
+  );
+}
+                })()}
+              </div>
+            )}
+
+
             <div className="bg-white mt-2 rounded-xl border border-zinc-200 p-4 mb-2 shadow-sm">
             <div className="flex justify-between mb-2">
               <span className="text-sm text-zinc-600">Pedido #</span>
@@ -16797,13 +16850,14 @@ if (backOrderExistente) {
                 {cuentaPedido?.numero_cuenta}
               </span>
             </div>
-            
+            {esAdmin && (
               <div className="flex justify-between mb-2">
                 <span className="text-sm text-zinc-600">No. cuenta sicar</span>
                 <span className="font-semibold text-zinc-900">
                   {cuentaPedido?.numero_cuenta_sicar || "N/A"}
                 </span>
               </div>
+              )}
           </div>
 
           {/* Detalles de empaque */}
@@ -17171,62 +17225,8 @@ if (backOrderExistente) {
             )}
           </AnimatePresence>
 
-          {/* informacion de entrega */}
-          {pedidoSeleccionado &&
-            !["entregado", "completado", "listo_para_recoger"].includes(
-              pedidoSeleccionado.estado,
-            ) && (
-              <div className="mt-2 mb-2">
-                {(() => {
-                  const fechaPedido = new Date(pedidoSeleccionado.created_at);
-                  const horaPedido = fechaPedido.getHours();
-                  const esDomicilio = pedidoSeleccionado.es_domicilio;
-                  const entregaMismoDia = cuentaPedido?.entrega_mismo_dia;
 
-                  if (esDomicilio) {
-                    return (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <p className="text-sm text-blue-800 font-semibold">
-                          {entregaMismoDia
-                            ? horaPedido < 10
-                              ? "Tu pedido será entregado el día de hoy"
-                              : "Tu pedido quedará programado para entregar el siguiente día hábil"
-                            : "Recibirás tu pedido en un plazo de 1 a 3 días hábiles (puedes recibirlo el mismo día)"}
-                        </p>
-                      </div>
-                    );
-                  } else {
-  const totalPedido = pedidoSeleccionado.total || 0;
-  const tieneRecogerHabilitado = cuentaPedido?.recoger_en_tienda;
-
-  return (
-    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-      <p className="text-sm text-green-800 font-semibold">
-        {tieneRecogerHabilitado && totalPedido >= 2000
-          ? "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"
-          : horaPedido < 15
-            ? "Tu pedido estará listo para recoger en aproximadamente 3 horas. Mantente atento al estado de tu pedido."
-            : "Tu pedido estará listo para recoger el siguiente día hábil a partir de las 11 AM. Puedes revisar el estado de tu pedido en la sección 'Mis pedidos'"}
-      </p>
-    </div>
-  );
-}
-                })()}
-              </div>
-            )}
-
-          <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
-            <div className="flex justify-between">
-              <span className="font-bold text-zinc-900">Total Pedido</span>
-              <span className="font-bold text-orange-500 text-lg">
-                $
-                {pedidoSeleccionado.total.toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
-            </div>
-          </div>
+          
 
           <h3 className="text-lg font-semibold text-zinc-900 mb-3">
             Documento del Pedido
@@ -17272,6 +17272,20 @@ if (backOrderExistente) {
                   </>
                 )}
               </button>
+
+               <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+            <div className="flex justify-between">
+              <span className="font-bold text-zinc-900">Total Pedido</span>
+              <span className="font-bold text-orange-500 text-lg">
+                $
+                {pedidoSeleccionado.total.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </div>
+          </div>
+
                {esAdmin && (
                 <button
                   onClick={() => {
@@ -17299,6 +17313,7 @@ if (backOrderExistente) {
               )}
             </div>
             
+            
           ) : (
             <>
             <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 text-center">
@@ -17321,6 +17336,20 @@ if (backOrderExistente) {
               </p>
                
             </div>
+
+             <div className="bg-white rounded-xl border border-zinc-200 p-4 mb-4 shadow-sm">
+            <div className="flex justify-between">
+              <span className="font-bold text-zinc-900">Total Pedido</span>
+              <span className="font-bold text-orange-500 text-lg">
+                $
+                {pedidoSeleccionado.total.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </div>
+          </div>
+            
             <div className="space-y-3">
 {esAdmin && (
                 <button
@@ -17352,7 +17381,6 @@ if (backOrderExistente) {
             
             
           )}
-esAdmin 
           {/* Modal de Confirmar Completado */}
           {typeof document !== "undefined" &&
             createPortal(
@@ -20741,7 +20769,7 @@ if (empleados.length > 0) {
   if (nuevaCantidad >= cantidadMaxima) {
     setTimeout(() => {
       setModalProductoActivo(null);
-    }, 1500);
+    }, 8000);
   }
 };
 
@@ -27920,6 +27948,12 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
   />
 
   <MenuItem
+  icon={<FileText size={20} />}
+  label="Estado de Cuenta"
+  onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("estado-cuenta"); }}
+/>
+
+  <MenuItem
   icon={<ScanBarcode size={20} />}
   label="Verificar recepción"
   onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("verificar-recepcion"); }}
@@ -28033,6 +28067,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
           <MenuItem label="Gestionar Cuentas" icon={<Users size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("gestionar-cuentas"); }} />
           <MenuItem label="Confirmar Pagos" icon={<DollarSign size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("confirmar_pagos"); }} />
           <MenuItem label="Gestionar Banner de Anuncios" icon={<Megaphone size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("gestionar-banner"); }} />
+          <MenuItem label="Estado de Cuenta" icon={<FileText size={20} />} onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setVistaPerfil("estado-cuenta"); }} />
         </Acordeon>
       )}
 
@@ -28340,6 +28375,24 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
                         <InventarioPanel supabase={supabase} cuenta={cuenta} esAdmin={esAdmin} esEmpleado={esEmpleado} />
                       </motion.div>
                     )}
+
+                    {vistaPerfil === "estado-cuenta" && (
+  <motion.div
+    key="estado-cuenta"
+    initial={{ opacity: 0, x: 40 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: -40 }}
+    transition={{ duration: 0.3, ease: "easeInOut" }}
+    drag="x"
+    dragConstraints={{ left: 0, right: 0 }}
+    onDragEnd={(event, info) => {
+      if (info.offset.x > 100) setVistaPerfil("menu");
+    }}
+  >
+    <BackBtn onBack={() => setVistaPerfil("menu")} />
+    <EstadoCuentaPanel supabase={supabase} cuenta={cuenta} esAdmin={esAdmin} />
+  </motion.div>
+)}
 
                     {vistaPerfil === "actualizar-bd" && (
                       <ActualizarBDView setVistaPerfil={setVistaPerfil} />
