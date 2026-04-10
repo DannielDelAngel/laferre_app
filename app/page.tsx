@@ -1246,7 +1246,7 @@ if (grupoIdSeleccionado) {
       <div className="space-y-3 mb-4">
         {[
           { id: 1, nombre: "Embarques" },
-          { id: 2, nombre: "2" },
+          { id: 2, nombre: "Almacén" },
           { id: 3, nombre: "3" },
         ].map((printer) => (
           <button
@@ -2223,6 +2223,10 @@ if (grupoIdSeleccionado) {
                 </div>
               )}
 
+{producto.DESCRIPCION && productosSimilares.length > 0 && (
+  <hr className="border-t border-zinc-300" />
+)}
+
               {/* Carrusel de productos similares */}
 {productosSimilares.length > 0 && (
   <div className="mt-6 mb-8">
@@ -2798,7 +2802,8 @@ const toggleRuta = async (ruta: string, activa: boolean) => {
           direccion,
           ruta,
           latitud,
-          longitud
+          longitud,
+          tipo_pago
         )
       `,
       )
@@ -4175,6 +4180,30 @@ const toggleRuta = async (ruta: string, activa: boolean) => {
                       cliente?
                     </p>
 
+                    {/* Tipo de pago */}
+{pedidoSeleccionado?.cuentas?.tipo_pago && (
+  <div className={`flex items-center justify-between px-4 py-3 rounded-xl border-2 mb-4 ${
+    pedidoSeleccionado.cuentas.tipo_pago === "credito"
+      ? "bg-blue-50 border-blue-200"
+      : "bg-green-50 border-green-200"
+  }`}>
+    <div className="flex items-center gap-2">
+      <DollarSign
+        size={18}
+        className={pedidoSeleccionado.cuentas.tipo_pago === "credito" ? "text-blue-600" : "text-green-600"}
+      />
+      <span className="text-sm font-semibold text-zinc-700">Tipo de Pago</span>
+    </div>
+    <span className={`text-sm font-bold px-3 py-1 rounded-full ${
+      pedidoSeleccionado.cuentas.tipo_pago === "credito"
+        ? "bg-blue-100 text-blue-700"
+        : "bg-green-100 text-green-700"
+    }`}>
+      {pedidoSeleccionado.cuentas.tipo_pago === "credito" ? "Crédito" : "Contado"}
+    </span>
+  </div>
+)}
+
                     <div className="space-y-3">
                       <button
                         onClick={async () => {
@@ -5085,27 +5114,72 @@ const cargarGruposDeSubcat = async (subcatId: number) => {
     }
   }, [carrito, pedidoCompleto]);
 
+  const scrollPositions = useRef<{ [key: string]: number }>({
+    categorias: 0,
+    buscar: 0,
+    carrito: 0,
+    ubicacion: 0,
+    perfil: 0
+  });
+
+  const handleTabChange = (newTab: string) => {
+  if (activeTab === newTab) return;
+
+  scrollPositions.current[activeTab] = window.scrollY;
+
+  if (activeTab === "categorias") {
+    localStorage.setItem("scrollPos", window.scrollY.toString());
+  }
+
+  if (activeTab !== "buscar") {
+    buscarStateRef.current = {
+      categoria: categoriaSeleccionada,
+      marca: marcaSeleccionada,
+      searchTerm,
+      productos,
+    };
+  }
+
+  setMostrarOverlayBusqueda(false);
+  setActiveTab(newTab);
+};
+
   useEffect(() => {
-    if (activeTab !== "buscar") {
-      buscarStateRef.current = {
-        categoria: categoriaSeleccionada,
-        marca: marcaSeleccionada,
-        searchTerm,
-        productos,
-      };
+  if (activeTab !== "buscar") {
+    buscarStateRef.current = {
+      categoria: categoriaSeleccionada,
+      marca: marcaSeleccionada,
+      searchTerm,
+      productos,
+    };
+  }
+
+  const restoreScroll = () => {
+    // Pedidos siempre arriba
+    if (activeTab === "buscar" || activeTab === "perfil") {
+  window.scrollTo({ top: 0, behavior: "instant" });
+  return;
+}
+
+    const positionToRestore = scrollPositions.current[activeTab] || 0;
+    
+    let finalPosition = positionToRestore;
+    if (activeTab === "categorias" && finalPosition === 0) {
+      const saved = localStorage.getItem("scrollPos");
+      if (saved) finalPosition = parseInt(saved, 10);
     }
 
-    localStorage.setItem("scrollPos", window.scrollY.toString());
-    const savedScroll = localStorage.getItem("scrollPos");
-    if (savedScroll) {
-      setTimeout(() => {
-        window.scrollTo({
-          top: parseInt(savedScroll),
-          behavior: "instant",
-        });
-      }, 50);
+    if (finalPosition > 0) {
+      window.scrollTo({
+        top: finalPosition,
+        behavior: "instant",
+      });
     }
-  }, [activeTab]);
+  };
+
+  const timeoutId = setTimeout(restoreScroll, 350); 
+  return () => clearTimeout(timeoutId);
+}, [activeTab]);
 
   useEffect(() => {
     if (activeTab === "buscar") {
@@ -10896,6 +10970,7 @@ const [numeroCuentaSicar, setNumeroCuentaSicar] = useState("");
     const [entregaMismoDia, setEntregaMismoDia] = useState(false);
     const [recogerEnTienda, setRecogerEnTienda] = useState(false);
     const [ruta, setRuta] = useState("");
+    const [tipoPago, setTipoPago] = useState("credito");
     const [tipoVista, setTipoVista] = useState<"clientes" | "personal">("clientes"); 
 const [busqueda, setBusqueda] = useState(""); 
     const [horarios, setHorarios] = useState<any[]>([
@@ -11128,6 +11203,7 @@ const [busqueda, setBusqueda] = useState("");
           tipo_comprobante: tipoComprobante,
           latitud: latitud ? parseFloat(latitud) : null,
           longitud: longitud ? parseFloat(longitud) : null,
+          tipo_pago: tipoPago,
         },
       ])
       .select()
@@ -11232,6 +11308,7 @@ const [busqueda, setBusqueda] = useState("");
             tipo_comprobante: tipoComprobante,
             latitud: latitud ? parseFloat(latitud) : null,
             longitud: longitud ? parseFloat(longitud) : null,
+            tipo_pago: tipoPago,
           })
           .eq("id", cuentaSeleccionada.id);
 
@@ -11413,6 +11490,7 @@ const [busqueda, setBusqueda] = useState("");
       setBloquearPorSaldo(cuentaItem.bloquear_por_saldo || false);
       setRuta(cuentaItem.ruta || "");
       setTipoComprobante(cuentaItem.tipo_comprobante || "Nota de Venta");
+      setTipoPago(cuentaItem.tipo_pago || "credito");
 
       // Cargar horarios de la base de datos
       try {
@@ -12564,6 +12642,21 @@ const [busqueda, setBusqueda] = useState("");
   <p className="text-xs text-zinc-500 mt-1">
     Número de cuenta del cliente en el sistema SICAR (opcional)
   </p>
+</div>
+
+{/* Tipo de Pago */}
+<div className="mb-4">
+  <label className="block text-sm font-medium text-zinc-700 mb-2">
+    Tipo de Pago
+  </label>
+  <select
+    value={tipoPago}
+    onChange={(e) => setTipoPago(e.target.value)}
+    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+  >
+    <option value="credito">Crédito</option>
+    <option value="contado">Contado</option>
+  </select>
 </div>
 
               {/* Selector de Ruta */}
@@ -24384,7 +24477,7 @@ if (!contenedores.has(codigo)) {
           <div className="space-y-3 mb-4">
             {[
               { id: 1, nombre: "Embarques" },
-              { id: 2, nombre: "2" },
+              { id: 2, nombre: "Almacén" },
               { id: 3, nombre: "3" }
             ].map((printer) => (
               <button
@@ -29056,7 +29149,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
             </AnimatePresence>
 
             {/* Barra de navegación*/}
-            <nav className="z-[300] fixed bottom-0 left-0 z-50 grid w-full grid-cols-5 items-center border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md">
+<nav className="z-[300] fixed bottom-0 left-0 z-50 grid w-full grid-cols-5 items-center border-t border-zinc-200 bg-white p-3 pb-12 pt-5 text-zinc-700 shadow-md">
   {/* 1. BOTÓN CATEGORÍAS */}
   <button
     onClick={() => {
@@ -29066,20 +29159,15 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
           setMarcaSeleccionada(null);
           setGruposMarca([]);
           setGrupoMarcaActivoId(null);
+          window.scrollTo({ top: 0, behavior: "smooth" });
         } else if (macroCategoriaSeleccionada) {
           setMacroCategoriaSeleccionada(null);
+          window.scrollTo({ top: 0, behavior: "smooth" });
         } else {
-          window.scrollTo({ top: 0, behavior: "instant" });
+          window.scrollTo({ top: 0, behavior: "smooth" });
         }
       } else {
-        setActiveTab("categorias");
-     
-        const savedScroll = localStorage.getItem("scrollPos");
-        if (savedScroll) {
-          setTimeout(() => {
-            window.scrollTo({ top: parseInt(savedScroll), behavior: "instant" });
-          }, 50);
-        }
+        handleTabChange("categorias");
       }
     }}
     className={`flex flex-col items-center text-[10px] sm:text-xs ${
@@ -29090,42 +29178,30 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
     <span className="mt-1">CATÁLOGO</span>
   </button>
 
-  {/* 2. BOTÓN PEDIDOS */}
-  <button
-    onClick={() => {
-      if (activeTab === "categorias") {
-        localStorage.setItem("scrollPos", window.scrollY.toString());
-      }
-      window.scrollTo({ top: 0, behavior: "instant" });
-      setCategoriaSeleccionada(null);
-      setMarcaSeleccionada(null);
-      setGruposMarca([]);
-      setGrupoMarcaActivoId(null);
-      setMacroCategoriaSeleccionada(null);
+ {/* 2. BOTÓN PEDIDOS */}
+<button
+  onClick={() => {
+    if (activeTab === "buscar") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
       setMostrarOverlayBusqueda(false);
-      buscarStateRef.current = {
-        categoria: null,
-        marca: null,
-        searchTerm: "",
-        productos: [],
-      };
-      setActiveTab("buscar");
-    }}
-    className={`flex flex-col items-center text-[10px] sm:text-xs ${
-      activeTab === "buscar" ? "text-orange-500" : "hover:text-orange-500"
-    }`}
-  >
-    <History size={20} />
-    <span className="mt-1">PEDIDOS</span>
-  </button>
-
+      scrollPositions.current["buscar"] = 0;
+      handleTabChange("buscar");
+    }
+  }}
+  className={`flex flex-col items-center text-[10px] sm:text-xs ${
+    activeTab === "buscar" ? "text-orange-500" : "hover:text-orange-500"
+  }`}
+>
+  <History size={20} />
+  <span className="mt-1">PEDIDOS</span>
+</button>
   {/* 3. BOTÓN CARRITO */}
   <div className="relative flex justify-center">
     <button
       onClick={() => {
         setMostrarOverlayBusqueda(false);
-               localStorage.setItem("scrollPos", window.scrollY.toString());
-        setActiveTab("carrito");
+        handleTabChange("carrito");
       }}
       className={`
         absolute flex flex-col items-center text-[10px] sm:text-xs z-50 transition-all duration-300
@@ -29164,8 +29240,7 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
   <button
     onClick={() => {
       setMostrarOverlayBusqueda(false);
-      localStorage.setItem("scrollPos", window.scrollY.toString());
-      setActiveTab("ubicacion");
+      handleTabChange("ubicacion");
     }}
     className={`flex flex-col items-center text-[10px] sm:text-xs ${
       activeTab === "ubicacion" ? "text-orange-500" : "hover:text-orange-500"
@@ -29176,30 +29251,28 @@ return palabras.every((p) => titulo.includes(p) || codigo.includes(p) || cproduc
   </button>
 
   {/* 5. BOTÓN MAS */}
-  <button
-    onClick={() => {
-      setMostrarOverlayBusqueda(false);
-      if (activeTab === "perfil") {
-        if (vistaPerfil !== "menu") {
-          setVistaPerfil("menu");
-        } else {
-          window.scrollTo({ top: 0, behavior: "instant" });
-        }
+<button
+  onClick={() => {
+    setMostrarOverlayBusqueda(false);
+    if (activeTab === "perfil") {
+      if (vistaPerfil !== "menu") {
+        setVistaPerfil("menu");
       } else {
-        if (activeTab === "categorias") {
-          localStorage.setItem("scrollPos", window.scrollY.toString());
-        }
-        window.scrollTo({ top: 0, behavior: "instant" });
-        setActiveTab("perfil");
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
-    }}
-    className={`flex flex-col items-center text-[10px] sm:text-xs ${
-      activeTab === "perfil" ? "text-orange-500" : "hover:text-orange-500"
-    }`}
-  >
-    <Menu size={20} />
-    <span className="mt-1">MAS</span>
-  </button>
+    } else {
+      scrollPositions.current["perfil"] = 0;
+      handleTabChange("perfil");
+    }
+  }}
+  className={`flex flex-col items-center text-[10px] sm:text-xs ${
+    activeTab === "perfil" ? "text-orange-500" : "hover:text-orange-500"
+  }`}
+>
+  <Menu size={20} />
+  <span className="mt-1">MAS</span>
+</button>
+
 </nav>
           </motion.div>
         )}
