@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { FileText, Upload, Search, X, ChevronRight, ChevronLeft } from "lucide-react";
 
@@ -18,8 +18,18 @@ const EstadoCuentaPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
   const [errorMsg, setErrorMsg] = useState("");
   const [estadoCuenta, setEstadoCuenta] = useState<any>(null);
   const [cargando, setCargando] = useState(false);
+  const [pdfActivo, setPdfActivo] = useState(false);
+  const lastTap = useRef<number>(0);
 
-  // cuentas
+  const handleDoubleTap = (e: React.PointerEvent) => {
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      e.preventDefault();
+      setPdfActivo((prev) => !prev);
+    }
+    lastTap.current = now;
+  };
+
   useEffect(() => {
     if (!esAdmin) return;
     const cargar = async () => {
@@ -33,7 +43,6 @@ const EstadoCuentaPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
     };
     cargar();
   }, []);
-
 
   useEffect(() => {
     if (!cuentaSeleccionada) return;
@@ -87,7 +96,6 @@ const EstadoCuentaPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
     setSubiendo(true);
     setErrorMsg("");
 
-    // Borrar PDF anterior 
     if (estadoExistente?.pdf_url) {
       try {
         const url = new URL(estadoExistente.pdf_url);
@@ -130,7 +138,6 @@ const EstadoCuentaPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
       return;
     }
 
-    // Refrescar estado existente
     const { data: nuevo } = await client
       .from("estados_cuenta")
       .select("*")
@@ -148,19 +155,26 @@ const EstadoCuentaPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
 
   // vista admin
   if (esAdmin) {
-
     if (cuentaSeleccionada) {
       return (
         <div className="-mx-10 px-4 pb-32">
           <button
-            onClick={() => { setCuentaSeleccionada(null); setEstadoExistente(null); setPdfFile(null); setErrorMsg(""); setExitoSubida(false); }}
+            onClick={() => {
+              setCuentaSeleccionada(null);
+              setEstadoExistente(null);
+              setPdfFile(null);
+              setErrorMsg("");
+              setExitoSubida(false);
+            }}
             className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 mb-5 transition"
           >
             <ChevronLeft size={16} /> Regresar
           </button>
 
           <div className="mb-5">
-            <p className="text-lg font-bold text-zinc-900">{cuentaSeleccionada.cliente || cuentaSeleccionada.ferreteria}</p>
+            <p className="text-lg font-bold text-zinc-900">
+              {cuentaSeleccionada.cliente || cuentaSeleccionada.ferreteria}
+            </p>
             <p className="text-sm text-zinc-400">{cuentaSeleccionada.numero_cuenta}</p>
           </div>
 
@@ -182,17 +196,20 @@ const EstadoCuentaPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
             </div>
           ) : (
             <>
-              {/* PDF existente */}
               {estadoExistente ? (
                 <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-4">
                   <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">PDF actual</p>
                   <p className="text-xs text-zinc-400 mb-3">
                     Subido el{" "}
-                    {new Date(estadoExistente.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+                    {new Date(estadoExistente.created_at).toLocaleDateString("es-MX", {
+                      day: "2-digit", month: "short", year: "numeric",
+                    })}
                     {" · "}
-                    {new Date(estadoExistente.created_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+                    {new Date(estadoExistente.created_at).toLocaleTimeString("es-MX", {
+                      hour: "2-digit", minute: "2-digit",
+                    })}
                   </p>
-                  <a
+                  < a
                     href={estadoExistente.pdf_url}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -208,7 +225,6 @@ const EstadoCuentaPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
                 </div>
               )}
 
-              {/* Subir o Actualizar PDF */}
               <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">
                 {estadoExistente ? "Actualizar PDF" : "Subir PDF"}
               </p>
@@ -253,12 +269,10 @@ const EstadoCuentaPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
       );
     }
 
-    // Lista de clientes
     return (
       <div className="-mx-10 px-4 pb-32">
         <h2 className="text-xl font-bold text-zinc-900 mb-4">Estado de Cuenta</h2>
 
-        {/* Buscador */}
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
           <input
@@ -306,7 +320,7 @@ const EstadoCuentaPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
     );
   }
 
-  // vista cliente 
+  // vista cliente
   return (
     <div className="-mx-10 px-4 pb-32">
       {cargando ? (
@@ -321,8 +335,8 @@ const EstadoCuentaPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
       ) : (
         <div>
           <div className="mb-4 text-center">
-            <p className="text-sm font-semibold text-zinc-500">Último estado de cuenta</p>
-            <p className="text-xs text-zinc-400 mt-1">
+            <p className="text-base font-semibold text-zinc-500">Último estado de cuenta</p>
+            <p className="text-base text-zinc-400 mt-1">
               {new Date(estadoCuenta.created_at).toLocaleDateString("es-MX", {
                 day: "2-digit", month: "long", year: "numeric",
               })}{" · "}
@@ -332,11 +346,49 @@ const EstadoCuentaPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
             </p>
           </div>
 
-          <div className="w-full rounded-xl overflow-hidden border border-zinc-200 shadow-sm" style={{ height: "75vh" }}>
-            <iframe src={estadoCuenta.pdf_url} className="w-full h-full" title="Estado de Cuenta" />
+          <div
+            className="relative w-full rounded-xl overflow-hidden border border-zinc-200 shadow-sm"
+            style={{ height: "75vh" }}
+          >
+            <iframe
+              src={estadoCuenta.pdf_url}
+              className="w-full h-full"
+              title="Estado de Cuenta"
+            />
+
+            {/* Overlay siempre presente — doble tap activa/desactiva */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: pdfActivo ? "transparent" : "rgba(0,0,0,0.08)",
+                pointerEvents: pdfActivo ? "none" : "auto",
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
+              }}
+              onPointerDown={handleDoubleTap}
+            />
+
+            {/* Hint inactivo */}
+            {!pdfActivo && (
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
+                <div className="bg-white/90 backdrop-blur-sm rounded-2xl px-4 py-2 flex items-center gap-2 shadow">
+                  <FileText size={16} className="text-orange-500" />
+                  <p className="text-xs font-semibold text-zinc-600">Doble tap para interactuar</p>
+                </div>
+              </div>
+            )}
+
+            {/* Hint activo */}
+            {pdfActivo && (
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
+                <div className="bg-orange-500/90 backdrop-blur-sm rounded-2xl px-4 py-2 shadow">
+                  <p className="text-xs font-semibold text-white">Doble tap para salir</p>
+                </div>
+              </div>
+            )}
           </div>
 
-          <a
+          < a
             href={estadoCuenta.pdf_url}
             target="_blank"
             rel="noopener noreferrer"
