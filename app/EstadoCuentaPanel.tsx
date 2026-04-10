@@ -378,15 +378,25 @@ const EstadoCuentaPanel = ({ supabase: sb, cuenta, esAdmin }: any) => {
               </div>
             )}
 
-            {/* Hint activo */}
-            {pdfActivo && (
-              <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
-                <div className="bg-orange-500/90 backdrop-blur-sm rounded-2xl px-4 py-2 shadow">
-                  <p className="text-xs font-semibold text-white">Doble tap para salir</p>
-                </div>
-              </div>
-            )}
-          </div>
+{pdfActivo && (
+  <button
+    onPointerDown={(e) => {
+      e.preventDefault();
+      setPdfActivo(false);
+    }}
+    className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-orange-500/90 backdrop-blur-sm rounded-2xl px-4 py-2 shadow z-50"
+      
+    style={{
+      
+      touchAction: "manipulation",
+      WebkitTapHighlightColor: "transparent",
+    }}
+  >
+    
+  </button>
+)}
+
+</div>
 
           < a
             href={estadoCuenta.pdf_url}
