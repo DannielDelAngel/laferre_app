@@ -20898,6 +20898,7 @@ if (empleados.length > 0) {
       }
 
       setCambiosEstado(nuevoCambios);
+      setBufferEscaneo("");
     };
 
     const ajustarParcialidad = (producto: any, nuevaCantidad: number) => {
@@ -20983,6 +20984,7 @@ if (empleados.length > 0) {
 
       setModalCantidad(null);
       setCantidadManual("");
+      setBufferEscaneo("");
 
       if ("vibrate" in navigator) navigator.vibrate(50);
     };
@@ -24329,6 +24331,7 @@ if (!contenedores.has(codigo)) {
                         setProductosPA(nuevosPA);
                         setProductosIngresoManual(nuevosIngresoManual);
                         setModalProductoProblema(null);
+                        setBufferEscaneo("");
                         if ("vibrate" in navigator) navigator.vibrate(50);
                       }}
                       className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg active:scale-95 transition-transform mb-3 ${
@@ -24419,6 +24422,7 @@ if (!contenedores.has(codigo)) {
 
                             setModalProductoProblema(null);
                             setCantidadParcialInput("");
+                            setBufferEscaneo("");
                             if ("vibrate" in navigator) navigator.vibrate(50);
                           }}
                           disabled={!cantidadParcialInput}
